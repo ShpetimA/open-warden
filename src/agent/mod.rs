@@ -1,17 +1,14 @@
+mod backend;
 pub mod claude;
 pub mod opencode;
 
-use std::ops::Range;
+pub use backend::AgentBackend;
+pub use claude::ClaudeCode;
+
 use std::path::PathBuf;
-use anyhow::Result;
 
 pub struct FixRequest {
-    pub file: PathBuf,
-    pub lines: Range<usize>,
-    pub instruction: String,
-    pub context: String,
-}
-
-pub trait Agent {
-    fn send(&self, req: FixRequest) -> Result<()>;
+    pub diff_content: String,             // unified diff
+    pub comments: Vec<(PathBuf, String)>, // (file, comment text)
+    pub instruction: Option<String>,      // optional user prompt
 }

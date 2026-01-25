@@ -1,5 +1,7 @@
 mod app;
-mod git;
+mod error;
+mod state;
+mod vcs;
 mod diff;
 mod syntax;
 mod ui;

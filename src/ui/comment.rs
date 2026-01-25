@@ -50,6 +50,25 @@ impl CommentStore {
         }
     }
 
+    pub fn remove(&mut self, line_id: &LineId, idx: usize) {
+        if let Some(comments) = self.comments.get_mut(line_id) {
+            if idx < comments.len() {
+                comments.remove(idx);
+                if comments.is_empty() {
+                    self.comments.remove(line_id);
+                }
+            }
+        }
+    }
+
+    pub fn update(&mut self, line_id: &LineId, idx: usize, text: impl Into<String>) {
+        if let Some(comments) = self.comments.get_mut(line_id) {
+            if let Some(comment) = comments.get_mut(idx) {
+                comment.text = text.into();
+            }
+        }
+    }
+
     pub fn all_comments(&self) -> impl Iterator<Item = (&LineId, &Vec<Comment>)> {
         self.comments.iter()
     }

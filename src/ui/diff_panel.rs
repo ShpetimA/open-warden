@@ -55,6 +55,7 @@ enum Row {
     Comment {
         file_idx: usize,
         line_id: LineId,
+        comment_idx: usize,
         text: String,
     },
     CommentEditor {
@@ -93,37 +94,48 @@ impl Row {
 
 pub struct DiffPanel {
     pub editing_line: Option<LineId>,
+    pub editing_comment: Option<(LineId, usize)>,  // (line_id, comment_idx)
     pub draft_text: String,
+    pub current_file_idx: usize,  // Which file we're viewing
     rows: Vec<Row>,
     last_state_hash: u64,
     collapsed_files: HashSet<usize>,
     // Track current file path for syntax highlighting
     current_file_paths: Vec<PathBuf>,
+    // Auto-focus flag for comment editor
+    focus_editor: bool,
 }
 
 impl DiffPanel {
     pub fn new() -> Self {
         Self {
             editing_line: None,
+            editing_comment: None,
             draft_text: String::new(),
+            current_file_idx: 0,
             rows: Vec::new(),
             last_state_hash: 0,
             collapsed_files: HashSet::new(),
             current_file_paths: Vec::new(),
+            focus_editor: false,
         }
     }
 
     fn rebuild_rows(&mut self, diff: &Diff, comments: &CommentStore) {
-        // Hash includes diff structure, comments, editing state, and collapsed state
-        let mut hash = diff.files.iter().fold(0u64, |acc, f| {
-            acc.wrapping_add(f.path.to_string_lossy().len() as u64)
-               .wrapping_add(f.hunks.iter().map(|h| h.lines.len() as u64).sum::<u64>())
-        });
+        // Hash includes current file, comments, editing state
+        let file_idx = self.current_file_idx;
+        let mut hash = (file_idx as u64).wrapping_mul(100003);
+        if let Some(file) = diff.files.get(file_idx) {
+            hash = hash.wrapping_add(file.path.to_string_lossy().len() as u64);
+            hash = hash.wrapping_add(file.hunks.iter().map(|h| h.lines.len() as u64).sum::<u64>());
+        }
         hash = hash.wrapping_add(comments.comment_count() as u64 * 1000);
         hash = hash.wrapping_add(self.editing_line.map_or(0, |id| {
             (id.file_idx * 10000 + id.hunk_idx * 100 + id.line_idx) as u64
         }));
-        hash = hash.wrapping_add(self.collapsed_files.iter().map(|&i| i as u64 * 7919).sum::<u64>());
+        hash = hash.wrapping_add(self.editing_comment.map_or(0, |(id, idx)| {
+            (id.file_idx * 100000 + id.hunk_idx * 1000 + id.line_idx * 10 + idx) as u64
+        }));
 
         if hash == self.last_state_hash && !self.rows.is_empty() {
             return;
@@ -133,18 +145,9 @@ impl DiffPanel {
         self.rows.clear();
         self.current_file_paths.clear();
 
-        for (file_idx, file) in diff.files.iter().enumerate() {
+        // Only process current file
+        if let Some(file) = diff.files.get(file_idx) {
             self.current_file_paths.push(file.path.clone());
-
-            self.rows.push(Row::FileHeader {
-                file_idx,
-                path: file.path.clone()
-            });
-
-            // Skip content if file is collapsed
-            if self.collapsed_files.contains(&file_idx) {
-                continue;
-            }
 
             for (hunk_idx, hunk) in file.hunks.iter().enumerate() {
                 self.rows.push(Row::HunkHeader {
@@ -171,10 +174,11 @@ impl DiffPanel {
 
                     // Add existing comments for this line
                     if let Some(line_comments) = comments.get(&line_id) {
-                        for comment in line_comments {
+                        for (comment_idx, comment) in line_comments.iter().enumerate() {
                             self.rows.push(Row::Comment {
                                 file_idx,
                                 line_id,
+                                comment_idx,
                                 text: comment.text.clone(),
                             });
                         }
@@ -280,8 +284,8 @@ impl DiffPanel {
                         Row::Line { line_id, kind, content, old_num, new_num, .. } => {
                             self.show_line(&mut child_ui, *line_id, *kind, content, *old_num, *new_num, file_path.as_ref(), highlighter);
                         }
-                        Row::Comment { text, .. } => {
-                            self.show_comment(&mut child_ui, text);
+                        Row::Comment { line_id, comment_idx, text, .. } => {
+                            self.show_comment(&mut child_ui, *line_id, *comment_idx, text, comments);
                         }
                         Row::CommentEditor { line_id, .. } => {
                             self.show_comment_editor(&mut child_ui, *line_id, comments);
@@ -408,7 +412,7 @@ impl DiffPanel {
         ui.add_space(INDICATOR_WIDTH + 4.0);
 
         // Line numbers
-        let old_str = old_num.map_or(String::new(), |n| format!("{:>4}", n));
+        let old_str = old_num.map_or("    ".to_string(), |n| format!("{:>4}", n));
         let new_str = new_num.map_or("    ".to_string(), |n| format!("{:>4}", n));
 
         ui.label(RichText::new(&old_str).monospace().color(TEXT_GUTTER).size(12.0));
@@ -438,7 +442,9 @@ impl DiffPanel {
                 self.editing_line = None;
             } else {
                 self.editing_line = Some(line_id);
+                self.editing_comment = None; // Clear comment editing
                 self.draft_text.clear();
+                self.focus_editor = true; // Auto-focus the input
             }
         }
     }
@@ -528,6 +534,12 @@ impl DiffPanel {
                         .hint_text("Add comment...");
                     let te_response = ui.add(text_edit);
 
+                    // Auto-focus on first show
+                    if self.focus_editor {
+                        te_response.request_focus();
+                        self.focus_editor = false;
+                    }
+
                     // Submit on Enter
                     if te_response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         if !self.draft_text.is_empty() {
@@ -550,11 +562,13 @@ impl DiffPanel {
             });
     }
 
-    fn show_comment(&self, ui: &mut Ui, text: &str) {
+    fn show_comment(&mut self, ui: &mut Ui, line_id: LineId, comment_idx: usize, text: &str, comments: &mut CommentStore) {
         let rect = ui.max_rect();
         ui.painter().rect_filled(rect, 0.0, BG_BASE);
 
         ui.add_space(GUTTER_WIDTH + INDICATOR_WIDTH + 16.0);
+
+        let is_editing = self.editing_comment == Some((line_id, comment_idx));
 
         egui::Frame::none()
             .fill(COMMENT_BG)
@@ -562,8 +576,77 @@ impl DiffPanel {
             .rounding(Rounding::same(4.0))
             .inner_margin(egui::Margin::symmetric(8.0, 4.0))
             .show(ui, |ui| {
-                ui.label(RichText::new(text).color(COMMENT_TEXT).size(12.0));
+                if is_editing {
+                    // Edit mode
+                    ui.horizontal(|ui| {
+                        let te = egui::TextEdit::singleline(&mut self.draft_text)
+                            .desired_width(250.0)
+                            .text_color(COMMENT_TEXT);
+                        let te_response = ui.add(te);
+
+                        if te_response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                            if !self.draft_text.is_empty() {
+                                comments.update(&line_id, comment_idx, self.draft_text.clone());
+                            }
+                            self.editing_comment = None;
+                            self.draft_text.clear();
+                        }
+
+                        if ui.button("Save").clicked() && !self.draft_text.is_empty() {
+                            comments.update(&line_id, comment_idx, self.draft_text.clone());
+                            self.editing_comment = None;
+                            self.draft_text.clear();
+                        }
+                        if ui.button("Cancel").clicked() {
+                            self.editing_comment = None;
+                            self.draft_text.clear();
+                        }
+                        if ui.button("🗑").on_hover_text("Delete").clicked() {
+                            comments.remove(&line_id, comment_idx);
+                            self.editing_comment = None;
+                            self.draft_text.clear();
+                        }
+                    });
+                } else {
+                    // View mode - click to edit
+                    let response = ui.interact(
+                        ui.available_rect_before_wrap(),
+                        ui.id().with(("comment", line_id, comment_idx)),
+                        egui::Sense::click()
+                    );
+
+                    ui.label(RichText::new(text).color(COMMENT_TEXT).size(12.0));
+
+                    if response.clicked() {
+                        self.editing_comment = Some((line_id, comment_idx));
+                        self.draft_text = text.to_string();
+                        self.editing_line = None; // Clear line editing
+                    }
+
+                    if response.hovered() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+                    }
+                }
             });
+    }
+
+    pub fn next_file(&mut self, total: usize) {
+        if self.current_file_idx + 1 < total {
+            self.current_file_idx += 1;
+            self.last_state_hash = 0; // Force rebuild
+        }
+    }
+
+    pub fn prev_file(&mut self) {
+        if self.current_file_idx > 0 {
+            self.current_file_idx -= 1;
+            self.last_state_hash = 0; // Force rebuild
+        }
+    }
+
+    pub fn reset_file_idx(&mut self) {
+        self.current_file_idx = 0;
+        self.last_state_hash = 0;
     }
 }
 

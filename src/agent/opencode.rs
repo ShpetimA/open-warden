@@ -1,10 +1,9 @@
-use super::{Agent, FixRequest};
-use anyhow::Result;
+use super::FixRequest;
 
 pub struct OpenCode;
 
-impl Agent for OpenCode {
-    fn send(&self, _req: FixRequest) -> Result<()> {
+impl OpenCode {
+    pub fn send(_req: &FixRequest) -> Result<String, String> {
         todo!("Spawn opencode CLI with context")
     }
 }
