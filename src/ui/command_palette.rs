@@ -25,6 +25,8 @@ pub struct PaletteItem {
 pub enum PaletteAction {
     GoToFile(PathBuf),
     Command(String),
+    SwitchRepo(usize),
+    AddRepo,
 }
 
 pub struct CommandPalette {
@@ -88,6 +90,29 @@ impl CommandPalette {
         self.update_filtered();
     }
 
+    /// Set workspace repo items for switching
+    pub fn set_workspace_items(&mut self, repos: Vec<(usize, String, PathBuf)>) {
+        self.items = repos
+            .into_iter()
+            .map(|(idx, name, path)| {
+                PaletteItem {
+                    label: name,
+                    description: path.display().to_string(),
+                    action: PaletteAction::SwitchRepo(idx),
+                }
+            })
+            .collect();
+
+        // Add "Add Repository" option
+        self.items.push(PaletteItem {
+            label: "Add Repository...".to_string(),
+            description: "Open folder picker".to_string(),
+            action: PaletteAction::AddRepo,
+        });
+
+        self.update_filtered();
+    }
+
     fn update_filtered(&mut self) {
         if self.query.is_empty() {
             // Show all items when no query
@@ -102,10 +127,12 @@ impl CommandPalette {
                 .iter()
                 .enumerate()
                 .filter_map(|(i, item)| {
-                    // Match against full path for GoToFile, or label for commands
+                    // Match against full path for GoToFile, or label for commands/repos
                     let search_text = match &item.action {
                         PaletteAction::GoToFile(p) => p.display().to_string(),
                         PaletteAction::Command(_) => item.label.clone(),
+                        PaletteAction::SwitchRepo(_) => format!("{} {}", item.label, item.description),
+                        PaletteAction::AddRepo => item.label.clone(),
                     };
                     self.matcher.fuzzy_match(&search_text, &self.query)
                         .map(|score| (i, score))

@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 /// Error types for VCS operations.
@@ -112,4 +112,16 @@ pub trait VcsBackend: Send {
 
     /// Get the name of this VCS backend ("git" or "jj").
     fn name(&self) -> &'static str;
+
+    /// Stage a file (git only - jj ignores).
+    fn stage_file(&self, path: &Path) -> Result<()>;
+
+    /// Unstage a file (git only - jj ignores).
+    fn unstage_file(&self, path: &Path) -> Result<()>;
+
+    /// Create a commit with the given message. Returns commit SHA.
+    fn commit(&self, message: &str) -> Result<String>;
+
+    /// Get list of staged files.
+    fn get_staged_files(&self) -> Result<Vec<PathBuf>>;
 }

@@ -38,6 +38,15 @@ const HUNK_HEADER_TEXT: Color32 = Color32::from_rgb(130, 150, 200);
 const FILE_HEADER_TEXT: Color32 = Color32::from_rgb(220, 220, 220);
 
 const CLICK_HINT: Color32 = Color32::from_rgb(100, 100, 120);
+const STAGE_BUTTON_BG: Color32 = Color32::from_rgb(50, 70, 50);
+const UNSTAGE_BUTTON_BG: Color32 = Color32::from_rgb(70, 50, 50);
+
+/// Actions that can be triggered from the diff panel
+#[derive(Debug, Clone)]
+pub enum DiffAction {
+    StageFile(PathBuf),
+    UnstageFile(PathBuf),
+}
 
 /// Flattened row for virtual scrolling
 #[derive(Clone)]
@@ -149,6 +158,12 @@ impl DiffPanel {
         if let Some(file) = diff.files.get(file_idx) {
             self.current_file_paths.push(file.path.clone());
 
+            // Add file header with stage/unstage button
+            self.rows.push(Row::FileHeader {
+                file_idx,
+                path: file.path.clone(),
+            });
+
             for (hunk_idx, hunk) in file.hunks.iter().enumerate() {
                 self.rows.push(Row::HunkHeader {
                     file_idx,
@@ -188,7 +203,10 @@ impl DiffPanel {
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui, diff: &Diff, comments: &mut CommentStore, highlighter: &DiffHighlighter) {
+    /// Show the diff panel.
+    /// `is_staged_view` indicates if we're showing staged changes (true) or unstaged (false).
+    /// Returns an action if the user clicked a stage/unstage button.
+    pub fn show(&mut self, ui: &mut Ui, diff: &Diff, comments: &mut CommentStore, highlighter: &DiffHighlighter, is_staged_view: bool) -> Option<DiffAction> {
         self.rebuild_rows(diff, comments);
 
         let available = ui.available_rect_before_wrap();
@@ -196,11 +214,13 @@ impl DiffPanel {
 
         // Track which file header was clicked (to toggle after iteration)
         let mut toggle_file: Option<usize> = None;
+        // Track staging action
+        let mut action: Option<DiffAction> = None;
 
         // Precompute row heights and cumulative offsets for virtual scrolling
         let row_count = self.rows.len();
         if row_count == 0 {
-            return;
+            return None;
         }
 
         // Build cumulative height array (only rebuild if rows changed)
@@ -274,8 +294,12 @@ impl DiffPanel {
 
                     match &row {
                         Row::FileHeader { file_idx, path } => {
-                            if self.show_file_header(&mut child_ui, *file_idx, &path.display().to_string()) {
+                            let (clicked, stage_action) = self.show_file_header(&mut child_ui, *file_idx, path, is_staged_view);
+                            if clicked {
                                 toggle_file = Some(*file_idx);
+                            }
+                            if stage_action.is_some() {
+                                action = stage_action;
                             }
                         }
                         Row::HunkHeader { header, .. } => {
@@ -302,9 +326,13 @@ impl DiffPanel {
                 self.collapsed_files.insert(file_idx);
             }
         }
+
+        action
     }
 
-    fn show_file_header(&self, ui: &mut Ui, file_idx: usize, path: &str) -> bool {
+    /// Show file header with stage/unstage button.
+    /// Returns (header_clicked, stage_action).
+    fn show_file_header(&self, ui: &mut Ui, file_idx: usize, path: &PathBuf, is_staged_view: bool) -> (bool, Option<DiffAction>) {
         let rect = ui.max_rect();
         let response = ui.interact(rect, ui.id().with(("file_header", file_idx)), egui::Sense::click());
         let is_hovered = response.hovered();
@@ -318,10 +346,55 @@ impl DiffPanel {
 
         ui.add_space(8.0);
 
+        // Stage/Unstage button on the left
+        let button_rect = egui::Rect::from_min_size(
+            egui::pos2(rect.min.x + 8.0, rect.min.y + 4.0),
+            egui::vec2(20.0, 20.0),
+        );
+        let button_response = ui.interact(button_rect, ui.id().with(("stage_btn", file_idx)), egui::Sense::click());
+
+        let (button_bg, button_text, tooltip) = if is_staged_view {
+            (
+                if button_response.hovered() { Color32::from_rgb(90, 60, 60) } else { UNSTAGE_BUTTON_BG },
+                "U",
+                "Unstage file",
+            )
+        } else {
+            (
+                if button_response.hovered() { Color32::from_rgb(60, 90, 60) } else { STAGE_BUTTON_BG },
+                "S",
+                "Stage file",
+            )
+        };
+
+        ui.painter().rect_filled(button_rect, Rounding::same(3.0), button_bg);
+        ui.painter().text(
+            button_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            button_text,
+            egui::FontId::monospace(11.0),
+            Color32::WHITE,
+        );
+
+        let button_clicked = button_response.clicked();
+        button_response.on_hover_text(tooltip);
+
+        let action = if button_clicked {
+            if is_staged_view {
+                Some(DiffAction::UnstageFile(path.clone()))
+            } else {
+                Some(DiffAction::StageFile(path.clone()))
+            }
+        } else {
+            None
+        };
+
+        ui.add_space(32.0);
+
         // Draw triangle using painter
         let is_collapsed = self.collapsed_files.contains(&file_idx);
         let tri_size = 6.0;
-        let tri_center = egui::pos2(rect.min.x + 16.0, rect.center().y);
+        let tri_center = egui::pos2(rect.min.x + 40.0, rect.center().y);
         let tri_color = Color32::from_rgb(150, 150, 150);
 
         if is_collapsed {
@@ -342,11 +415,11 @@ impl DiffPanel {
             ui.painter().add(egui::Shape::convex_polygon(points, tri_color, Stroke::NONE));
         }
 
-        ui.add_space(20.0);
+        ui.add_space(16.0);
 
-        ui.label(RichText::new(path).strong().size(13.0).color(FILE_HEADER_TEXT));
+        ui.label(RichText::new(path.display().to_string()).strong().size(13.0).color(FILE_HEADER_TEXT));
 
-        response.clicked()
+        (response.clicked(), action)
     }
 
     fn show_hunk_header(&self, ui: &mut Ui, header: &str) {

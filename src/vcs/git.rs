@@ -1,6 +1,6 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use git2::{Commit, DiffFormat, DiffOptions, Repository, StatusOptions, Time, Tree};
+use git2::{Commit, DiffFormat, DiffOptions, Repository, Signature, StatusOptions, Time, Tree};
 
 use super::backend::{CommitInfo, Result, StackedCommitInfo, VcsBackend, VcsError};
 
@@ -735,6 +735,92 @@ impl VcsBackend for GitBackend {
 
     fn name(&self) -> &'static str {
         "git"
+    }
+
+    fn stage_file(&self, path: &Path) -> Result<()> {
+        let mut index = self
+            .repo
+            .index()
+            .map_err(|e| VcsError::Other(format!("failed to get index: {}", e)))?;
+
+        index
+            .add_path(path)
+            .map_err(|e| VcsError::Other(format!("failed to stage file: {}", e)))?;
+
+        index
+            .write()
+            .map_err(|e| VcsError::Other(format!("failed to write index: {}", e)))?;
+
+        Ok(())
+    }
+
+    fn unstage_file(&self, path: &Path) -> Result<()> {
+        let head = self
+            .repo
+            .head()
+            .and_then(|h| h.peel_to_commit())
+            .map_err(|e| VcsError::Other(format!("failed to get HEAD: {}", e)))?;
+
+        self.repo
+            .reset_default(Some(head.as_object()), [path])
+            .map_err(|e| VcsError::Other(format!("failed to unstage file: {}", e)))?;
+
+        Ok(())
+    }
+
+    fn commit(&self, message: &str) -> Result<String> {
+        let mut index = self
+            .repo
+            .index()
+            .map_err(|e| VcsError::Other(format!("failed to get index: {}", e)))?;
+
+        let tree_oid = index
+            .write_tree()
+            .map_err(|e| VcsError::Other(format!("failed to write tree: {}", e)))?;
+
+        let tree = self
+            .repo
+            .find_tree(tree_oid)
+            .map_err(|e| VcsError::Other(format!("failed to find tree: {}", e)))?;
+
+        let head = self
+            .repo
+            .head()
+            .and_then(|h| h.peel_to_commit())
+            .map_err(|e| VcsError::Other(format!("failed to get HEAD: {}", e)))?;
+
+        let sig = self
+            .repo
+            .signature()
+            .or_else(|_| Signature::now("Agent Leash", "agent@leash.local"))
+            .map_err(|e| VcsError::Other(format!("failed to get signature: {}", e)))?;
+
+        let commit_oid = self
+            .repo
+            .commit(Some("HEAD"), &sig, &sig, message, &tree, &[&head])
+            .map_err(|e| VcsError::Other(format!("failed to create commit: {}", e)))?;
+
+        Ok(commit_oid.to_string())
+    }
+
+    fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
+        let head = self.repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+
+        let diff = self
+            .repo
+            .diff_tree_to_index(head.as_ref(), None, None)
+            .map_err(|e| VcsError::Other(format!("failed to get staged diff: {}", e)))?;
+
+        let files: Vec<PathBuf> = diff
+            .deltas()
+            .filter_map(|d| {
+                d.new_file()
+                    .path()
+                    .map(|p| p.to_path_buf())
+            })
+            .collect();
+
+        Ok(files)
     }
 }
 

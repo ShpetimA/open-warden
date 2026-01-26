@@ -6,6 +6,7 @@ mod diff;
 mod syntax;
 mod ui;
 mod agent;
+mod workspace;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
