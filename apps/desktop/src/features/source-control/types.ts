@@ -34,6 +34,16 @@ export type GitSnapshot = {
   untracked: FileItem[]
 }
 
+export type DiffFile = {
+  name: string
+  contents: string
+}
+
+export type FileVersions = {
+  oldFile: DiffFile | null
+  newFile: DiffFile | null
+}
+
 export type RunningAction =
   | ''
   | 'stage-all'

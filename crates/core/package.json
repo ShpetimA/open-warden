@@ -2,8 +2,8 @@
   "name": "agent-leash",
   "private": true,
   "scripts": {
-    "dev": "cargo run -p agent-leash",
     "build": "cargo build -p agent-leash",
-    "rust:build": "cargo build -p agent-leash"
+    "rust:build": "cargo build -p agent-leash",
+    "check": "cargo check -p agent-leash"
   }
 }

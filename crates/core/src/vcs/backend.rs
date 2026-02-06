@@ -58,6 +58,53 @@ pub struct CommitInfo {
     pub date: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct SnapshotFile {
+    pub path: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct GitSnapshot {
+    pub repo_root: String,
+    pub branch: String,
+    pub unstaged: Vec<SnapshotFile>,
+    pub staged: Vec<SnapshotFile>,
+    pub untracked: Vec<SnapshotFile>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DiffFile {
+    pub name: String,
+    pub contents: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct FileVersions {
+    pub old_file: Option<DiffFile>,
+    pub new_file: Option<DiffFile>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DiffBucket {
+    Unstaged,
+    Staged,
+    Untracked,
+}
+
+impl DiffBucket {
+    pub fn parse(value: &str) -> Result<Self> {
+        match value {
+            "unstaged" => Ok(Self::Unstaged),
+            "staged" => Ok(Self::Staged),
+            "untracked" => Ok(Self::Untracked),
+            _ => Err(VcsError::Other(
+                "invalid bucket. expected unstaged|staged|untracked".to_string(),
+            )),
+        }
+    }
+}
+
 /// Abstraction over git and jj backends.
 ///
 /// Note: VcsBackend is Send but not Sync. For concurrent access,

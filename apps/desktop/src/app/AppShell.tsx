@@ -12,6 +12,8 @@ export function AppShell() {
   const activeRepo = useSelector(appState$.activeRepo)
   const activePath = useSelector(appState$.activePath)
   const patch = useSelector(appState$.patch)
+  const oldFile = useSelector(appState$.oldFile)
+  const newFile = useSelector(appState$.newFile)
   const loadingPatch = useSelector(appState$.loadingPatch)
   const error = useSelector(appState$.error)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -31,11 +33,11 @@ export function AppShell() {
               <div className="p-3 text-sm text-[#8f96a8]">Loading patch...</div>
             ) : !activePath ? (
               <div className="p-3 text-sm text-[#8f96a8]">Select a file to view diff.</div>
-            ) : !patch.trim() ? (
+            ) : !patch.trim() && !oldFile && !newFile ? (
               <div className="p-3 text-sm text-[#8f96a8]">No diff content.</div>
             ) : (
               <DiffWorkspace
-                key={`${activeRepo}:${activePath}:${patch.length}`}
+                key={`${activeRepo}:${activePath}:${patch.length}:${oldFile?.contents.length ?? -1}:${newFile?.contents.length ?? -1}`}
                 sidebarOpen={sidebarOpen}
                 onToggleSidebar={() => setSidebarOpen((v) => !v)}
               />

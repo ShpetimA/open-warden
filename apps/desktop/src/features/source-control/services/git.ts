@@ -1,13 +1,13 @@
 import { invoke } from '@tauri-apps/api/core'
 
-import type { Bucket, GitSnapshot } from '../types'
+import type { Bucket, FileVersions, GitSnapshot } from '../types'
 
 export async function getGitSnapshot(repoPath: string) {
   return invoke<GitSnapshot>('get_git_snapshot', { repoPath })
 }
 
-export async function getFilePatch(repoPath: string, bucket: Bucket, relPath: string) {
-  return invoke<string>('get_file_patch', { repoPath, bucket, relPath })
+export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
+  return invoke<FileVersions>('get_file_versions', { repoPath, bucket, relPath })
 }
 
 export async function stageFile(repoPath: string, relPath: string) {

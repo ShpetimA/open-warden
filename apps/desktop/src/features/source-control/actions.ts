@@ -6,7 +6,7 @@ import { findExistingBucket } from './utils'
 import {
   commitStaged,
   discardFile,
-  getFilePatch,
+  getFileVersions,
   getGitSnapshot,
   stageAll,
   stageFile,
@@ -33,10 +33,14 @@ export async function loadSnapshot(repoPath: string) {
 
     appState$.activePath.set('')
     appState$.patch.set('')
+    appState$.oldFile.set(null)
+    appState$.newFile.set(null)
   } catch (error) {
     appState$.snapshot.set(null)
     appState$.activePath.set('')
     appState$.patch.set('')
+    appState$.oldFile.set(null)
+    appState$.newFile.set(null)
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {
     appState$.loadingSnapshot.set(false)
@@ -48,11 +52,15 @@ export async function loadPatch(repoPath: string, bucket: Bucket, relPath: strin
   appState$.error.set('')
 
   try {
-    const patch = await getFilePatch(repoPath, bucket, relPath)
+    const versions = await getFileVersions(repoPath, bucket, relPath)
     appState$.activeBucket.set(bucket)
     appState$.activePath.set(relPath)
-    appState$.patch.set(patch)
+    appState$.oldFile.set(versions.oldFile)
+    appState$.newFile.set(versions.newFile)
+    appState$.patch.set('')
   } catch (error) {
+    appState$.oldFile.set(null)
+    appState$.newFile.set(null)
     appState$.patch.set('')
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {

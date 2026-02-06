@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSelector } from '@legendapp/state/react'
-import { FileDiff } from '@pierre/diffs/react'
+import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
+import { FileDiff as PierreFileDiff } from '@pierre/diffs/react'
 import { Check, GitPullRequestArrow, PanelLeft } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -13,7 +14,6 @@ import { appState$ } from '@/features/source-control/store'
 import type { CommentItem, SelectionRange } from '@/features/source-control/types'
 import {
   areRangesEqual,
-  buildDiffCacheKey,
   formatRange,
   normalizeRange,
   parseSelectionRange,
@@ -30,6 +30,8 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
   const activeBucket = useSelector(appState$.activeBucket)
   const activePath = useSelector(appState$.activePath)
   const patch = useSelector(appState$.patch)
+  const oldFile = useSelector(appState$.oldFile)
+  const newFile = useSelector(appState$.newFile)
   const diffStyle = useSelector(appState$.diffStyle)
   const comments = useSelector(appState$.comments)
 
@@ -50,10 +52,17 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
   const currentAnnotations = useMemo(() => toLineAnnotations(currentFileComments), [currentFileComments])
 
   const currentFileDiff = useMemo(() => {
-    if (!patch.trim() || !activeRepo || !activePath) return null
-    const cacheKey = buildDiffCacheKey(activeRepo, activeBucket, activePath, patch)
-    return parseSingleFileDiff(patch, cacheKey)
-  }, [patch, activeRepo, activeBucket, activePath])
+    if (!activePath) return null
+
+    if (oldFile || newFile) {
+      const left: FileContents = oldFile ?? { name: activePath, contents: '' }
+      const right: FileContents = newFile ?? { name: activePath, contents: '' }
+      return parseDiffFromFile(left, right)
+    }
+
+    if (!patch.trim() || !activeRepo) return null
+    return parseSingleFileDiff(patch, `${activeRepo}:${activeBucket}:${activePath}`)
+  }, [patch, activeRepo, activeBucket, activePath, oldFile, newFile])
 
   const updateComposerPosition = useCallback(() => {
     const viewport = diffViewportRef.current
@@ -152,6 +161,9 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
       diffStyle,
       themeType: 'dark' as const,
       disableLineNumbers: false,
+      expandUnchanged: false,
+      expansionLineCount: 20,
+      hunkSeparators: 'line-info' as const,
       enableLineSelection: true,
       onLineSelected: applySelectionRange,
       onLineSelectionEnd,
@@ -241,7 +253,7 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
 
       <div ref={diffViewportRef} className="relative min-h-0 flex-1 overflow-auto" onScroll={onDiffViewportScroll}>
         {currentFileDiff ? (
-          <FileDiff
+          <PierreFileDiff
             fileDiff={currentFileDiff}
             selectedLines={selectedRange}
             lineAnnotations={currentAnnotations}

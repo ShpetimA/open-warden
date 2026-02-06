@@ -234,7 +234,8 @@ impl JjBackend {
                 continue;
             }
 
-            let old_content = self.get_content_from_value(repo, &entry.path, &diff_values.before)?;
+            let old_content =
+                self.get_content_from_value(repo, &entry.path, &diff_values.before)?;
             let new_content = self.get_content_from_value(repo, &entry.path, &diff_values.after)?;
 
             self.format_diff_entry(&mut diff_output, path_str, &old_content, &new_content);
@@ -390,9 +391,17 @@ impl JjBackend {
                         if line_count > CONTEXT_LINES * 2 {
                             output.push_str(&format!(
                                 "@@ -{},{} +{},{} @@\n",
-                                if hunk_old_start == 0 { 0 } else { hunk_old_start },
+                                if hunk_old_start == 0 {
+                                    0
+                                } else {
+                                    hunk_old_start
+                                },
                                 hunk_old_count,
-                                if hunk_new_start == 0 { 0 } else { hunk_new_start },
+                                if hunk_new_start == 0 {
+                                    0
+                                } else {
+                                    hunk_new_start
+                                },
                                 hunk_new_count
                             ));
                             output.push_str(&pending_output);
@@ -446,9 +455,17 @@ impl JjBackend {
         if in_hunk {
             output.push_str(&format!(
                 "@@ -{},{} +{},{} @@\n",
-                if hunk_old_start == 0 { 0 } else { hunk_old_start },
+                if hunk_old_start == 0 {
+                    0
+                } else {
+                    hunk_old_start
+                },
                 hunk_old_count,
-                if hunk_new_start == 0 { 0 } else { hunk_new_start },
+                if hunk_new_start == 0 {
+                    0
+                } else {
+                    hunk_new_start
+                },
                 hunk_new_count
             ));
             output.push_str(&pending_output);
@@ -536,7 +553,8 @@ impl VcsBackend for JjBackend {
                 continue;
             }
 
-            let old_content = self.get_content_from_value(repo, &entry.path, &diff_values.before)?;
+            let old_content =
+                self.get_content_from_value(repo, &entry.path, &diff_values.before)?;
             let new_content = self.get_content_from_value(repo, &entry.path, &diff_values.after)?;
 
             self.format_diff_entry(&mut diff_output, path_str, &old_content, &new_content);

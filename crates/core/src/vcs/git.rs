@@ -813,11 +813,7 @@ impl VcsBackend for GitBackend {
 
         let files: Vec<PathBuf> = diff
             .deltas()
-            .filter_map(|d| {
-                d.new_file()
-                    .path()
-                    .map(|p| p.to_path_buf())
-            })
+            .filter_map(|d| d.new_file().path().map(|p| p.to_path_buf()))
             .collect();
 
         Ok(files)
