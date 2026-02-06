@@ -7,6 +7,9 @@ import path from 'node:path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   clearScreen: false,
+  worker: {
+    format: 'es',
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
