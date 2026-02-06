@@ -1,0 +1,17 @@
+{
+  "name": "agent-leash-core-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "turbo run dev --filter=desktop",
+    "build": "turbo run build",
+    "tauri:build": "turbo run tauri:build --filter=desktop",
+    "lint": "turbo run lint",
+    "rust:build": "turbo run rust:build --filter=agent-leash",
+    "rust:dev": "turbo run dev --filter=agent-leash"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
+  }
+}
