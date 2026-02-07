@@ -12,6 +12,8 @@ export type FileItem = {
   status: string
 }
 
+export type BucketedFile = FileItem & { bucket: Bucket }
+
 export type HistoryCommit = {
   commitId: string
   shortId: string

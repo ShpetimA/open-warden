@@ -2,13 +2,13 @@ import { ChevronDown, ChevronRight, Minus, Plus, Trash2 } from 'lucide-react'
 import { useSelector } from '@legendapp/state/react'
 
 import { appState$ } from '@/features/source-control/store'
-import type { Bucket, FileItem } from '@/features/source-control/types'
+import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { FileRow } from './FileRow'
 
 type Props = {
   sectionKey: 'staged' | 'unstaged'
   title: string
-  rows: Array<FileItem & { bucket: Bucket }>
+  rows: BucketedFile[]
   collapsed: boolean
   unstagedCount: number
   untrackedCount: number
@@ -19,7 +19,7 @@ type Props = {
   onDiscardFile: (bucket: Bucket, path: string) => void
   onStageAll: () => void
   onUnstageAll: () => void
-  onDiscardChangesGroup: (files: Array<FileItem & { bucket: Bucket }>) => void
+  onDiscardChangesGroup: (files: BucketedFile[]) => void
 }
 
 export function FileSection({

@@ -3,11 +3,11 @@ import { useSelector } from '@legendapp/state/react'
 
 import { safeComments } from '@/features/comments/selectors'
 import { appState$ } from '@/features/source-control/store'
-import type { Bucket, FileItem } from '@/features/source-control/types'
+import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { statusBadge } from '@/features/source-control/utils'
 
 type Props = {
-  file: FileItem & { bucket: Bucket }
+  file: BucketedFile
   onSelectFile: (bucket: Bucket, path: string) => void
   onStageFile: (path: string) => void
   onUnstageFile: (path: string) => void

@@ -1,13 +1,11 @@
 import { useEffect, useMemo } from 'react'
 import { useSelector } from '@legendapp/state/react'
 
-import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/components/SourceControlSidebar'
 import { selectFile, selectHistoryCommit, selectHistoryFile } from '@/features/source-control/actions'
+import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
 import { appState$ } from '@/features/source-control/store'
-import type { Bucket, FileItem, HistoryCommit } from '@/features/source-control/types'
+import type { BucketedFile, FileItem, HistoryCommit } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
-
-type ChangedRow = FileItem & { bucket: Bucket }
 
 export function useSourceControlKeyboardNav() {
   const viewMode = useSelector(appState$.viewMode)
@@ -24,21 +22,21 @@ export function useSourceControlKeyboardNav() {
   const allHistoryCommits = historyCommits as HistoryCommit[]
   const allHistoryFiles = historyFiles as FileItem[]
 
-  const visibleChangeRows = useMemo<ChangedRow[]>(() => {
+  const visibleChangeRows = useMemo<BucketedFile[]>(() => {
     const unstaged = snapshot?.unstaged ?? []
     const staged = snapshot?.staged ?? []
     const untracked = snapshot?.untracked ?? []
 
-    const stagedRows: ChangedRow[] = staged.map((file) => ({
+    const stagedRows: BucketedFile[] = staged.map((file) => ({
       ...file,
       bucket: 'staged',
     }))
-    const changedRows: ChangedRow[] = [
+    const changedRows: BucketedFile[] = [
       ...unstaged.map((file) => ({ ...file, bucket: 'unstaged' as const })),
       ...untracked.map((file) => ({ ...file, bucket: 'untracked' as const })),
     ]
 
-    const rows: ChangedRow[] = []
+    const rows: BucketedFile[] = []
     if (!collapseStaged) rows.push(...stagedRows)
     if (!collapseUnstaged) rows.push(...changedRows)
     return rows

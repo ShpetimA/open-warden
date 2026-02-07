@@ -60,7 +60,7 @@ export function HistoryFilesPane() {
                 <button
                   key={`${file.path}:${file.status}`}
                   type="button"
-                  className={`w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
+                  className={`block w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
                     isActive
                       ? 'border-[#445172] bg-[#262d3d]'
                       : 'border-[#30323a] bg-[#1a1b1f] hover:bg-[#23262d]'
@@ -71,9 +71,9 @@ export function HistoryFilesPane() {
                     void selectHistoryFile(file.path)
                   }}
                 >
-                  <div className="flex min-w-0 items-center gap-2 text-xs">
+                  <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs">
                     <span className="w-3 text-center text-[10px] text-[#e39a59]">{statusBadge(file.status)}</span>
-                    <span className="min-w-0 flex-1 truncate font-medium text-[#eef1f8]">{fileName}</span>
+                    <span className="w-0 min-w-0 flex-1 truncate font-medium text-[#eef1f8]">{fileName}</span>
                     {commentCount > 0 ? (
                       <span className="inline-flex h-4 min-w-4 items-center justify-center border border-[#4a5166] bg-[#2a3040] px-1 text-[10px] text-[#dce3f6]">
                         {commentCount}

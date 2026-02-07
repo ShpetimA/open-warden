@@ -1,6 +1,6 @@
 import { open } from '@tauri-apps/plugin-dialog'
 
-import type { Bucket, FileItem, RunningAction, ViewMode } from './types'
+import type { Bucket, BucketedFile, RunningAction, ViewMode } from './types'
 import { appState$ } from './store'
 import { findExistingBucket } from './utils'
 import {
@@ -325,7 +325,7 @@ export async function unstageAllAction() {
   })
 }
 
-export async function discardChangesGroupAction(files: Array<FileItem & { bucket: Bucket }>) {
+export async function discardChangesGroupAction(files: BucketedFile[]) {
   await runRepoAction('discard-changes', async () => {
     for (const file of files) {
       await discardFile(appState$.activeRepo.get(), file.path, file.bucket)
