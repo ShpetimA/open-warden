@@ -82,7 +82,7 @@ export function ChangesTab() {
     <>
       <CommitBox canCommit={canCommit} />
 
-      <ScrollArea className="min-h-0 flex-1 overflow-hidden [&_[data-radix-scroll-area-viewport]]:overflow-x-hidden">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden ">
         <div>
           {loadingSnapshot ? (
             <div className="m-2 border border-[#30323a] bg-[#1a1b1f] px-2 py-2 text-[11px] text-[#8c92a5]">

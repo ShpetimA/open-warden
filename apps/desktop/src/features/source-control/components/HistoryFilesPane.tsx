@@ -35,7 +35,7 @@ export function HistoryFilesPane() {
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 overflow-hidden p-2 [&_[data-radix-scroll-area-viewport]]:overflow-x-hidden">
+      <ScrollArea className="min-h-0 flex-1 overflow-hidden p-2 ">
         {loadingHistoryFiles ? (
           <div className="border border-[#30323a] bg-[#1a1b1f] px-2 py-2 text-[11px] text-[#8c92a5]">
             Loading files...

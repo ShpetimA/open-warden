@@ -30,8 +30,8 @@ export function HistoryTab() {
   }, [allHistoryCommits, historyFilter])
 
   return (
-    <ScrollArea className="min-h-0 flex-1 overflow-hidden p-2 [&_[data-radix-scroll-area-viewport]]:overflow-x-hidden">
-      <div className="flex w-full min-w-0 flex-col space-y-2 overflow-hidden">
+    <ScrollArea className="min-h-0 flex-1 overflow-hidden p-2">
+      <div className="flex w-full min-w-0 flex-col space-y-1 overflow-hidden">
         <Input
           id={HISTORY_FILTER_INPUT_ID}
           value={historyFilter}
