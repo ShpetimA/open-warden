@@ -1,6 +1,8 @@
+import { useMemo } from 'react'
 import { useSelector } from '@legendapp/state/react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { createCommentCountByFile } from '@/features/comments/selectors'
 import { confirmDiscard } from '@/features/comments/actions'
 import {
   discardChangesGroupAction,
@@ -18,6 +20,8 @@ import { FileSection } from './FileSection'
 
 export function ChangesTab() {
   const snapshot = useSelector(appState$.snapshot)
+  const activeRepo = useSelector(appState$.activeRepo)
+  const comments = useSelector(appState$.comments)
   const runningAction = useSelector(appState$.runningAction)
   const commitMessage = useSelector(appState$.commitMessage)
   const collapseStaged = useSelector(appState$.collapseStaged)
@@ -38,6 +42,7 @@ export function ChangesTab() {
   }))
 
   const canCommit = !!commitMessage.trim() && stagedFiles.length > 0 && !runningAction
+  const commentCounts = useMemo(() => createCommentCountByFile(comments), [comments])
 
   const onToggle = (key: 'staged' | 'unstaged') => {
     if (key === 'staged') {
@@ -104,6 +109,8 @@ export function ChangesTab() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
+            commentCounts={commentCounts}
+            activeRepo={activeRepo}
           />
           <FileSection
             sectionKey="unstaged"
@@ -120,6 +127,8 @@ export function ChangesTab() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
+            commentCounts={commentCounts}
+            activeRepo={activeRepo}
           />
         </div>
       </ScrollArea>

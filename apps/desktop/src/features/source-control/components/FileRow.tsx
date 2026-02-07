@@ -1,24 +1,32 @@
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import { useSelector } from '@legendapp/state/react'
 
-import { safeComments } from '@/features/comments/selectors'
+import { getCommentCountForFile } from '@/features/comments/selectors'
 import { appState$ } from '@/features/source-control/store'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { statusBadge } from '@/features/source-control/utils'
 
 type Props = {
   file: BucketedFile
+  commentCounts: Map<string, number>
+  activeRepo: string
   onSelectFile: (bucket: Bucket, path: string) => void
   onStageFile: (path: string) => void
   onUnstageFile: (path: string) => void
   onDiscardFile: (bucket: Bucket, path: string) => void
 }
 
-export function FileRow({ file, onSelectFile, onStageFile, onUnstageFile, onDiscardFile }: Props) {
-  const activeRepo = useSelector(appState$.activeRepo)
+export function FileRow({
+  file,
+  commentCounts,
+  activeRepo,
+  onSelectFile,
+  onStageFile,
+  onUnstageFile,
+  onDiscardFile,
+}: Props) {
   const activeBucket = useSelector(appState$.activeBucket)
   const activePath = useSelector(appState$.activePath)
-  const comments = useSelector(appState$.comments)
   const runningAction = useSelector(appState$.runningAction)
 
   const isActive = activeBucket === file.bucket && activePath === file.path
@@ -28,9 +36,7 @@ export function FileRow({ file, onSelectFile, onStageFile, onUnstageFile, onDisc
   const pathParts = normalizedPath.split('/').filter(Boolean)
   const fileName = pathParts[pathParts.length - 1] ?? file.path
   const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
-  const commentCount = safeComments(comments).filter(
-    (comment) => comment.repoPath === activeRepo && comment.filePath === file.path,
-  ).length
+  const commentCount = getCommentCountForFile(commentCounts, activeRepo, file.path)
 
   return (
     <div

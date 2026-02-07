@@ -1,4 +1,16 @@
-export type Bucket = 'unstaged' | 'staged' | 'untracked'
+import type {
+  Bucket as ContractBucket,
+  DiffFile as ContractDiffFile,
+  FileItem as ContractFileItem,
+  FileStatus as ContractFileStatus,
+  FileVersions as ContractFileVersions,
+  GitSnapshot as ContractGitSnapshot,
+  HistoryCommit as ContractHistoryCommit,
+} from '@/bindings'
+
+export type Bucket = ContractBucket
+
+export type FileStatus = ContractFileStatus
 
 export type ViewMode = 'changes' | 'history'
 
@@ -6,21 +18,11 @@ export type HistoryNavTarget = 'commits' | 'files'
 
 export type DiffStyle = 'split' | 'unified'
 
-export type FileItem = {
-  path: string
-  previousPath?: string | null
-  status: string
-}
+export type FileItem = ContractFileItem
 
 export type BucketedFile = FileItem & { bucket: Bucket }
 
-export type HistoryCommit = {
-  commitId: string
-  shortId: string
-  summary: string
-  author: string
-  relativeTime: string
-}
+export type HistoryCommit = ContractHistoryCommit
 
 export type SelectionRange = {
   start: number
@@ -41,23 +43,11 @@ export type CommentItem = {
   text: string
 }
 
-export type GitSnapshot = {
-  repoRoot: string
-  branch: string
-  unstaged: FileItem[]
-  staged: FileItem[]
-  untracked: FileItem[]
-}
+export type GitSnapshot = ContractGitSnapshot
 
-export type DiffFile = {
-  name: string
-  contents: string
-}
+export type DiffFile = ContractDiffFile
 
-export type FileVersions = {
-  oldFile: DiffFile | null
-  newFile: DiffFile | null
-}
+export type FileVersions = ContractFileVersions
 
 export type RunningAction =
   | ''
@@ -65,4 +55,6 @@ export type RunningAction =
   | 'unstage-all'
   | 'discard-changes'
   | 'commit'
-  | `file:${string}`
+  | `file:stage:${string}`
+  | `file:unstage:${string}`
+  | `file:discard:${string}`

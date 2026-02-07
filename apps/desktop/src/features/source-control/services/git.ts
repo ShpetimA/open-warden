@@ -1,17 +1,33 @@
-import { invoke } from '@tauri-apps/api/core'
+import { commands, type ApiError, type Result as CommandResult } from '@/bindings'
 
 import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from '../types'
 
+type DiscardFileRequest = {
+  relPath: string
+  bucket: Bucket
+}
+
+function toErrorMessage(error: ApiError): string {
+  return error.details ? `${error.message}: ${error.details}` : error.message
+}
+
+function unwrapResult<T>(result: CommandResult<T, ApiError>): T {
+  if (result.status === 'error') {
+    throw new Error(toErrorMessage(result.error))
+  }
+  return result.data
+}
+
 export async function getGitSnapshot(repoPath: string) {
-  return invoke<GitSnapshot>('get_git_snapshot', { repoPath })
+  return unwrapResult<GitSnapshot>(await commands.getGitSnapshot(repoPath))
 }
 
 export async function getCommitHistory(repoPath: string, limit?: number) {
-  return invoke<HistoryCommit[]>('get_commit_history', { repoPath, limit })
+  return unwrapResult<HistoryCommit[]>(await commands.getCommitHistory(repoPath, limit ?? null))
 }
 
 export async function getCommitFiles(repoPath: string, commitId: string) {
-  return invoke<FileItem[]>('get_commit_files', { repoPath, commitId })
+  return unwrapResult<FileItem[]>(await commands.getCommitFiles(repoPath, commitId))
 }
 
 export async function getCommitFileVersions(
@@ -20,33 +36,39 @@ export async function getCommitFileVersions(
   relPath: string,
   previousPath?: string,
 ) {
-  return invoke<FileVersions>('get_commit_file_versions', { repoPath, commitId, relPath, previousPath })
+  return unwrapResult<FileVersions>(
+    await commands.getCommitFileVersions(repoPath, commitId, relPath, previousPath ?? null),
+  )
 }
 
 export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
-  return invoke<FileVersions>('get_file_versions', { repoPath, bucket, relPath })
+  return unwrapResult<FileVersions>(await commands.getFileVersions(repoPath, relPath, bucket))
 }
 
 export async function stageFile(repoPath: string, relPath: string) {
-  await invoke('stage_file', { repoPath, relPath })
+  unwrapResult(await commands.stageFile(repoPath, relPath))
 }
 
 export async function unstageFile(repoPath: string, relPath: string) {
-  await invoke('unstage_file', { repoPath, relPath })
+  unwrapResult(await commands.unstageFile(repoPath, relPath))
 }
 
 export async function discardFile(repoPath: string, relPath: string, bucket: Bucket) {
-  await invoke('discard_file', { repoPath, relPath, bucket })
+  unwrapResult(await commands.discardFile(repoPath, relPath, bucket))
+}
+
+export async function discardFiles(repoPath: string, files: DiscardFileRequest[]) {
+  unwrapResult(await commands.discardFiles(repoPath, files))
 }
 
 export async function stageAll(repoPath: string) {
-  await invoke('stage_all', { repoPath })
+  unwrapResult(await commands.stageAll(repoPath))
 }
 
 export async function unstageAll(repoPath: string) {
-  await invoke('unstage_all', { repoPath })
+  unwrapResult(await commands.unstageAll(repoPath))
 }
 
 export async function commitStaged(repoPath: string, message: string) {
-  await invoke('commit_staged', { repoPath, message })
+  return unwrapResult<string>(await commands.commitStaged(repoPath, message))
 }

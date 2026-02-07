@@ -1,7 +1,8 @@
+import { useMemo } from 'react'
 import { useSelector } from '@legendapp/state/react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { safeComments } from '@/features/comments/selectors'
+import { createCommentCountByFile, getCommentCountForFile } from '@/features/comments/selectors'
 import { selectHistoryFile } from '@/features/source-control/actions'
 import { appState$ } from '@/features/source-control/store'
 import type { FileItem } from '@/features/source-control/types'
@@ -15,6 +16,7 @@ export function HistoryFilesPane() {
   const activePath = useSelector(appState$.activePath)
   const comments = useSelector(appState$.comments)
   const loadingHistoryFiles = useSelector(appState$.loadingHistoryFiles)
+  const commentCounts = useMemo(() => createCommentCountByFile(comments), [comments])
 
   const selectedCommit = historyCommits.find((commit) => commit?.commitId === historyCommitId)
   const files = historyFiles as FileItem[]
@@ -52,9 +54,7 @@ export function HistoryFilesPane() {
               const fileName = pathParts[pathParts.length - 1] ?? file.path
               const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
               const isActive = activePath === file.path
-              const commentCount = safeComments(comments).filter(
-                (comment) => comment.repoPath === activeRepo && comment.filePath === file.path,
-              ).length
+              const commentCount = getCommentCountForFile(commentCounts, activeRepo, file.path)
 
               return (
                 <button

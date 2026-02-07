@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "gen:bindings": "cargo run --manifest-path src-tauri/Cargo.toml --bin export-bindings",
     "tauri": "tauri"
   },
   "dependencies": {

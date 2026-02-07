@@ -1,7 +1,4 @@
-import { parsePatchFiles } from '@pierre/diffs'
-import type { FileDiffMetadata } from '@pierre/diffs/react'
-
-import type { GitSnapshot, SelectionRange } from './types'
+import type { FileStatus, GitSnapshot, SelectionRange } from './types'
 
 export function repoLabel(path: string): string {
   const normalized = path.replace(/\\/g, '/')
@@ -27,7 +24,7 @@ export function formatRange(startLine: number, endLine: number): string {
   return startLine === endLine ? `L${startLine}` : `L${startLine}-${endLine}`
 }
 
-export function statusBadge(status: string): string {
+export function statusBadge(status: FileStatus): string {
   if (status === 'added' || status === 'untracked') return 'A'
   if (status === 'deleted') return 'D'
   if (status === 'renamed') return 'R'
@@ -63,29 +60,4 @@ export function areRangesEqual(a: SelectionRange | null, b: SelectionRange | nul
   if (a === b) return true
   if (!a || !b) return false
   return a.start === b.start && a.end === b.end && a.side === b.side && a.endSide === b.endSide
-}
-
-function hashString(input: string): string {
-  let hash = 2166136261
-  for (let i = 0; i < input.length; i += 1) {
-    hash ^= input.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
-  }
-  return (hash >>> 0).toString(36)
-}
-
-export function buildDiffCacheKey(repoPath: string, bucket: string, relPath: string, patch: string): string {
-  return `${repoPath}:${bucket}:${relPath}:${patch.length}:${hashString(patch)}`
-}
-
-export function parseSingleFileDiff(patch: string, cacheKeyPrefix: string): FileDiffMetadata | null {
-  try {
-    const parsedPatches = parsePatchFiles(patch, cacheKeyPrefix)
-    if (parsedPatches.length !== 1) return null
-    const files = parsedPatches[0]?.files
-    if (!files || files.length !== 1) return null
-    return files[0] ?? null
-  } catch {
-    return null
-  }
 }

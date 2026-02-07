@@ -14,7 +14,6 @@ export function AppShell() {
   const activeRepo = useSelector(appState$.activeRepo)
   const viewMode = useSelector(appState$.viewMode)
   const activePath = useSelector(appState$.activePath)
-  const patch = useSelector(appState$.patch)
   const oldFile = useSelector(appState$.oldFile)
   const newFile = useSelector(appState$.newFile)
   const loadingPatch = useSelector(appState$.loadingPatch)
@@ -23,7 +22,7 @@ export function AppShell() {
 
   useSourceControlKeyboardNav()
 
-  const diffWorkspaceKey = `${activeRepo}:${activePath}:${patch.length}:${oldFile?.contents.length ?? -1}:${newFile?.contents.length ?? -1}`
+  const diffWorkspaceKey = `${activeRepo}:${activePath}:${oldFile?.contents.length ?? -1}:${newFile?.contents.length ?? -1}`
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#111216] text-[#d8dbe3]">
@@ -42,12 +41,12 @@ export function AppShell() {
 
                 <section className="min-h-0">
                   {loadingPatch ? (
-                    <div className="p-3 text-sm text-[#8f96a8]">Loading patch...</div>
+                    <div className="p-3 text-sm text-[#8f96a8]">Loading diff...</div>
                   ) : !activePath ? (
                     <div className="p-3 text-sm text-[#8f96a8]">
                       {viewMode === 'history' ? 'Select a commit file to view diff.' : 'Select a file to view diff.'}
                     </div>
-                  ) : !patch.trim() && !oldFile && !newFile ? (
+                  ) : !oldFile && !newFile ? (
                     <div className="p-3 text-sm text-[#8f96a8]">No diff content.</div>
                   ) : (
                     <DiffWorkspace

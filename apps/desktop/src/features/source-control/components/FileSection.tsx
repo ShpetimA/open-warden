@@ -9,6 +9,8 @@ type Props = {
   sectionKey: 'staged' | 'unstaged'
   title: string
   rows: BucketedFile[]
+  commentCounts: Map<string, number>
+  activeRepo: string
   collapsed: boolean
   unstagedCount: number
   untrackedCount: number
@@ -26,6 +28,8 @@ export function FileSection({
   sectionKey,
   title,
   rows,
+  commentCounts,
+  activeRepo,
   collapsed,
   unstagedCount,
   untrackedCount,
@@ -103,6 +107,8 @@ export function FileSection({
               <FileRow
                 key={`${file.bucket}-${file.path}`}
                 file={file}
+                commentCounts={commentCounts}
+                activeRepo={activeRepo}
                 onSelectFile={onSelectFile}
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}

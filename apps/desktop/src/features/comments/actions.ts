@@ -1,7 +1,6 @@
 import { appState$ } from '@/features/source-control/store'
 import type { Bucket, CommentItem, SelectionRange } from '@/features/source-control/types'
 import { formatRange, normalizeRange } from '@/features/source-control/utils'
-import { safeComments } from './selectors'
 
 export function addComment(range: SelectionRange, text: string) {
   const trimmed = text.trim()
@@ -27,11 +26,11 @@ export function addComment(range: SelectionRange, text: string) {
     text: trimmed,
   }
 
-  appState$.comments.set([...safeComments(appState$.comments.get()), next])
+  appState$.comments.set([...appState$.comments.get(), next])
 }
 
 export function removeComment(id: string) {
-  appState$.comments.set(safeComments(appState$.comments.get()).filter((item) => item.id !== id))
+  appState$.comments.set(appState$.comments.get().filter((item) => item.id !== id))
 }
 
 export function updateComment(id: string, text: string) {
@@ -39,7 +38,7 @@ export function updateComment(id: string, text: string) {
   if (!trimmed) return
 
   appState$.comments.set(
-    safeComments(appState$.comments.get()).map((item) => {
+    appState$.comments.get().map((item) => {
       if (item.id !== id) return item
       return { ...item, text: trimmed }
     }),
@@ -47,7 +46,7 @@ export function updateComment(id: string, text: string) {
 }
 
 export async function copyComments(scope: 'file' | 'all') {
-  const all = safeComments(appState$.comments.get())
+  const all = appState$.comments.get()
   const source =
     scope === 'file'
       ? all.filter((c) => c.repoPath === appState$.activeRepo.get() && c.filePath === appState$.activePath.get())

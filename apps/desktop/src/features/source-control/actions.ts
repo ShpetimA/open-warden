@@ -6,6 +6,7 @@ import { findExistingBucket } from './utils'
 import {
   commitStaged,
   discardFile,
+  discardFiles,
   getCommitFileVersions,
   getCommitFiles,
   getCommitHistory,
@@ -17,12 +18,21 @@ import {
   unstageFile,
 } from './services/git'
 
+let snapshotLoadRequestId = 0
+let historyCommitsLoadRequestId = 0
+let historyFilesLoadRequestId = 0
+let fileVersionsLoadRequestId = 0
+
+function isRepoStillActive(repoPath: string): boolean {
+  return appState$.activeRepo.get() === repoPath
+}
+
 function nextChangedFileAfterStage(filePath: string): { bucket: Bucket; path: string } | null {
   const snapshot = appState$.snapshot.get()
   if (!snapshot) return null
 
   const changed: Array<{ bucket: Bucket; path: string }> = [
-    ...snapshot.unstaged.map((file) => ({ bucket: 'unstaged' as const , path: file.path })),
+    ...snapshot.unstaged.map((file) => ({ bucket: 'unstaged' as const, path: file.path })),
     ...snapshot.untracked.map((file) => ({ bucket: 'untracked' as const, path: file.path })),
   ]
   if (changed.length === 0) return null
@@ -41,7 +51,6 @@ function nextChangedFileAfterStage(filePath: string): { bucket: Bucket; path: st
 
 function clearDiffSelection() {
   appState$.activePath.set('')
-  appState$.patch.set('')
   appState$.oldFile.set(null)
   appState$.newFile.set(null)
 }
@@ -59,32 +68,37 @@ async function loadHistoryFileVersions(
   relPath: string,
   previousPath?: string,
 ) {
+  const requestId = ++fileVersionsLoadRequestId
   appState$.loadingPatch.set(true)
   appState$.error.set('')
 
   try {
     const versions = await getCommitFileVersions(repoPath, commitId, relPath, previousPath)
+    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.historyCommitId.set(commitId)
     appState$.activePath.set(relPath)
     appState$.oldFile.set(versions.oldFile)
     appState$.newFile.set(versions.newFile)
-    appState$.patch.set('')
   } catch (error) {
+    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.oldFile.set(null)
     appState$.newFile.set(null)
-    appState$.patch.set('')
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {
-    appState$.loadingPatch.set(false)
+    if (requestId === fileVersionsLoadRequestId) {
+      appState$.loadingPatch.set(false)
+    }
   }
 }
 
 async function loadHistoryFiles(repoPath: string, commitId: string, preferredPath = '') {
+  const requestId = ++historyFilesLoadRequestId
   appState$.loadingHistoryFiles.set(true)
   appState$.error.set('')
 
   try {
     const files = await getCommitFiles(repoPath, commitId)
+    if (requestId !== historyFilesLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.historyNavTarget.set('commits')
     appState$.historyCommitId.set(commitId)
     appState$.historyFiles.set(files)
@@ -98,11 +112,14 @@ async function loadHistoryFiles(repoPath: string, commitId: string, preferredPat
 
     await loadHistoryFileVersions(repoPath, commitId, nextFile.path, nextFile.previousPath ?? undefined)
   } catch (error) {
+    if (requestId !== historyFilesLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.historyFiles.set([])
     clearDiffSelection()
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {
-    appState$.loadingHistoryFiles.set(false)
+    if (requestId === historyFilesLoadRequestId) {
+      appState$.loadingHistoryFiles.set(false)
+    }
   }
 }
 
@@ -116,11 +133,13 @@ async function reloadActiveView(repoPath: string) {
 }
 
 export async function loadSnapshot(repoPath: string) {
+  const requestId = ++snapshotLoadRequestId
   appState$.loadingSnapshot.set(true)
   appState$.error.set('')
 
   try {
     const snapshot = await getGitSnapshot(repoPath)
+    if (requestId !== snapshotLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.snapshot.set(snapshot)
 
     const previousPath = appState$.activePath.get()
@@ -128,26 +147,31 @@ export async function loadSnapshot(repoPath: string) {
 
     if (existingBucket && previousPath) {
       appState$.activeBucket.set(existingBucket)
-      await loadPatch(repoPath, existingBucket, previousPath)
+      await loadFileVersions(repoPath, existingBucket, previousPath)
       return
     }
 
     clearDiffSelection()
   } catch (error) {
+    if (requestId !== snapshotLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.snapshot.set(null)
     clearDiffSelection()
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {
-    appState$.loadingSnapshot.set(false)
+    if (requestId === snapshotLoadRequestId) {
+      appState$.loadingSnapshot.set(false)
+    }
   }
 }
 
 export async function loadHistoryCommits(repoPath: string) {
+  const requestId = ++historyCommitsLoadRequestId
   appState$.loadingHistoryCommits.set(true)
   appState$.error.set('')
 
   try {
     const commits = await getCommitHistory(repoPath)
+    if (requestId !== historyCommitsLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.historyCommits.set(commits)
 
     if (commits.length === 0) {
@@ -166,32 +190,38 @@ export async function loadHistoryCommits(repoPath: string) {
 
     await loadHistoryFiles(repoPath, selectedCommit.commitId, appState$.activePath.get())
   } catch (error) {
+    if (requestId !== historyCommitsLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.historyCommits.set([])
     clearHistorySelection()
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {
-    appState$.loadingHistoryCommits.set(false)
+    if (requestId === historyCommitsLoadRequestId) {
+      appState$.loadingHistoryCommits.set(false)
+    }
   }
 }
 
-export async function loadPatch(repoPath: string, bucket: Bucket, relPath: string) {
+export async function loadFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
+  const requestId = ++fileVersionsLoadRequestId
   appState$.loadingPatch.set(true)
   appState$.error.set('')
 
   try {
     const versions = await getFileVersions(repoPath, bucket, relPath)
+    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.activeBucket.set(bucket)
     appState$.activePath.set(relPath)
     appState$.oldFile.set(versions.oldFile)
     appState$.newFile.set(versions.newFile)
-    appState$.patch.set('')
   } catch (error) {
+    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
     appState$.oldFile.set(null)
     appState$.newFile.set(null)
-    appState$.patch.set('')
     appState$.error.set(error instanceof Error ? error.message : String(error))
   } finally {
-    appState$.loadingPatch.set(false)
+    if (requestId === fileVersionsLoadRequestId) {
+      appState$.loadingPatch.set(false)
+    }
   }
 }
 
@@ -225,7 +255,7 @@ export async function selectFile(bucket: Bucket, relPath: string) {
   if (appState$.viewMode.get() !== 'changes') return
   const activeRepo = appState$.activeRepo.get()
   if (!activeRepo) return
-  await loadPatch(activeRepo, bucket, relPath)
+  await loadFileVersions(activeRepo, bucket, relPath)
 }
 
 export async function selectHistoryCommit(commitId: string) {
@@ -327,9 +357,8 @@ export async function unstageAllAction() {
 
 export async function discardChangesGroupAction(files: BucketedFile[]) {
   await runRepoAction('discard-changes', async () => {
-    for (const file of files) {
-      await discardFile(appState$.activeRepo.get(), file.path, file.bucket)
-    }
+    const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }))
+    await discardFiles(appState$.activeRepo.get(), payload)
   })
 }
 
@@ -337,7 +366,8 @@ export async function commitAction() {
   const commitMessage = appState$.commitMessage.get().trim()
   if (!commitMessage) return
   await runRepoAction('commit', async () => {
-    await commitStaged(appState$.activeRepo.get(), commitMessage)
+    const commitId = await commitStaged(appState$.activeRepo.get(), commitMessage)
+    appState$.lastCommitId.set(commitId)
     appState$.commitMessage.set('')
   })
 }

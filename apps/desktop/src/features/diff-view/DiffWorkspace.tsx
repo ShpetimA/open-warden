@@ -11,7 +11,7 @@ import {
   removeComment,
   toLineAnnotations,
 } from '@/features/comments/actions'
-import { safeComments } from '@/features/comments/selectors'
+import { compactComments } from '@/features/comments/selectors'
 import { setDiffStyle } from '@/features/source-control/actions'
 import { appState$ } from '@/features/source-control/store'
 import type { CommentItem, SelectionRange } from '@/features/source-control/types'
@@ -22,7 +22,6 @@ import {
   formatRange,
   normalizeRange,
   parseSelectionRange,
-  parseSingleFileDiff,
 } from '@/features/source-control/utils'
 
 type Props = {
@@ -33,9 +32,7 @@ type Props = {
 export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
   const viewMode = useSelector(appState$.viewMode)
   const activeRepo = useSelector(appState$.activeRepo)
-  const activeBucket = useSelector(appState$.activeBucket)
   const activePath = useSelector(appState$.activePath)
-  const patch = useSelector(appState$.patch)
   const oldFile = useSelector(appState$.oldFile)
   const newFile = useSelector(appState$.newFile)
   const diffStyle = useSelector(appState$.diffStyle)
@@ -53,24 +50,18 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
     visible: false,
   })
 
-  const allComments = useMemo(() => safeComments(comments), [comments])
+  const allComments = useMemo(() => compactComments(comments), [comments])
   const currentFileComments = useMemo(
     () => (isHistoryMode ? [] : fileComments(allComments, activeRepo, activePath)),
     [isHistoryMode, allComments, activeRepo, activePath],
   )
   const currentAnnotations = useMemo(() => toLineAnnotations(currentFileComments), [currentFileComments])
   const currentFileDiff = useMemo(() => {
-    if (!activePath) return null
-
-    if (oldFile || newFile) {
-      const left: FileContents = oldFile ?? { name: activePath, contents: '' }
-      const right: FileContents = newFile ?? { name: activePath, contents: '' }
-      return parseDiffFromFile(left, right)
-    }
-
-    if (!patch.trim() || !activeRepo) return null
-    return parseSingleFileDiff(patch, `${activeRepo}:${activeBucket}:${activePath}`)
-  }, [patch, activeRepo, activeBucket, activePath, oldFile, newFile])
+    if (!activePath || (!oldFile && !newFile)) return null
+    const left: FileContents = oldFile ?? { name: activePath, contents: '' }
+    const right: FileContents = newFile ?? { name: activePath, contents: '' }
+    return parseDiffFromFile(left, right)
+  }, [activePath, oldFile, newFile])
 
   const updateComposerPosition = useCallback(() => {
     const viewport = diffViewportRef.current
@@ -176,6 +167,12 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
     setComposerPos((prev) => ({ ...prev, visible: false }))
   }
 
+  const selectedRangeLabel = useMemo(() => {
+    if (!selectedRange) return ''
+    const normalized = normalizeRange(selectedRange)
+    return formatRange(normalized.start, normalized.end)
+  }, [selectedRange])
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-1 border-b border-[#2f3138] px-2 py-1">
@@ -256,14 +253,14 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
             options={diffOptions}
           />
         ) : (
-          <div className="p-3 text-xs text-[#8f96a8]">Could not parse patch for caching.</div>
+          <div className="p-3 text-xs text-[#8f96a8]">No diff content.</div>
         )}
 
         <CommentComposer
           visible={!isHistoryMode && !!selectedRange && composerPos.visible}
           top={composerPos.top}
           left={composerPos.left}
-          label={selectedRange ? formatRange(normalizeRange(selectedRange).start, normalizeRange(selectedRange).end) : ''}
+          label={selectedRangeLabel}
           activePath={activePath}
           selectedRange={selectedRange}
           onClose={onCloseCommentComposer}
