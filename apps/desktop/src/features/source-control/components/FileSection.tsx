@@ -42,7 +42,7 @@ export function FileSection({
   const isChanges = sectionKey === 'unstaged'
 
   return (
-    <div className="overflow-hidden rounded border border-[#34343a] bg-[#1a1b1f]">
+    <div className="overflow-hidden border border-[#34343a] bg-[#1a1b1f]">
       <div className="group flex items-center gap-2 px-2 py-1 text-xs tracking-wide text-[#d0d3da] hover:bg-[#24262c]">
         <button
           type="button"
@@ -53,11 +53,11 @@ export function FileSection({
           <span className="min-w-0 truncate font-medium">{title}</span>
           {isChanges ? (
             <>
-              <span className="rounded bg-[#30323a] px-1.5 py-0 text-[10px]">M {unstagedCount}</span>
-              <span className="rounded bg-[#30323a] px-1.5 py-0 text-[10px]">A {untrackedCount}</span>
+              <span className="bg-[#30323a] px-1.5 py-0 text-[10px]">M {unstagedCount}</span>
+              <span className="bg-[#30323a] px-1.5 py-0 text-[10px]">A {untrackedCount}</span>
             </>
           ) : null}
-          <span className="ml-auto rounded bg-[#30323a] px-1.5 py-0 text-[10px]">{rows.length}</span>
+          <span className="ml-auto bg-[#30323a] px-1.5 py-0 text-[10px]">{rows.length}</span>
         </button>
 
         <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
@@ -65,7 +65,7 @@ export function FileSection({
             <>
               <button
                 type="button"
-                className="rounded p-1 text-[#b6bbca] hover:bg-[#314838] hover:text-white"
+                className="p-1 text-[#b6bbca] hover:bg-[#314838] hover:text-white"
                 title="Stage all"
                 disabled={rows.length === 0 || !!runningAction}
                 onClick={onStageAll}
@@ -74,7 +74,7 @@ export function FileSection({
               </button>
               <button
                 type="button"
-                className="rounded p-1 text-[#b6bbca] hover:bg-[#4b2f34] hover:text-white"
+                className="p-1 text-[#b6bbca] hover:bg-[#4b2f34] hover:text-white"
                 title="Discard changes"
                 disabled={rows.length === 0 || !!runningAction}
                 onClick={() => onDiscardChangesGroup(rows)}
@@ -85,7 +85,7 @@ export function FileSection({
           ) : (
             <button
               type="button"
-              className="rounded p-1 text-[#b6bbca] hover:bg-[#384255] hover:text-white"
+              className="p-1 text-[#b6bbca] hover:bg-[#384255] hover:text-white"
               title="Unstage all"
               disabled={rows.length === 0 || !!runningAction}
               onClick={onUnstageAll}

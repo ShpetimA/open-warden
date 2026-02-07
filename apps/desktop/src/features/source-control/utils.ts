@@ -37,6 +37,14 @@ export function statusBadge(status: string): string {
   return 'M'
 }
 
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.isContentEditable) return true
+  const tag = target.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  return !!target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')
+}
+
 export function parseSelectionRange(value: unknown): SelectionRange | null {
   if (!value || typeof value !== 'object') return null
 

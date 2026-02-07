@@ -4,14 +4,19 @@ import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { FileDiff as PierreFileDiff } from '@pierre/diffs/react'
 import { Check, GitPullRequestArrow, PanelLeft } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { addComment, copyComments, fileComments, removeComment, toLineAnnotations } from '@/features/comments/actions'
+import {
+  copyComments,
+  fileComments,
+  removeComment,
+  toLineAnnotations,
+} from '@/features/comments/actions'
 import { safeComments } from '@/features/comments/selectors'
 import { setDiffStyle } from '@/features/source-control/actions'
 import { appState$ } from '@/features/source-control/store'
 import type { CommentItem, SelectionRange } from '@/features/source-control/types'
+import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
+import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
 import {
   areRangesEqual,
   formatRange,
@@ -26,6 +31,7 @@ type Props = {
 }
 
 export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
+  const viewMode = useSelector(appState$.viewMode)
   const activeRepo = useSelector(appState$.activeRepo)
   const activeBucket = useSelector(appState$.activeBucket)
   const activePath = useSelector(appState$.activePath)
@@ -35,12 +41,12 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
   const diffStyle = useSelector(appState$.diffStyle)
   const comments = useSelector(appState$.comments)
 
+  const isHistoryMode = viewMode === 'history'
+
   const diffViewportRef = useRef<HTMLDivElement | null>(null)
-  const composerInputRef = useRef<HTMLInputElement | null>(null)
   const composerScrollRafRef = useRef<number | null>(null)
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
-  const [draftComment, setDraftComment] = useState('')
   const [composerPos, setComposerPos] = useState<{ top: number; left: number; visible: boolean }>({
     top: 0,
     left: 0,
@@ -48,9 +54,11 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
   })
 
   const allComments = useMemo(() => safeComments(comments), [comments])
-  const currentFileComments = useMemo(() => fileComments(allComments, activeRepo, activePath), [allComments, activeRepo, activePath])
+  const currentFileComments = useMemo(
+    () => (isHistoryMode ? [] : fileComments(allComments, activeRepo, activePath)),
+    [isHistoryMode, allComments, activeRepo, activePath],
+  )
   const currentAnnotations = useMemo(() => toLineAnnotations(currentFileComments), [currentFileComments])
-
   const currentFileDiff = useMemo(() => {
     if (!activePath) return null
 
@@ -129,14 +137,6 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
     return () => window.cancelAnimationFrame(id)
   }, [selectedRange, updateComposerPosition])
 
-  useEffect(() => {
-    if (!composerPos.visible) return
-    const id = window.requestAnimationFrame(() => {
-      composerInputRef.current?.focus()
-    })
-    return () => window.cancelAnimationFrame(id)
-  }, [composerPos.visible])
-
   const applySelectionRange = useCallback((range: unknown) => {
     const parsedRange = parseSelectionRange(range)
     if (areRangesEqual(selectedRange, parsedRange)) return
@@ -153,7 +153,8 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
   const renderCommentAnnotation = useCallback((annotation: { metadata?: CommentItem }) => {
     const data = annotation.metadata
     if (!data) return null
-    return <div className="bg-accent text-accent-foreground max-w-[28rem] rounded px-1.5 py-0.5 text-[10px]">{data.text}</div>
+
+    return <CommentAnnotation comment={data} />
   }, [])
 
   const diffOptions = useMemo(() => {
@@ -164,22 +165,14 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
       expandUnchanged: false,
       expansionLineCount: 20,
       hunkSeparators: 'line-info' as const,
-      enableLineSelection: true,
-      onLineSelected: applySelectionRange,
-      onLineSelectionEnd,
+      enableLineSelection: !isHistoryMode,
+      onLineSelected: isHistoryMode ? undefined : applySelectionRange,
+      onLineSelectionEnd: isHistoryMode ? undefined : onLineSelectionEnd,
     }
-  }, [diffStyle, applySelectionRange, onLineSelectionEnd])
+  }, [diffStyle, isHistoryMode, applySelectionRange, onLineSelectionEnd])
 
-  const onAddComment = () => {
-    if (!selectedRange || !draftComment.trim() || !activePath) return
-    addComment(selectedRange, draftComment)
-    setDraftComment('')
+  const onCloseCommentComposer = () => {
     setSelectedRange(null)
-  }
-
-  const onCancelComment = () => {
-    setSelectedRange(null)
-    setDraftComment('')
     setComposerPos((prev) => ({ ...prev, visible: false }))
   }
 
@@ -206,42 +199,44 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
         >
           <Check className="mr-1 h-3.5 w-3.5" /> Unified
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            void copyComments('file')
-          }}
-          disabled={!activePath || currentFileComments.length === 0}
-        >
-          Copy Comments (File)
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            void copyComments('all')
-          }}
-          disabled={allComments.length === 0}
-        >
-          Copy Comments (All)
-        </Button>
-        <div className="ml-auto text-xs text-[#8f96a8]">
-          {activePath} <Badge variant="secondary">{activeBucket}</Badge>
-        </div>
+        {!isHistoryMode ? (
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void copyComments('file')
+              }}
+              disabled={!activePath || currentFileComments.length === 0}
+            >
+              Copy Comments (File)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void copyComments('all')
+              }}
+              disabled={allComments.length === 0}
+            >
+              Copy Comments (All)
+            </Button>
+          </>
+        ) : null}
       </div>
 
-      {currentFileComments.length > 0 ? (
+      {!isHistoryMode && currentFileComments.length > 0 ? (
         <div className="border-b border-[#2f3138] px-2 py-1">
           <div className="space-y-1">
             {currentFileComments.map((comment) => (
-              <div key={comment.id} className="flex items-center gap-2 rounded bg-[#23262f] px-2 py-1 text-[11px]">
+              <div key={comment.id} className="flex items-center gap-2 bg-[#23262f] px-2 py-1 text-[11px]">
                 <span className="text-[#8f96a8]">{formatRange(comment.startLine, comment.endLine)}</span>
                 <span className="truncate">{comment.text}</span>
                 <button
                   type="button"
                   className="ml-auto text-[#9ea7bb] hover:text-white"
                   onClick={() => removeComment(comment.id)}
+                  title="Remove"
                 >
                   x
                 </button>
@@ -264,31 +259,15 @@ export function DiffWorkspace({ sidebarOpen, onToggleSidebar }: Props) {
           <div className="p-3 text-xs text-[#8f96a8]">Could not parse patch for caching.</div>
         )}
 
-        {selectedRange && composerPos.visible ? (
-          <div
-            className="absolute z-20 w-80 rounded border border-[#3a3d48] bg-[#1a1d25] p-2 shadow-xl"
-            style={{ top: composerPos.top, left: composerPos.left }}
-          >
-            <div className="mb-1 text-[11px] text-[#c5cada]">
-              Comment on {formatRange(normalizeRange(selectedRange).start, normalizeRange(selectedRange).end)}
-            </div>
-            <Input
-              ref={composerInputRef}
-              value={draftComment}
-              onChange={(e) => setDraftComment(e.target.value)}
-              placeholder="Type comment"
-              className="h-7 border-[#3a3d48] bg-[#10131a] text-xs"
-            />
-            <div className="mt-2 flex items-center gap-1">
-              <Button size="sm" variant="secondary" onClick={onAddComment} disabled={!draftComment.trim() || !activePath}>
-                Add
-              </Button>
-              <Button size="sm" variant="ghost" onClick={onCancelComment}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : null}
+        <CommentComposer
+          visible={!isHistoryMode && !!selectedRange && composerPos.visible}
+          top={composerPos.top}
+          left={composerPos.left}
+          label={selectedRange ? formatRange(normalizeRange(selectedRange).start, normalizeRange(selectedRange).end) : ''}
+          activePath={activePath}
+          selectedRange={selectedRange}
+          onClose={onCloseCommentComposer}
+        />
       </div>
     </div>
   )

@@ -34,6 +34,18 @@ export function removeComment(id: string) {
   appState$.comments.set(safeComments(appState$.comments.get()).filter((item) => item.id !== id))
 }
 
+export function updateComment(id: string, text: string) {
+  const trimmed = text.trim()
+  if (!trimmed) return
+
+  appState$.comments.set(
+    safeComments(appState$.comments.get()).map((item) => {
+      if (item.id !== id) return item
+      return { ...item, text: trimmed }
+    }),
+  )
+}
+
 export async function copyComments(scope: 'file' | 'all') {
   const all = safeComments(appState$.comments.get())
   const source =

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 
 use agent_leash::vcs::{
     commit_staged_for_path, discard_all_for_path, discard_file_for_path,
+    get_commit_file_versions_for_path, get_commit_files_for_path, get_commit_history_for_path,
     get_file_versions_for_path, get_git_snapshot_for_path, stage_all_for_path, stage_file_for_path,
     unstage_all_for_path, unstage_file_for_path, DiffBucket,
 };
@@ -11,7 +12,18 @@ use agent_leash::vcs::{
 #[serde(rename_all = "camelCase")]
 struct FileItem {
     path: String,
+    previous_path: Option<String>,
     status: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HistoryCommit {
+    commit_id: String,
+    short_id: String,
+    summary: String,
+    author: String,
+    relative_time: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,6 +71,7 @@ fn get_git_snapshot(repo_path: String) -> Result<GitSnapshot, String> {
             .into_iter()
             .map(|item| FileItem {
                 path: item.path,
+                previous_path: None,
                 status: item.status,
             })
             .collect()
@@ -70,6 +83,69 @@ fn get_git_snapshot(repo_path: String) -> Result<GitSnapshot, String> {
         unstaged: map_items(snapshot.unstaged),
         staged: map_items(snapshot.staged),
         untracked: map_items(snapshot.untracked),
+    })
+}
+
+#[tauri::command]
+fn get_commit_history(
+    repo_path: String,
+    limit: Option<usize>,
+) -> Result<Vec<HistoryCommit>, String> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let history =
+        get_commit_history_for_path(&repo_path, limit.unwrap_or(200)).map_err(|e| e.to_string())?;
+
+    Ok(history
+        .into_iter()
+        .map(|commit| HistoryCommit {
+            commit_id: commit.commit_id,
+            short_id: commit.short_id,
+            summary: commit.summary,
+            author: commit.author,
+            relative_time: commit.relative_time,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn get_commit_files(repo_path: String, commit_id: String) -> Result<Vec<FileItem>, String> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let files = get_commit_files_for_path(&repo_path, &commit_id).map_err(|e| e.to_string())?;
+
+    Ok(files
+        .into_iter()
+        .map(|file| FileItem {
+            path: file.path,
+            previous_path: file.previous_path,
+            status: file.status,
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn get_commit_file_versions(
+    repo_path: String,
+    commit_id: String,
+    rel_path: String,
+    previous_path: Option<String>,
+) -> Result<FileVersions, String> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let versions = get_commit_file_versions_for_path(
+        &repo_path,
+        &commit_id,
+        Path::new(&rel_path),
+        previous_path.as_deref().map(Path::new),
+    )
+    .map_err(|e| e.to_string())?;
+
+    let map_file = |file: agent_leash::vcs::DiffFile| DiffFile {
+        name: file.name,
+        contents: file.contents,
+    };
+
+    Ok(FileVersions {
+        old_file: versions.old_file.map(map_file),
+        new_file: versions.new_file.map(map_file),
     })
 }
 
@@ -149,6 +225,9 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             get_git_snapshot,
+            get_commit_history,
+            get_commit_files,
+            get_commit_file_versions,
             get_file_versions,
             stage_file,
             unstage_file,

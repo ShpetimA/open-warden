@@ -1,11 +1,30 @@
 import { observable } from '@legendapp/state'
 
-import type { Bucket, CommentItem, DiffFile, DiffStyle, GitSnapshot, RunningAction } from './types'
+import type {
+  Bucket,
+  CommentItem,
+  DiffFile,
+  DiffStyle,
+  FileItem,
+  GitSnapshot,
+  HistoryNavTarget,
+  HistoryCommit,
+  RunningAction,
+  ViewMode,
+} from './types'
 
 export const appState$ = observable({
   repos: [] as string[],
   activeRepo: '',
+  viewMode: 'changes' as ViewMode,
   snapshot: null as GitSnapshot | null,
+  historyCommits: [] as HistoryCommit[],
+  historyFilter: '',
+  historyCommitId: '',
+  historyNavTarget: 'commits' as HistoryNavTarget,
+  historyFiles: [] as FileItem[],
+  collapseStaged: false,
+  collapseUnstaged: false,
   activeBucket: 'unstaged' as Bucket,
   activePath: '',
   patch: '',
@@ -16,6 +35,8 @@ export const appState$ = observable({
   comments: [] as CommentItem[],
   commitMessage: '',
   loadingSnapshot: false,
+  loadingHistoryCommits: false,
+  loadingHistoryFiles: false,
   loadingPatch: false,
   runningAction: '' as RunningAction,
   error: '',

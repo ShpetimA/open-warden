@@ -19,15 +19,35 @@ pub use git::GitBackend;
 #[cfg(feature = "jj")]
 pub use jj::JjBackend;
 
-use git2::{build::CheckoutBuilder, Repository, ResetType, Status, StatusOptions};
+use git2::{
+    build::CheckoutBuilder, Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository,
+    ResetType, Status, StatusOptions, Tree,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// VCS backend type for explicit selection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VcsBackendType {
     Git,
     Jj,
+}
+
+#[derive(Clone, Debug)]
+pub struct HistoryCommit {
+    pub commit_id: String,
+    pub short_id: String,
+    pub summary: String,
+    pub author: String,
+    pub relative_time: String,
+}
+
+#[derive(Clone, Debug)]
+pub struct CommitFile {
+    pub path: String,
+    pub previous_path: Option<String>,
+    pub status: String,
 }
 
 /// Get the appropriate VCS backend for the given path.
@@ -131,6 +151,69 @@ fn status_label(status: Status) -> String {
     "modified".to_string()
 }
 
+fn delta_status_label(delta: Delta) -> String {
+    match delta {
+        Delta::Added => "added".to_string(),
+        Delta::Deleted => "deleted".to_string(),
+        Delta::Renamed => "renamed".to_string(),
+        Delta::Copied => "copied".to_string(),
+        Delta::Typechange => "type-changed".to_string(),
+        Delta::Conflicted => "unmerged".to_string(),
+        _ => "modified".to_string(),
+    }
+}
+
+fn format_relative_time(secs_ago: i64) -> String {
+    if secs_ago < 0 {
+        return "in the future".to_string();
+    }
+    if secs_ago < 60 {
+        return format!("{} seconds ago", secs_ago);
+    }
+    let mins = secs_ago / 60;
+    if mins < 60 {
+        return format!(
+            "{} {} ago",
+            mins,
+            if mins == 1 { "minute" } else { "minutes" }
+        );
+    }
+    let hours = mins / 60;
+    if hours < 24 {
+        return format!(
+            "{} {} ago",
+            hours,
+            if hours == 1 { "hour" } else { "hours" }
+        );
+    }
+    let days = hours / 24;
+    if days < 7 {
+        return format!("{} {} ago", days, if days == 1 { "day" } else { "days" });
+    }
+    let weeks = days / 7;
+    if weeks < 4 {
+        return format!(
+            "{} {} ago",
+            weeks,
+            if weeks == 1 { "week" } else { "weeks" }
+        );
+    }
+    let months = days / 30;
+    if months < 12 {
+        return format!(
+            "{} {} ago",
+            months,
+            if months == 1 { "month" } else { "months" }
+        );
+    }
+    let years = days / 365;
+    format!(
+        "{} {} ago",
+        years,
+        if years == 1 { "year" } else { "years" }
+    )
+}
+
 fn bytes_to_utf8(bytes: Vec<u8>, label: &str) -> Result<String> {
     if bytes.contains(&0) {
         return Err(VcsError::Other(format!(
@@ -163,6 +246,28 @@ fn read_head_blob(repo: &Repository, rel_path: &Path) -> Result<Option<Vec<u8>>>
         .map_err(|e| VcsError::Other(format!("failed to read HEAD blob: {}", e)))?;
 
     Ok(Some(blob.content().to_vec()))
+}
+
+fn read_tree_blob(repo: &Repository, tree: &Tree, rel_path: &Path) -> Result<Option<Vec<u8>>> {
+    let entry = match tree.get_path(rel_path) {
+        Ok(entry) => entry,
+        Err(_) => return Ok(None),
+    };
+
+    if entry.kind() != Some(ObjectType::Blob) {
+        return Ok(None);
+    }
+
+    let blob = repo
+        .find_blob(entry.id())
+        .map_err(|e| VcsError::Other(format!("failed to read tree blob: {}", e)))?;
+
+    Ok(Some(blob.content().to_vec()))
+}
+
+fn parse_commit_oid(commit_id: &str) -> Result<Oid> {
+    Oid::from_str(commit_id.trim())
+        .map_err(|_| VcsError::InvalidRef(format!("invalid commit id: {}", commit_id)))
 }
 
 fn read_index_blob(repo: &Repository, rel_path: &Path) -> Result<Option<Vec<u8>>> {
@@ -279,6 +384,162 @@ pub fn get_git_snapshot_for_path(path: &Path) -> Result<GitSnapshot> {
         staged,
         untracked,
     })
+}
+
+pub fn get_commit_history_for_path(path: &Path, limit: usize) -> Result<Vec<HistoryCommit>> {
+    let repo = repo_for_path(path)?;
+    let mut revwalk = repo
+        .revwalk()
+        .map_err(|e| VcsError::Other(format!("failed to create revwalk: {}", e)))?;
+
+    revwalk
+        .push_head()
+        .map_err(|e| VcsError::Other(format!("failed to read HEAD: {}", e)))?;
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let take_count = if limit == 0 { 1 } else { limit };
+    let mut commits = Vec::new();
+
+    for oid_result in revwalk.take(take_count) {
+        let oid = oid_result.map_err(|e| VcsError::Other(format!("revwalk error: {}", e)))?;
+        let commit = repo
+            .find_commit(oid)
+            .map_err(|e| VcsError::Other(format!("failed to load commit: {}", e)))?;
+
+        let commit_id = oid.to_string();
+        let short_id = commit_id[..7.min(commit_id.len())].to_string();
+        let summary = commit.summary().unwrap_or("").to_string();
+        let author = commit.author().name().unwrap_or("Unknown").to_string();
+        let relative_time = format_relative_time(now - commit.time().seconds());
+
+        commits.push(HistoryCommit {
+            commit_id,
+            short_id,
+            summary,
+            author,
+            relative_time,
+        });
+    }
+
+    Ok(commits)
+}
+
+pub fn get_commit_files_for_path(path: &Path, commit_id: &str) -> Result<Vec<CommitFile>> {
+    let repo = repo_for_path(path)?;
+    let commit_oid = parse_commit_oid(commit_id)?;
+    let commit = repo
+        .find_commit(commit_oid)
+        .map_err(|_| VcsError::InvalidRef(format!("commit not found: {}", commit_id)))?;
+
+    let tree = commit
+        .tree()
+        .map_err(|e| VcsError::Other(format!("failed to get commit tree: {}", e)))?;
+    let parent_tree: Option<Tree> = if commit.parent_count() > 0 {
+        commit.parent(0).ok().and_then(|p| p.tree().ok())
+    } else {
+        None
+    };
+
+    let mut opts = DiffOptions::new();
+    opts.include_typechange(true);
+
+    let mut diff = repo
+        .diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), Some(&mut opts))
+        .map_err(|e| VcsError::Other(format!("failed to create commit diff: {}", e)))?;
+
+    let mut find_opts = DiffFindOptions::new();
+    find_opts.renames(true).copies(true);
+    let _ = diff.find_similar(Some(&mut find_opts));
+
+    let mut files = Vec::new();
+    for delta in diff.deltas() {
+        let path = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        if path.is_empty() {
+            continue;
+        }
+
+        let old_path = delta
+            .old_file()
+            .path()
+            .map(|p| p.to_string_lossy().to_string());
+        let previous_path = old_path.filter(|old| old != &path);
+
+        files.push(CommitFile {
+            path,
+            previous_path,
+            status: delta_status_label(delta.status()),
+        });
+    }
+
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
+}
+
+pub fn get_commit_file_versions_for_path(
+    path: &Path,
+    commit_id: &str,
+    rel_path: &Path,
+    previous_rel_path: Option<&Path>,
+) -> Result<FileVersions> {
+    validate_repo_relative_path(rel_path)?;
+    if let Some(previous_path) = previous_rel_path {
+        validate_repo_relative_path(previous_path)?;
+    }
+
+    let repo = repo_for_path(path)?;
+    let commit_oid = parse_commit_oid(commit_id)?;
+    let commit = repo
+        .find_commit(commit_oid)
+        .map_err(|_| VcsError::InvalidRef(format!("commit not found: {}", commit_id)))?;
+    let commit_tree = commit
+        .tree()
+        .map_err(|e| VcsError::Other(format!("failed to get commit tree: {}", e)))?;
+    let parent_tree: Option<Tree> = if commit.parent_count() > 0 {
+        commit.parent(0).ok().and_then(|p| p.tree().ok())
+    } else {
+        None
+    };
+
+    let old_lookup_path = previous_rel_path.unwrap_or(rel_path);
+    let old_label = old_lookup_path.to_string_lossy().to_string();
+    let new_label = rel_path.to_string_lossy().to_string();
+
+    let old_bytes = if let Some(parent) = parent_tree.as_ref() {
+        read_tree_blob(&repo, parent, old_lookup_path)?
+    } else {
+        None
+    };
+    let new_bytes = read_tree_blob(&repo, &commit_tree, rel_path)?;
+
+    let old_file = old_bytes
+        .map(|bytes| {
+            bytes_to_utf8(bytes, &old_label).map(|contents| DiffFile {
+                name: old_label.clone(),
+                contents,
+            })
+        })
+        .transpose()?;
+
+    let new_file = new_bytes
+        .map(|bytes| {
+            bytes_to_utf8(bytes, &new_label).map(|contents| DiffFile {
+                name: new_label.clone(),
+                contents,
+            })
+        })
+        .transpose()?;
+
+    Ok(FileVersions { old_file, new_file })
 }
 
 pub fn get_file_versions_for_path(
@@ -476,7 +737,7 @@ pub fn commit_staged_for_path(path: &Path, message: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_utils::RepoGuard;
+    use test_utils::{git, RepoGuard};
 
     #[test]
     fn test_get_backend_in_git_repo() {
@@ -491,6 +752,63 @@ mod tests {
         let temp = tempfile::TempDir::new().unwrap();
         let result = get_backend(temp.path(), None);
         assert!(matches!(result, Err(VcsError::NotARepository)));
+    }
+
+    #[test]
+    fn test_get_commit_history_and_files() {
+        let repo = RepoGuard::new();
+
+        std::fs::write(repo.dir.join("src.txt"), "one\n").expect("failed to write first content");
+        git(&repo.dir, &["add", "."]);
+        git(&repo.dir, &["commit", "-m", "add src"]);
+
+        std::fs::write(repo.dir.join("src.txt"), "two\n").expect("failed to update content");
+        git(&repo.dir, &["add", "."]);
+        git(&repo.dir, &["commit", "-m", "update src"]);
+
+        let history = get_commit_history_for_path(&repo.dir, 20).expect("should load history");
+        assert!(history.len() >= 2);
+        assert_eq!(history[0].summary, "update src");
+
+        let files =
+            get_commit_files_for_path(&repo.dir, &history[0].commit_id).expect("should load files");
+        assert!(files
+            .iter()
+            .any(|file| file.path == "src.txt" && file.status == "modified"));
+    }
+
+    #[test]
+    fn test_get_commit_file_versions() {
+        let repo = RepoGuard::new();
+
+        std::fs::write(repo.dir.join("notes.md"), "v1\n").expect("failed to write first content");
+        git(&repo.dir, &["add", "."]);
+        git(&repo.dir, &["commit", "-m", "add notes"]);
+
+        std::fs::write(repo.dir.join("notes.md"), "v2\n").expect("failed to update content");
+        git(&repo.dir, &["add", "."]);
+        git(&repo.dir, &["commit", "-m", "update notes"]);
+
+        let history = get_commit_history_for_path(&repo.dir, 10).expect("should load history");
+        let versions = get_commit_file_versions_for_path(
+            &repo.dir,
+            &history[0].commit_id,
+            std::path::Path::new("notes.md"),
+            None,
+        )
+        .expect("should load commit file versions");
+
+        let old_contents = versions
+            .old_file
+            .as_ref()
+            .map(|file| file.contents.trim().to_string());
+        let new_contents = versions
+            .new_file
+            .as_ref()
+            .map(|file| file.contents.trim().to_string());
+
+        assert_eq!(old_contents.as_deref(), Some("v1"));
+        assert_eq!(new_contents.as_deref(), Some("v2"));
     }
 
     #[test]

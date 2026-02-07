@@ -4,12 +4,15 @@ import { useSelector } from '@legendapp/state/react'
 import { RepoTabs } from '@/app/RepoTabs'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import { selectFolder, selectRepo } from '@/features/source-control/actions'
+import { HistoryFilesPane } from '@/features/source-control/components/HistoryFilesPane'
+import { useSourceControlKeyboardNav } from '@/features/source-control/hooks/useSourceControlKeyboardNav'
 import { SourceControlSidebar } from '@/features/source-control/components/SourceControlSidebar'
 import { appState$ } from '@/features/source-control/store'
 
 export function AppShell() {
   const repos = useSelector(appState$.repos)
   const activeRepo = useSelector(appState$.activeRepo)
+  const viewMode = useSelector(appState$.viewMode)
   const activePath = useSelector(appState$.activePath)
   const patch = useSelector(appState$.patch)
   const oldFile = useSelector(appState$.oldFile)
@@ -17,6 +20,10 @@ export function AppShell() {
   const loadingPatch = useSelector(appState$.loadingPatch)
   const error = useSelector(appState$.error)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  useSourceControlKeyboardNav()
+
+  const diffWorkspaceKey = `${activeRepo}:${activePath}:${patch.length}:${oldFile?.contents.length ?? -1}:${newFile?.contents.length ?? -1}`
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#111216] text-[#d8dbe3]">
@@ -29,18 +36,28 @@ export function AppShell() {
               <div className="p-3 text-sm text-[#8f96a8]">Select a repository tab or add one with +.</div>
             ) : error ? (
               <div className="p-3 text-sm text-red-400">{error}</div>
-            ) : loadingPatch ? (
-              <div className="p-3 text-sm text-[#8f96a8]">Loading patch...</div>
-            ) : !activePath ? (
-              <div className="p-3 text-sm text-[#8f96a8]">Select a file to view diff.</div>
-            ) : !patch.trim() && !oldFile && !newFile ? (
-              <div className="p-3 text-sm text-[#8f96a8]">No diff content.</div>
             ) : (
-              <DiffWorkspace
-                key={`${activeRepo}:${activePath}:${patch.length}:${oldFile?.contents.length ?? -1}:${newFile?.contents.length ?? -1}`}
-                sidebarOpen={sidebarOpen}
-                onToggleSidebar={() => setSidebarOpen((v) => !v)}
-              />
+              <div className="grid h-full min-h-0" style={{ gridTemplateColumns: viewMode === 'history' ? '300px 1fr' : '1fr' }}>
+                {viewMode === 'history' ? <HistoryFilesPane /> : null}
+
+                <section className="min-h-0">
+                  {loadingPatch ? (
+                    <div className="p-3 text-sm text-[#8f96a8]">Loading patch...</div>
+                  ) : !activePath ? (
+                    <div className="p-3 text-sm text-[#8f96a8]">
+                      {viewMode === 'history' ? 'Select a commit file to view diff.' : 'Select a file to view diff.'}
+                    </div>
+                  ) : !patch.trim() && !oldFile && !newFile ? (
+                    <div className="p-3 text-sm text-[#8f96a8]">No diff content.</div>
+                  ) : (
+                    <DiffWorkspace
+                      key={diffWorkspaceKey}
+                      sidebarOpen={sidebarOpen}
+                      onToggleSidebar={() => setSidebarOpen((v) => !v)}
+                    />
+                  )}
+                </section>
+              </div>
             )}
           </main>
         </div>

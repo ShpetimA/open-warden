@@ -1,9 +1,26 @@
 import { invoke } from '@tauri-apps/api/core'
 
-import type { Bucket, FileVersions, GitSnapshot } from '../types'
+import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from '../types'
 
 export async function getGitSnapshot(repoPath: string) {
   return invoke<GitSnapshot>('get_git_snapshot', { repoPath })
+}
+
+export async function getCommitHistory(repoPath: string, limit?: number) {
+  return invoke<HistoryCommit[]>('get_commit_history', { repoPath, limit })
+}
+
+export async function getCommitFiles(repoPath: string, commitId: string) {
+  return invoke<FileItem[]>('get_commit_files', { repoPath, commitId })
+}
+
+export async function getCommitFileVersions(
+  repoPath: string,
+  commitId: string,
+  relPath: string,
+  previousPath?: string,
+) {
+  return invoke<FileVersions>('get_commit_file_versions', { repoPath, commitId, relPath, previousPath })
 }
 
 export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {

@@ -1,10 +1,23 @@
 export type Bucket = 'unstaged' | 'staged' | 'untracked'
 
+export type ViewMode = 'changes' | 'history'
+
+export type HistoryNavTarget = 'commits' | 'files'
+
 export type DiffStyle = 'split' | 'unified'
 
 export type FileItem = {
   path: string
+  previousPath?: string | null
   status: string
+}
+
+export type HistoryCommit = {
+  commitId: string
+  shortId: string
+  summary: string
+  author: string
+  relativeTime: string
 }
 
 export type SelectionRange = {
