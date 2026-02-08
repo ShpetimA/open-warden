@@ -5,7 +5,6 @@ import { RepoTabs } from '@/app/RepoTabs'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import { selectFolder, selectRepo } from '@/features/source-control/actions'
 import { HistoryFilesPane } from '@/features/source-control/components/HistoryFilesPane'
-import { useSourceControlKeyboardNav } from '@/features/source-control/hooks/useSourceControlKeyboardNav'
 import { SourceControlSidebar } from '@/features/source-control/components/SourceControlSidebar'
 import { appState$ } from '@/features/source-control/store'
 
@@ -19,8 +18,6 @@ export function AppShell() {
   const loadingPatch = useSelector(appState$.loadingPatch)
   const error = useSelector(appState$.error)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  useSourceControlKeyboardNav()
 
   const diffWorkspaceKey = `${activeRepo}:${activePath}:${oldFile?.contents.length ?? -1}:${newFile?.contents.length ?? -1}`
 
