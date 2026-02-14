@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { useAppDispatch } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
@@ -34,6 +35,24 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
     onClose()
   }
 
+  useHotkey(
+    'Mod+Enter',
+    (event) => {
+      event.preventDefault()
+      onSubmit()
+    },
+    { target: inputRef, enabled: visible, ignoreInputs: false },
+  )
+
+  useHotkey(
+    'Escape',
+    (event) => {
+      event.preventDefault()
+      onClose()
+    },
+    { target: inputRef, enabled: visible, ignoreInputs: false },
+  )
+
   if (!visible) return null
 
   return (
@@ -44,16 +63,6 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
         value={draftComment}
         autoFocus
         onChange={(event) => setDraftComment(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-            event.preventDefault()
-            onSubmit()
-          }
-          if (event.key === 'Escape') {
-            event.preventDefault()
-            onClose()
-          }
-        }}
         placeholder="Type comment"
         className="h-7 border-[#3a3d48] bg-[#10131a] text-xs"
       />

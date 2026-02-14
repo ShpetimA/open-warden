@@ -1,4 +1,6 @@
 import { Check, GitPullRequestArrow, PanelLeft } from 'lucide-react'
+import { useHotkey } from '@tanstack/react-hotkeys'
+import { toast } from 'sonner'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
@@ -22,6 +24,36 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
 
   const allComments = compactComments(comments)
   const currentFileComments = canComment ? fileComments(allComments, activeRepo, activePath) : []
+
+  const onCopyFileComments = async () => {
+    const copied = await dispatch(copyComments('file'))
+    if (copied) toast.success('Copied file comments')
+  }
+
+  const onCopyAllComments = async () => {
+    const copied = await dispatch(copyComments('all'))
+    if (copied) toast.success('Copied all comments')
+  }
+
+  useHotkey(
+    'Mod+C',
+    () => {
+      void onCopyFileComments()
+    },
+    {
+      enabled: showDiffActions && canComment && !!activePath && currentFileComments.length > 0,
+    },
+  )
+
+  useHotkey(
+    'Mod+Alt+C',
+    () => {
+      void onCopyAllComments()
+    },
+    {
+      enabled: showDiffActions && canComment && allComments.length > 0,
+    },
+  )
 
   return (
     <div className="flex items-center gap-1 border-b border-[#2f3138] px-2 py-1">
@@ -58,7 +90,7 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void dispatch(copyComments('file'))
+                  void onCopyFileComments()
                 }}
                 disabled={!activePath || currentFileComments.length === 0}
               >
@@ -68,7 +100,7 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void dispatch(copyComments('all'))
+                  void onCopyAllComments()
                 }}
                 disabled={allComments.length === 0}
               >

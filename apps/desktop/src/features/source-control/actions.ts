@@ -67,9 +67,12 @@ export const selectRepo = (repo: string): AppThunk => async (dispatch, getState)
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo, viewMode } = getState().sourceControl
   if (!activeRepo) return
+
   dispatch(gitApi.util.invalidateTags([{ type: 'Snapshot', id: activeRepo }]))
+  dispatch(gitApi.util.invalidateTags(['FileVersions']))
+
   if (viewMode === 'history') {
-    dispatch(gitApi.util.invalidateTags([{ type: 'HistoryCommits', id: activeRepo }]))
+    dispatch(gitApi.util.invalidateTags([{ type: 'HistoryCommits', id: activeRepo }, 'HistoryFiles']))
   }
 }
 

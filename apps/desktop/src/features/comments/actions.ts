@@ -39,7 +39,7 @@ export const updateComment = (id: string, text: string): AppThunk => (dispatch) 
   dispatch(updateCommentAction({ id, text: trimmed }))
 }
 
-export const copyComments = (scope: 'file' | 'all'): AppThunk => async (dispatch, getState) => {
+export const copyComments = (scope: 'file' | 'all'): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { comments } = getState()
   const { activeRepo, activePath } = getState().sourceControl
   const source =
@@ -47,14 +47,16 @@ export const copyComments = (scope: 'file' | 'all'): AppThunk => async (dispatch
       ? comments.filter((c) => c.repoPath === activeRepo && c.filePath === activePath)
       : comments
 
-  if (source.length === 0) return
+  if (source.length === 0) return false
 
   const payload = source.map((c) => `@${c.filePath}#${formatRange(c.startLine, c.endLine)} - ${c.text}`).join('\n')
 
   try {
     await navigator.clipboard.writeText(payload)
+    return true
   } catch (error) {
     dispatch(setError(error instanceof Error ? error.message : String(error)))
+    return false
   }
 }
 
