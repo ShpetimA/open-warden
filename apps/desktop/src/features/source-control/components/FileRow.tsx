@@ -1,15 +1,12 @@
 import { Minus, Plus, Trash2 } from 'lucide-react'
-import { useSelector } from '@legendapp/state/react'
 
-import { getCommentCountForFile } from '@/features/comments/selectors'
-import { appState$ } from '@/features/source-control/store'
+import { useAppSelector } from '@/app/hooks'
+import { countCommentsForFile } from '@/features/comments/selectors'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { statusBadge } from '@/features/source-control/utils'
 
 type Props = {
   file: BucketedFile
-  commentCounts: Map<string, number>
-  activeRepo: string
   onSelectFile: (bucket: Bucket, path: string) => void
   onStageFile: (path: string) => void
   onUnstageFile: (path: string) => void
@@ -18,26 +15,29 @@ type Props = {
 
 export function FileRow({
   file,
-  commentCounts,
-  activeRepo,
   onSelectFile,
   onStageFile,
   onUnstageFile,
   onDiscardFile,
 }: Props) {
-  const activeBucket = useSelector(appState$.activeBucket)
-  const activePath = useSelector(appState$.activePath)
-  const runningAction = useSelector(appState$.runningAction)
-
-  const isActive = activeBucket === file.bucket && activePath === file.path
-  const staging = runningAction === `file:stage:${file.path}` || runningAction === `file:unstage:${file.path}`
-  const discarding = runningAction === `file:discard:${file.path}`
+  const isActive = useAppSelector(
+    (state) => state.sourceControl.activeBucket === file.bucket && state.sourceControl.activePath === file.path,
+  )
+  const staging = useAppSelector((state) =>
+    state.sourceControl.runningAction === `file:stage:${file.path}` ||
+    state.sourceControl.runningAction === `file:unstage:${file.path}`,
+  )
+  const discarding = useAppSelector(
+    (state) => state.sourceControl.runningAction === `file:discard:${file.path}`,
+  )
+  const hasRunningAction = useAppSelector((state) => state.sourceControl.runningAction !== '')
+  const commentCount = useAppSelector((state) =>
+    countCommentsForFile(state.comments, state.sourceControl.activeRepo, file.path),
+  )
   const normalizedPath = file.path.replace(/\\/g, '/')
   const pathParts = normalizedPath.split('/').filter(Boolean)
   const fileName = pathParts[pathParts.length - 1] ?? file.path
   const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
-  const commentCount = getCommentCountForFile(commentCounts, activeRepo, file.path)
-
   return (
     <div
       className={`group flex min-w-0 items-center gap-2 overflow-hidden border-b border-[#2b2d34] px-2 py-1 text-xs last:border-b-0 ${
@@ -70,7 +70,7 @@ export function FileRow({
             type="button"
             className="p-1 text-[#b6bbca] hover:bg-[#384255] hover:text-white"
             onClick={() => onUnstageFile(file.path)}
-            disabled={staging || discarding || !!runningAction}
+            disabled={staging || discarding || hasRunningAction}
             title="Unstage"
           >
             <Minus className="h-3.5 w-3.5" />
@@ -81,7 +81,7 @@ export function FileRow({
               type="button"
               className="p-1 text-[#b6bbca] hover:bg-[#314838] hover:text-white"
               onClick={() => onStageFile(file.path)}
-              disabled={staging || discarding || !!runningAction}
+              disabled={staging || discarding || hasRunningAction}
               title="Stage"
             >
               <Plus className="h-3.5 w-3.5" />
@@ -90,7 +90,7 @@ export function FileRow({
               type="button"
               className="p-1 text-[#b6bbca] hover:bg-[#4b2f34] hover:text-white"
               onClick={() => onDiscardFile(file.bucket, file.path)}
-              disabled={staging || discarding || !!runningAction}
+              disabled={staging || discarding || hasRunningAction}
               title="Discard"
             >
               <Trash2 className="h-3.5 w-3.5" />

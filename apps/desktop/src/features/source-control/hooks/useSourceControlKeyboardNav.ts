@@ -1,20 +1,43 @@
 import { useEffect } from 'react'
+import { useStore } from 'react-redux'
 
+import { useAppDispatch } from '@/app/hooks'
+import type { RootState } from '@/app/store'
+import { gitApi } from '@/features/source-control/api'
 import { selectFile, selectHistoryCommit, selectHistoryFile } from '@/features/source-control/actions'
 import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
-import { appState$ } from '@/features/source-control/store'
+import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
 import type { BucketedFile, FileItem, HistoryCommit } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
 
 export function useSourceControlKeyboardNav() {
+  const dispatch = useAppDispatch()
+  const store = useStore<RootState>()
+
   useEffect(() => {
     const onGlobalKeyDown = (event: KeyboardEvent) => {
-      const viewMode = appState$.viewMode.get()
-      const activeBucket = appState$.activeBucket.get()
-      const activePath = appState$.activePath.get()
-      const historyCommitId = appState$.historyCommitId.get()
-      const allHistoryFiles = (appState$.historyFiles.get() ?? []) as FileItem[]
-      const historyNavTarget = appState$.historyNavTarget.get()
+      const state = store.getState()
+      const {
+        viewMode,
+        activeBucket,
+        activePath,
+        historyCommitId,
+        historyNavTarget,
+        historyFilter,
+        activeRepo,
+        collapseStaged,
+        collapseUnstaged,
+      } = state.sourceControl
+      const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null
+      const historyFilesArgs = activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null
+      const snapshot = activeRepo ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data : undefined
+      const historyCommits = historyCommitsArgs
+        ? gitApi.endpoints.getCommitHistory.select(historyCommitsArgs)(state).data
+        : undefined
+      const historyFiles = historyFilesArgs
+        ? gitApi.endpoints.getCommitFiles.select(historyFilesArgs)(state).data
+        : undefined
+      const allHistoryFiles = (historyFiles ?? []) as FileItem[]
 
       if (isTypingTarget(event.target)) return
       if (event.metaKey || event.ctrlKey || event.altKey) return
@@ -23,19 +46,19 @@ export function useSourceControlKeyboardNav() {
 
       if (viewMode === 'history' && lowerKey === 'h') {
         event.preventDefault()
-        appState$.historyNavTarget.set('commits')
+        dispatch(setHistoryNavTarget('commits'))
         return
       }
 
       if (viewMode === 'history' && lowerKey === 'l') {
         event.preventDefault()
-        appState$.historyNavTarget.set('files')
+        dispatch(setHistoryNavTarget('files'))
         return
       }
 
       if (viewMode === 'history' && (event.key === '/' || event.key === '?')) {
         event.preventDefault()
-        appState$.historyNavTarget.set('commits')
+        dispatch(setHistoryNavTarget('commits'))
         const filterInput = document.getElementById(HISTORY_FILTER_INPUT_ID)
         if (filterInput instanceof HTMLInputElement) {
           filterInput.focus()
@@ -50,9 +73,6 @@ export function useSourceControlKeyboardNav() {
       event.preventDefault()
 
       if (viewMode === 'changes') {
-        const snapshot = appState$.snapshot.get()
-        const collapseStaged = appState$.collapseStaged.get()
-        const collapseUnstaged = appState$.collapseUnstaged.get()
         const unstaged = snapshot?.unstaged ?? []
         const staged = snapshot?.staged ?? []
         const untracked = snapshot?.untracked ?? []
@@ -85,7 +105,7 @@ export function useSourceControlKeyboardNav() {
 
         const targetFile = visibleChangeRows[targetIndex]
         if (!targetFile) return
-        void selectFile(targetFile.bucket, targetFile.path)
+        void dispatch(selectFile(targetFile.bucket, targetFile.path))
         return
       }
 
@@ -105,12 +125,11 @@ export function useSourceControlKeyboardNav() {
 
         const targetFile = allHistoryFiles[targetIndex]
         if (!targetFile) return
-        void selectHistoryFile(targetFile.path)
+        void dispatch(selectHistoryFile(targetFile.path))
         return
       }
 
-      const allHistoryCommits = (appState$.historyCommits.get() ?? []) as HistoryCommit[]
-      const historyFilter = appState$.historyFilter.get()
+      const allHistoryCommits = (historyCommits ?? []) as HistoryCommit[]
       const query = historyFilter.trim().toLowerCase()
       const filteredHistoryCommits = !query
         ? allHistoryCommits
@@ -138,10 +157,10 @@ export function useSourceControlKeyboardNav() {
 
       const targetCommit = filteredHistoryCommits[targetIndex]
       if (!targetCommit) return
-      void selectHistoryCommit(targetCommit.commitId)
+      void dispatch(selectHistoryCommit(targetCommit.commitId))
     }
 
     window.addEventListener('keydown', onGlobalKeyDown)
     return () => window.removeEventListener('keydown', onGlobalKeyDown)
-  }, [])
+  }, [dispatch, store])
 }

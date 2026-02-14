@@ -1,13 +1,13 @@
-import { appState$ } from '@/features/source-control/store'
+import type { AppThunk } from '@/app/store'
+import { addComment as addCommentAction, removeComment as removeCommentAction, updateComment as updateCommentAction } from '@/features/comments/commentsSlice'
+import { setError } from '@/features/source-control/sourceControlSlice'
 import type { Bucket, CommentItem, SelectionRange } from '@/features/source-control/types'
 import { formatRange, normalizeRange } from '@/features/source-control/utils'
 
-export function addComment(range: SelectionRange, text: string) {
+export const addComment = (range: SelectionRange, text: string): AppThunk => (dispatch, getState) => {
   const trimmed = text.trim()
-  const repoPath = appState$.activeRepo.get()
-  const filePath = appState$.activePath.get()
-  const bucket = appState$.activeBucket.get()
-  if (!trimmed || !repoPath || !filePath) return
+  const { activeRepo, activePath, activeBucket } = getState().sourceControl
+  if (!trimmed || !activeRepo || !activePath) return
 
   const normalized = normalizeRange(range)
   const side = range.side ?? 'additions'
@@ -16,9 +16,9 @@ export function addComment(range: SelectionRange, text: string) {
 
   const next: CommentItem = {
     id,
-    repoPath,
-    filePath,
-    bucket,
+    repoPath: activeRepo,
+    filePath: activePath,
+    bucket: activeBucket,
     startLine: normalized.start,
     endLine: normalized.end,
     side,
@@ -26,31 +26,26 @@ export function addComment(range: SelectionRange, text: string) {
     text: trimmed,
   }
 
-  appState$.comments.set([...appState$.comments.get(), next])
+  dispatch(addCommentAction(next))
 }
 
-export function removeComment(id: string) {
-  appState$.comments.set(appState$.comments.get().filter((item) => item.id !== id))
+export const removeComment = (id: string): AppThunk => (dispatch) => {
+  dispatch(removeCommentAction(id))
 }
 
-export function updateComment(id: string, text: string) {
+export const updateComment = (id: string, text: string): AppThunk => (dispatch) => {
   const trimmed = text.trim()
   if (!trimmed) return
-
-  appState$.comments.set(
-    appState$.comments.get().map((item) => {
-      if (item.id !== id) return item
-      return { ...item, text: trimmed }
-    }),
-  )
+  dispatch(updateCommentAction({ id, text: trimmed }))
 }
 
-export async function copyComments(scope: 'file' | 'all') {
-  const all = appState$.comments.get()
+export const copyComments = (scope: 'file' | 'all'): AppThunk => async (dispatch, getState) => {
+  const { comments } = getState()
+  const { activeRepo, activePath } = getState().sourceControl
   const source =
     scope === 'file'
-      ? all.filter((c) => c.repoPath === appState$.activeRepo.get() && c.filePath === appState$.activePath.get())
-      : all
+      ? comments.filter((c) => c.repoPath === activeRepo && c.filePath === activePath)
+      : comments
 
   if (source.length === 0) return
 
@@ -59,7 +54,7 @@ export async function copyComments(scope: 'file' | 'all') {
   try {
     await navigator.clipboard.writeText(payload)
   } catch (error) {
-    appState$.error.set(error instanceof Error ? error.message : String(error))
+    dispatch(setError(error instanceof Error ? error.message : String(error)))
   }
 }
 

@@ -18,6 +18,17 @@ export function createCommentCountByFile(comments: Array<CommentItem | undefined
   return counts
 }
 
+export function countCommentsForFile(comments: Array<CommentItem | undefined>, repoPath: string, filePath: string): number {
+  let count = 0
+  for (const comment of comments) {
+    if (!comment) continue
+    if (comment.repoPath === repoPath && comment.filePath === filePath) {
+      count += 1
+    }
+  }
+  return count
+}
+
 export function getCommentCountForFile(counts: Map<string, number>, repoPath: string, filePath: string): number {
   return counts.get(fileKey(repoPath, filePath)) ?? 0
 }

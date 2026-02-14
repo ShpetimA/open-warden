@@ -1,21 +1,22 @@
-import { useSelector } from '@legendapp/state/react'
-
+import { useAppDispatch, useAppSelector } from '@/app/hooks'
+import { useGetGitSnapshotQuery } from '@/features/source-control/api'
+import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
 import { setViewMode } from '@/features/source-control/actions'
-import { appState$ } from '@/features/source-control/store'
 import { repoLabel } from '@/features/source-control/utils'
 import { ChangesTab } from './ChangesTab'
 import { HistoryTab } from './HistoryTab'
 
 export function SourceControlSidebar() {
-  const activeRepo = useSelector(appState$.activeRepo)
-  const viewMode = useSelector(appState$.viewMode)
-  const snapshot = useSelector(appState$.snapshot)
+  const dispatch = useAppDispatch()
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
+  const viewMode = useAppSelector((state) => state.sourceControl.viewMode)
+  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
 
   return (
     <aside
       onMouseDown={() => {
         if (viewMode === 'history') {
-          appState$.historyNavTarget.set('commits')
+          dispatch(setHistoryNavTarget('commits'))
         }
       }}
       className="flex min-h-0 flex-col overflow-hidden overflow-x-hidden border-r border-[#2f3138] bg-[#17181d]"
@@ -37,7 +38,7 @@ export function SourceControlSidebar() {
                 : 'text-[#8f96a8] hover:bg-[#222733] hover:text-[#d7deef]'
             }`}
             onClick={() => {
-              void setViewMode('changes')
+              void dispatch(setViewMode('changes'))
             }}
           >
             Changes
@@ -50,7 +51,7 @@ export function SourceControlSidebar() {
                 : 'text-[#8f96a8] hover:bg-[#222733] hover:text-[#d7deef]'
             }`}
             onClick={() => {
-              void setViewMode('history')
+              void dispatch(setViewMode('history'))
             }}
           >
             History

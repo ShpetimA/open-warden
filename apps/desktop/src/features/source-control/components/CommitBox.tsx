@@ -1,23 +1,22 @@
 import { GitCommitHorizontal, RefreshCw } from 'lucide-react'
-import { useSelector } from '@legendapp/state/react'
 
+import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { Input } from '@/components/ui/input'
+import { useGetGitSnapshotQuery } from '@/features/source-control/api'
 import {
   commitAction,
   refreshActiveRepo,
-  setCommitMessage,
+  setCommitMessageValue,
 } from '@/features/source-control/actions'
-import { appState$ } from '@/features/source-control/store'
 
-type Props = {
-  canCommit: boolean
-}
-
-export function CommitBox({ canCommit }: Props) {
-  const activeRepo = useSelector(appState$.activeRepo)
-  const loadingSnapshot = useSelector(appState$.loadingSnapshot)
-  const runningAction = useSelector(appState$.runningAction)
-  const commitMessage = useSelector(appState$.commitMessage)
+export function CommitBox() {
+  const dispatch = useAppDispatch()
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
+  const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
+  const commitMessage = useAppSelector((state) => state.sourceControl.commitMessage)
+  const { data: snapshot, isFetching: loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
+  const stagedCount = snapshot?.staged?.length ?? 0
+  const canCommit = !!commitMessage.trim() && stagedCount > 0 && !runningAction
 
   return (
     <div className="border-b border-[#2f3138] p-2">
@@ -27,7 +26,7 @@ export function CommitBox({ canCommit }: Props) {
           className="p-1.5 text-[#b7bdcc] hover:bg-[#2b2f3a] hover:text-white disabled:opacity-50"
           title="Refresh"
           onClick={() => {
-            void refreshActiveRepo()
+            void dispatch(refreshActiveRepo())
           }}
           disabled={!activeRepo || loadingSnapshot || runningAction !== ''}
         >
@@ -38,13 +37,13 @@ export function CommitBox({ canCommit }: Props) {
       <div className="mt-2 border border-[#32353f] bg-[#101116] p-1.5">
         <Input
           value={commitMessage}
-          onChange={(e) => setCommitMessage(e.target.value)}
+          onChange={(e) => dispatch(setCommitMessageValue(e.target.value))}
           placeholder="Message (Cmd+Enter to commit)"
           className="h-7 border-[#3a3d48] bg-[#151721] text-xs"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
-              void commitAction()
+              void dispatch(commitAction())
             }
           }}
         />
@@ -52,7 +51,7 @@ export function CommitBox({ canCommit }: Props) {
           type="button"
           className="mt-1.5 flex w-full items-center justify-center gap-1.5 bg-[#f1cad2] px-2 py-1.5 text-xs font-semibold text-[#1b1c20] hover:bg-[#f6d7dd] disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => {
-            void commitAction()
+            void dispatch(commitAction())
           }}
           disabled={!canCommit}
         >

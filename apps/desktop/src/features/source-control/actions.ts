@@ -1,34 +1,27 @@
 import { open } from '@tauri-apps/plugin-dialog'
 
-import type { Bucket, BucketedFile, RunningAction, ViewMode } from './types'
-import { appState$ } from './store'
-import { findExistingBucket } from './utils'
+import type { AppThunk } from '@/app/store'
+import { gitApi } from './api'
+import type { Bucket, BucketedFile, GitSnapshot, RunningAction, ViewMode } from './types'
 import {
-  commitStaged,
-  discardFile,
-  discardFiles,
-  getCommitFileVersions,
-  getCommitFiles,
-  getCommitHistory,
-  getFileVersions,
-  getGitSnapshot,
-  stageAll,
-  stageFile,
-  unstageAll,
-  unstageFile,
-} from './services/git'
+  addRepo,
+  clearDiffSelection,
+  clearError,
+  clearHistorySelection,
+  setActiveBucket,
+  setActivePath,
+  setActiveRepo,
+  setCommitMessage,
+  setDiffStyle,
+  setError,
+  setHistoryCommitId,
+  setHistoryNavTarget,
+  setLastCommitId,
+  setRunningAction,
+  setViewMode as setViewModeAction,
+} from './sourceControlSlice'
 
-let snapshotLoadRequestId = 0
-let historyCommitsLoadRequestId = 0
-let historyFilesLoadRequestId = 0
-let fileVersionsLoadRequestId = 0
-
-function isRepoStillActive(repoPath: string): boolean {
-  return appState$.activeRepo.get() === repoPath
-}
-
-function nextChangedFileAfterStage(filePath: string): { bucket: Bucket; path: string } | null {
-  const snapshot = appState$.snapshot.get()
+function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, filePath: string) {
   if (!snapshot) return null
 
   const changed: Array<{ bucket: Bucket; path: string }> = [
@@ -49,325 +42,225 @@ function nextChangedFileAfterStage(filePath: string): { bucket: Bucket; path: st
   return null
 }
 
-function clearDiffSelection() {
-  appState$.activePath.set('')
-  appState$.oldFile.set(null)
-  appState$.newFile.set(null)
-}
-
-function clearHistorySelection() {
-  appState$.historyCommitId.set('')
-  appState$.historyNavTarget.set('commits')
-  appState$.historyFiles.set([])
-  clearDiffSelection()
-}
-
-async function loadHistoryFileVersions(
-  repoPath: string,
-  commitId: string,
-  relPath: string,
-  previousPath?: string,
-) {
-  const requestId = ++fileVersionsLoadRequestId
-  appState$.loadingPatch.set(true)
-  appState$.error.set('')
-
-  try {
-    const versions = await getCommitFileVersions(repoPath, commitId, relPath, previousPath)
-    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.historyCommitId.set(commitId)
-    appState$.activePath.set(relPath)
-    appState$.oldFile.set(versions.oldFile)
-    appState$.newFile.set(versions.newFile)
-  } catch (error) {
-    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.oldFile.set(null)
-    appState$.newFile.set(null)
-    appState$.error.set(error instanceof Error ? error.message : String(error))
-  } finally {
-    if (requestId === fileVersionsLoadRequestId) {
-      appState$.loadingPatch.set(false)
-    }
-  }
-}
-
-async function loadHistoryFiles(repoPath: string, commitId: string, preferredPath = '') {
-  const requestId = ++historyFilesLoadRequestId
-  appState$.loadingHistoryFiles.set(true)
-  appState$.error.set('')
-
-  try {
-    const files = await getCommitFiles(repoPath, commitId)
-    if (requestId !== historyFilesLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.historyNavTarget.set('commits')
-    appState$.historyCommitId.set(commitId)
-    appState$.historyFiles.set(files)
-
-    const existing = preferredPath ? files.find((file) => file.path === preferredPath) : undefined
-    const nextFile = existing ?? files[0]
-    if (!nextFile) {
-      clearDiffSelection()
-      return
-    }
-
-    await loadHistoryFileVersions(repoPath, commitId, nextFile.path, nextFile.previousPath ?? undefined)
-  } catch (error) {
-    if (requestId !== historyFilesLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.historyFiles.set([])
-    clearDiffSelection()
-    appState$.error.set(error instanceof Error ? error.message : String(error))
-  } finally {
-    if (requestId === historyFilesLoadRequestId) {
-      appState$.loadingHistoryFiles.set(false)
-    }
-  }
-}
-
-async function reloadActiveView(repoPath: string) {
-  if (appState$.viewMode.get() === 'history') {
-    await loadHistoryCommits(repoPath)
-    return
-  }
-
-  await loadSnapshot(repoPath)
-}
-
-export async function loadSnapshot(repoPath: string) {
-  const requestId = ++snapshotLoadRequestId
-  appState$.loadingSnapshot.set(true)
-  appState$.error.set('')
-
-  try {
-    const snapshot = await getGitSnapshot(repoPath)
-    if (requestId !== snapshotLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.snapshot.set(snapshot)
-
-    const previousPath = appState$.activePath.get()
-    const existingBucket = previousPath ? findExistingBucket(snapshot, previousPath) : null
-
-    if (existingBucket && previousPath) {
-      appState$.activeBucket.set(existingBucket)
-      await loadFileVersions(repoPath, existingBucket, previousPath)
-      return
-    }
-
-    clearDiffSelection()
-  } catch (error) {
-    if (requestId !== snapshotLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.snapshot.set(null)
-    clearDiffSelection()
-    appState$.error.set(error instanceof Error ? error.message : String(error))
-  } finally {
-    if (requestId === snapshotLoadRequestId) {
-      appState$.loadingSnapshot.set(false)
-    }
-  }
-}
-
-export async function loadHistoryCommits(repoPath: string) {
-  const requestId = ++historyCommitsLoadRequestId
-  appState$.loadingHistoryCommits.set(true)
-  appState$.error.set('')
-
-  try {
-    const commits = await getCommitHistory(repoPath)
-    if (requestId !== historyCommitsLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.historyCommits.set(commits)
-
-    if (commits.length === 0) {
-      clearHistorySelection()
-      return
-    }
-
-    const previousCommitId = appState$.historyCommitId.get()
-    const selectedCommit =
-      commits.find((commit) => commit.commitId === previousCommitId) ?? commits[0] ?? null
-
-    if (!selectedCommit) {
-      clearHistorySelection()
-      return
-    }
-
-    await loadHistoryFiles(repoPath, selectedCommit.commitId, appState$.activePath.get())
-  } catch (error) {
-    if (requestId !== historyCommitsLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.historyCommits.set([])
-    clearHistorySelection()
-    appState$.error.set(error instanceof Error ? error.message : String(error))
-  } finally {
-    if (requestId === historyCommitsLoadRequestId) {
-      appState$.loadingHistoryCommits.set(false)
-    }
-  }
-}
-
-export async function loadFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
-  const requestId = ++fileVersionsLoadRequestId
-  appState$.loadingPatch.set(true)
-  appState$.error.set('')
-
-  try {
-    const versions = await getFileVersions(repoPath, bucket, relPath)
-    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.activeBucket.set(bucket)
-    appState$.activePath.set(relPath)
-    appState$.oldFile.set(versions.oldFile)
-    appState$.newFile.set(versions.newFile)
-  } catch (error) {
-    if (requestId !== fileVersionsLoadRequestId || !isRepoStillActive(repoPath)) return
-    appState$.oldFile.set(null)
-    appState$.newFile.set(null)
-    appState$.error.set(error instanceof Error ? error.message : String(error))
-  } finally {
-    if (requestId === fileVersionsLoadRequestId) {
-      appState$.loadingPatch.set(false)
-    }
-  }
-}
-
-export async function selectFolder() {
+export const selectFolder = (): AppThunk => async (dispatch) => {
   const selected = await open({ directory: true, multiple: false })
   if (typeof selected !== 'string') return
 
-  const current = appState$.repos.get()
-  if (!current.includes(selected)) {
-    appState$.repos.set([...current, selected])
-  }
-
-  appState$.activeRepo.set(selected)
-  await reloadActiveView(selected)
+  dispatch(addRepo(selected))
+  dispatch(setActiveRepo(selected))
+  dispatch(clearError())
+  dispatch(clearHistorySelection())
+  dispatch(clearDiffSelection())
+  dispatch(setActiveBucket('unstaged'))
 }
 
-export async function selectRepo(repo: string) {
-  const activeRepo = appState$.activeRepo.get()
+export const selectRepo = (repo: string): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
   if (repo === activeRepo) return
-  appState$.activeRepo.set(repo)
-  await reloadActiveView(repo)
+  dispatch(setActiveRepo(repo))
+  dispatch(clearError())
+  dispatch(clearHistorySelection())
+  dispatch(clearDiffSelection())
+  dispatch(setActiveBucket('unstaged'))
 }
 
-export async function refreshActiveRepo() {
-  const activeRepo = appState$.activeRepo.get()
+export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
+  const { activeRepo, viewMode } = getState().sourceControl
   if (!activeRepo) return
-  await reloadActiveView(activeRepo)
+  dispatch(gitApi.util.invalidateTags([{ type: 'Snapshot', id: activeRepo }]))
+  if (viewMode === 'history') {
+    dispatch(gitApi.util.invalidateTags([{ type: 'HistoryCommits', id: activeRepo }]))
+  }
 }
 
-export async function selectFile(bucket: Bucket, relPath: string) {
-  if (appState$.viewMode.get() !== 'changes') return
-  const activeRepo = appState$.activeRepo.get()
-  if (!activeRepo) return
-  await loadFileVersions(activeRepo, bucket, relPath)
+export const selectFile = (bucket: Bucket, relPath: string): AppThunk => async (dispatch, getState) => {
+  if (getState().sourceControl.viewMode !== 'changes') return
+  if (!getState().sourceControl.activeRepo) return
+  dispatch(setActiveBucket(bucket))
+  dispatch(setActivePath(relPath))
 }
 
-export async function selectHistoryCommit(commitId: string) {
-  const activeRepo = appState$.activeRepo.get()
-  if (!activeRepo) return
-  if (appState$.viewMode.get() !== 'history') return
-  appState$.historyNavTarget.set('commits')
-  await loadHistoryFiles(activeRepo, commitId, appState$.activePath.get())
+export const selectHistoryCommit = (commitId: string): AppThunk => async (dispatch, getState) => {
+  if (getState().sourceControl.viewMode !== 'history') return
+  if (!getState().sourceControl.activeRepo) return
+  dispatch(setHistoryNavTarget('commits'))
+  dispatch(setHistoryCommitId(commitId))
 }
 
-export async function selectHistoryFile(relPath: string) {
-  const activeRepo = appState$.activeRepo.get()
-  const commitId = appState$.historyCommitId.get()
-  if (!activeRepo || !commitId) return
-  if (appState$.viewMode.get() !== 'history') return
-  appState$.historyNavTarget.set('files')
-
-  const file = appState$.historyFiles.get().find((item) => item.path === relPath)
-  await loadHistoryFileVersions(activeRepo, commitId, relPath, file?.previousPath ?? undefined)
+export const selectHistoryFile = (relPath: string): AppThunk => async (dispatch, getState) => {
+  if (getState().sourceControl.viewMode !== 'history') return
+  if (!getState().sourceControl.activeRepo) return
+  if (!getState().sourceControl.historyCommitId) return
+  dispatch(setHistoryNavTarget('files'))
+  dispatch(setActivePath(relPath))
 }
 
-export async function setViewMode(mode: ViewMode) {
-  if (appState$.viewMode.get() === mode) return
-  appState$.viewMode.set(mode)
-  appState$.historyNavTarget.set('commits')
-  appState$.error.set('')
+export const setViewMode = (mode: ViewMode): AppThunk => async (dispatch, getState) => {
+  const { viewMode, activeRepo } = getState().sourceControl
+  if (viewMode === mode) return
+  dispatch(setViewModeAction(mode))
+  dispatch(setHistoryNavTarget('commits'))
+  dispatch(clearError())
 
-  const activeRepo = appState$.activeRepo.get()
-  if (!activeRepo) {
-    if (mode === 'history') {
-      clearHistorySelection()
+  if (!activeRepo && mode === 'history') {
+    dispatch(clearHistorySelection())
+  }
+}
+
+export const setCommitMessageValue = (value: string): AppThunk => (dispatch) => {
+  dispatch(setCommitMessage(value))
+}
+
+export const setDiffStyleValue = (value: 'split' | 'unified'): AppThunk => (dispatch) => {
+  dispatch(setDiffStyle(value))
+}
+
+const runRepoAction = (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk => async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl
+    if (!activeRepo) return
+    dispatch(setRunningAction(action))
+    dispatch(clearError())
+    try {
+      await dispatch(thunk)
+    } catch (error) {
+      dispatch(setError(error instanceof Error ? error.message : String(error)))
+    } finally {
+      dispatch(setRunningAction(''))
     }
-    return
   }
 
-  await reloadActiveView(activeRepo)
-}
-
-export function setCommitMessage(value: string) {
-  appState$.commitMessage.set(value)
-}
-
-export function setDiffStyle(value: 'split' | 'unified') {
-  appState$.diffStyle.set(value)
-}
-
-async function runRepoAction(action: RunningAction, fn: () => Promise<void>) {
-  const activeRepo = appState$.activeRepo.get()
+export const stageFileAction = (filePath: string): AppThunk => async (dispatch, getState) => {
+  const state = getState()
+  const { activeRepo, viewMode, activePath } = state.sourceControl
   if (!activeRepo) return
-  appState$.runningAction.set(action)
-  appState$.error.set('')
-  try {
-    await fn()
-    await reloadActiveView(activeRepo)
-  } catch (error) {
-    appState$.error.set(error instanceof Error ? error.message : String(error))
-  } finally {
-    appState$.runningAction.set('')
-  }
-}
 
-export async function stageFileAction(filePath: string) {
-  if (appState$.viewMode.get() === 'changes' && appState$.activePath.get() === filePath) {
-    const next = nextChangedFileAfterStage(filePath)
+  if (viewMode === 'changes' && activePath === filePath) {
+    const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
+    const next = nextChangedFileAfterStage(snapshot, filePath)
     if (next) {
-      appState$.activeBucket.set(next.bucket)
-      appState$.activePath.set(next.path)
+      dispatch(setActiveBucket(next.bucket))
+      dispatch(setActivePath(next.path))
     }
   }
 
-  await runRepoAction(`file:stage:${filePath}`, async () => {
-    await stageFile(appState$.activeRepo.get(), filePath)
-  })
+  await dispatch(
+    runRepoAction(`file:stage:${filePath}`,
+      async (innerDispatch) => {
+        const result = innerDispatch(
+          gitApi.endpoints.stageFile.initiate(
+            { repoPath: activeRepo, relPath: filePath },
+            { subscribe: false },
+          ),
+        )
+        await result.unwrap()
+      },
+    ),
+  )
 }
 
-export async function unstageFileAction(filePath: string) {
-  await runRepoAction(`file:unstage:${filePath}`, async () => {
-    await unstageFile(appState$.activeRepo.get(), filePath)
-  })
+export const unstageFileAction = (filePath: string): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
+  if (!activeRepo) return
+
+  await dispatch(
+    runRepoAction(`file:unstage:${filePath}`,
+      async (innerDispatch) => {
+        const result = innerDispatch(
+          gitApi.endpoints.unstageFile.initiate(
+            { repoPath: activeRepo, relPath: filePath },
+            { subscribe: false },
+          ),
+        )
+        await result.unwrap()
+      },
+    ),
+  )
 }
 
-export async function discardFileAction(bucket: Bucket, filePath: string) {
-  await runRepoAction(`file:discard:${filePath}`, async () => {
-    await discardFile(appState$.activeRepo.get(), filePath, bucket)
-  })
+export const discardFileAction = (bucket: Bucket, filePath: string): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
+  if (!activeRepo) return
+
+  await dispatch(
+    runRepoAction(`file:discard:${filePath}`,
+      async (innerDispatch) => {
+        const result = innerDispatch(
+          gitApi.endpoints.discardFile.initiate(
+            { repoPath: activeRepo, relPath: filePath, bucket },
+            { subscribe: false },
+          ),
+        )
+        await result.unwrap()
+      },
+    ),
+  )
 }
 
-export async function stageAllAction() {
-  await runRepoAction('stage-all', async () => {
-    await stageAll(appState$.activeRepo.get())
-  })
+export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
+  if (!activeRepo) return
+
+  await dispatch(
+    runRepoAction('stage-all',
+      async (innerDispatch) => {
+        const result = innerDispatch(
+          gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
+        )
+        await result.unwrap()
+      },
+    ),
+  )
 }
 
-export async function unstageAllAction() {
-  await runRepoAction('unstage-all', async () => {
-    await unstageAll(appState$.activeRepo.get())
-  })
+export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
+  if (!activeRepo) return
+
+  await dispatch(
+    runRepoAction('unstage-all',
+      async (innerDispatch) => {
+        const result = innerDispatch(
+          gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
+        )
+        await result.unwrap()
+      },
+    ),
+  )
 }
 
-export async function discardChangesGroupAction(files: BucketedFile[]) {
-  await runRepoAction('discard-changes', async () => {
-    const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }))
-    await discardFiles(appState$.activeRepo.get(), payload)
-  })
+export const discardChangesGroupAction = (files: BucketedFile[]): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
+  if (!activeRepo) return
+
+  await dispatch(
+    runRepoAction('discard-changes',
+      async (innerDispatch) => {
+        const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }))
+        const result = innerDispatch(
+          gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }, { subscribe: false }),
+        )
+        await result.unwrap()
+      },
+    ),
+  )
 }
 
-export async function commitAction() {
-  const commitMessage = appState$.commitMessage.get().trim()
-  if (!commitMessage) return
-  await runRepoAction('commit', async () => {
-    const commitId = await commitStaged(appState$.activeRepo.get(), commitMessage)
-    appState$.lastCommitId.set(commitId)
-    appState$.commitMessage.set('')
-  })
+export const commitAction = (): AppThunk => async (dispatch, getState) => {
+  const { activeRepo, commitMessage } = getState().sourceControl
+  if (!activeRepo) return
+  const trimmed = commitMessage.trim()
+  if (!trimmed) return
+
+  await dispatch(
+    runRepoAction('commit',
+      async (innerDispatch) => {
+        const result = innerDispatch(
+          gitApi.endpoints.commitStaged.initiate({ repoPath: activeRepo, message: trimmed }, { subscribe: false }),
+        )
+        const commitId = await result.unwrap()
+        innerDispatch(setLastCommitId(commitId))
+        innerDispatch(setCommitMessage(''))
+      },
+    ),
+  )
 }

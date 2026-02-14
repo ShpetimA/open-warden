@@ -1,7 +1,6 @@
 import { ChevronDown, ChevronRight, Minus, Plus, Trash2 } from 'lucide-react'
-import { useSelector } from '@legendapp/state/react'
 
-import { appState$ } from '@/features/source-control/store'
+import { useAppSelector } from '@/app/hooks'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { FileRow } from './FileRow'
 
@@ -9,8 +8,6 @@ type Props = {
   sectionKey: 'staged' | 'unstaged'
   title: string
   rows: BucketedFile[]
-  commentCounts: Map<string, number>
-  activeRepo: string
   collapsed: boolean
   unstagedCount: number
   untrackedCount: number
@@ -28,8 +25,6 @@ export function FileSection({
   sectionKey,
   title,
   rows,
-  commentCounts,
-  activeRepo,
   collapsed,
   unstagedCount,
   untrackedCount,
@@ -42,7 +37,7 @@ export function FileSection({
   onUnstageAll,
   onDiscardChangesGroup,
 }: Props) {
-  const runningAction = useSelector(appState$.runningAction)
+  const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
   const isChanges = sectionKey === 'unstaged'
 
   return (
@@ -107,8 +102,6 @@ export function FileSection({
               <FileRow
                 key={`${file.bucket}-${file.path}`}
                 file={file}
-                commentCounts={commentCounts}
-                activeRepo={activeRepo}
                 onSelectFile={onSelectFile}
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}

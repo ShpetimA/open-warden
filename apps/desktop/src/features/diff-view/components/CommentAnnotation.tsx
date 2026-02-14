@@ -1,6 +1,7 @@
 import { Check, Pencil, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 
+import { useAppDispatch } from '@/app/hooks'
 import { Input } from '@/components/ui/input'
 import { removeComment, updateComment } from '@/features/comments/actions'
 import type { CommentItem } from '@/features/source-control/types'
@@ -10,6 +11,7 @@ type Props = {
 }
 
 export function CommentAnnotation({ comment }: Props) {
+  const dispatch = useAppDispatch()
   const [isEditing, setIsEditing] = useState(false)
   const [editingText, setEditingText] = useState(comment.text)
 
@@ -25,7 +27,7 @@ export function CommentAnnotation({ comment }: Props) {
 
   const onSaveEdit = () => {
     if (!editingText.trim()) return
-    updateComment(comment.id, editingText)
+    dispatch(updateComment(comment.id, editingText))
     setIsEditing(false)
   }
 
@@ -87,7 +89,7 @@ export function CommentAnnotation({ comment }: Props) {
         type="button"
         className="text-[#9ea7bb] hover:text-white"
         onMouseDown={(event) => event.stopPropagation()}
-        onClick={() => removeComment(comment.id)}
+        onClick={() => dispatch(removeComment(comment.id))}
         title="Remove"
       >
         <Trash2 className="h-3 w-3" />

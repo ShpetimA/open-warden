@@ -1,9 +1,7 @@
-import { useMemo } from 'react'
-import { useSelector } from '@legendapp/state/react'
-
+import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { createCommentCountByFile } from '@/features/comments/selectors'
 import { confirmDiscard } from '@/features/comments/actions'
+import { useGetGitSnapshotQuery } from '@/features/source-control/api'
 import {
   discardChangesGroupAction,
   discardFileAction,
@@ -13,20 +11,32 @@ import {
   unstageAllAction,
   unstageFileAction,
 } from '@/features/source-control/actions'
-import { appState$ } from '@/features/source-control/store'
+import { setActiveBucket, setCollapseStaged, setCollapseUnstaged } from '@/features/source-control/sourceControlSlice'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { CommitBox } from './CommitBox'
 import { FileSection } from './FileSection'
 
 export function ChangesTab() {
-  const snapshot = useSelector(appState$.snapshot)
-  const activeRepo = useSelector(appState$.activeRepo)
-  const comments = useSelector(appState$.comments)
-  const runningAction = useSelector(appState$.runningAction)
-  const commitMessage = useSelector(appState$.commitMessage)
-  const collapseStaged = useSelector(appState$.collapseStaged)
-  const collapseUnstaged = useSelector(appState$.collapseUnstaged)
-  const loadingSnapshot = useSelector(appState$.loadingSnapshot)
+  return (
+    <>
+      <CommitBox />
+      <ChangesFileList />
+    </>
+  )
+}
+
+function ChangesFileList() {
+  const dispatch = useAppDispatch()
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
+  const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged)
+  const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
+  const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ data, isFetching }) => ({
+      snapshot: data,
+      loadingSnapshot: isFetching,
+    }),
+  })
 
   const unstagedFiles = snapshot?.unstaged ?? []
   const stagedFiles = snapshot?.staged ?? []
@@ -41,52 +51,47 @@ export function ChangesTab() {
     bucket: 'staged' as const,
   }))
 
-  const canCommit = !!commitMessage.trim() && stagedFiles.length > 0 && !runningAction
-  const commentCounts = useMemo(() => createCommentCountByFile(comments), [comments])
-
   const onToggle = (key: 'staged' | 'unstaged') => {
     if (key === 'staged') {
-      appState$.collapseStaged.set(!collapseStaged)
+      dispatch(setCollapseStaged(!collapseStaged))
     } else {
-      appState$.collapseUnstaged.set(!collapseUnstaged)
+      dispatch(setCollapseUnstaged(!collapseUnstaged))
     }
-    appState$.activeBucket.set(key)
+    dispatch(setActiveBucket(key))
   }
 
   const onStageAll = () => {
-    void stageAllAction()
+    void dispatch(stageAllAction())
   }
   const onUnstageAll = () => {
-    void unstageAllAction()
+    void dispatch(unstageAllAction())
   }
 
   const onDiscardChangesGroup = (files: BucketedFile[]) => {
     if (files.length === 0) return
     if (!confirmDiscard(`Discard all changes in CHANGES (${files.length} files)?`)) return
-    void discardChangesGroupAction(files)
+    void dispatch(discardChangesGroupAction(files))
   }
 
   const onStageFile = (path: string) => {
-    void stageFileAction(path)
+    void dispatch(stageFileAction(path))
   }
 
   const onUnstageFile = (path: string) => {
-    void unstageFileAction(path)
+    void dispatch(unstageFileAction(path))
   }
 
   const onDiscardFile = (bucket: Bucket, path: string) => {
     if (!confirmDiscard(`Discard changes for ${path}?`)) return
-    void discardFileAction(bucket, path)
+    void dispatch(discardFileAction(bucket, path))
   }
 
   const onSelectFile = (bucket: Bucket, relPath: string) => {
-    void selectFile(bucket, relPath)
+    void dispatch(selectFile(bucket, relPath))
   }
 
   return (
     <>
-      <CommitBox canCommit={canCommit} />
-
       <ScrollArea className="min-h-0 flex-1 overflow-hidden ">
         <div>
           {loadingSnapshot ? (
@@ -109,8 +114,6 @@ export function ChangesTab() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
-            commentCounts={commentCounts}
-            activeRepo={activeRepo}
           />
           <FileSection
             sectionKey="unstaged"
@@ -127,8 +130,6 @@ export function ChangesTab() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
-            commentCounts={commentCounts}
-            activeRepo={activeRepo}
           />
         </div>
       </ScrollArea>

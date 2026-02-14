@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { useAppDispatch } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { addComment } from '@/features/comments/actions'
@@ -16,6 +17,7 @@ type Props = {
 }
 
 export function CommentComposer({ visible, top, left, label, activePath, selectedRange, onClose }: Props) {
+  const dispatch = useAppDispatch()
   const [draftComment, setDraftComment] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -33,7 +35,7 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
 
   const onSubmit = () => {
     if (!selectedRange || !draftComment.trim() || !activePath) return
-    addComment(selectedRange, draftComment)
+    dispatch(addComment(selectedRange, draftComment))
     setDraftComment('')
     onClose()
   }

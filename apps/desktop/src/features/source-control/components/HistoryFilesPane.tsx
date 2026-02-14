@@ -1,22 +1,29 @@
-import { useMemo } from 'react'
-import { useSelector } from '@legendapp/state/react'
-
+import { skipToken } from '@reduxjs/toolkit/query'
+import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { createCommentCountByFile, getCommentCountForFile } from '@/features/comments/selectors'
+import { countCommentsForFile } from '@/features/comments/selectors'
+import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from '@/features/source-control/api'
 import { selectHistoryFile } from '@/features/source-control/actions'
-import { appState$ } from '@/features/source-control/store'
+import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
 import type { FileItem } from '@/features/source-control/types'
 import { statusBadge } from '@/features/source-control/utils'
 
 export function HistoryFilesPane() {
-  const activeRepo = useSelector(appState$.activeRepo)
-  const historyCommits = useSelector(appState$.historyCommits)
-  const historyCommitId = useSelector(appState$.historyCommitId)
-  const historyFiles = useSelector(appState$.historyFiles)
-  const activePath = useSelector(appState$.activePath)
-  const comments = useSelector(appState$.comments)
-  const loadingHistoryFiles = useSelector(appState$.loadingHistoryFiles)
-  const commentCounts = useMemo(() => createCommentCountByFile(comments), [comments])
+  const dispatch = useAppDispatch()
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
+  const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
+  const { historyCommits } = useGetCommitHistoryQuery(activeRepo ? { repoPath: activeRepo } : skipToken, {
+    selectFromResult: ({ data }) => ({ historyCommits: data ?? [] }),
+  })
+  const { historyFiles, loadingHistoryFiles } = useGetCommitFilesQuery(
+    activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
+    {
+      selectFromResult: ({ data, isFetching }) => ({
+        historyFiles: data ?? [],
+        loadingHistoryFiles: isFetching,
+      }),
+    },
+  )
 
   const selectedCommit = historyCommits.find((commit) => commit?.commitId === historyCommitId)
   const files = historyFiles as FileItem[]
@@ -24,7 +31,7 @@ export function HistoryFilesPane() {
   return (
     <aside
       onMouseDown={() => {
-        appState$.historyNavTarget.set('files')
+        dispatch(setHistoryNavTarget('files'))
       }}
       className="flex min-h-0 flex-col overflow-hidden border-r border-[#2f3138] bg-[#16171c]"
     >
@@ -48,51 +55,59 @@ export function HistoryFilesPane() {
           </div>
         ) : (
           <div className="space-y-1">
-            {files.map((file) => {
-              const normalizedPath = file.path.replace(/\\/g, '/')
-              const pathParts = normalizedPath.split('/').filter(Boolean)
-              const fileName = pathParts[pathParts.length - 1] ?? file.path
-              const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
-              const isActive = activePath === file.path
-              const commentCount = getCommentCountForFile(commentCounts, activeRepo, file.path)
-
-              return (
-                <button
-                  key={`${file.path}:${file.status}`}
-                  type="button"
-                  className={`block w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
-                    isActive
-                      ? 'border-[#445172] bg-[#262d3d]'
-                      : 'border-[#30323a] bg-[#1a1b1f] hover:bg-[#23262d]'
-                  }`}
-                  title={file.path}
-                  onClick={() => {
-                    appState$.historyNavTarget.set('files')
-                    void selectHistoryFile(file.path)
-                  }}
-                >
-                  <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs">
-                    <span className="w-3 text-center text-[10px] text-[#e39a59]">{statusBadge(file.status)}</span>
-                    <span className="w-0 min-w-0 flex-1 truncate font-medium text-[#eef1f8]">{fileName}</span>
-                    {commentCount > 0 ? (
-                      <span className="inline-flex h-4 min-w-4 items-center justify-center border border-[#4a5166] bg-[#2a3040] px-1 text-[10px] text-[#dce3f6]">
-                        {commentCount}
-                      </span>
-                    ) : null}
-                    {directoryPath ? (
-                      <span className="max-w-[45%] shrink truncate text-[#9ca4b9]">{directoryPath}</span>
-                    ) : null}
-                  </div>
-
-                  {file.previousPath && file.previousPath !== file.path ? (
-                    <div className="mt-0.5 truncate pl-5 text-[11px] text-[#8f96a8]">from {file.previousPath}</div>
-                  ) : null}
-                </button>
-              )
-            })}
+            {files.map((file) => (
+              <HistoryFileRow key={`${file.path}:${file.status}`} file={file} />
+            ))}
           </div>
         )}
       </ScrollArea>
     </aside>
+  )
+}
+
+type HistoryFileRowProps = {
+  file: FileItem
+}
+
+function HistoryFileRow({ file }: HistoryFileRowProps) {
+  const dispatch = useAppDispatch()
+  const commentCount = useAppSelector((state) =>
+    countCommentsForFile(state.comments, state.sourceControl.activeRepo, file.path),
+  )
+  const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path)
+
+  const normalizedPath = file.path.replace(/\\/g, '/')
+  const pathParts = normalizedPath.split('/').filter(Boolean)
+  const fileName = pathParts[pathParts.length - 1] ?? file.path
+  const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
+  return (
+    <button
+      type="button"
+      className={`block w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
+        isActive
+          ? 'border-[#445172] bg-[#262d3d]'
+          : 'border-[#30323a] bg-[#1a1b1f] hover:bg-[#23262d]'
+      }`}
+      title={file.path}
+      onClick={() => {
+        dispatch(setHistoryNavTarget('files'))
+        void dispatch(selectHistoryFile(file.path))
+      }}
+    >
+      <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs">
+        <span className="w-3 text-center text-[10px] text-[#e39a59]">{statusBadge(file.status)}</span>
+        <span className="w-0 min-w-0 flex-1 truncate font-medium text-[#eef1f8]">{fileName}</span>
+        {commentCount > 0 ? (
+          <span className="inline-flex h-4 min-w-4 items-center justify-center border border-[#4a5166] bg-[#2a3040] px-1 text-[10px] text-[#dce3f6]">
+            {commentCount}
+          </span>
+        ) : null}
+        {directoryPath ? <span className="max-w-[45%] shrink truncate text-[#9ca4b9]">{directoryPath}</span> : null}
+      </div>
+
+      {file.previousPath && file.previousPath !== file.path ? (
+        <div className="mt-0.5 truncate pl-5 text-[11px] text-[#8f96a8]">from {file.previousPath}</div>
+      ) : null}
+    </button>
   )
 }
