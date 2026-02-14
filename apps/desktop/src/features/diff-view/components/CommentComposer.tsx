@@ -22,12 +22,6 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
-    if (!visible) return
-    const id = window.requestAnimationFrame(() => inputRef.current?.focus())
-    return () => window.cancelAnimationFrame(id)
-  }, [visible])
-
-  useEffect(() => {
     if (visible) return
     if (!draftComment) return
     setDraftComment('')
@@ -48,6 +42,7 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
       <Input
         ref={inputRef}
         value={draftComment}
+        autoFocus
         onChange={(event) => setDraftComment(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
