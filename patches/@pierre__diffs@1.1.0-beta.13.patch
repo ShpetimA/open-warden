@@ -1,0 +1,17 @@
+diff --git a/dist/worker/WorkerPoolManager.js b/dist/worker/WorkerPoolManager.js
+index 2fe664760ccf049eac53f75b7f98bc5289f9d889..cd5db2e198609d2dc0ea6d859f676e2f5f82f7af 100644
+--- a/dist/worker/WorkerPoolManager.js
++++ b/dist/worker/WorkerPoolManager.js
+@@ -442,7 +442,11 @@ var WorkerPoolManager = class {
+ 		} catch (error) {
+ 			if (error !== IGNORE_RESPONSE) console.error(error, task, response);
+ 		}
+-		if (task != null) this.clearWorkerTask(task, managedWorker);
++		if (task != null) this.clearWorkerTask(task, managedWorker);
++		else if (managedWorker.request_id === response.id)
++			// If a task was cleaned up while it was running, we'll intentionally
++			// ignore its response. We still need to mark this worker as free.
++			managedWorker.request_id = void 0;
+ 		this.queueBroadcastStateChanges();
+ 		if (this.taskQueue.size > 0) this.queueDrain();
+ 	}

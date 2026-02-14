@@ -11,6 +11,11 @@
     "rust:build": "turbo run rust:build --filter=agent-leash",
     "rust:dev": "turbo run dev --filter=agent-leash"
   },
+  "pnpm": {
+    "patchedDependencies": {
+      "@pierre/diffs@1.1.0-beta.13": "patches/@pierre__diffs@1.1.0-beta.13.patch"
+    }
+  },
   "devDependencies": {
     "turbo": "^2.5.8"
   }
