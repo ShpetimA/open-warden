@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { parseDiffFromFile } from '@pierre/diffs'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { FileDiff as PierreFileDiff, Virtualizer } from '@pierre/diffs/react'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
@@ -16,6 +15,7 @@ import type {
 } from '@/features/source-control/types'
 import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
 import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
+import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
 import {
     areRangesEqual,
     formatRange,
@@ -112,13 +112,11 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
         ? fileComments(allComments, activeRepo, activePath)
         : []
     const currentAnnotations = toLineAnnotations(currentFileComments)
-    const currentFileDiff =
-        activePath && (oldFile || newFile)
-            ? parseDiffFromFile(
-                  oldFile ?? { name: activePath, contents: '' },
-                  newFile ?? { name: activePath, contents: '' }
-              )
-            : null
+    const { currentFileDiff, isParsingDiff } = useParsedDiff({
+        activePath,
+        oldFile,
+        newFile
+    })
 
     const onDiffViewportScroll = useCallback(() => {
         if (!selectedRange) return
@@ -271,6 +269,10 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
                             renderAnnotation={renderCommentAnnotation}
                             options={diffOptions}
                         />
+                    ) : isParsingDiff ? (
+                        <div className='p-3 text-xs text-[#8f96a8]'>
+                            Parsing diff...
+                        </div>
                     ) : (
                         <div className='p-3 text-xs text-[#8f96a8]'>
                             No diff content.
