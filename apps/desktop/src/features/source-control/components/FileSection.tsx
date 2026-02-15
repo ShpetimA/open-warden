@@ -41,8 +41,8 @@ export function FileSection({
   const isChanges = sectionKey === 'unstaged'
 
   return (
-    <div className="overflow-hidden border border-[#34343a] bg-[#1a1b1f]">
-      <div className="group flex items-center gap-2 px-2 py-1 text-xs tracking-wide text-[#d0d3da] hover:bg-[#24262c]">
+    <div className="border-input bg-surface overflow-hidden border">
+      <div className="text-foreground/85 hover:bg-accent/60 group flex items-center gap-2 px-2 py-1 text-xs tracking-wide">
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -52,11 +52,11 @@ export function FileSection({
           <span className="min-w-0 truncate font-medium">{title}</span>
           {isChanges ? (
             <>
-              <span className="bg-[#30323a] px-1.5 py-0 text-[10px]">M {unstagedCount}</span>
-              <span className="bg-[#30323a] px-1.5 py-0 text-[10px]">A {untrackedCount}</span>
+              <span className="bg-surface-alt px-1.5 py-0 text-[10px]">M {unstagedCount}</span>
+              <span className="bg-surface-alt px-1.5 py-0 text-[10px]">A {untrackedCount}</span>
             </>
           ) : null}
-          <span className="ml-auto bg-[#30323a] px-1.5 py-0 text-[10px]">{rows.length}</span>
+          <span className="bg-surface-alt ml-auto px-1.5 py-0 text-[10px]">{rows.length}</span>
         </button>
 
         <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
@@ -64,7 +64,7 @@ export function FileSection({
             <>
               <button
                 type="button"
-                className="p-1 text-[#b6bbca] hover:bg-[#314838] hover:text-white"
+                className="text-muted-foreground hover:bg-success/20 hover:text-success p-1"
                 title="Stage all"
                 disabled={rows.length === 0 || !!runningAction}
                 onClick={onStageAll}
@@ -73,7 +73,7 @@ export function FileSection({
               </button>
               <button
                 type="button"
-                className="p-1 text-[#b6bbca] hover:bg-[#4b2f34] hover:text-white"
+                className="text-muted-foreground hover:bg-destructive/20 hover:text-destructive p-1"
                 title="Discard changes"
                 disabled={rows.length === 0 || !!runningAction}
                 onClick={() => onDiscardChangesGroup(rows)}
@@ -84,7 +84,7 @@ export function FileSection({
           ) : (
             <button
               type="button"
-              className="p-1 text-[#b6bbca] hover:bg-[#384255] hover:text-white"
+               className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
               title="Unstage all"
               disabled={rows.length === 0 || !!runningAction}
               onClick={onUnstageAll}
@@ -96,7 +96,7 @@ export function FileSection({
       </div>
 
       {!collapsed ? (
-        <div className="border-t border-[#30323a]">
+        <div className="border-input border-t">
           {rows.length > 0 ? (
             rows.map((file) => (
               <FileRow
@@ -109,7 +109,7 @@ export function FileSection({
               />
             ))
           ) : (
-            <div className="px-2 py-2 text-[11px] text-[#8c92a5]">No files.</div>
+            <div className="text-muted-foreground px-2 py-2 text-[11px]">No files.</div>
           )}
         </div>
       ) : null}

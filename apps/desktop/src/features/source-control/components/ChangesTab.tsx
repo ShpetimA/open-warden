@@ -95,7 +95,7 @@ function ChangesFileList() {
       <ScrollArea className="min-h-0 flex-1 overflow-hidden ">
         <div>
           {loadingSnapshot ? (
-            <div className="m-2 border border-[#30323a] bg-[#1a1b1f] px-2 py-2 text-[11px] text-[#8c92a5]">
+            <div className="border-input bg-surface text-muted-foreground m-2 border px-2 py-2 text-[11px]">
               Loading changes...
             </div>
           ) : null}

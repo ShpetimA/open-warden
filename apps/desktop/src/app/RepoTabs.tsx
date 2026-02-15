@@ -11,11 +11,11 @@ type Props = {
 
 export function RepoTabs({ sidebarOpen, repos, activeRepo, onToggleSidebar, onSelectRepo, onAddRepo }: Props) {
   return (
-    <div className="border-t border-[#2f3138] bg-[#17181d] px-2">
+    <div className="border-border bg-surface border-t px-2">
       <div className="flex h-full items-center gap-1">
         <button
           type="button"
-          className="border border-[#3a3d46] px-2 py-0.5 text-xs text-[#aeb5c6] hover:bg-[#23262e]"
+          className="border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground border px-2 py-0.5 text-xs"
           onClick={onToggleSidebar}
           title={sidebarOpen ? 'Close Source Control' : 'Open Source Control'}
         >
@@ -31,8 +31,8 @@ export function RepoTabs({ sidebarOpen, repos, activeRepo, onToggleSidebar, onSe
               type="button"
               className={`border px-2 py-0.5 text-xs ${
                 repoPath === activeRepo
-                  ? 'border-[#505768] bg-[#2c3240] text-[#e5e8f0]'
-                  : 'border-[#3a3d46] text-[#aeb5c6] hover:bg-[#23262e]'
+                  ? 'border-ring/40 bg-surface-active text-foreground'
+                  : 'border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground'
               }`}
               onClick={() => onSelectRepo(repoPath)}
               title={repoPath}
@@ -44,7 +44,7 @@ export function RepoTabs({ sidebarOpen, repos, activeRepo, onToggleSidebar, onSe
 
         <button
           type="button"
-          className="border border-[#3a3d46] px-2 py-0.5 text-xs text-[#aeb5c6] hover:bg-[#23262e]"
+          className="border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground border px-2 py-0.5 text-xs"
           onClick={onAddRepo}
           title="Add repository"
         >

@@ -56,7 +56,7 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
   )
 
   return (
-    <div className="flex items-center gap-1 border-b border-[#2f3138] px-2 py-1">
+    <div className="border-border flex items-center gap-1 border-b px-2 py-1">
       <Button
         size="sm"
         variant="ghost"

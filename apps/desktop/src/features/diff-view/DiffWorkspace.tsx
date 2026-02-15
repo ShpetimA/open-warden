@@ -222,14 +222,14 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
     return (
         <div className='flex h-full min-h-0 flex-col'>
             {canComment && currentFileComments.length > 0 ? (
-                <div className='border-b border-[#2f3138] px-2 py-1'>
+                <div className='border-border border-b px-2 py-1'>
                     <div className='space-y-1'>
                         {currentFileComments.map(comment => (
                             <div
                                 key={comment.id}
-                                className='flex items-center gap-2 bg-[#23262f] px-2 py-1 text-[11px]'
+                                className='bg-surface-alt flex items-center gap-2 px-2 py-1 text-[11px]'
                             >
-                                <span className='text-[#8f96a8]'>
+                                <span className='text-muted-foreground'>
                                     {formatRange(
                                         comment.startLine,
                                         comment.endLine
@@ -238,7 +238,7 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
                                 <span className='truncate'>{comment.text}</span>
                                 <button
                                     type='button'
-                                    className='ml-auto text-[#9ea7bb] hover:text-white'
+                                    className='text-muted-foreground hover:text-foreground ml-auto'
                                     onClick={() =>
                                         dispatch(removeComment(comment.id))
                                     }
@@ -270,11 +270,11 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
                             options={diffOptions}
                         />
                     ) : isParsingDiff ? (
-                        <div className='p-3 text-xs text-[#8f96a8]'>
+                        <div className='text-muted-foreground p-3 text-xs'>
                             Parsing diff...
                         </div>
                     ) : (
-                        <div className='p-3 text-xs text-[#8f96a8]'>
+                        <div className='text-muted-foreground p-3 text-xs'>
                             No diff content.
                         </div>
                     )}

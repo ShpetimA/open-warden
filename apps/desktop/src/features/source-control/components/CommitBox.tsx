@@ -19,11 +19,11 @@ export function CommitBox() {
   const canCommit = !!commitMessage.trim() && stagedCount > 0 && !runningAction
 
   return (
-    <div className="border-b border-[#2f3138] p-2">
+    <div className="border-border border-b p-2">
       <div className="flex items-center gap-1">
         <button
           type="button"
-          className="p-1.5 text-[#b7bdcc] hover:bg-[#2b2f3a] hover:text-white disabled:opacity-50"
+          className="text-muted-foreground hover:bg-accent hover:text-foreground p-1.5 disabled:opacity-50"
           title="Refresh"
           onClick={() => {
             void dispatch(refreshActiveRepo())
@@ -34,12 +34,12 @@ export function CommitBox() {
         </button>
       </div>
 
-      <div className="mt-2 border border-[#32353f] bg-[#101116] p-1.5">
+      <div className="border-input bg-surface-alt mt-2 border p-1.5">
         <Input
           value={commitMessage}
           onChange={(e) => dispatch(setCommitMessageValue(e.target.value))}
           placeholder="Message (Cmd+Enter to commit)"
-          className="h-7 border-[#3a3d48] bg-[#151721] text-xs"
+          className="border-input bg-input h-7 text-xs"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
@@ -49,7 +49,7 @@ export function CommitBox() {
         />
         <button
           type="button"
-          className="mt-1.5 flex w-full items-center justify-center gap-1.5 bg-[#f1cad2] px-2 py-1.5 text-xs font-semibold text-[#1b1c20] hover:bg-[#f6d7dd] disabled:cursor-not-allowed disabled:opacity-60"
+          className="bg-destructive text-destructive-foreground hover:bg-destructive/90 mt-1.5 flex w-full items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => {
             void dispatch(commitAction())
           }}

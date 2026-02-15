@@ -54,13 +54,13 @@ export function HistoryScreen() {
 
         <div className="min-h-0 flex-1">
           {errorMessage ? (
-            <div className="p-3 text-sm text-red-400">{errorMessage}</div>
+            <div className="text-destructive p-3 text-sm">{errorMessage}</div>
           ) : loadingPatch ? (
-            <div className="p-3 text-sm text-[#8f96a8]">Loading diff...</div>
+            <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
           ) : !activePath ? (
-            <div className="p-3 text-sm text-[#8f96a8]">Select a commit file to view diff.</div>
+            <div className="text-muted-foreground p-3 text-sm">Select a commit file to view diff.</div>
           ) : !oldFile && !newFile ? (
-            <div className="p-3 text-sm text-[#8f96a8]">No diff content.</div>
+            <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
             <DiffWorkspace oldFile={oldFile} newFile={newFile} canComment={false} />
           )}

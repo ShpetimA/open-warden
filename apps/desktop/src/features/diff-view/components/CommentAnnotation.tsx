@@ -48,12 +48,12 @@ export function CommentAnnotation({ comment }: Props) {
               onCancelEdit()
             }
           }}
-          className="h-6 min-w-0 flex-1 border-[#3a3d48] bg-[#10131a] px-1 text-[10px]"
+          className="border-input bg-input h-6 min-w-0 flex-1 px-1 text-[10px]"
         />
 
         <button
           type="button"
-          className="text-[#9ea7bb] hover:text-white"
+          className="text-muted-foreground hover:text-foreground"
           onMouseDown={(event) => event.stopPropagation()}
           onClick={onSaveEdit}
           title="Save"
@@ -62,7 +62,7 @@ export function CommentAnnotation({ comment }: Props) {
         </button>
         <button
           type="button"
-          className="text-[#9ea7bb] hover:text-white"
+          className="text-muted-foreground hover:text-foreground"
           onMouseDown={(event) => event.stopPropagation()}
           onClick={onCancelEdit}
           title="Cancel"
@@ -78,7 +78,7 @@ export function CommentAnnotation({ comment }: Props) {
       <span className="min-w-0 flex-1 truncate">{comment.text}</span>
       <button
         type="button"
-        className="text-[#9ea7bb] hover:text-white"
+        className="text-muted-foreground hover:text-foreground"
         onMouseDown={(event) => event.stopPropagation()}
         onClick={onStartEdit}
         title="Edit"
@@ -87,7 +87,7 @@ export function CommentAnnotation({ comment }: Props) {
       </button>
       <button
         type="button"
-        className="text-[#9ea7bb] hover:text-white"
+        className="text-muted-foreground hover:text-foreground"
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => dispatch(removeComment(comment.id))}
         title="Remove"

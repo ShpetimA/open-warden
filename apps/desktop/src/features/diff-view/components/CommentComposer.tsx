@@ -56,15 +56,15 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
   if (!visible) return null
 
   return (
-    <div className="absolute z-20 w-80 border border-[#3a3d48] bg-[#1a1d25] p-2 shadow-xl" style={{ top, left }}>
-      <div className="mb-1 text-[11px] text-[#c5cada]">Comment on {label}</div>
+    <div className="border-input bg-surface-elevated absolute z-20 w-80 border p-2 shadow-xl" style={{ top, left }}>
+      <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
       <Input
         ref={inputRef}
         value={draftComment}
         autoFocus
         onChange={(event) => setDraftComment(event.target.value)}
         placeholder="Type comment"
-        className="h-7 border-[#3a3d48] bg-[#10131a] text-xs"
+        className="border-input bg-input h-7 text-xs"
       />
       <div className="mt-2 flex items-center gap-1">
         <Button size="sm" variant="secondary" onClick={onSubmit} disabled={!draftComment.trim() || !activePath}>

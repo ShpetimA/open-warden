@@ -23,16 +23,16 @@ export function AppShell() {
   const toggleSidebar = () => setSidebarOpen((open) => !open)
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[#111216] text-[#d8dbe3]">
+    <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
       <div className="grid h-full grid-rows-[1fr_34px]">
         <div className="grid min-h-0" style={{ gridTemplateColumns: sidebarOpen ? '320px 1fr' : '1fr' }}>
           {sidebarOpen ? <SourceControlSidebar /> : null}
 
           <main className="min-h-0">
             {!activeRepo ? (
-              <div className="p-3 text-sm text-[#8f96a8]">Select a repository tab or add one with +.</div>
+              <div className="text-muted-foreground p-3 text-sm">Select a repository tab or add one with +.</div>
             ) : errorMessage ? (
-              <div className="p-3 text-sm text-red-400">{errorMessage}</div>
+              <div className="text-destructive p-3 text-sm">{errorMessage}</div>
             ) : (
               <Outlet context={{ sidebarOpen, onToggleSidebar: toggleSidebar }} />
             )}

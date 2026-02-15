@@ -33,11 +33,11 @@ export function HistoryFilesPane() {
       onMouseDown={() => {
         dispatch(setHistoryNavTarget('files'))
       }}
-      className="flex min-h-0 flex-col overflow-hidden border-r border-[#2f3138] bg-[#16171c]"
+      className="border-border bg-surface flex min-h-0 flex-col overflow-hidden border-r"
     >
-      <div className="border-b border-[#2f3138] px-3 py-2">
-        <div className="text-[11px] font-semibold tracking-[0.14em] text-[#aeb5c6]">COMMIT FILES</div>
-        <div className="mt-1 truncate text-xs text-[#7f8698]">
+      <div className="border-border border-b px-3 py-2">
+        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">COMMIT FILES</div>
+        <div className="text-muted-foreground mt-1 truncate text-xs">
           {selectedCommit
             ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? '' : 's'}`
             : 'No commit selected'}
@@ -46,11 +46,11 @@ export function HistoryFilesPane() {
 
       <ScrollArea className="min-h-0 flex-1 overflow-hidden p-2 ">
         {loadingHistoryFiles ? (
-          <div className="border border-[#30323a] bg-[#1a1b1f] px-2 py-2 text-[11px] text-[#8c92a5]">
+          <div className="border-input bg-surface border px-2 py-2 text-[11px] text-muted-foreground">
             Loading files...
           </div>
         ) : files.length === 0 ? (
-          <div className="border border-[#30323a] bg-[#1a1b1f] px-2 py-2 text-[11px] text-[#8c92a5]">
+          <div className="border-input bg-surface border px-2 py-2 text-[11px] text-muted-foreground">
             No changed files in this commit.
           </div>
         ) : (
@@ -85,8 +85,8 @@ function HistoryFileRow({ file }: HistoryFileRowProps) {
       type="button"
       className={`block w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
         isActive
-          ? 'border-[#445172] bg-[#262d3d]'
-          : 'border-[#30323a] bg-[#1a1b1f] hover:bg-[#23262d]'
+          ? 'border-ring/40 bg-surface-active'
+          : 'border-input bg-surface hover:bg-accent/60'
       }`}
       title={file.path}
       onClick={() => {
@@ -95,18 +95,18 @@ function HistoryFileRow({ file }: HistoryFileRowProps) {
       }}
     >
       <div className="flex min-w-0 items-center gap-2 overflow-hidden text-xs">
-        <span className="w-3 text-center text-[10px] text-[#e39a59]">{statusBadge(file.status)}</span>
-        <span className="w-0 min-w-0 flex-1 truncate font-medium text-[#eef1f8]">{fileName}</span>
+        <span className="text-warning w-3 text-center text-[10px]">{statusBadge(file.status)}</span>
+        <span className="text-foreground w-0 min-w-0 flex-1 truncate font-medium">{fileName}</span>
         {commentCount > 0 ? (
-          <span className="inline-flex h-4 min-w-4 items-center justify-center border border-[#4a5166] bg-[#2a3040] px-1 text-[10px] text-[#dce3f6]">
+          <span className="border-input bg-surface-alt text-foreground inline-flex h-4 min-w-4 items-center justify-center border px-1 text-[10px]">
             {commentCount}
           </span>
         ) : null}
-        {directoryPath ? <span className="max-w-[45%] shrink truncate text-[#9ca4b9]">{directoryPath}</span> : null}
+        {directoryPath ? <span className="text-muted-foreground max-w-[45%] shrink truncate">{directoryPath}</span> : null}
       </div>
 
       {file.previousPath && file.previousPath !== file.path ? (
-        <div className="mt-0.5 truncate pl-5 text-[11px] text-[#8f96a8]">from {file.previousPath}</div>
+        <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">from {file.previousPath}</div>
       ) : null}
     </button>
   )

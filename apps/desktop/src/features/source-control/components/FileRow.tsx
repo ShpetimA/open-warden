@@ -40,8 +40,8 @@ export function FileRow({
   const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
   return (
     <div
-      className={`group flex min-w-0 items-center gap-2 overflow-hidden border-b border-[#2b2d34] px-2 py-1 text-xs last:border-b-0 ${
-        isActive ? 'bg-[#2b303b]' : 'hover:bg-[#23252b]'
+      className={`border-input group flex min-w-0 items-center gap-2 overflow-hidden border-b px-2 py-1 text-xs last:border-b-0 ${
+        isActive ? 'bg-surface-active' : 'hover:bg-accent/60'
       }`}
     >
       <button
@@ -51,15 +51,15 @@ export function FileRow({
         title={file.path}
       >
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="w-3 text-center text-[10px] text-[#e39a59]">{statusBadge(file.status)}</span>
-          <span className="shrink-0 font-medium text-[#eef1f8]">{fileName}</span>
+          <span className="text-warning w-3 text-center text-[10px]">{statusBadge(file.status)}</span>
+          <span className="text-foreground shrink-0 font-medium">{fileName}</span>
           {commentCount > 0 ? (
-            <span className="inline-flex h-4 min-w-4 items-center justify-center border border-[#4a5166] bg-[#2a3040] px-1 text-[10px] text-[#dce3f6]">
+            <span className="border-input bg-surface-alt text-foreground inline-flex h-4 min-w-4 items-center justify-center border px-1 text-[10px]">
               {commentCount}
             </span>
           ) : null}
           {directoryPath ? (
-            <span className="block min-w-0 flex-1 truncate whitespace-nowrap text-[#9ca4b9]">{` ${directoryPath}`}</span>
+            <span className="text-muted-foreground block min-w-0 flex-1 truncate whitespace-nowrap">{` ${directoryPath}`}</span>
           ) : null}
         </div>
       </button>
@@ -68,7 +68,7 @@ export function FileRow({
         {file.bucket === 'staged' ? (
           <button
             type="button"
-            className="p-1 text-[#b6bbca] hover:bg-[#384255] hover:text-white"
+            className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
             onClick={() => onUnstageFile(file.path)}
             disabled={staging || discarding || hasRunningAction}
             title="Unstage"
@@ -79,7 +79,7 @@ export function FileRow({
           <>
             <button
               type="button"
-              className="p-1 text-[#b6bbca] hover:bg-[#314838] hover:text-white"
+              className="text-muted-foreground hover:bg-success/20 hover:text-success p-1"
               onClick={() => onStageFile(file.path)}
               disabled={staging || discarding || hasRunningAction}
               title="Stage"
@@ -88,7 +88,7 @@ export function FileRow({
             </button>
             <button
               type="button"
-              className="p-1 text-[#b6bbca] hover:bg-[#4b2f34] hover:text-white"
+              className="text-muted-foreground hover:bg-destructive/20 hover:text-destructive p-1"
               onClick={() => onDiscardFile(file.bucket, file.path)}
               disabled={staging || discarding || hasRunningAction}
               title="Discard"
