@@ -4,32 +4,21 @@ import { useStore } from 'react-redux'
 import { useAppDispatch } from '@/app/hooks'
 import type { RootState } from '@/app/store'
 import { gitApi } from '@/features/source-control/api'
-import { selectFile, selectHistoryCommit, selectHistoryFile } from '@/features/source-control/actions'
+import { selectHistoryCommit, selectHistoryFile } from '@/features/source-control/actions'
 import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
 import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
-import type { BucketedFile, FileItem, HistoryCommit } from '@/features/source-control/types'
+import type { FileItem, HistoryCommit } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
 
-export function useSourceControlKeyboardNav() {
+export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch()
   const store = useStore<RootState>()
 
   const getNavigationData = () => {
     const state = store.getState()
-    const {
-      viewMode,
-      activeBucket,
-      activePath,
-      historyCommitId,
-      historyNavTarget,
-      historyFilter,
-      activeRepo,
-      collapseStaged,
-      collapseUnstaged,
-    } = state.sourceControl
+    const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } = state.sourceControl
     const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null
     const historyFilesArgs = activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null
-    const snapshot = activeRepo ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data : undefined
     const historyCommits = historyCommitsArgs
       ? gitApi.endpoints.getCommitHistory.select(historyCommitsArgs)(state).data
       : undefined
@@ -38,78 +27,20 @@ export function useSourceControlKeyboardNav() {
       : undefined
 
     return {
-      viewMode,
-      activeBucket,
-      activePath,
       historyCommitId,
       historyNavTarget,
       historyFilter,
-      collapseStaged,
-      collapseUnstaged,
-      snapshot,
+      activePath,
       allHistoryCommits: (historyCommits ?? []) as HistoryCommit[],
       allHistoryFiles: (historyFiles ?? []) as FileItem[],
     }
   }
 
-  const canHandleHotkey = (event: KeyboardEvent) => {
-    return !isTypingTarget(event.target)
-  }
-
-  const navigateHistoryOrChanges = (event: KeyboardEvent, nextKey: boolean) => {
-    if (!canHandleHotkey(event)) return
+  const navigateHistory = (event: KeyboardEvent, nextKey: boolean) => {
+    if (isTypingTarget(event.target)) return
     event.preventDefault()
 
-    const {
-      viewMode,
-      activeBucket,
-      activePath,
-      historyCommitId,
-      historyNavTarget,
-      historyFilter,
-      collapseStaged,
-      collapseUnstaged,
-      snapshot,
-      allHistoryCommits,
-      allHistoryFiles,
-    } = getNavigationData()
-
-    if (viewMode === 'changes') {
-      const unstaged = snapshot?.unstaged ?? []
-      const staged = snapshot?.staged ?? []
-      const untracked = snapshot?.untracked ?? []
-      const stagedRows: BucketedFile[] = staged.map((file) => ({
-        ...file,
-        bucket: 'staged',
-      }))
-      const changedRows: BucketedFile[] = [
-        ...unstaged.map((file) => ({ ...file, bucket: 'unstaged' as const })),
-        ...untracked.map((file) => ({ ...file, bucket: 'untracked' as const })),
-      ]
-      const visibleChangeRows: BucketedFile[] = []
-      if (!collapseStaged) visibleChangeRows.push(...stagedRows)
-      if (!collapseUnstaged) visibleChangeRows.push(...changedRows)
-
-      if (visibleChangeRows.length === 0) return
-
-      const activeIndex = visibleChangeRows.findIndex(
-        (file) => file.bucket === activeBucket && file.path === activePath,
-      )
-
-      let targetIndex = 0
-      if (activeIndex < 0) {
-        targetIndex = nextKey ? 0 : visibleChangeRows.length - 1
-      } else if (nextKey) {
-        targetIndex = Math.min(activeIndex + 1, visibleChangeRows.length - 1)
-      } else {
-        targetIndex = Math.max(activeIndex - 1, 0)
-      }
-
-      const targetFile = visibleChangeRows[targetIndex]
-      if (!targetFile) return
-      void dispatch(selectFile(targetFile.bucket, targetFile.path))
-      return
-    }
+    const { historyCommitId, historyNavTarget, historyFilter, activePath, allHistoryCommits, allHistoryFiles } = getNavigationData()
 
     if (historyNavTarget === 'files') {
       if (allHistoryFiles.length === 0) return
@@ -161,29 +92,8 @@ export function useSourceControlKeyboardNav() {
     void dispatch(selectHistoryCommit(targetCommit.commitId))
   }
 
-  useHotkey('H', (event) => {
-    if (!canHandleHotkey(event)) return
-    const { viewMode } = getNavigationData()
-    if (viewMode !== 'history') return
-
-    event.preventDefault()
-    dispatch(setHistoryNavTarget('commits'))
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
-
-  useHotkey('L', (event) => {
-    if (!canHandleHotkey(event)) return
-    const { viewMode } = getNavigationData()
-    if (viewMode !== 'history') return
-
-    event.preventDefault()
-    dispatch(setHistoryNavTarget('files'))
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
-
   const focusHistoryFilter = (event: KeyboardEvent) => {
-    if (!canHandleHotkey(event)) return
-    const { viewMode } = getNavigationData()
-    if (viewMode !== 'history') return
-
+    if (isTypingTarget(event.target)) return
     event.preventDefault()
     dispatch(setHistoryNavTarget('commits'))
     const filterInput = document.getElementById(HISTORY_FILTER_INPUT_ID)
@@ -192,6 +102,18 @@ export function useSourceControlKeyboardNav() {
       filterInput.select()
     }
   }
+
+  useHotkey('H', (event) => {
+    if (isTypingTarget(event.target)) return
+    event.preventDefault()
+    dispatch(setHistoryNavTarget('commits'))
+  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+
+  useHotkey('L', (event) => {
+    if (isTypingTarget(event.target)) return
+    event.preventDefault()
+    dispatch(setHistoryNavTarget('files'))
+  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
 
   useHotkey('/', (event) => {
     focusHistoryFilter(event)
@@ -202,18 +124,18 @@ export function useSourceControlKeyboardNav() {
   }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
 
   useHotkey('ArrowDown', (event) => {
-    navigateHistoryOrChanges(event, true)
+    navigateHistory(event, true)
   }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
 
   useHotkey('J', (event) => {
-    navigateHistoryOrChanges(event, true)
+    navigateHistory(event, true)
   }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
 
   useHotkey('ArrowUp', (event) => {
-    navigateHistoryOrChanges(event, false)
+    navigateHistory(event, false)
   }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
 
   useHotkey('K', (event) => {
-    navigateHistoryOrChanges(event, false)
+    navigateHistory(event, false)
   }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
 }

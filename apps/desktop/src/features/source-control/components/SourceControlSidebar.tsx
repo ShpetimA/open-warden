@@ -1,21 +1,24 @@
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { useGetGitSnapshotQuery } from '@/features/source-control/api'
 import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
-import { setViewMode } from '@/features/source-control/actions'
 import { repoLabel } from '@/features/source-control/utils'
+import { useLocation, useNavigate } from 'react-router'
 import { ChangesTab } from './ChangesTab'
 import { HistoryTab } from './HistoryTab'
 
 export function SourceControlSidebar() {
   const dispatch = useAppDispatch()
+  const navigate = useNavigate()
+  const location = useLocation()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const viewMode = useAppSelector((state) => state.sourceControl.viewMode)
   const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
+  const isHistoryRoute = location.pathname.startsWith('/history')
+  const isChangesRoute = location.pathname.startsWith('/changes') || !isHistoryRoute
 
   return (
     <aside
       onMouseDown={() => {
-        if (viewMode === 'history') {
+        if (isHistoryRoute) {
           dispatch(setHistoryNavTarget('commits'))
         }
       }}
@@ -33,12 +36,12 @@ export function SourceControlSidebar() {
           <button
             type="button"
             className={`px-2 py-1 text-xs font-medium ${
-              viewMode === 'changes'
+              isChangesRoute
                 ? 'bg-[#2b3140] text-[#ebeffa]'
                 : 'text-[#8f96a8] hover:bg-[#222733] hover:text-[#d7deef]'
             }`}
             onClick={() => {
-              void dispatch(setViewMode('changes'))
+              navigate('/changes')
             }}
           >
             Changes
@@ -46,12 +49,12 @@ export function SourceControlSidebar() {
           <button
             type="button"
             className={`px-2 py-1 text-xs font-medium ${
-              viewMode === 'history'
+              isHistoryRoute
                 ? 'bg-[#2b3140] text-[#ebeffa]'
                 : 'text-[#8f96a8] hover:bg-[#222733] hover:text-[#d7deef]'
             }`}
             onClick={() => {
-              void dispatch(setViewMode('history'))
+              navigate('/history')
             }}
           >
             History
@@ -59,7 +62,7 @@ export function SourceControlSidebar() {
         </div>
       </div>
 
-      {viewMode === 'changes' ? <ChangesTab /> : <HistoryTab />}
+      {isHistoryRoute ? <HistoryTab /> : <ChangesTab />}
     </aside>
   )
 }

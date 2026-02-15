@@ -1,11 +1,10 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
-import type { Bucket, DiffStyle, HistoryNavTarget, RunningAction, ViewMode } from './types'
+import type { Bucket, DiffStyle, HistoryNavTarget, RunningAction } from './types'
 
 type SourceControlState = {
   repos: string[]
   activeRepo: string
-  viewMode: ViewMode
   historyFilter: string
   historyCommitId: string
   historyNavTarget: HistoryNavTarget
@@ -23,7 +22,6 @@ type SourceControlState = {
 const initialState: SourceControlState = {
   repos: [],
   activeRepo: '',
-  viewMode: 'changes',
   historyFilter: '',
   historyCommitId: '',
   historyNavTarget: 'commits',
@@ -53,11 +51,6 @@ const sourceControlSlice = createSlice({
     setActiveRepo(state, action: PayloadAction<string>) {
       if (state.activeRepo !== action.payload) {
         state.activeRepo = action.payload
-      }
-    },
-    setViewMode(state, action: PayloadAction<ViewMode>) {
-      if (state.viewMode !== action.payload) {
-        state.viewMode = action.payload
       }
     },
     setHistoryFilter(state, action: PayloadAction<string>) {
@@ -163,7 +156,6 @@ export const {
   setLastCommitId,
   setRunningAction,
   setRepos,
-  setViewMode,
 } = sourceControlSlice.actions
 
 export const sourceControlReducer = sourceControlSlice.reducer

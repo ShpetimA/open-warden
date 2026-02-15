@@ -2,7 +2,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 
 import type { AppThunk } from '@/app/store'
 import { gitApi } from './api'
-import type { Bucket, BucketedFile, GitSnapshot, RunningAction, ViewMode } from './types'
+import type { Bucket, BucketedFile, GitSnapshot, RunningAction } from './types'
 import {
   addRepo,
   clearDiffSelection,
@@ -18,7 +18,6 @@ import {
   setHistoryNavTarget,
   setLastCommitId,
   setRunningAction,
-  setViewMode as setViewModeAction,
 } from './sourceControlSlice'
 
 function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, filePath: string) {
@@ -65,49 +64,31 @@ export const selectRepo = (repo: string): AppThunk => async (dispatch, getState)
 }
 
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
-  const { activeRepo, viewMode } = getState().sourceControl
+  const { activeRepo } = getState().sourceControl
   if (!activeRepo) return
 
   dispatch(gitApi.util.invalidateTags([{ type: 'Snapshot', id: activeRepo }]))
   dispatch(gitApi.util.invalidateTags(['FileVersions']))
-
-  if (viewMode === 'history') {
-    dispatch(gitApi.util.invalidateTags([{ type: 'HistoryCommits', id: activeRepo }, 'HistoryFiles']))
-  }
+  dispatch(gitApi.util.invalidateTags([{ type: 'HistoryCommits', id: activeRepo }, 'HistoryFiles']))
 }
 
 export const selectFile = (bucket: Bucket, relPath: string): AppThunk => async (dispatch, getState) => {
-  if (getState().sourceControl.viewMode !== 'changes') return
   if (!getState().sourceControl.activeRepo) return
   dispatch(setActiveBucket(bucket))
   dispatch(setActivePath(relPath))
 }
 
 export const selectHistoryCommit = (commitId: string): AppThunk => async (dispatch, getState) => {
-  if (getState().sourceControl.viewMode !== 'history') return
   if (!getState().sourceControl.activeRepo) return
   dispatch(setHistoryNavTarget('commits'))
   dispatch(setHistoryCommitId(commitId))
 }
 
 export const selectHistoryFile = (relPath: string): AppThunk => async (dispatch, getState) => {
-  if (getState().sourceControl.viewMode !== 'history') return
   if (!getState().sourceControl.activeRepo) return
   if (!getState().sourceControl.historyCommitId) return
   dispatch(setHistoryNavTarget('files'))
   dispatch(setActivePath(relPath))
-}
-
-export const setViewMode = (mode: ViewMode): AppThunk => async (dispatch, getState) => {
-  const { viewMode, activeRepo } = getState().sourceControl
-  if (viewMode === mode) return
-  dispatch(setViewModeAction(mode))
-  dispatch(setHistoryNavTarget('commits'))
-  dispatch(clearError())
-
-  if (!activeRepo && mode === 'history') {
-    dispatch(clearHistorySelection())
-  }
 }
 
 export const setCommitMessageValue = (value: string): AppThunk => (dispatch) => {
@@ -134,10 +115,10 @@ const runRepoAction = (action: RunningAction, thunk: AppThunk<Promise<void>>): A
 
 export const stageFileAction = (filePath: string): AppThunk => async (dispatch, getState) => {
   const state = getState()
-  const { activeRepo, viewMode, activePath } = state.sourceControl
+  const { activeRepo, activePath } = state.sourceControl
   if (!activeRepo) return
 
-  if (viewMode === 'changes' && activePath === filePath) {
+  if (activePath === filePath) {
     const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
     const next = nextChangedFileAfterStage(snapshot, filePath)
     if (next) {

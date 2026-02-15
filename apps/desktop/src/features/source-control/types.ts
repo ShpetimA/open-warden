@@ -12,8 +12,6 @@ export type Bucket = ContractBucket
 
 export type FileStatus = ContractFileStatus
 
-export type ViewMode = 'changes' | 'history'
-
 export type HistoryNavTarget = 'commits' | 'files'
 
 export type DiffStyle = 'split' | 'unified'
