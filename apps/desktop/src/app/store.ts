@@ -1,4 +1,5 @@
 import { type Action, configureStore, type ThunkAction } from '@reduxjs/toolkit'
+import { setupListeners } from '@reduxjs/toolkit/query'
 
 import { commentsReducer } from '@/features/comments/commentsSlice'
 import { gitApi } from '@/features/source-control/api'
@@ -12,6 +13,8 @@ export const store = configureStore({
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(gitApi.middleware),
 })
+
+setupListeners(store.dispatch)
 
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch

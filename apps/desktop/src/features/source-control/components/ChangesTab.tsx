@@ -32,6 +32,8 @@ function ChangesFileList() {
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
   const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
     selectFromResult: ({ data, isFetching }) => ({
       snapshot: data,
       loadingSnapshot: isFetching,
