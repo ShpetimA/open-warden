@@ -1,6 +1,7 @@
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { confirmDiscard } from '@/features/comments/actions'
+import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
 import { useGetGitSnapshotQuery } from '@/features/source-control/api'
 import {
   discardChangesGroupAction,
@@ -30,6 +31,7 @@ function ChangesFileList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged)
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
+  const commentCounts = useAppSelector((state) => createCommentCountByPathForRepo(state.comments, activeRepo))
   const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
@@ -116,6 +118,7 @@ function ChangesFileList() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
+            commentCounts={commentCounts}
           />
           <FileSection
             sectionKey="unstaged"
@@ -132,6 +135,7 @@ function ChangesFileList() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
+            commentCounts={commentCounts}
           />
         </div>
       </ScrollArea>

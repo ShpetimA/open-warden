@@ -22,8 +22,11 @@ const commentsSlice = createSlice({
         target.text = action.payload.text
       }
     },
+    removeCommentsForRepo(state, action: PayloadAction<string>) {
+      return state.filter((comment) => comment.repoPath !== action.payload)
+    },
   },
 })
 
-export const { addComment, removeComment, updateComment } = commentsSlice.actions
+export const { addComment, removeComment, removeCommentsForRepo, updateComment } = commentsSlice.actions
 export const commentsReducer = commentsSlice.reducer

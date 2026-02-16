@@ -18,6 +18,21 @@ export function createCommentCountByFile(comments: Array<CommentItem | undefined
   return counts
 }
 
+export function createCommentCountByPathForRepo(
+  comments: Array<CommentItem | undefined>,
+  repoPath: string,
+): Map<string, number> {
+  const counts = new Map<string, number>()
+  if (!repoPath) return counts
+
+  for (const comment of comments) {
+    if (!comment || comment.repoPath !== repoPath) continue
+    counts.set(comment.filePath, (counts.get(comment.filePath) ?? 0) + 1)
+  }
+
+  return counts
+}
+
 export function countCommentsForFile(comments: Array<CommentItem | undefined>, repoPath: string, filePath: string): number {
   let count = 0
   for (const comment of comments) {

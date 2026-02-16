@@ -1,7 +1,7 @@
 import { skipToken } from '@reduxjs/toolkit/query'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { countCommentsForFile } from '@/features/comments/selectors'
+import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
 import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from '@/features/source-control/api'
 import { selectHistoryFile } from '@/features/source-control/actions'
 import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
@@ -11,6 +11,7 @@ import { statusBadge } from '@/features/source-control/utils'
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
+  const commentCounts = useAppSelector((state) => createCommentCountByPathForRepo(state.comments, activeRepo))
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
   const { historyCommits } = useGetCommitHistoryQuery(activeRepo ? { repoPath: activeRepo } : skipToken, {
     selectFromResult: ({ data }) => ({ historyCommits: data ?? [] }),
@@ -56,7 +57,11 @@ export function HistoryFilesPane() {
         ) : (
           <div className="space-y-1">
             {files.map((file) => (
-              <HistoryFileRow key={`${file.path}:${file.status}`} file={file} />
+              <HistoryFileRow
+                key={`${file.path}:${file.status}`}
+                file={file}
+                commentCounts={commentCounts}
+              />
             ))}
           </div>
         )}
@@ -67,13 +72,12 @@ export function HistoryFilesPane() {
 
 type HistoryFileRowProps = {
   file: FileItem
+  commentCounts: Map<string, number>
 }
 
-function HistoryFileRow({ file }: HistoryFileRowProps) {
+function HistoryFileRow({ file, commentCounts }: HistoryFileRowProps) {
   const dispatch = useAppDispatch()
-  const commentCount = useAppSelector((state) =>
-    countCommentsForFile(state.comments, state.sourceControl.activeRepo, file.path),
-  )
+  const commentCount = commentCounts.get(file.path) ?? 0
   const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path)
 
   const normalizedPath = file.path.replace(/\\/g, '/')

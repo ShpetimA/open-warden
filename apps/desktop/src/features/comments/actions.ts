@@ -42,10 +42,11 @@ export const updateComment = (id: string, text: string): AppThunk => (dispatch) 
 export const copyComments = (scope: 'file' | 'all'): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { comments } = getState()
   const { activeRepo, activePath } = getState().sourceControl
+  if (!activeRepo) return false
   const source =
     scope === 'file'
       ? comments.filter((c) => c.repoPath === activeRepo && c.filePath === activePath)
-      : comments
+      : comments.filter((c) => c.repoPath === activeRepo)
 
   if (source.length === 0) return false
 

@@ -48,6 +48,12 @@ const sourceControlSlice = createSlice({
         state.repos.push(action.payload)
       }
     },
+    removeRepo(state, action: PayloadAction<string>) {
+      state.repos = state.repos.filter((repo) => repo !== action.payload)
+      if (state.activeRepo === action.payload) {
+        state.activeRepo = state.repos[state.repos.length - 1] ?? ''
+      }
+    },
     setActiveRepo(state, action: PayloadAction<string>) {
       if (state.activeRepo !== action.payload) {
         state.activeRepo = action.payload
@@ -142,6 +148,7 @@ export const {
   clearDiffSelection,
   clearError,
   clearHistorySelection,
+  removeRepo,
   setActiveBucket,
   setActivePath,
   setActiveRepo,

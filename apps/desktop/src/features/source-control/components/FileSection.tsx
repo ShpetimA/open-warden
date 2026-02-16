@@ -19,6 +19,7 @@ type Props = {
   onStageAll: () => void
   onUnstageAll: () => void
   onDiscardChangesGroup: (files: BucketedFile[]) => void
+  commentCounts: Map<string, number>
 }
 
 export function FileSection({
@@ -36,6 +37,7 @@ export function FileSection({
   onStageAll,
   onUnstageAll,
   onDiscardChangesGroup,
+  commentCounts,
 }: Props) {
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
   const isChanges = sectionKey === 'unstaged'
@@ -106,6 +108,7 @@ export function FileSection({
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}
                 onDiscardFile={onDiscardFile}
+                commentCounts={commentCounts}
               />
             ))
           ) : (

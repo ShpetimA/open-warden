@@ -5,7 +5,7 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks'
 
 import { RepoTabs } from '@/app/RepoTabs'
 import { useGetGitSnapshotQuery } from '@/features/source-control/api'
-import { selectFolder, selectRepo } from '@/features/source-control/actions'
+import { closeRepo, selectFolder, selectRepo } from '@/features/source-control/actions'
 import { SourceControlSidebar } from '@/features/source-control/components/SourceControlSidebar'
 import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
 
@@ -63,6 +63,9 @@ function RepoTabsContainer({ sidebarOpen, onToggleSidebar }: RepoTabsContainerPr
       onToggleSidebar={onToggleSidebar}
       onSelectRepo={(repo) => {
         void dispatch(selectRepo(repo))
+      }}
+      onCloseRepo={(repo) => {
+        void dispatch(closeRepo(repo))
       }}
       onAddRepo={() => {
         void dispatch(selectFolder())

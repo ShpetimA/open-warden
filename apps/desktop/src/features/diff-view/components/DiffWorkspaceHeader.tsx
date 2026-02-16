@@ -23,6 +23,7 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
   const comments = useAppSelector((state) => state.comments)
 
   const allComments = compactComments(comments)
+  const currentRepoComments = activeRepo ? allComments.filter((comment) => comment.repoPath === activeRepo) : []
   const currentFileComments = canComment ? fileComments(allComments, activeRepo, activePath) : []
 
   const onCopyFileComments = async () => {
@@ -32,7 +33,7 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
 
   const onCopyAllComments = async () => {
     const copied = await dispatch(copyComments('all'))
-    if (copied) toast.success('Copied all comments')
+    if (copied) toast.success('Copied repo comments')
   }
 
   useHotkey(
@@ -51,7 +52,7 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
       void onCopyAllComments()
     },
     {
-      enabled: showDiffActions && canComment && allComments.length > 0,
+      enabled: showDiffActions && canComment && currentRepoComments.length > 0,
     },
   )
 
@@ -102,9 +103,9 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
                 onClick={() => {
                   void onCopyAllComments()
                 }}
-                disabled={allComments.length === 0}
+                disabled={currentRepoComments.length === 0}
               >
-                Copy Comments (All)
+                Copy Comments (Repo)
               </Button>
             </>
           ) : null}

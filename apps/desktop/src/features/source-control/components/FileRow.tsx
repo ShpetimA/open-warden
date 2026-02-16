@@ -1,7 +1,6 @@
 import { Minus, Plus, Trash2 } from 'lucide-react'
 
 import { useAppSelector } from '@/app/hooks'
-import { countCommentsForFile } from '@/features/comments/selectors'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { statusBadge } from '@/features/source-control/utils'
 
@@ -11,6 +10,7 @@ type Props = {
   onStageFile: (path: string) => void
   onUnstageFile: (path: string) => void
   onDiscardFile: (bucket: Bucket, path: string) => void
+  commentCounts: Map<string, number>
 }
 
 export function FileRow({
@@ -19,6 +19,7 @@ export function FileRow({
   onStageFile,
   onUnstageFile,
   onDiscardFile,
+  commentCounts,
 }: Props) {
   const isActive = useAppSelector(
     (state) => state.sourceControl.activeBucket === file.bucket && state.sourceControl.activePath === file.path,
@@ -31,9 +32,7 @@ export function FileRow({
     (state) => state.sourceControl.runningAction === `file:discard:${file.path}`,
   )
   const hasRunningAction = useAppSelector((state) => state.sourceControl.runningAction !== '')
-  const commentCount = useAppSelector((state) =>
-    countCommentsForFile(state.comments, state.sourceControl.activeRepo, file.path),
-  )
+  const commentCount = commentCounts.get(file.path) ?? 0
   const normalizedPath = file.path.replace(/\\/g, '/')
   const pathParts = normalizedPath.split('/').filter(Boolean)
   const fileName = pathParts[pathParts.length - 1] ?? file.path

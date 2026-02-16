@@ -1,6 +1,7 @@
 import { open } from '@tauri-apps/plugin-dialog'
 
 import type { AppThunk } from '@/app/store'
+import { removeCommentsForRepo } from '@/features/comments/commentsSlice'
 import { gitApi } from './api'
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction } from './types'
 import {
@@ -8,6 +9,7 @@ import {
   clearDiffSelection,
   clearError,
   clearHistorySelection,
+  removeRepo,
   setActiveBucket,
   setActivePath,
   setActiveRepo,
@@ -61,6 +63,20 @@ export const selectRepo = (repo: string): AppThunk => async (dispatch, getState)
   dispatch(clearHistorySelection())
   dispatch(clearDiffSelection())
   dispatch(setActiveBucket('unstaged'))
+}
+
+export const closeRepo = (repo: string): AppThunk => async (dispatch, getState) => {
+  const { activeRepo } = getState().sourceControl
+  const closingActiveRepo = repo === activeRepo
+  dispatch(removeRepo(repo))
+  dispatch(removeCommentsForRepo(repo))
+
+  if (closingActiveRepo) {
+    dispatch(clearError())
+    dispatch(clearHistorySelection())
+    dispatch(clearDiffSelection())
+    dispatch(setActiveBucket('unstaged'))
+  }
 }
 
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {

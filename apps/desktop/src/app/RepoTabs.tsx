@@ -6,10 +6,19 @@ type Props = {
   activeRepo: string
   onToggleSidebar: () => void
   onSelectRepo: (repo: string) => void
+  onCloseRepo: (repo: string) => void
   onAddRepo: () => void
 }
 
-export function RepoTabs({ sidebarOpen, repos, activeRepo, onToggleSidebar, onSelectRepo, onAddRepo }: Props) {
+export function RepoTabs({
+  sidebarOpen,
+  repos,
+  activeRepo,
+  onToggleSidebar,
+  onSelectRepo,
+  onCloseRepo,
+  onAddRepo,
+}: Props) {
   return (
     <div className="border-border bg-surface border-t px-2">
       <div className="flex h-full items-center gap-1">
@@ -25,20 +34,34 @@ export function RepoTabs({ sidebarOpen, repos, activeRepo, onToggleSidebar, onSe
         {repos.map((repoPath) => {
           if (!repoPath) return null
 
+          const isActive = repoPath === activeRepo
+
           return (
-            <button
+            <div
               key={repoPath}
-              type="button"
-              className={`border px-2 py-0.5 text-xs ${
-                repoPath === activeRepo
+              className={`flex items-center border text-xs ${
+                isActive
                   ? 'border-ring/40 bg-surface-active text-foreground'
                   : 'border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground'
               }`}
-              onClick={() => onSelectRepo(repoPath)}
               title={repoPath}
             >
-              {repoLabel(repoPath)}
-            </button>
+              <button type="button" className="px-2 py-0.5" onClick={() => onSelectRepo(repoPath)}>
+                {repoLabel(repoPath)}
+              </button>
+              <button
+                type="button"
+                className="hover:bg-destructive/20 hover:text-destructive px-1.5 py-0.5"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onCloseRepo(repoPath)
+                }}
+                title={`Close ${repoLabel(repoPath)}`}
+                aria-label={`Close ${repoLabel(repoPath)} repository`}
+              >
+                x
+              </button>
+            </div>
           )
         })}
 
