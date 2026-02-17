@@ -5,3 +5,6 @@ apps/*/node_modules/
 apps/*/dist/
 apps/*/src-tauri/target/
 .turbo/
+coverage/
+playwright-report/
+test-results/

@@ -16,6 +16,18 @@
     "lint": {
       "dependsOn": ["^lint"]
     },
+    "test": {
+      "dependsOn": ["^test"],
+      "outputs": []
+    },
+    "format": {
+      "dependsOn": ["^format"],
+      "outputs": []
+    },
+    "format:check": {
+      "dependsOn": ["^format:check"],
+      "outputs": []
+    },
     "rust:build": {
       "outputs": []
     }

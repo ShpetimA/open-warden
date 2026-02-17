@@ -8,8 +8,16 @@
     "build": "turbo run build",
     "tauri:build": "turbo run tauri:build --filter=desktop",
     "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:e2e": "pnpm --filter desktop test:e2e",
+    "test:e2e:install": "pnpm --filter desktop test:e2e:install",
+    "format": "turbo run format && cargo fmt --all",
+    "format:check": "turbo run format:check && cargo fmt --all -- --check",
+    "rust:lint": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    "rust:test": "cargo test --workspace --all-features",
     "rust:build": "turbo run rust:build --filter=agent-leash",
-    "rust:dev": "turbo run dev --filter=agent-leash"
+    "rust:dev": "turbo run dev --filter=agent-leash",
+    "check": "pnpm lint && pnpm test && pnpm format:check && pnpm rust:lint && pnpm rust:test"
   },
   "pnpm": {
     "patchedDependencies": {

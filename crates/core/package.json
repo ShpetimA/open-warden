@@ -4,6 +4,10 @@
   "scripts": {
     "build": "cargo build -p agent-leash",
     "rust:build": "cargo build -p agent-leash",
-    "check": "cargo check -p agent-leash"
+    "check": "cargo check -p agent-leash",
+    "lint": "cargo clippy -p agent-leash --all-targets --all-features -- -D warnings",
+    "test": "cargo test -p agent-leash --all-features",
+    "format": "cargo fmt -p agent-leash",
+    "format:check": "cargo fmt -p agent-leash -- --check"
   }
 }

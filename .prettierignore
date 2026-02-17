@@ -1,0 +1,10 @@
+node_modules
+dist
+target
+.turbo
+coverage
+playwright-report
+test-results
+pnpm-lock.yaml
+Cargo.lock
+apps/desktop/src-tauri/gen/schemas
