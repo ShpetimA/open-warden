@@ -16,9 +16,11 @@ export function useHistoryKeyboardNav() {
 
   const getNavigationData = () => {
     const state = store.getState()
-    const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } = state.sourceControl
+    const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } =
+      state.sourceControl
     const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null
-    const historyFilesArgs = activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null
+    const historyFilesArgs =
+      activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null
     const historyCommits = historyCommitsArgs
       ? gitApi.endpoints.getCommitHistory.select(historyCommitsArgs)(state).data
       : undefined
@@ -40,7 +42,14 @@ export function useHistoryKeyboardNav() {
     if (isTypingTarget(event.target)) return
     event.preventDefault()
 
-    const { historyCommitId, historyNavTarget, historyFilter, activePath, allHistoryCommits, allHistoryFiles } = getNavigationData()
+    const {
+      historyCommitId,
+      historyNavTarget,
+      historyFilter,
+      activePath,
+      allHistoryCommits,
+      allHistoryFiles,
+    } = getNavigationData()
 
     if (historyNavTarget === 'files') {
       if (allHistoryFiles.length === 0) return
@@ -76,7 +85,9 @@ export function useHistoryKeyboardNav() {
 
     if (filteredHistoryCommits.length === 0) return
 
-    const activeIndex = filteredHistoryCommits.findIndex((commit) => commit.commitId === historyCommitId)
+    const activeIndex = filteredHistoryCommits.findIndex(
+      (commit) => commit.commitId === historyCommitId,
+    )
 
     let targetIndex = 0
     if (activeIndex < 0) {
@@ -103,39 +114,71 @@ export function useHistoryKeyboardNav() {
     }
   }
 
-  useHotkey('H', (event) => {
-    if (isTypingTarget(event.target)) return
-    event.preventDefault()
-    dispatch(setHistoryNavTarget('commits'))
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'H',
+    (event) => {
+      if (isTypingTarget(event.target)) return
+      event.preventDefault()
+      dispatch(setHistoryNavTarget('commits'))
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('L', (event) => {
-    if (isTypingTarget(event.target)) return
-    event.preventDefault()
-    dispatch(setHistoryNavTarget('files'))
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'L',
+    (event) => {
+      if (isTypingTarget(event.target)) return
+      event.preventDefault()
+      dispatch(setHistoryNavTarget('files'))
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('/', (event) => {
-    focusHistoryFilter(event)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    '/',
+    (event) => {
+      focusHistoryFilter(event)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey({ key: '?' }, (event) => {
-    focusHistoryFilter(event)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    { key: '?' },
+    (event) => {
+      focusHistoryFilter(event)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('ArrowDown', (event) => {
-    navigateHistory(event, true)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'ArrowDown',
+    (event) => {
+      navigateHistory(event, true)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('J', (event) => {
-    navigateHistory(event, true)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'J',
+    (event) => {
+      navigateHistory(event, true)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('ArrowUp', (event) => {
-    navigateHistory(event, false)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'ArrowUp',
+    (event) => {
+      navigateHistory(event, false)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('K', (event) => {
-    navigateHistory(event, false)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'K',
+    (event) => {
+      navigateHistory(event, false)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 }

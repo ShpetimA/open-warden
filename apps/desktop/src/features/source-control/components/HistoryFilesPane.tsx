@@ -11,11 +11,16 @@ import { statusBadge } from '@/features/source-control/utils'
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const commentCounts = useAppSelector((state) => createCommentCountByPathForRepo(state.comments, activeRepo))
+  const commentCounts = useAppSelector((state) =>
+    createCommentCountByPathForRepo(state.comments, activeRepo),
+  )
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
-  const { historyCommits } = useGetCommitHistoryQuery(activeRepo ? { repoPath: activeRepo } : skipToken, {
-    selectFromResult: ({ data }) => ({ historyCommits: data ?? [] }),
-  })
+  const { historyCommits } = useGetCommitHistoryQuery(
+    activeRepo ? { repoPath: activeRepo } : skipToken,
+    {
+      selectFromResult: ({ data }) => ({ historyCommits: data ?? [] }),
+    },
+  )
   const { historyFiles, loadingHistoryFiles } = useGetCommitFilesQuery(
     activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
     {
@@ -37,7 +42,9 @@ export function HistoryFilesPane() {
       className="border-border bg-surface flex min-h-0 flex-col overflow-hidden border-r"
     >
       <div className="border-border border-b px-3 py-2">
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">COMMIT FILES</div>
+        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+          COMMIT FILES
+        </div>
         <div className="text-muted-foreground mt-1 truncate text-xs">
           {selectedCommit
             ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? '' : 's'}`
@@ -88,9 +95,7 @@ function HistoryFileRow({ file, commentCounts }: HistoryFileRowProps) {
     <button
       type="button"
       className={`block w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
-        isActive
-          ? 'border-ring/40 bg-surface-active'
-          : 'border-input bg-surface hover:bg-accent/60'
+        isActive ? 'border-ring/40 bg-surface-active' : 'border-input bg-surface hover:bg-accent/60'
       }`}
       title={file.path}
       onClick={() => {
@@ -106,11 +111,15 @@ function HistoryFileRow({ file, commentCounts }: HistoryFileRowProps) {
             {commentCount}
           </span>
         ) : null}
-        {directoryPath ? <span className="text-muted-foreground max-w-[45%] shrink truncate">{directoryPath}</span> : null}
+        {directoryPath ? (
+          <span className="text-muted-foreground max-w-[45%] shrink truncate">{directoryPath}</span>
+        ) : null}
       </div>
 
       {file.previousPath && file.previousPath !== file.path ? (
-        <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">from {file.previousPath}</div>
+        <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">
+          from {file.previousPath}
+        </div>
       ) : null}
     </button>
   )

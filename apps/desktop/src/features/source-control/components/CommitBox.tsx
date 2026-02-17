@@ -14,7 +14,9 @@ export function CommitBox() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
   const commitMessage = useAppSelector((state) => state.sourceControl.commitMessage)
-  const { data: snapshot, isFetching: loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
+  const { data: snapshot, isFetching: loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
+    skip: !activeRepo,
+  })
   const stagedCount = snapshot?.staged?.length ?? 0
   const canCommit = !!commitMessage.trim() && stagedCount > 0 && !runningAction
 

@@ -25,7 +25,9 @@ export function SourceControlSidebar() {
       className="border-border bg-surface flex min-h-0 flex-col overflow-hidden overflow-x-hidden border-r"
     >
       <div className="border-border border-b px-3 py-2">
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">SOURCE CONTROL</div>
+        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+          SOURCE CONTROL
+        </div>
         <div className="text-muted-foreground mt-1 truncate text-xs">
           {activeRepo
             ? `${repoLabel(activeRepo)}${snapshot?.branch ? ` · ${snapshot.branch}` : ''}`

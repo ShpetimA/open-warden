@@ -25,12 +25,17 @@ export function AppShell() {
   return (
     <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
       <div className="grid h-full grid-rows-[1fr_34px]">
-        <div className="grid min-h-0" style={{ gridTemplateColumns: sidebarOpen ? '320px 1fr' : '1fr' }}>
+        <div
+          className="grid min-h-0"
+          style={{ gridTemplateColumns: sidebarOpen ? '320px 1fr' : '1fr' }}
+        >
           {sidebarOpen ? <SourceControlSidebar /> : null}
 
           <main className="min-h-0">
             {!activeRepo ? (
-              <div className="text-muted-foreground p-3 text-sm">Select a repository tab or add one with +.</div>
+              <div className="text-muted-foreground p-3 text-sm">
+                Select a repository tab or add one with +.
+              </div>
             ) : errorMessage ? (
               <div className="text-destructive p-3 text-sm">{errorMessage}</div>
             ) : (

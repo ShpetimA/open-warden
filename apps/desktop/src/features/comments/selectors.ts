@@ -8,7 +8,9 @@ export function compactComments(comments: Array<CommentItem | undefined>): Comme
   return comments.filter((comment): comment is CommentItem => !!comment)
 }
 
-export function createCommentCountByFile(comments: Array<CommentItem | undefined>): Map<string, number> {
+export function createCommentCountByFile(
+  comments: Array<CommentItem | undefined>,
+): Map<string, number> {
   const counts = new Map<string, number>()
   for (const comment of comments) {
     if (!comment) continue
@@ -33,7 +35,11 @@ export function createCommentCountByPathForRepo(
   return counts
 }
 
-export function countCommentsForFile(comments: Array<CommentItem | undefined>, repoPath: string, filePath: string): number {
+export function countCommentsForFile(
+  comments: Array<CommentItem | undefined>,
+  repoPath: string,
+  filePath: string,
+): number {
   let count = 0
   for (const comment of comments) {
     if (!comment) continue
@@ -44,6 +50,10 @@ export function countCommentsForFile(comments: Array<CommentItem | undefined>, r
   return count
 }
 
-export function getCommentCountForFile(counts: Map<string, number>, repoPath: string, filePath: string): number {
+export function getCommentCountForFile(
+  counts: Map<string, number>,
+  repoPath: string,
+  filePath: string,
+): number {
   return counts.get(fileKey(repoPath, filePath)) ?? 0
 }

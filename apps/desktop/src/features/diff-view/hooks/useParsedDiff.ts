@@ -8,7 +8,11 @@ type ParsedDiffState = { key: string; diff: ParsedDiff }
 
 const parsedDiffCache = new Map<string, ParsedDiff>()
 
-function getDiffCacheKey(activePath: string, oldFile: DiffFile | null, newFile: DiffFile | null): string {
+function getDiffCacheKey(
+  activePath: string,
+  oldFile: DiffFile | null,
+  newFile: DiffFile | null,
+): string {
   return JSON.stringify({
     activePath,
     oldName: oldFile?.name ?? '',

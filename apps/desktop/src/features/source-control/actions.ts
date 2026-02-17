@@ -55,29 +55,33 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
   dispatch(setActiveBucket('unstaged'))
 }
 
-export const selectRepo = (repo: string): AppThunk => async (dispatch, getState) => {
-  const { activeRepo } = getState().sourceControl
-  if (repo === activeRepo) return
-  dispatch(setActiveRepo(repo))
-  dispatch(clearError())
-  dispatch(clearHistorySelection())
-  dispatch(clearDiffSelection())
-  dispatch(setActiveBucket('unstaged'))
-}
-
-export const closeRepo = (repo: string): AppThunk => async (dispatch, getState) => {
-  const { activeRepo } = getState().sourceControl
-  const closingActiveRepo = repo === activeRepo
-  dispatch(removeRepo(repo))
-  dispatch(removeCommentsForRepo(repo))
-
-  if (closingActiveRepo) {
+export const selectRepo =
+  (repo: string): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl
+    if (repo === activeRepo) return
+    dispatch(setActiveRepo(repo))
     dispatch(clearError())
     dispatch(clearHistorySelection())
     dispatch(clearDiffSelection())
     dispatch(setActiveBucket('unstaged'))
   }
-}
+
+export const closeRepo =
+  (repo: string): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl
+    const closingActiveRepo = repo === activeRepo
+    dispatch(removeRepo(repo))
+    dispatch(removeCommentsForRepo(repo))
+
+    if (closingActiveRepo) {
+      dispatch(clearError())
+      dispatch(clearHistorySelection())
+      dispatch(clearDiffSelection())
+      dispatch(setActiveBucket('unstaged'))
+    }
+  }
 
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl
@@ -88,34 +92,46 @@ export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
   dispatch(gitApi.util.invalidateTags([{ type: 'HistoryCommits', id: activeRepo }, 'HistoryFiles']))
 }
 
-export const selectFile = (bucket: Bucket, relPath: string): AppThunk => async (dispatch, getState) => {
-  if (!getState().sourceControl.activeRepo) return
-  dispatch(setActiveBucket(bucket))
-  dispatch(setActivePath(relPath))
-}
+export const selectFile =
+  (bucket: Bucket, relPath: string): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return
+    dispatch(setActiveBucket(bucket))
+    dispatch(setActivePath(relPath))
+  }
 
-export const selectHistoryCommit = (commitId: string): AppThunk => async (dispatch, getState) => {
-  if (!getState().sourceControl.activeRepo) return
-  dispatch(setHistoryNavTarget('commits'))
-  dispatch(setHistoryCommitId(commitId))
-}
+export const selectHistoryCommit =
+  (commitId: string): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return
+    dispatch(setHistoryNavTarget('commits'))
+    dispatch(setHistoryCommitId(commitId))
+  }
 
-export const selectHistoryFile = (relPath: string): AppThunk => async (dispatch, getState) => {
-  if (!getState().sourceControl.activeRepo) return
-  if (!getState().sourceControl.historyCommitId) return
-  dispatch(setHistoryNavTarget('files'))
-  dispatch(setActivePath(relPath))
-}
+export const selectHistoryFile =
+  (relPath: string): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return
+    if (!getState().sourceControl.historyCommitId) return
+    dispatch(setHistoryNavTarget('files'))
+    dispatch(setActivePath(relPath))
+  }
 
-export const setCommitMessageValue = (value: string): AppThunk => (dispatch) => {
-  dispatch(setCommitMessage(value))
-}
+export const setCommitMessageValue =
+  (value: string): AppThunk =>
+  (dispatch) => {
+    dispatch(setCommitMessage(value))
+  }
 
-export const setDiffStyleValue = (value: 'split' | 'unified'): AppThunk => (dispatch) => {
-  dispatch(setDiffStyle(value))
-}
+export const setDiffStyleValue =
+  (value: 'split' | 'unified'): AppThunk =>
+  (dispatch) => {
+    dispatch(setDiffStyle(value))
+  }
 
-const runRepoAction = (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk => async (dispatch, getState) => {
+const runRepoAction =
+  (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
+  async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl
     if (!activeRepo) return
     dispatch(setRunningAction(action))
@@ -129,23 +145,24 @@ const runRepoAction = (action: RunningAction, thunk: AppThunk<Promise<void>>): A
     }
   }
 
-export const stageFileAction = (filePath: string): AppThunk => async (dispatch, getState) => {
-  const state = getState()
-  const { activeRepo, activePath } = state.sourceControl
-  if (!activeRepo) return
+export const stageFileAction =
+  (filePath: string): AppThunk =>
+  async (dispatch, getState) => {
+    const state = getState()
+    const { activeRepo, activePath } = state.sourceControl
+    if (!activeRepo) return
 
-  if (activePath === filePath) {
-    const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
-    const next = nextChangedFileAfterStage(snapshot, filePath)
-    if (next) {
-      dispatch(setActiveBucket(next.bucket))
-      dispatch(setActivePath(next.path))
+    if (activePath === filePath) {
+      const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
+      const next = nextChangedFileAfterStage(snapshot, filePath)
+      if (next) {
+        dispatch(setActiveBucket(next.bucket))
+        dispatch(setActivePath(next.path))
+      }
     }
-  }
 
-  await dispatch(
-    runRepoAction(`file:stage:${filePath}`,
-      async (innerDispatch) => {
+    await dispatch(
+      runRepoAction(`file:stage:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
           gitApi.endpoints.stageFile.initiate(
             { repoPath: activeRepo, relPath: filePath },
@@ -153,18 +170,18 @@ export const stageFileAction = (filePath: string): AppThunk => async (dispatch, 
           ),
         )
         await result.unwrap()
-      },
-    ),
-  )
-}
+      }),
+    )
+  }
 
-export const unstageFileAction = (filePath: string): AppThunk => async (dispatch, getState) => {
-  const { activeRepo } = getState().sourceControl
-  if (!activeRepo) return
+export const unstageFileAction =
+  (filePath: string): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl
+    if (!activeRepo) return
 
-  await dispatch(
-    runRepoAction(`file:unstage:${filePath}`,
-      async (innerDispatch) => {
+    await dispatch(
+      runRepoAction(`file:unstage:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
           gitApi.endpoints.unstageFile.initiate(
             { repoPath: activeRepo, relPath: filePath },
@@ -172,18 +189,18 @@ export const unstageFileAction = (filePath: string): AppThunk => async (dispatch
           ),
         )
         await result.unwrap()
-      },
-    ),
-  )
-}
+      }),
+    )
+  }
 
-export const discardFileAction = (bucket: Bucket, filePath: string): AppThunk => async (dispatch, getState) => {
-  const { activeRepo } = getState().sourceControl
-  if (!activeRepo) return
+export const discardFileAction =
+  (bucket: Bucket, filePath: string): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl
+    if (!activeRepo) return
 
-  await dispatch(
-    runRepoAction(`file:discard:${filePath}`,
-      async (innerDispatch) => {
+    await dispatch(
+      runRepoAction(`file:discard:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
           gitApi.endpoints.discardFile.initiate(
             { repoPath: activeRepo, relPath: filePath, bucket },
@@ -191,24 +208,21 @@ export const discardFileAction = (bucket: Bucket, filePath: string): AppThunk =>
           ),
         )
         await result.unwrap()
-      },
-    ),
-  )
-}
+      }),
+    )
+  }
 
 export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl
   if (!activeRepo) return
 
   await dispatch(
-    runRepoAction('stage-all',
-      async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
-        )
-        await result.unwrap()
-      },
-    ),
+    runRepoAction('stage-all', async (innerDispatch) => {
+      const result = innerDispatch(
+        gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
+      )
+      await result.unwrap()
+    }),
   )
 }
 
@@ -217,33 +231,34 @@ export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
   if (!activeRepo) return
 
   await dispatch(
-    runRepoAction('unstage-all',
-      async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
-        )
-        await result.unwrap()
-      },
-    ),
+    runRepoAction('unstage-all', async (innerDispatch) => {
+      const result = innerDispatch(
+        gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
+      )
+      await result.unwrap()
+    }),
   )
 }
 
-export const discardChangesGroupAction = (files: BucketedFile[]): AppThunk => async (dispatch, getState) => {
-  const { activeRepo } = getState().sourceControl
-  if (!activeRepo) return
+export const discardChangesGroupAction =
+  (files: BucketedFile[]): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl
+    if (!activeRepo) return
 
-  await dispatch(
-    runRepoAction('discard-changes',
-      async (innerDispatch) => {
+    await dispatch(
+      runRepoAction('discard-changes', async (innerDispatch) => {
         const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }))
         const result = innerDispatch(
-          gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }, { subscribe: false }),
+          gitApi.endpoints.discardFiles.initiate(
+            { repoPath: activeRepo, files: payload },
+            { subscribe: false },
+          ),
         )
         await result.unwrap()
-      },
-    ),
-  )
-}
+      }),
+    )
+  }
 
 export const commitAction = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo, commitMessage } = getState().sourceControl
@@ -252,15 +267,16 @@ export const commitAction = (): AppThunk => async (dispatch, getState) => {
   if (!trimmed) return
 
   await dispatch(
-    runRepoAction('commit',
-      async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.commitStaged.initiate({ repoPath: activeRepo, message: trimmed }, { subscribe: false }),
-        )
-        const commitId = await result.unwrap()
-        innerDispatch(setLastCommitId(commitId))
-        innerDispatch(setCommitMessage(''))
-      },
-    ),
+    runRepoAction('commit', async (innerDispatch) => {
+      const result = innerDispatch(
+        gitApi.endpoints.commitStaged.initiate(
+          { repoPath: activeRepo, message: trimmed },
+          { subscribe: false },
+        ),
+      )
+      const commitId = await result.unwrap()
+      innerDispatch(setLastCommitId(commitId))
+      innerDispatch(setCommitMessage(''))
+    }),
   )
 }

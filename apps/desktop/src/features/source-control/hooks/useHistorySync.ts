@@ -3,7 +3,11 @@ import { skipToken } from '@reduxjs/toolkit/query'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from '@/features/source-control/api'
-import { clearHistorySelection, setActivePath, setHistoryCommitId } from '@/features/source-control/sourceControlSlice'
+import {
+  clearHistorySelection,
+  setActivePath,
+  setHistoryCommitId,
+} from '@/features/source-control/sourceControlSlice'
 
 export function useHistorySync() {
   const dispatch = useAppDispatch()

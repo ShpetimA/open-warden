@@ -76,15 +76,15 @@ type HistoryCommitRowProps = {
 }
 
 function HistoryCommitRow({ commit, onSelect }: HistoryCommitRowProps) {
-  const isActive = useAppSelector((state) => state.sourceControl.historyCommitId === commit.commitId)
+  const isActive = useAppSelector(
+    (state) => state.sourceControl.historyCommitId === commit.commitId,
+  )
 
   return (
     <button
       type="button"
       className={`block w-full min-w-0 overflow-hidden border px-2 py-1.5 text-left ${
-        isActive
-          ? 'border-ring/40 bg-surface-active'
-          : 'border-input bg-surface hover:bg-accent/60'
+        isActive ? 'border-ring/40 bg-surface-active' : 'border-input bg-surface hover:bg-accent/60'
       }`}
       onClick={() => onSelect(commit.commitId)}
       title={commit.summary || commit.commitId}

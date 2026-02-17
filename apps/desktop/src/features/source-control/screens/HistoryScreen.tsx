@@ -5,7 +5,10 @@ import type { AppShellOutletContext } from '@/app/AppShell'
 import { useAppSelector } from '@/app/hooks'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import { DiffWorkspaceHeader } from '@/features/diff-view/components/DiffWorkspaceHeader'
-import { useGetCommitFilesQuery, useGetCommitFileVersionsQuery } from '@/features/source-control/api'
+import {
+  useGetCommitFilesQuery,
+  useGetCommitFileVersionsQuery,
+} from '@/features/source-control/api'
 import { HistoryFilesPane } from '@/features/source-control/components/HistoryFilesPane'
 import { useHistoryKeyboardNav } from '@/features/source-control/hooks/useHistoryKeyboardNav'
 import { useHistorySync } from '@/features/source-control/hooks/useHistorySync'
@@ -58,7 +61,9 @@ export function HistoryScreen() {
           ) : loadingPatch ? (
             <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
           ) : !activePath ? (
-            <div className="text-muted-foreground p-3 text-sm">Select a commit file to view diff.</div>
+            <div className="text-muted-foreground p-3 text-sm">
+              Select a commit file to view diff.
+            </div>
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (

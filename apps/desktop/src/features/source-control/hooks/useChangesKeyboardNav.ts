@@ -14,8 +14,11 @@ export function useChangesKeyboardNav() {
 
   const getNavigationData = () => {
     const state = store.getState()
-    const { activeBucket, activePath, activeRepo, collapseStaged, collapseUnstaged } = state.sourceControl
-    const snapshot = activeRepo ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data : undefined
+    const { activeBucket, activePath, activeRepo, collapseStaged, collapseUnstaged } =
+      state.sourceControl
+    const snapshot = activeRepo
+      ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
+      : undefined
 
     return {
       activeBucket,
@@ -30,7 +33,8 @@ export function useChangesKeyboardNav() {
     if (isTypingTarget(event.target)) return
     event.preventDefault()
 
-    const { activeBucket, activePath, collapseStaged, collapseUnstaged, snapshot } = getNavigationData()
+    const { activeBucket, activePath, collapseStaged, collapseUnstaged, snapshot } =
+      getNavigationData()
     const unstaged = snapshot?.unstaged ?? []
     const staged = snapshot?.staged ?? []
     const untracked = snapshot?.untracked ?? []
@@ -48,7 +52,9 @@ export function useChangesKeyboardNav() {
 
     if (visibleChangeRows.length === 0) return
 
-    const activeIndex = visibleChangeRows.findIndex((file) => file.bucket === activeBucket && file.path === activePath)
+    const activeIndex = visibleChangeRows.findIndex(
+      (file) => file.bucket === activeBucket && file.path === activePath,
+    )
 
     let targetIndex = 0
     if (activeIndex < 0) {
@@ -64,19 +70,35 @@ export function useChangesKeyboardNav() {
     void dispatch(selectFile(targetFile.bucket, targetFile.path))
   }
 
-  useHotkey('ArrowDown', (event) => {
-    navigateChanges(event, true)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'ArrowDown',
+    (event) => {
+      navigateChanges(event, true)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('J', (event) => {
-    navigateChanges(event, true)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'J',
+    (event) => {
+      navigateChanges(event, true)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('ArrowUp', (event) => {
-    navigateChanges(event, false)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'ArrowUp',
+    (event) => {
+      navigateChanges(event, false)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 
-  useHotkey('K', (event) => {
-    navigateChanges(event, false)
-  }, { ignoreInputs: false, preventDefault: false, stopPropagation: false })
+  useHotkey(
+    'K',
+    (event) => {
+      navigateChanges(event, false)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
 }

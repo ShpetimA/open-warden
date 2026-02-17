@@ -15,7 +15,12 @@ type Props = {
   showDiffActions: boolean
 }
 
-export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, showDiffActions }: Props) {
+export function DiffWorkspaceHeader({
+  sidebarOpen,
+  onToggleSidebar,
+  canComment,
+  showDiffActions,
+}: Props) {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const activePath = useAppSelector((state) => state.sourceControl.activePath)
@@ -23,7 +28,9 @@ export function DiffWorkspaceHeader({ sidebarOpen, onToggleSidebar, canComment, 
   const comments = useAppSelector((state) => state.comments)
 
   const allComments = compactComments(comments)
-  const currentRepoComments = activeRepo ? allComments.filter((comment) => comment.repoPath === activeRepo) : []
+  const currentRepoComments = activeRepo
+    ? allComments.filter((comment) => comment.repoPath === activeRepo)
+    : []
   const currentFileComments = canComment ? fileComments(allComments, activeRepo, activePath) : []
 
   const onCopyFileComments = async () => {

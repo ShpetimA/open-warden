@@ -12,7 +12,11 @@ import {
   unstageAllAction,
   unstageFileAction,
 } from '@/features/source-control/actions'
-import { setActiveBucket, setCollapseStaged, setCollapseUnstaged } from '@/features/source-control/sourceControlSlice'
+import {
+  setActiveBucket,
+  setCollapseStaged,
+  setCollapseUnstaged,
+} from '@/features/source-control/sourceControlSlice'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { CommitBox } from './CommitBox'
 import { FileSection } from './FileSection'
@@ -31,7 +35,9 @@ function ChangesFileList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged)
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
-  const commentCounts = useAppSelector((state) => createCommentCountByPathForRepo(state.comments, activeRepo))
+  const commentCounts = useAppSelector((state) =>
+    createCommentCountByPathForRepo(state.comments, activeRepo),
+  )
   const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,

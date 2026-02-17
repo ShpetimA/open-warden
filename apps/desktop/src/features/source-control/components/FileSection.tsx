@@ -50,7 +50,11 @@ export function FileSection({
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
           onClick={() => onToggle(sectionKey)}
         >
-          {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          {collapsed ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronDown className="h-3.5 w-3.5" />
+          )}
           <span className="min-w-0 truncate font-medium">{title}</span>
           {isChanges ? (
             <>
@@ -86,7 +90,7 @@ export function FileSection({
           ) : (
             <button
               type="button"
-               className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
+              className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
               title="Unstage all"
               disabled={rows.length === 0 || !!runningAction}
               onClick={onUnstageAll}

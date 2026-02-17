@@ -17,7 +17,15 @@ type Props = {
   onClose: () => void
 }
 
-export function CommentComposer({ visible, top, left, label, activePath, selectedRange, onClose }: Props) {
+export function CommentComposer({
+  visible,
+  top,
+  left,
+  label,
+  activePath,
+  selectedRange,
+  onClose,
+}: Props) {
   const dispatch = useAppDispatch()
   const [draftComment, setDraftComment] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
@@ -56,7 +64,10 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
   if (!visible) return null
 
   return (
-    <div className="border-input bg-surface-elevated absolute z-20 w-80 border p-2 shadow-xl" style={{ top, left }}>
+    <div
+      className="border-input bg-surface-elevated absolute z-20 w-80 border p-2 shadow-xl"
+      style={{ top, left }}
+    >
       <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
       <Input
         ref={inputRef}
@@ -67,7 +78,12 @@ export function CommentComposer({ visible, top, left, label, activePath, selecte
         className="border-input bg-input h-7 text-xs"
       />
       <div className="mt-2 flex items-center gap-1">
-        <Button size="sm" variant="secondary" onClick={onSubmit} disabled={!draftComment.trim() || !activePath}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={onSubmit}
+          disabled={!draftComment.trim() || !activePath}
+        >
           Add
         </Button>
         <Button size="sm" variant="ghost" onClick={onClose}>

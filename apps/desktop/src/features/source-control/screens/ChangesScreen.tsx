@@ -19,7 +19,9 @@ export function ChangesScreen() {
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket)
   const activePath = useAppSelector((state) => state.sourceControl.activePath)
   const workingFileVersions = useGetFileVersionsQuery(
-    activeRepo && activePath ? { repoPath: activeRepo, bucket: activeBucket, relPath: activePath } : skipToken,
+    activeRepo && activePath
+      ? { repoPath: activeRepo, bucket: activeBucket, relPath: activePath }
+      : skipToken,
     {
       refetchOnFocus: true,
       refetchOnReconnect: true,

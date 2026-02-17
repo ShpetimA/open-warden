@@ -5,25 +5,25 @@ import path from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
-    plugins: [
-        react({
-            babel: {
-                plugins: ['babel-plugin-react-compiler']
-            }
-        }),
-        tailwindcss()
-    ],
-    clearScreen: false,
-    worker: {
-        format: 'es'
+  plugins: [
+    react({
+      babel: {
+        plugins: ['babel-plugin-react-compiler'],
+      },
+    }),
+    tailwindcss(),
+  ],
+  clearScreen: false,
+  worker: {
+    format: 'es',
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
     },
-    resolve: {
-        alias: {
-            '@': path.resolve(__dirname, './src')
-        }
-    },
-    server: {
-        port: 1420,
-        strictPort: true
-    }
+  },
+  server: {
+    port: 1420,
+    strictPort: true,
+  },
 })

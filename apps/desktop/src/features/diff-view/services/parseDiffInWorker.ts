@@ -1,4 +1,4 @@
-import { parseDiffFromFile } from '@pierre/diffs'
+import type { parseDiffFromFile } from '@pierre/diffs'
 
 import type { DiffFile } from '@/features/source-control/types'
 

@@ -28,5 +28,6 @@ const commentsSlice = createSlice({
   },
 })
 
-export const { addComment, removeComment, removeCommentsForRepo, updateComment } = commentsSlice.actions
+export const { addComment, removeComment, removeCommentsForRepo, updateComment } =
+  commentsSlice.actions
 export const commentsReducer = commentsSlice.reducer

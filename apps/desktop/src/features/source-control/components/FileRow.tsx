@@ -22,11 +22,14 @@ export function FileRow({
   commentCounts,
 }: Props) {
   const isActive = useAppSelector(
-    (state) => state.sourceControl.activeBucket === file.bucket && state.sourceControl.activePath === file.path,
+    (state) =>
+      state.sourceControl.activeBucket === file.bucket &&
+      state.sourceControl.activePath === file.path,
   )
-  const staging = useAppSelector((state) =>
-    state.sourceControl.runningAction === `file:stage:${file.path}` ||
-    state.sourceControl.runningAction === `file:unstage:${file.path}`,
+  const staging = useAppSelector(
+    (state) =>
+      state.sourceControl.runningAction === `file:stage:${file.path}` ||
+      state.sourceControl.runningAction === `file:unstage:${file.path}`,
   )
   const discarding = useAppSelector(
     (state) => state.sourceControl.runningAction === `file:discard:${file.path}`,
@@ -50,7 +53,9 @@ export function FileRow({
         title={file.path}
       >
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="text-warning w-3 text-center text-[10px]">{statusBadge(file.status)}</span>
+          <span className="text-warning w-3 text-center text-[10px]">
+            {statusBadge(file.status)}
+          </span>
           <span className="text-foreground shrink-0 font-medium">{fileName}</span>
           {commentCount > 0 ? (
             <span className="border-input bg-surface-alt text-foreground inline-flex h-4 min-w-4 items-center justify-center border px-1 text-[10px]">
