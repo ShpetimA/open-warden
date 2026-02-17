@@ -5,6 +5,7 @@ import { parseDiffFromFile } from '@pierre/diffs'
 type DiffFile = {
   name: string
   contents: string
+  cacheKey?: string
 }
 
 type ParseRequestMessage = {

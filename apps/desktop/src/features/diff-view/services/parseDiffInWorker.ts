@@ -3,6 +3,7 @@ import type { parseDiffFromFile } from '@pierre/diffs'
 import type { DiffFile } from '@/features/source-control/types'
 
 type ParsedDiff = ReturnType<typeof parseDiffFromFile>
+type ParseWorkerFile = DiffFile & { cacheKey?: string }
 
 type ParseResponseMessage =
   | {
@@ -23,8 +24,8 @@ function toAbortError(): DOMException {
 }
 
 export function parseDiffInWorker(
-  oldFile: DiffFile,
-  newFile: DiffFile,
+  oldFile: ParseWorkerFile,
+  newFile: ParseWorkerFile,
   signal?: AbortSignal,
 ): Promise<ParsedDiff> {
   const requestId = nextRequestId++

@@ -5,21 +5,48 @@ import type { DiffFile } from '@/features/source-control/types'
 
 type ParsedDiff = Awaited<ReturnType<typeof parseDiffInWorker>>
 type ParsedDiffState = { key: string; diff: ParsedDiff | null }
+type ParseWorkerFile = DiffFile & { cacheKey?: string }
 
-const parsedDiffCache = new Map<string, ParsedDiff>()
+function hashStringFNV1a(value: string): string {
+  let hash = 0x811c9dc5
 
-function getDiffCacheKey(
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return (hash >>> 0).toString(36)
+}
+
+function getFileCacheKey(file: DiffFile): string {
+  const nameHash = hashStringFNV1a(file.name)
+  const contentsHash = hashStringFNV1a(file.contents)
+
+  return `f-${nameHash}-${file.contents.length}-${contentsHash}`
+}
+
+function withCacheKey(file: DiffFile): ParseWorkerFile {
+  return {
+    ...file,
+    cacheKey: getFileCacheKey(file),
+  }
+}
+
+function getRequestPayload(
   activePath: string,
   oldFile: DiffFile | null,
   newFile: DiffFile | null,
-): string {
-  return JSON.stringify({
-    activePath,
-    oldName: oldFile?.name ?? '',
-    oldContents: oldFile?.contents ?? '',
-    newName: newFile?.name ?? '',
-    newContents: newFile?.contents ?? '',
-  })
+): { key: string; oldFile: ParseWorkerFile; newFile: ParseWorkerFile } {
+  const oldTargetFile = oldFile ?? { name: activePath, contents: '' }
+  const newTargetFile = newFile ?? { name: activePath, contents: '' }
+  const oldFileWithCacheKey = withCacheKey(oldTargetFile)
+  const newFileWithCacheKey = withCacheKey(newTargetFile)
+
+  return {
+    key: `${oldFileWithCacheKey.cacheKey}:${newFileWithCacheKey.cacheKey}`,
+    oldFile: oldFileWithCacheKey,
+    newFile: newFileWithCacheKey,
+  }
 }
 
 type UseParsedDiffArgs = {
@@ -32,35 +59,33 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
   const parseRequestTokenRef = useRef(0)
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null)
 
-  const activeRequestKey = useMemo(() => {
+  const requestPayload = useMemo(() => {
     if (!activePath || (!oldFile && !newFile)) return null
-    return getDiffCacheKey(activePath, oldFile, newFile)
+    return getRequestPayload(activePath, oldFile, newFile)
   }, [activePath, oldFile, newFile])
 
   useEffect(() => {
     const requestToken = parseRequestTokenRef.current + 1
     parseRequestTokenRef.current = requestToken
 
-    if (!activeRequestKey || !activePath) {
+    if (!requestPayload) {
       return
     }
 
-    const cachedDiff = parsedDiffCache.get(activeRequestKey)
-    if (cachedDiff) {
+    if (parsedState?.key === requestPayload.key) {
       return
     }
 
     const controller = new AbortController()
 
     void parseDiffInWorker(
-      oldFile ?? { name: activePath, contents: '' },
-      newFile ?? { name: activePath, contents: '' },
+      requestPayload.oldFile,
+      requestPayload.newFile,
       controller.signal,
     )
       .then((parsedDiff) => {
         if (parseRequestTokenRef.current !== requestToken) return
-        parsedDiffCache.set(activeRequestKey, parsedDiff)
-        setParsedState({ key: activeRequestKey, diff: parsedDiff })
+        setParsedState({ key: requestPayload.key, diff: parsedDiff })
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -69,19 +94,17 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
 
         if (parseRequestTokenRef.current !== requestToken) return
 
-        setParsedState({ key: activeRequestKey, diff: null })
+        setParsedState({ key: requestPayload.key, diff: null })
       })
 
     return () => {
       controller.abort()
     }
-  }, [activeRequestKey, activePath, oldFile, newFile])
+  }, [parsedState?.key, requestPayload])
 
-  const cachedDiff = activeRequestKey ? (parsedDiffCache.get(activeRequestKey) ?? null) : null
-  const currentFileDiff =
-    cachedDiff ?? (parsedState?.key === activeRequestKey ? (parsedState.diff ?? null) : null)
-  const isParsingDiff =
-    activeRequestKey !== null && cachedDiff === null && parsedState?.key !== activeRequestKey
+  const requestKey = requestPayload?.key ?? null
+  const currentFileDiff = requestKey && parsedState?.key === requestKey ? (parsedState.diff ?? null) : null
+  const isParsingDiff = requestKey !== null && parsedState?.key !== requestKey
 
   return { currentFileDiff, isParsingDiff }
 }
