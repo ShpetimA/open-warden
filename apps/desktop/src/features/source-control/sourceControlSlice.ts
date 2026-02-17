@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
-import type { Bucket, DiffStyle, HistoryNavTarget, RunningAction } from './types'
+import type { Bucket, DiffStyle, HistoryNavTarget, RunningAction, SelectedFile } from './types'
 
 type SourceControlState = {
   repos: string[]
@@ -17,6 +17,8 @@ type SourceControlState = {
   lastCommitId: string
   runningAction: RunningAction
   error: string
+  selectedFiles: SelectedFile[]
+  selectionAnchor: SelectedFile | null
 }
 
 const initialState: SourceControlState = {
@@ -34,6 +36,8 @@ const initialState: SourceControlState = {
   lastCommitId: '',
   runningAction: '',
   error: '',
+  selectedFiles: [],
+  selectionAnchor: null,
 }
 
 const sourceControlSlice = createSlice({
@@ -128,6 +132,12 @@ const sourceControlSlice = createSlice({
       if (state.activePath !== '') {
         state.activePath = ''
       }
+      if (state.selectedFiles.length > 0) {
+        state.selectedFiles = []
+      }
+      if (state.selectionAnchor !== null) {
+        state.selectionAnchor = null
+      }
     },
     clearHistorySelection(state) {
       if (state.historyCommitId !== '') {
@@ -139,6 +149,18 @@ const sourceControlSlice = createSlice({
       if (state.activePath !== '') {
         state.activePath = ''
       }
+      if (state.selectedFiles.length > 0) {
+        state.selectedFiles = []
+      }
+      if (state.selectionAnchor !== null) {
+        state.selectionAnchor = null
+      }
+    },
+    setSelectedFiles(state, action: PayloadAction<SelectedFile[]>) {
+      state.selectedFiles = action.payload
+    },
+    setSelectionAnchor(state, action: PayloadAction<SelectedFile | null>) {
+      state.selectionAnchor = action.payload
     },
   },
 })
@@ -161,6 +183,8 @@ export const {
   setHistoryFilter,
   setHistoryNavTarget,
   setLastCommitId,
+  setSelectedFiles,
+  setSelectionAnchor,
   setRunningAction,
   setRepos,
 } = sourceControlSlice.actions

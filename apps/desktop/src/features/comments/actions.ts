@@ -1,3 +1,5 @@
+import { confirm } from '@tauri-apps/plugin-dialog'
+
 import type { AppThunk } from '@/app/store'
 import {
   addComment as addCommentAction,
@@ -89,8 +91,17 @@ export function toLineAnnotations(comments: CommentItem[]) {
   )
 }
 
-export function confirmDiscard(message: string): boolean {
-  return window.confirm(message)
+export async function confirmDiscard(message: string): Promise<boolean> {
+  try {
+    return await confirm(message, {
+      title: 'Discard Changes',
+      kind: 'warning',
+      okLabel: 'Discard',
+      cancelLabel: 'Cancel',
+    })
+  } catch {
+    return window.confirm(message)
+  }
 }
 
 export function canDiscard(bucket: Bucket): boolean {

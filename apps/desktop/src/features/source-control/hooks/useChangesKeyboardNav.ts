@@ -4,7 +4,11 @@ import { useStore } from 'react-redux'
 import { useAppDispatch } from '@/app/hooks'
 import type { RootState } from '@/app/store'
 import { gitApi } from '@/features/source-control/api'
-import { selectFile } from '@/features/source-control/actions'
+import {
+  rangeSelectFile,
+  selectFile,
+  stageOrUnstageSelectionAction,
+} from '@/features/source-control/actions'
 import type { BucketedFile } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
 
@@ -14,8 +18,14 @@ export function useChangesKeyboardNav() {
 
   const getNavigationData = () => {
     const state = store.getState()
-    const { activeBucket, activePath, activeRepo, collapseStaged, collapseUnstaged } =
-      state.sourceControl
+    const {
+      activeBucket,
+      activePath,
+      activeRepo,
+      collapseStaged,
+      collapseUnstaged,
+      runningAction,
+    } = state.sourceControl
     const snapshot = activeRepo
       ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
       : undefined
@@ -25,11 +35,12 @@ export function useChangesKeyboardNav() {
       activePath,
       collapseStaged,
       collapseUnstaged,
+      runningAction,
       snapshot,
     }
   }
 
-  const navigateChanges = (event: KeyboardEvent, nextKey: boolean) => {
+  const navigateChanges = (event: KeyboardEvent, nextKey: boolean, extendSelection: boolean) => {
     if (isTypingTarget(event.target)) return
     event.preventDefault()
 
@@ -67,38 +78,102 @@ export function useChangesKeyboardNav() {
 
     const targetFile = visibleChangeRows[targetIndex]
     if (!targetFile) return
+
+    if (extendSelection) {
+      void dispatch(
+        rangeSelectFile(
+          {
+            bucket: targetFile.bucket,
+            path: targetFile.path,
+          },
+          visibleChangeRows,
+        ),
+      )
+      return
+    }
+
     void dispatch(selectFile(targetFile.bucket, targetFile.path))
+  }
+
+  const stageOrUnstageSelection = (event: KeyboardEvent) => {
+    if (isTypingTarget(event.target)) return
+    const { runningAction } = getNavigationData()
+    if (runningAction) return
+    event.preventDefault()
+    void dispatch(stageOrUnstageSelectionAction())
   }
 
   useHotkey(
     'ArrowDown',
     (event) => {
-      navigateChanges(event, true)
+      if (event.shiftKey) return
+      navigateChanges(event, true, false)
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
   )
-
   useHotkey(
     'J',
     (event) => {
-      navigateChanges(event, true)
+      if (event.shiftKey) return
+      navigateChanges(event, true, false)
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
   )
-
+  useHotkey('Shift+ArrowDown', (event) => navigateChanges(event, true, true), {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  })
+  useHotkey('Shift+J', (event) => navigateChanges(event, true, true), {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  })
   useHotkey(
     'ArrowUp',
     (event) => {
-      navigateChanges(event, false)
+      if (event.shiftKey) return
+      navigateChanges(event, false, false)
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
   )
-
   useHotkey(
     'K',
     (event) => {
-      navigateChanges(event, false)
+      if (event.shiftKey) return
+      navigateChanges(event, false, false)
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
   )
+  useHotkey('Shift+ArrowUp', (event) => navigateChanges(event, false, true), {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  })
+  useHotkey('Shift+K', (event) => navigateChanges(event, false, true), {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  })
+  useHotkey('Mod+Enter', stageOrUnstageSelection, {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  })
 }

@@ -1,14 +1,16 @@
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
+import type { MouseEvent } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { confirmDiscard } from '@/features/comments/actions'
-import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
 import { useGetGitSnapshotQuery } from '@/features/source-control/api'
 import {
   discardChangesGroupAction,
   discardFileAction,
+  rangeSelectFile,
   selectFile,
   stageAllAction,
   stageFileAction,
+  toggleSelectFile,
   unstageAllAction,
   unstageFileAction,
 } from '@/features/source-control/actions'
@@ -35,9 +37,6 @@ function ChangesFileList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged)
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
-  const commentCounts = useAppSelector((state) =>
-    createCommentCountByPathForRepo(state.comments, activeRepo),
-  )
   const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
@@ -60,6 +59,10 @@ function ChangesFileList() {
     ...file,
     bucket: 'staged' as const,
   }))
+  const visibleRows: BucketedFile[] = [
+    ...(collapseStaged ? [] : stagedRows),
+    ...(collapseUnstaged ? [] : changedFiles),
+  ]
 
   const onToggle = (key: 'staged' | 'unstaged') => {
     if (key === 'staged') {
@@ -77,9 +80,9 @@ function ChangesFileList() {
     void dispatch(unstageAllAction())
   }
 
-  const onDiscardChangesGroup = (files: BucketedFile[]) => {
+  const onDiscardChangesGroup = async (files: BucketedFile[]) => {
     if (files.length === 0) return
-    if (!confirmDiscard(`Discard all changes in CHANGES (${files.length} files)?`)) return
+    if (!(await confirmDiscard(`Discard all changes in CHANGES (${files.length} files)?`))) return
     void dispatch(discardChangesGroupAction(files))
   }
 
@@ -91,12 +94,24 @@ function ChangesFileList() {
     void dispatch(unstageFileAction(path))
   }
 
-  const onDiscardFile = (bucket: Bucket, path: string) => {
-    if (!confirmDiscard(`Discard changes for ${path}?`)) return
+  const onDiscardFile = async (bucket: Bucket, path: string) => {
+    if (!(await confirmDiscard(`Discard changes for ${path}?`))) return
     void dispatch(discardFileAction(bucket, path))
   }
 
-  const onSelectFile = (bucket: Bucket, relPath: string) => {
+  const onSelectFile = (
+    bucket: Bucket,
+    relPath: string,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    if (event.shiftKey) {
+      void dispatch(rangeSelectFile({ bucket, path: relPath }, visibleRows))
+      return
+    }
+    if (event.metaKey || event.ctrlKey) {
+      void dispatch(toggleSelectFile(bucket, relPath))
+      return
+    }
     void dispatch(selectFile(bucket, relPath))
   }
 
@@ -124,7 +139,6 @@ function ChangesFileList() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
-            commentCounts={commentCounts}
           />
           <FileSection
             sectionKey="unstaged"
@@ -141,7 +155,6 @@ function ChangesFileList() {
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
             onDiscardChangesGroup={onDiscardChangesGroup}
-            commentCounts={commentCounts}
           />
         </div>
       </ScrollArea>

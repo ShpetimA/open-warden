@@ -3,7 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import type { AppThunk } from '@/app/store'
 import { removeCommentsForRepo } from '@/features/comments/commentsSlice'
 import { gitApi } from './api'
-import type { Bucket, BucketedFile, GitSnapshot, RunningAction } from './types'
+import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from './types'
 import {
   addRepo,
   clearDiffSelection,
@@ -19,6 +19,8 @@ import {
   setHistoryCommitId,
   setHistoryNavTarget,
   setLastCommitId,
+  setSelectedFiles,
+  setSelectionAnchor,
   setRunningAction,
 } from './sourceControlSlice'
 
@@ -43,6 +45,20 @@ function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, fil
   return null
 }
 
+function fileSelectionKey(file: SelectedFile): string {
+  return `${file.bucket}\u0000${file.path}`
+}
+
+function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
+  const seen = new Set<string>()
+  return files.filter((file) => {
+    const key = fileSelectionKey(file)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export const selectFolder = (): AppThunk => async (dispatch) => {
   const selected = await open({ directory: true, multiple: false })
   if (typeof selected !== 'string') return
@@ -53,6 +69,8 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
   dispatch(clearHistorySelection())
   dispatch(clearDiffSelection())
   dispatch(setActiveBucket('unstaged'))
+  dispatch(setSelectedFiles([]))
+  dispatch(setSelectionAnchor(null))
 }
 
 export const selectRepo =
@@ -65,6 +83,8 @@ export const selectRepo =
     dispatch(clearHistorySelection())
     dispatch(clearDiffSelection())
     dispatch(setActiveBucket('unstaged'))
+    dispatch(setSelectedFiles([]))
+    dispatch(setSelectionAnchor(null))
   }
 
 export const closeRepo =
@@ -80,6 +100,8 @@ export const closeRepo =
       dispatch(clearHistorySelection())
       dispatch(clearDiffSelection())
       dispatch(setActiveBucket('unstaged'))
+      dispatch(setSelectedFiles([]))
+      dispatch(setSelectionAnchor(null))
     }
   }
 
@@ -98,7 +120,74 @@ export const selectFile =
     if (!getState().sourceControl.activeRepo) return
     dispatch(setActiveBucket(bucket))
     dispatch(setActivePath(relPath))
+    dispatch(setSelectedFiles([{ bucket, path: relPath }]))
+    dispatch(setSelectionAnchor({ bucket, path: relPath }))
   }
+
+export const toggleSelectFile =
+  (bucket: Bucket, relPath: string): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return
+
+    const target: SelectedFile = { bucket, path: relPath }
+    const { selectedFiles } = getState().sourceControl
+    const targetKey = fileSelectionKey(target)
+    const exists = selectedFiles.some((file) => fileSelectionKey(file) === targetKey)
+    const nextSelection = exists
+      ? selectedFiles.filter((file) => fileSelectionKey(file) !== targetKey)
+      : [...selectedFiles, target]
+
+    dispatch(setActiveBucket(bucket))
+    dispatch(setActivePath(relPath))
+    dispatch(setSelectedFiles(dedupeSelection(nextSelection)))
+    dispatch(setSelectionAnchor(target))
+  }
+
+export const rangeSelectFile =
+  (target: SelectedFile, visibleRows: BucketedFile[]): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return
+
+    const { selectionAnchor, activeBucket, activePath, selectedFiles } = getState().sourceControl
+    const activeSelection = activePath ? { bucket: activeBucket, path: activePath } : null
+    const base = selectionAnchor ?? activeSelection ?? target
+
+    const baseIndex = visibleRows.findIndex(
+      (file) => file.bucket === base.bucket && file.path === base.path,
+    )
+    const targetIndex = visibleRows.findIndex(
+      (file) => file.bucket === target.bucket && file.path === target.path,
+    )
+
+    if (baseIndex < 0 || targetIndex < 0) {
+      dispatch(setActiveBucket(target.bucket))
+      dispatch(setActivePath(target.path))
+      dispatch(setSelectedFiles([target]))
+      dispatch(setSelectionAnchor(base))
+      return
+    }
+
+    const from = Math.min(baseIndex, targetIndex)
+    const to = Math.max(baseIndex, targetIndex)
+    const rangeSelection = visibleRows.slice(from, to + 1).map((file) => ({
+      bucket: file.bucket,
+      path: file.path,
+    }))
+
+    const carryForward = selectedFiles.filter(
+      (file) => visibleRows.findIndex((row) => row.bucket === file.bucket && row.path === file.path) < 0,
+    )
+
+    dispatch(setActiveBucket(target.bucket))
+    dispatch(setActivePath(target.path))
+    dispatch(setSelectedFiles(dedupeSelection([...carryForward, ...rangeSelection])))
+    dispatch(setSelectionAnchor(base))
+  }
+
+export const clearFileSelection = (): AppThunk => async (dispatch) => {
+  dispatch(setSelectedFiles([]))
+  dispatch(setSelectionAnchor(null))
+}
 
 export const selectHistoryCommit =
   (commitId: string): AppThunk =>
@@ -211,6 +300,30 @@ export const discardFileAction =
       }),
     )
   }
+
+export const stageOrUnstageSelectionAction = (): AppThunk => async (dispatch, getState) => {
+  const { activeRepo, activeBucket, activePath, selectedFiles, runningAction } = getState().sourceControl
+  if (!activeRepo || runningAction) return
+
+  const candidates = selectedFiles.length
+    ? selectedFiles
+    : activePath
+      ? [{ bucket: activeBucket, path: activePath }]
+      : []
+  if (candidates.length === 0) return
+
+  const uniqueCandidates = dedupeSelection(candidates)
+
+  const toUnstage = uniqueCandidates.filter((file) => file.bucket === 'staged')
+  const toStage = uniqueCandidates.filter((file) => file.bucket !== 'staged')
+
+  for (const file of toUnstage) {
+    await dispatch(unstageFileAction(file.path))
+  }
+  for (const file of toStage) {
+    await dispatch(stageFileAction(file.path))
+  }
+}
 
 export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl

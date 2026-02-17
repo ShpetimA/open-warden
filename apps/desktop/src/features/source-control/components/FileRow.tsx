@@ -1,4 +1,5 @@
 import { Minus, Plus, Trash2 } from 'lucide-react'
+import type { MouseEvent } from 'react'
 
 import { useAppSelector } from '@/app/hooks'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
@@ -6,7 +7,7 @@ import { statusBadge } from '@/features/source-control/utils'
 
 type Props = {
   file: BucketedFile
-  onSelectFile: (bucket: Bucket, path: string) => void
+  onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void
   onStageFile: (path: string) => void
   onUnstageFile: (path: string) => void
   onDiscardFile: (bucket: Bucket, path: string) => void
@@ -35,6 +36,11 @@ export function FileRow({
     (state) => state.sourceControl.runningAction === `file:discard:${file.path}`,
   )
   const hasRunningAction = useAppSelector((state) => state.sourceControl.runningAction !== '')
+  const isSelected = useAppSelector((state) =>
+    state.sourceControl.selectedFiles.some(
+      (selected) => selected.bucket === file.bucket && selected.path === file.path,
+    ),
+  )
   const commentCount = commentCounts.get(file.path) ?? 0
   const normalizedPath = file.path.replace(/\\/g, '/')
   const pathParts = normalizedPath.split('/').filter(Boolean)
@@ -43,13 +49,13 @@ export function FileRow({
   return (
     <div
       className={`border-input group flex min-w-0 items-center gap-2 overflow-hidden border-b px-2 py-1 text-xs last:border-b-0 ${
-        isActive ? 'bg-surface-active' : 'hover:bg-accent/60'
+        isActive ? 'bg-surface-active' : isSelected ? 'bg-accent/50' : 'hover:bg-accent/60'
       }`}
     >
       <button
         type="button"
         className="w-0 min-w-0 flex-1 overflow-hidden text-left"
-        onClick={() => onSelectFile(file.bucket, file.path)}
+        onClick={(event) => onSelectFile(file.bucket, file.path, event)}
         title={file.path}
       >
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
@@ -93,7 +99,11 @@ export function FileRow({
             <button
               type="button"
               className="text-muted-foreground hover:bg-destructive/20 hover:text-destructive p-1"
-              onClick={() => onDiscardFile(file.bucket, file.path)}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                onDiscardFile(file.bucket, file.path)
+              }}
               disabled={staging || discarding || hasRunningAction}
               title="Discard"
             >

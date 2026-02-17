@@ -20,6 +20,11 @@ export type FileItem = ContractFileItem
 
 export type BucketedFile = FileItem & { bucket: Bucket }
 
+export type SelectedFile = {
+  bucket: Bucket
+  path: string
+}
+
 export type HistoryCommit = ContractHistoryCommit
 
 export type SelectionRange = {

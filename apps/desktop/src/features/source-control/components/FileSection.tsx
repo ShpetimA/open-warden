@@ -1,6 +1,8 @@
 import { ChevronDown, ChevronRight, Minus, Plus, Trash2 } from 'lucide-react'
+import type { MouseEvent } from 'react'
 
 import { useAppSelector } from '@/app/hooks'
+import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
 import { FileRow } from './FileRow'
 
@@ -12,14 +14,13 @@ type Props = {
   unstagedCount: number
   untrackedCount: number
   onToggle: (key: 'staged' | 'unstaged') => void
-  onSelectFile: (bucket: Bucket, path: string) => void
+  onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void
   onStageFile: (path: string) => void
   onUnstageFile: (path: string) => void
   onDiscardFile: (bucket: Bucket, path: string) => void
   onStageAll: () => void
   onUnstageAll: () => void
   onDiscardChangesGroup: (files: BucketedFile[]) => void
-  commentCounts: Map<string, number>
 }
 
 export function FileSection({
@@ -37,9 +38,11 @@ export function FileSection({
   onStageAll,
   onUnstageAll,
   onDiscardChangesGroup,
-  commentCounts,
 }: Props) {
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
+  const comments = useAppSelector((state) => state.comments)
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
+  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo)
   const isChanges = sectionKey === 'unstaged'
 
   return (

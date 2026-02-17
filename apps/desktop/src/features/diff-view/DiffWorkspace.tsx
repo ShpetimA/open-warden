@@ -14,6 +14,7 @@ import {
   normalizeRange,
   parseSelectionRange,
 } from '@/features/source-control/utils'
+import type { FileDiffOptions } from '@pierre/diffs'
 
 type Props = {
   oldFile: DiffFile | null
@@ -159,7 +160,7 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
     return <CommentAnnotation comment={data} />
   }
 
-  const diffOptions = {
+  const diffOptions: FileDiffOptions<CommentItem> = {
     diffStyle,
     themeType: 'dark' as const,
     disableLineNumbers: false,
