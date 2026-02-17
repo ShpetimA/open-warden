@@ -4,7 +4,7 @@ import { parseDiffInWorker } from '@/features/diff-view/services/parseDiffInWork
 import type { DiffFile } from '@/features/source-control/types'
 
 type ParsedDiff = Awaited<ReturnType<typeof parseDiffInWorker>>
-type ParsedDiffState = { key: string; diff: ParsedDiff }
+type ParsedDiffState = { key: string; diff: ParsedDiff | null }
 
 const parsedDiffCache = new Map<string, ParsedDiff>()
 
@@ -31,7 +31,6 @@ type UseParsedDiffArgs = {
 export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArgs) {
   const parseRequestTokenRef = useRef(0)
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null)
-  const [isParsingDiff, setIsParsingDiff] = useState(false)
 
   const activeRequestKey = useMemo(() => {
     if (!activePath || (!oldFile && !newFile)) return null
@@ -43,23 +42,15 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
     parseRequestTokenRef.current = requestToken
 
     if (!activeRequestKey || !activePath) {
-      if (parseRequestTokenRef.current !== requestToken) return
-      setParsedState(null)
-      setIsParsingDiff(false)
       return
     }
 
     const cachedDiff = parsedDiffCache.get(activeRequestKey)
     if (cachedDiff) {
-      if (parseRequestTokenRef.current !== requestToken) return
-      setParsedState({ key: activeRequestKey, diff: cachedDiff })
-      setIsParsingDiff(false)
       return
     }
 
     const controller = new AbortController()
-    setParsedState((prev) => (prev?.key === activeRequestKey ? prev : null))
-    setIsParsingDiff(true)
 
     void parseDiffInWorker(
       oldFile ?? { name: activePath, contents: '' },
@@ -70,7 +61,6 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
         if (parseRequestTokenRef.current !== requestToken) return
         parsedDiffCache.set(activeRequestKey, parsedDiff)
         setParsedState({ key: activeRequestKey, diff: parsedDiff })
-        setIsParsingDiff(false)
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') {
@@ -79,8 +69,7 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
 
         if (parseRequestTokenRef.current !== requestToken) return
 
-        setParsedState(null)
-        setIsParsingDiff(false)
+        setParsedState({ key: activeRequestKey, diff: null })
       })
 
     return () => {
@@ -88,7 +77,11 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
     }
   }, [activeRequestKey, activePath, oldFile, newFile])
 
-  const currentFileDiff = parsedState?.key === activeRequestKey ? parsedState.diff : null
+  const cachedDiff = activeRequestKey ? (parsedDiffCache.get(activeRequestKey) ?? null) : null
+  const currentFileDiff =
+    cachedDiff ?? (parsedState?.key === activeRequestKey ? (parsedState.diff ?? null) : null)
+  const isParsingDiff =
+    activeRequestKey !== null && cachedDiff === null && parsedState?.key !== activeRequestKey
 
   return { currentFileDiff, isParsingDiff }
 }

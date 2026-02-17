@@ -23,8 +23,8 @@ export default defineConfig([
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      'react-hooks/purity': 'off',
-      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'error',
+      'react-hooks/set-state-in-effect': 'error',
     },
   },
   {

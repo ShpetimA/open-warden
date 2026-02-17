@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { useAppDispatch } from '@/app/hooks'
@@ -30,11 +30,10 @@ export function CommentComposer({
   const [draftComment, setDraftComment] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  useEffect(() => {
-    if (visible) return
-    if (!draftComment) return
+  const onCancel = () => {
     setDraftComment('')
-  }, [visible, draftComment])
+    onClose()
+  }
 
   const onSubmit = () => {
     if (!selectedRange || !draftComment.trim() || !activePath) return
@@ -56,7 +55,7 @@ export function CommentComposer({
     'Escape',
     (event) => {
       event.preventDefault()
-      onClose()
+      onCancel()
     },
     { target: inputRef, enabled: visible, ignoreInputs: false },
   )
@@ -86,7 +85,7 @@ export function CommentComposer({
         >
           Add
         </Button>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
       </div>
