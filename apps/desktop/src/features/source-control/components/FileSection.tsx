@@ -42,7 +42,7 @@ export function FileSection({
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
   const comments = useAppSelector((state) => state.comments)
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo)
+  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo, { kind: 'changes' })
   const isChanges = sectionKey === 'unstaged'
 
   return (

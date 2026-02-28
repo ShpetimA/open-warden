@@ -5,9 +5,11 @@ use std::path::{Path, PathBuf};
 
 use agent_leash::vcs::{
     commit_staged_for_path, discard_all_for_path, discard_file_for_path,
+    get_branch_file_versions_for_path, get_branch_files_for_path,
     get_commit_file_versions_for_path, get_commit_files_for_path, get_commit_history_for_path,
-    get_file_versions_for_path, get_git_snapshot_for_path, stage_all_for_path, stage_file_for_path,
-    unstage_all_for_path, unstage_file_for_path, DiffBucket,
+    get_file_versions_for_path, get_git_snapshot_for_path, get_local_branches_for_path,
+    stage_all_for_path, stage_file_for_path, unstage_all_for_path, unstage_file_for_path,
+    DiffBucket,
 };
 
 type CmdResult<T> = std::result::Result<T, ApiError>;
@@ -214,6 +216,31 @@ fn get_commit_history(repo_path: String, limit: Option<u32>) -> CmdResult<Vec<Hi
 
 #[tauri::command]
 #[specta::specta]
+fn get_local_branches(repo_path: String) -> CmdResult<Vec<String>> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    get_local_branches_for_path(&repo_path)
+        .map_err(|e| ApiError::backend("failed to load local branches", e))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_branch_files(
+    repo_path: String,
+    base_ref: String,
+    head_ref: String,
+) -> CmdResult<Vec<FileItem>> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let files = get_branch_files_for_path(&repo_path, &base_ref, &head_ref)
+        .map_err(|e| ApiError::backend("failed to load branch diff files", e))?;
+
+    files
+        .into_iter()
+        .map(|file| map_file_item(file.path, file.previous_path, &file.status))
+        .collect()
+}
+
+#[tauri::command]
+#[specta::specta]
 fn get_commit_files(repo_path: String, commit_id: String) -> CmdResult<Vec<FileItem>> {
     let repo_path = parse_repo_path(&repo_path)?;
     let files = get_commit_files_for_path(&repo_path, &commit_id)
@@ -258,6 +285,31 @@ fn get_file_versions(
     let repo_path = parse_repo_path(&repo_path)?;
     let versions = get_file_versions_for_path(&repo_path, Path::new(&rel_path), bucket.into())
         .map_err(|e| ApiError::backend("failed to load file versions", e))?;
+
+    Ok(FileVersions {
+        old_file: versions.old_file.map(map_diff_file),
+        new_file: versions.new_file.map(map_diff_file),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_branch_file_versions(
+    repo_path: String,
+    base_ref: String,
+    head_ref: String,
+    rel_path: String,
+    previous_path: Option<String>,
+) -> CmdResult<FileVersions> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let versions = get_branch_file_versions_for_path(
+        &repo_path,
+        &base_ref,
+        &head_ref,
+        Path::new(&rel_path),
+        previous_path.as_deref().map(Path::new),
+    )
+    .map_err(|e| ApiError::backend("failed to load branch file versions", e))?;
 
     Ok(FileVersions {
         old_file: versions.old_file.map(map_diff_file),
@@ -335,9 +387,12 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         get_git_snapshot,
         get_commit_history,
+        get_local_branches,
+        get_branch_files,
         get_commit_files,
         get_commit_file_versions,
         get_file_versions,
+        get_branch_file_versions,
         stage_file,
         unstage_file,
         stage_all,

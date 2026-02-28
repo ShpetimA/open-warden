@@ -51,6 +51,8 @@ export function HistoryScreen() {
         <DiffWorkspaceHeader
           sidebarOpen={sidebarOpen}
           onToggleSidebar={onToggleSidebar}
+          activePath={activePath}
+          commentContext={{ kind: 'changes' }}
           canComment={false}
           showDiffActions={showDiffActions}
         />
@@ -67,7 +69,13 @@ export function HistoryScreen() {
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
-            <DiffWorkspace oldFile={oldFile} newFile={newFile} canComment={false} />
+            <DiffWorkspace
+              oldFile={oldFile}
+              newFile={newFile}
+              activePath={activePath}
+              commentContext={{ kind: 'changes' }}
+              canComment={false}
+            />
           )}
         </div>
       </section>

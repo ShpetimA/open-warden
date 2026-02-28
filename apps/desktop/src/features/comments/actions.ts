@@ -4,18 +4,37 @@ import type { AppThunk } from '@/app/store'
 import {
   addComment as addCommentAction,
   removeComment as removeCommentAction,
+  removeCommentsByIds as removeCommentsByIdsAction,
   updateComment as updateCommentAction,
 } from '@/features/comments/commentsSlice'
 import { setError } from '@/features/source-control/sourceControlSlice'
-import type { Bucket, CommentItem, SelectionRange } from '@/features/source-control/types'
+import type { Bucket, CommentContext, CommentItem, SelectionRange } from '@/features/source-control/types'
 import { formatRange, normalizeRange } from '@/features/source-control/utils'
 
+function contextForComment(comment: CommentItem): CommentContext {
+  if (comment.contextKind === 'review' && comment.baseRef && comment.headRef) {
+    return { kind: 'review', baseRef: comment.baseRef, headRef: comment.headRef }
+  }
+  return { kind: 'changes' }
+}
+
+function isMatchingContext(comment: CommentItem, context?: CommentContext): boolean {
+  if (!context) return true
+  const commentContext = contextForComment(comment)
+  if (commentContext.kind !== context.kind) return false
+  if (context.kind === 'review' && commentContext.kind === 'review') {
+    return commentContext.baseRef === context.baseRef && commentContext.headRef === context.headRef
+  }
+  return true
+}
+
 export const addComment =
-  (range: SelectionRange, text: string): AppThunk =>
+  (range: SelectionRange, text: string, context: CommentContext = { kind: 'changes' }): AppThunk =>
   (dispatch, getState) => {
     const trimmed = text.trim()
-    const { activeRepo, activePath, activeBucket } = getState().sourceControl
-    if (!trimmed || !activeRepo || !activePath) return
+    const { activeRepo, activePath, activeBucket, reviewActivePath } = getState().sourceControl
+    const targetPath = context.kind === 'review' ? reviewActivePath : activePath
+    if (!trimmed || !activeRepo || !targetPath) return
 
     const normalized = normalizeRange(range)
     const side = range.side ?? 'additions'
@@ -25,13 +44,16 @@ export const addComment =
     const next: CommentItem = {
       id,
       repoPath: activeRepo,
-      filePath: activePath,
-      bucket: activeBucket,
+      filePath: targetPath,
+      bucket: context.kind === 'review' ? 'unstaged' : activeBucket,
       startLine: normalized.start,
       endLine: normalized.end,
       side,
       endSide,
       text: trimmed,
+      contextKind: context.kind,
+      baseRef: context.kind === 'review' ? context.baseRef : undefined,
+      headRef: context.kind === 'review' ? context.headRef : undefined,
     }
 
     dispatch(addCommentAction(next))
@@ -43,6 +65,12 @@ export const removeComment =
     dispatch(removeCommentAction(id))
   }
 
+export const removeCommentsByIds =
+  (ids: string[]): AppThunk =>
+  (dispatch) => {
+    dispatch(removeCommentsByIdsAction(ids))
+  }
+
 export const updateComment =
   (id: string, text: string): AppThunk =>
   (dispatch) => {
@@ -52,15 +80,24 @@ export const updateComment =
   }
 
 export const copyComments =
-  (scope: 'file' | 'all'): AppThunk<Promise<boolean>> =>
+  (
+    scope: 'file' | 'all',
+    options?: { context?: CommentContext; activePath?: string },
+  ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const { comments } = getState()
     const { activeRepo, activePath } = getState().sourceControl
+    const currentPath = options?.activePath ?? activePath
     if (!activeRepo) return false
     const source =
       scope === 'file'
-        ? comments.filter((c) => c.repoPath === activeRepo && c.filePath === activePath)
-        : comments.filter((c) => c.repoPath === activeRepo)
+        ? comments.filter(
+            (c) =>
+              c.repoPath === activeRepo &&
+              c.filePath === currentPath &&
+              isMatchingContext(c, options?.context),
+          )
+        : comments.filter((c) => c.repoPath === activeRepo && isMatchingContext(c, options?.context))
 
     if (source.length === 0) return false
 
@@ -77,8 +114,57 @@ export const copyComments =
     }
   }
 
-export function fileComments(comments: CommentItem[], repoPath: string, filePath: string) {
-  return comments.filter((c) => c.repoPath === repoPath && c.filePath === filePath)
+export const copyReviewPrompt =
+  (
+    scope: 'file' | 'all',
+    context: Extract<CommentContext, { kind: 'review' }>,
+    activePath?: string,
+  ): AppThunk<Promise<boolean>> =>
+  async (dispatch, getState) => {
+    const { comments } = getState()
+    const { activeRepo } = getState().sourceControl
+    if (!activeRepo) return false
+
+    const source =
+      scope === 'file'
+        ? comments.filter(
+            (c) =>
+              c.repoPath === activeRepo &&
+              c.filePath === activePath &&
+              isMatchingContext(c, context),
+          )
+        : comments.filter((c) => c.repoPath === activeRepo && isMatchingContext(c, context))
+    if (source.length === 0) return false
+
+    const payload = [
+      `Review feedback to apply on current branch`,
+      `Diff scope: ${context.baseRef} -> ${context.headRef}`,
+      '',
+      'Implement the following changes:',
+      ...source.map(
+        (comment) =>
+          `- [${comment.filePath} ${formatRange(comment.startLine, comment.endLine)}] ${comment.text}`,
+      ),
+    ].join('\n')
+
+    try {
+      await navigator.clipboard.writeText(payload)
+      return true
+    } catch (error) {
+      dispatch(setError(error instanceof Error ? error.message : String(error)))
+      return false
+    }
+  }
+
+export function fileComments(
+  comments: CommentItem[],
+  repoPath: string,
+  filePath: string,
+  context?: CommentContext,
+) {
+  return comments.filter(
+    (c) => c.repoPath === repoPath && c.filePath === filePath && isMatchingContext(c, context),
+  )
 }
 
 export function toLineAnnotations(comments: CommentItem[]) {

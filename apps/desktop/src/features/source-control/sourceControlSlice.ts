@@ -19,6 +19,9 @@ type SourceControlState = {
   error: string
   selectedFiles: SelectedFile[]
   selectionAnchor: SelectedFile | null
+  reviewBaseRef: string
+  reviewHeadRef: string
+  reviewActivePath: string
 }
 
 const initialState: SourceControlState = {
@@ -38,6 +41,9 @@ const initialState: SourceControlState = {
   error: '',
   selectedFiles: [],
   selectionAnchor: null,
+  reviewBaseRef: '',
+  reviewHeadRef: '',
+  reviewActivePath: '',
 }
 
 const sourceControlSlice = createSlice({
@@ -162,6 +168,26 @@ const sourceControlSlice = createSlice({
     setSelectionAnchor(state, action: PayloadAction<SelectedFile | null>) {
       state.selectionAnchor = action.payload
     },
+    setReviewBaseRef(state, action: PayloadAction<string>) {
+      if (state.reviewBaseRef !== action.payload) {
+        state.reviewBaseRef = action.payload
+      }
+    },
+    setReviewHeadRef(state, action: PayloadAction<string>) {
+      if (state.reviewHeadRef !== action.payload) {
+        state.reviewHeadRef = action.payload
+      }
+    },
+    setReviewActivePath(state, action: PayloadAction<string>) {
+      if (state.reviewActivePath !== action.payload) {
+        state.reviewActivePath = action.payload
+      }
+    },
+    clearReviewSelection(state) {
+      if (state.reviewActivePath !== '') {
+        state.reviewActivePath = ''
+      }
+    },
   },
 })
 
@@ -170,6 +196,7 @@ export const {
   clearDiffSelection,
   clearError,
   clearHistorySelection,
+  clearReviewSelection,
   removeRepo,
   setActiveBucket,
   setActivePath,
@@ -187,6 +214,9 @@ export const {
   setSelectionAnchor,
   setRunningAction,
   setRepos,
+  setReviewActivePath,
+  setReviewBaseRef,
+  setReviewHeadRef,
 } = sourceControlSlice.actions
 
 export const sourceControlReducer = sourceControlSlice.reducer

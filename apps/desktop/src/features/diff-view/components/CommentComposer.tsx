@@ -5,7 +5,7 @@ import { useAppDispatch } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { addComment } from '@/features/comments/actions'
-import type { SelectionRange } from '@/features/source-control/types'
+import type { CommentContext, SelectionRange } from '@/features/source-control/types'
 
 type Props = {
   visible: boolean
@@ -14,6 +14,7 @@ type Props = {
   label: string
   activePath: string
   selectedRange: SelectionRange | null
+  commentContext: CommentContext
   onClose: () => void
 }
 
@@ -24,6 +25,7 @@ export function CommentComposer({
   label,
   activePath,
   selectedRange,
+  commentContext,
   onClose,
 }: Props) {
   const dispatch = useAppDispatch()
@@ -37,7 +39,7 @@ export function CommentComposer({
 
   const onSubmit = () => {
     if (!selectedRange || !draftComment.trim() || !activePath) return
-    dispatch(addComment(selectedRange, draftComment))
+    dispatch(addComment(selectedRange, draftComment, commentContext))
     setDraftComment('')
     onClose()
   }

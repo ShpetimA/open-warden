@@ -9,6 +9,7 @@ import {
   clearDiffSelection,
   clearError,
   clearHistorySelection,
+  clearReviewSelection,
   removeRepo,
   setActiveBucket,
   setActivePath,
@@ -68,6 +69,7 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
   dispatch(clearError())
   dispatch(clearHistorySelection())
   dispatch(clearDiffSelection())
+  dispatch(clearReviewSelection())
   dispatch(setActiveBucket('unstaged'))
   dispatch(setSelectedFiles([]))
   dispatch(setSelectionAnchor(null))
@@ -82,6 +84,7 @@ export const selectRepo =
     dispatch(clearError())
     dispatch(clearHistorySelection())
     dispatch(clearDiffSelection())
+    dispatch(clearReviewSelection())
     dispatch(setActiveBucket('unstaged'))
     dispatch(setSelectedFiles([]))
     dispatch(setSelectionAnchor(null))
@@ -99,6 +102,7 @@ export const closeRepo =
       dispatch(clearError())
       dispatch(clearHistorySelection())
       dispatch(clearDiffSelection())
+      dispatch(clearReviewSelection())
       dispatch(setActiveBucket('unstaged'))
       dispatch(setSelectedFiles([]))
       dispatch(setSelectionAnchor(null))

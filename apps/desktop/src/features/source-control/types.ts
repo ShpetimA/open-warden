@@ -34,6 +34,10 @@ export type SelectionRange = {
   endSide?: 'deletions' | 'additions'
 }
 
+export type CommentContext =
+  | { kind: 'changes' }
+  | { kind: 'review'; baseRef: string; headRef: string }
+
 export type CommentItem = {
   id: string
   repoPath: string
@@ -44,6 +48,9 @@ export type CommentItem = {
   side: 'deletions' | 'additions'
   endSide?: 'deletions' | 'additions'
   text: string
+  contextKind?: CommentContext['kind']
+  baseRef?: string
+  headRef?: string
 }
 
 export type GitSnapshot = ContractGitSnapshot

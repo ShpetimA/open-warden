@@ -13,7 +13,11 @@ export function SourceControlSidebar() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
   const isHistoryRoute = location.pathname.startsWith('/history')
-  const isChangesRoute = location.pathname.startsWith('/changes') || !isHistoryRoute
+  const isReviewRoute = location.pathname.startsWith('/review')
+  const isCommentsRoute = location.pathname.startsWith('/comments')
+  const isChangesRoute =
+    location.pathname.startsWith('/changes') ||
+    (!isHistoryRoute && !isReviewRoute && !isCommentsRoute)
 
   return (
     <aside
@@ -34,7 +38,7 @@ export function SourceControlSidebar() {
             : 'No repo selected'}
         </div>
 
-        <div className="border-input bg-surface-alt mt-2 grid grid-cols-2 gap-1 border p-1">
+        <div className="border-input bg-surface-alt mt-2 grid grid-cols-4 gap-1 border p-1">
           <button
             type="button"
             className={`px-2 py-1 text-xs font-medium ${
@@ -61,10 +65,36 @@ export function SourceControlSidebar() {
           >
             History
           </button>
+          <button
+            type="button"
+            className={`px-2 py-1 text-xs font-medium ${
+              isReviewRoute
+                ? 'bg-surface-active text-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            }`}
+            onClick={() => {
+              navigate('/review')
+            }}
+          >
+            Review
+          </button>
+          <button
+            type="button"
+            className={`px-2 py-1 text-xs font-medium ${
+              isCommentsRoute
+                ? 'bg-surface-active text-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+            }`}
+            onClick={() => {
+              navigate('/comments')
+            }}
+          >
+            Comments
+          </button>
         </div>
       </div>
 
-      {isHistoryRoute ? <HistoryTab /> : <ChangesTab />}
+      {isHistoryRoute ? <HistoryTab /> : isChangesRoute ? <ChangesTab /> : null}
     </aside>
   )
 }

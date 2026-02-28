@@ -25,9 +25,14 @@ const commentsSlice = createSlice({
     removeCommentsForRepo(state, action: PayloadAction<string>) {
       return state.filter((comment) => comment.repoPath !== action.payload)
     },
+    removeCommentsByIds(state, action: PayloadAction<string[]>) {
+      if (action.payload.length === 0) return state
+      const idSet = new Set(action.payload)
+      return state.filter((comment) => !idSet.has(comment.id))
+    },
   },
 })
 
-export const { addComment, removeComment, removeCommentsForRepo, updateComment } =
+export const { addComment, removeComment, removeCommentsByIds, removeCommentsForRepo, updateComment } =
   commentsSlice.actions
 export const commentsReducer = commentsSlice.reducer

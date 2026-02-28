@@ -1,4 +1,4 @@
-import type { CommentItem } from '@/features/source-control/types'
+import type { CommentContext, CommentItem } from '@/features/source-control/types'
 
 function fileKey(repoPath: string, filePath: string): string {
   return `${repoPath}::${filePath}`
@@ -23,12 +23,24 @@ export function createCommentCountByFile(
 export function createCommentCountByPathForRepo(
   comments: Array<CommentItem | undefined>,
   repoPath: string,
+  context?: CommentContext,
 ): Map<string, number> {
   const counts = new Map<string, number>()
   if (!repoPath) return counts
 
+  const matchesContext = (comment: CommentItem): boolean => {
+    if (!context) return true
+    const kind = comment.contextKind ?? 'changes'
+    if (kind !== context.kind) return false
+    if (context.kind === 'review') {
+      return comment.baseRef === context.baseRef && comment.headRef === context.headRef
+    }
+    return true
+  }
+
   for (const comment of comments) {
     if (!comment || comment.repoPath !== repoPath) continue
+    if (!matchesContext(comment)) continue
     counts.set(comment.filePath, (counts.get(comment.filePath) ?? 0) + 1)
   }
 

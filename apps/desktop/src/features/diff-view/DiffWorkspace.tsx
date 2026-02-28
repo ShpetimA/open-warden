@@ -4,7 +4,12 @@ import { FileDiff as PierreFileDiff, Virtualizer } from '@pierre/diffs/react'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { fileComments, removeComment, toLineAnnotations } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
-import type { CommentItem, DiffFile, SelectionRange } from '@/features/source-control/types'
+import type {
+  CommentContext,
+  CommentItem,
+  DiffFile,
+  SelectionRange,
+} from '@/features/source-control/types'
 import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
 import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
 import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
@@ -19,6 +24,8 @@ import type { FileDiffOptions } from '@pierre/diffs'
 type Props = {
   oldFile: DiffFile | null
   newFile: DiffFile | null
+  activePath: string
+  commentContext: CommentContext
   canComment: boolean
 }
 
@@ -69,10 +76,9 @@ function updateComposerPositionForRange(
   })
 }
 
-export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
+export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const activePath = useAppSelector((state) => state.sourceControl.activePath)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const comments = useAppSelector((state) => state.comments)
 
@@ -88,7 +94,9 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
   })
 
   const allComments = compactComments(comments)
-  const currentFileComments = canComment ? fileComments(allComments, activeRepo, activePath) : []
+  const currentFileComments = canComment
+    ? fileComments(allComments, activeRepo, activePath, commentContext)
+    : []
   const currentAnnotations = toLineAnnotations(currentFileComments)
   const { currentFileDiff, isParsingDiff } = useParsedDiff({
     activePath,
@@ -237,6 +245,7 @@ export function DiffWorkspace({ oldFile, newFile, canComment }: Props) {
             label={selectedRangeLabel}
             activePath={activePath}
             selectedRange={selectedRange}
+            commentContext={commentContext}
             onClose={onCloseCommentComposer}
           />
         </Virtualizer>

@@ -40,6 +40,8 @@ export function ChangesScreen() {
         <DiffWorkspaceHeader
           sidebarOpen={sidebarOpen}
           onToggleSidebar={onToggleSidebar}
+          activePath={activePath}
+          commentContext={{ kind: 'changes' }}
           canComment
           showDiffActions={showDiffActions}
         />
@@ -54,7 +56,13 @@ export function ChangesScreen() {
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
-            <DiffWorkspace oldFile={oldFile} newFile={newFile} canComment />
+            <DiffWorkspace
+              oldFile={oldFile}
+              newFile={newFile}
+              activePath={activePath}
+              commentContext={{ kind: 'changes' }}
+              canComment
+            />
           )}
         </div>
       </section>
