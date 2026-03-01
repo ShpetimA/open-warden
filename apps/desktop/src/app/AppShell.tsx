@@ -1,7 +1,11 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router'
+import { Outlet, useLocation } from 'react-router'
 
+import { AppHeader } from '@/app/AppHeader'
+import { featureHasPrimarySidebar, featureKeyFromPath } from '@/app/featureNavigation'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
+import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
+import { AppCommandPalette } from '@/features/command-palette/AppCommandPalette'
 
 import { RepoTabs } from '@/app/RepoTabs'
 import { useGetGitSnapshotQuery } from '@/features/source-control/api'
@@ -9,63 +13,83 @@ import { closeRepo, selectFolder, selectRepo } from '@/features/source-control/a
 import { SourceControlSidebar } from '@/features/source-control/components/SourceControlSidebar'
 import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
 
-export type AppShellOutletContext = {
-  sidebarOpen: boolean
-  onToggleSidebar: () => void
+function renderMainContent(activeRepo: string, errorMessage: string) {
+  if (!activeRepo) {
+    return (
+      <div className="text-muted-foreground p-3 text-sm">
+        Select a repository tab or add one with +.
+      </div>
+    )
+  }
+
+  if (errorMessage) {
+    return <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+  }
+
+  return <Outlet />
 }
 
 export function AppShell() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const location = useLocation()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const stateError = useAppSelector((state) => state.sourceControl.error)
-  const { error: snapshotError } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const activeFeature = featureKeyFromPath(location.pathname)
+  const showPrimarySidebar = featureHasPrimarySidebar(activeFeature)
+  const sidebarFeature = activeFeature === 'history' ? 'history' : 'changes'
+  const { snapshotError, activeBranch } = useGetGitSnapshotQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ error, data }) => ({
+      snapshotError: error,
+      activeBranch: data?.branch ?? '',
+    }),
+  })
   const errorMessage = errorMessageFrom(snapshotError, stateError)
-  const toggleSidebar = () => setSidebarOpen((open) => !open)
+  const mainContent = renderMainContent(activeRepo, errorMessage)
 
   return (
     <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-      <div className="grid h-full grid-rows-[1fr_34px]">
-        <div
-          className="grid min-h-0"
-          style={{ gridTemplateColumns: sidebarOpen ? '320px 1fr' : '1fr' }}
-        >
-          {sidebarOpen ? <SourceControlSidebar /> : null}
+      <div className="grid h-full grid-rows-[56px_1fr_34px]">
+        <AppHeader
+          activeFeature={activeFeature}
+          activeRepo={activeRepo}
+          activeBranch={activeBranch}
+          onOpenCommandPalette={() => {
+            setCommandPaletteOpen(true)
+          }}
+        />
 
-          <main className="min-h-0">
-            {!activeRepo ? (
-              <div className="text-muted-foreground p-3 text-sm">
-                Select a repository tab or add one with +.
-              </div>
-            ) : errorMessage ? (
-              <div className="text-destructive p-3 text-sm">{errorMessage}</div>
-            ) : (
-              <Outlet context={{ sidebarOpen, onToggleSidebar: toggleSidebar }} />
-            )}
-          </main>
+        <div className="min-h-0">
+          {showPrimarySidebar ? (
+            <ResizableSidebarLayout
+              sidebarDefaultSize={22}
+              sidebarMinSize={14}
+              sidebarMaxSize={34}
+              sidebar={<SourceControlSidebar feature={sidebarFeature} activeBranch={activeBranch} />}
+              content={<main className="h-full min-h-0">{mainContent}</main>}
+            />
+          ) : (
+            <main className="h-full min-h-0">{mainContent}</main>
+          )}
         </div>
 
-        <RepoTabsContainer sidebarOpen={sidebarOpen} onToggleSidebar={toggleSidebar} />
+        <RepoTabsContainer />
       </div>
+
+      <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   )
 }
 
-type RepoTabsContainerProps = {
-  sidebarOpen: boolean
-  onToggleSidebar: () => void
-}
-
-function RepoTabsContainer({ sidebarOpen, onToggleSidebar }: RepoTabsContainerProps) {
+function RepoTabsContainer() {
   const dispatch = useAppDispatch()
   const repos = useAppSelector((state) => state.sourceControl.repos)
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
 
   return (
     <RepoTabs
-      sidebarOpen={sidebarOpen}
       repos={repos}
       activeRepo={activeRepo}
-      onToggleSidebar={onToggleSidebar}
       onSelectRepo={(repo) => {
         void dispatch(selectRepo(repo))
       }}

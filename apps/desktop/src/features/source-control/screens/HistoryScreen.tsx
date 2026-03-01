@@ -1,8 +1,7 @@
 import { skipToken } from '@reduxjs/toolkit/query'
-import { useOutletContext } from 'react-router'
 
-import type { AppShellOutletContext } from '@/app/AppShell'
 import { useAppSelector } from '@/app/hooks'
+import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import { DiffWorkspaceHeader } from '@/features/diff-view/components/DiffWorkspaceHeader'
 import {
@@ -18,7 +17,6 @@ export function HistoryScreen() {
   useHistoryKeyboardNav()
   useHistorySync()
 
-  const { sidebarOpen, onToggleSidebar } = useOutletContext<AppShellOutletContext>()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
   const activePath = useAppSelector((state) => state.sourceControl.activePath)
@@ -44,13 +42,13 @@ export function HistoryScreen() {
   const showDiffActions = Boolean(activePath && (oldFile || newFile))
 
   return (
-    <div className="grid h-full min-h-0" style={{ gridTemplateColumns: '300px 1fr' }}>
-      <HistoryFilesPane />
-
-      <section className="flex h-full min-h-0 flex-col">
+    <ResizableSidebarLayout
+      sidebarDefaultSize={24}
+      sidebarMinSize={16}
+      sidebarMaxSize={40}
+      sidebar={<HistoryFilesPane />}
+      content={<section className="flex h-full min-h-0 flex-col">
         <DiffWorkspaceHeader
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={onToggleSidebar}
           activePath={activePath}
           commentContext={{ kind: 'changes' }}
           canComment={false}
@@ -78,7 +76,7 @@ export function HistoryScreen() {
             />
           )}
         </div>
-      </section>
-    </div>
+      </section>}
+    />
   )
 }

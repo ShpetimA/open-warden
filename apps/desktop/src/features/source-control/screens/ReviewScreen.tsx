@@ -1,10 +1,8 @@
 import { skipToken } from '@reduxjs/toolkit/query'
 import { ArrowRightLeft } from 'lucide-react'
 import { useEffect } from 'react'
-import { useOutletContext } from 'react-router'
-
-import type { AppShellOutletContext } from '@/app/AppShell'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
+import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -28,8 +26,9 @@ import {
   setReviewBaseRef,
   setReviewHeadRef,
 } from '@/features/source-control/sourceControlSlice'
+import { FileListRow } from '@/features/source-control/components/FileListRow'
 import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
-import { statusBadge } from '@/features/source-control/utils'
+import type { FileItem } from '@/features/source-control/types'
 
 function firstAvailableBranch(branches: string[]): string {
   return branches[0] ?? ''
@@ -46,9 +45,11 @@ function firstDifferentBranch(branches: string[], current: string): string {
   return found ?? current
 }
 
+const EMPTY_BRANCHES: string[] = []
+const EMPTY_BRANCH_FILES: FileItem[] = []
+
 export function ReviewScreen() {
   const dispatch = useAppDispatch()
-  const { sidebarOpen, onToggleSidebar } = useOutletContext<AppShellOutletContext>()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef)
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef)
@@ -62,13 +63,13 @@ export function ReviewScreen() {
 
   const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
   const { data: branches } = useGetLocalBranchesQuery(activeRepo, { skip: !activeRepo })
-  const branchList = branches ?? []
+  const branchList = branches ?? EMPTY_BRANCHES
   const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef)
 
   const branchFilesQuery = useGetBranchFilesQuery(
     readyForDiff ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef } : skipToken,
   )
-  const branchFiles = branchFilesQuery.data ?? []
+  const branchFiles = branchFilesQuery.data ?? EMPTY_BRANCH_FILES
 
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath)
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
@@ -149,118 +150,104 @@ export function ReviewScreen() {
   const context = { kind: 'review' as const, baseRef: reviewBaseRef, headRef: reviewHeadRef }
 
   return (
-    <div className="grid h-full min-h-0" style={{ gridTemplateColumns: '300px 1fr' }}>
-      <aside className="border-border bg-surface flex min-h-0 flex-col overflow-hidden border-r">
-        <div className="border-border border-b p-2">
-          <div className="text-foreground/80 mb-2 text-[11px] font-semibold tracking-[0.14em]">
-            BRANCH REVIEW
-          </div>
-          <div className="space-y-2">
-            <Select
-              value={reviewBaseRef}
-              onValueChange={(value) => {
-                dispatch(setReviewBaseRef(value))
-                dispatch(setReviewActivePath(''))
-              }}
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="Base branch" />
-              </SelectTrigger>
-              <SelectContent>
-                {branchList.map((branch) => (
-                  <SelectItem key={`base-${branch}`} value={branch}>
-                    {branch}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="flex items-center gap-1">
+    <ResizableSidebarLayout
+      sidebarDefaultSize={24}
+      sidebarMinSize={16}
+      sidebarMaxSize={40}
+      sidebar={
+        <aside className="bg-surface flex min-h-0 flex-col overflow-hidden">
+          <div className="border-border border-b p-2">
+            <div className="text-foreground/80 mb-2 text-[11px] font-semibold tracking-[0.14em]">
+              BRANCH REVIEW
+            </div>
+            <div className="space-y-2">
               <Select
-                value={reviewHeadRef}
+                value={reviewBaseRef}
                 onValueChange={(value) => {
-                  dispatch(setReviewHeadRef(value))
+                  dispatch(setReviewBaseRef(value))
                   dispatch(setReviewActivePath(''))
                 }}
               >
-                <SelectTrigger className="h-7 flex-1 text-xs">
-                  <SelectValue placeholder="Compare branch" />
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Base branch" />
                 </SelectTrigger>
                 <SelectContent>
                   {branchList.map((branch) => (
-                    <SelectItem key={`head-${branch}`} value={branch}>
+                    <SelectItem key={`base-${branch}`} value={branch}>
                       {branch}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7"
-                onClick={() => {
-                  const nextBase = reviewHeadRef
-                  const nextHead = reviewBaseRef
-                  dispatch(setReviewBaseRef(nextBase))
-                  dispatch(setReviewHeadRef(nextHead))
-                  dispatch(setReviewActivePath(''))
-                }}
-                disabled={!reviewBaseRef || !reviewHeadRef}
-                title="Swap branches"
-              >
-                <ArrowRightLeft className="h-3.5 w-3.5" />
-              </Button>
+
+              <div className="flex items-center gap-1">
+                <Select
+                  value={reviewHeadRef}
+                  onValueChange={(value) => {
+                    dispatch(setReviewHeadRef(value))
+                    dispatch(setReviewActivePath(''))
+                  }}
+                >
+                  <SelectTrigger className="h-7 flex-1 text-xs">
+                    <SelectValue placeholder="Compare branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchList.map((branch) => (
+                      <SelectItem key={`head-${branch}`} value={branch}>
+                        {branch}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    const nextBase = reviewHeadRef
+                    const nextHead = reviewBaseRef
+                    dispatch(setReviewBaseRef(nextBase))
+                    dispatch(setReviewHeadRef(nextHead))
+                    dispatch(setReviewActivePath(''))
+                  }}
+                  disabled={!reviewBaseRef || !reviewHeadRef}
+                  title="Swap branches"
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
-          {!reviewBaseRef || !reviewHeadRef ? (
-            <div className="text-muted-foreground p-3 text-xs">Select both branches to start review.</div>
-          ) : branchFiles.length === 0 ? (
-            <div className="text-muted-foreground p-3 text-xs">No changed files in this comparison.</div>
-          ) : (
-            branchFiles.map((file) => {
-              const isActive = file.path === reviewActivePath
-              const commentCount = reviewCommentCounts.get(file.path) ?? 0
-              const normalizedPath = file.path.replace(/\\/g, '/')
-              const parts = normalizedPath.split('/').filter(Boolean)
-              const fileName = parts[parts.length - 1] ?? file.path
-              const directoryPath = parts.length > 1 ? parts.slice(0, -1).join('/') : ''
-
-              return (
-                <button
-                  key={file.path}
-                  type="button"
-                  className={`border-input flex w-full min-w-0 items-center gap-2 border-b px-2 py-1 text-left text-xs ${
-                    isActive ? 'bg-surface-active' : 'hover:bg-accent/60'
-                  }`}
-                  onClick={() => {
-                    dispatch(setReviewActivePath(file.path))
-                  }}
-                  title={file.path}
-                >
-                  <span className="text-warning w-3 text-center text-[10px]">{statusBadge(file.status)}</span>
-                  <span className="text-foreground shrink-0 font-medium">{fileName}</span>
-                  {commentCount > 0 ? (
-                    <span className="border-input bg-surface-alt text-foreground inline-flex h-4 min-w-4 items-center justify-center border px-1 text-[10px]">
-                      {commentCount}
-                    </span>
-                  ) : null}
-                  {directoryPath ? (
-                    <span className="text-muted-foreground min-w-0 flex-1 truncate">{` ${directoryPath}`}</span>
-                  ) : null}
-                </button>
-              )
-            })
-          )}
-        </div>
-      </aside>
-
-      <section className="flex h-full min-h-0 flex-col">
+          <div className="min-h-0 flex-1 overflow-auto">
+            {!reviewBaseRef || !reviewHeadRef ? (
+              <div className="text-muted-foreground p-3 text-xs">Select both branches to start review.</div>
+            ) : branchFiles.length === 0 ? (
+              <div className="text-muted-foreground p-3 text-xs">No changed files in this comparison.</div>
+            ) : (
+              branchFiles.map((file) => {
+                const isActive = file.path === reviewActivePath
+                const commentCount = reviewCommentCounts.get(file.path) ?? 0
+                return (
+                  <FileListRow
+                    key={file.path}
+                    path={file.path}
+                    status={file.status}
+                    commentCount={commentCount}
+                    isActive={isActive}
+                    onSelect={() => {
+                      dispatch(setReviewActivePath(file.path))
+                    }}
+                  />
+                )
+              })
+            )}
+          </div>
+        </aside>
+      }
+      content={
+        <section className="flex h-full min-h-0 flex-col">
         <DiffWorkspaceHeader
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={onToggleSidebar}
           activePath={reviewActivePath}
           commentContext={context}
           canComment
@@ -286,7 +273,8 @@ export function ReviewScreen() {
             />
           )}
         </div>
-      </section>
-    </div>
+        </section>
+      }
+    />
   )
 }

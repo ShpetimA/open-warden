@@ -6,9 +6,6 @@ import App from './App.tsx'
 import { store } from './app/store'
 import { workerFactory } from './lib/diffs-worker'
 
-document.documentElement.classList.add('dark')
-document.documentElement.style.colorScheme = 'dark'
-
 createRoot(document.getElementById('root')!).render(
   <Provider store={store}>
     <WorkerPoolContextProvider

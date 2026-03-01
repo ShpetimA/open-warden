@@ -1,4 +1,4 @@
-import { Check, GitPullRequestArrow, PanelLeft } from 'lucide-react'
+import { Check, GitPullRequestArrow } from 'lucide-react'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { toast } from 'sonner'
 
@@ -10,8 +10,6 @@ import type { CommentContext } from '@/features/source-control/types'
 import { setDiffStyleValue } from '@/features/source-control/actions'
 
 type Props = {
-  sidebarOpen: boolean
-  onToggleSidebar: () => void
   activePath: string
   commentContext: CommentContext
   canComment: boolean
@@ -19,8 +17,6 @@ type Props = {
 }
 
 export function DiffWorkspaceHeader({
-  sidebarOpen,
-  onToggleSidebar,
   activePath,
   commentContext,
   canComment,
@@ -86,16 +82,6 @@ export function DiffWorkspaceHeader({
 
   return (
     <div className="border-border flex items-center gap-1 border-b px-2 py-1">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={onToggleSidebar}
-        title={sidebarOpen ? 'Close Source Control' : 'Open Source Control'}
-      >
-        <PanelLeft className="mr-1 h-3.5 w-3.5" />
-        {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-      </Button>
-
       {showDiffActions ? (
         <>
           <Button

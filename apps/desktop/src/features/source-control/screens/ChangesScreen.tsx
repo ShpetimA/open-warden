@@ -1,7 +1,5 @@
 import { skipToken } from '@reduxjs/toolkit/query'
-import { useOutletContext } from 'react-router'
 
-import type { AppShellOutletContext } from '@/app/AppShell'
 import { useAppSelector } from '@/app/hooks'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import { DiffWorkspaceHeader } from '@/features/diff-view/components/DiffWorkspaceHeader'
@@ -14,7 +12,6 @@ export function ChangesScreen() {
   useChangesKeyboardNav()
   useChangesSync()
 
-  const { sidebarOpen, onToggleSidebar } = useOutletContext<AppShellOutletContext>()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket)
   const activePath = useAppSelector((state) => state.sourceControl.activePath)
@@ -38,8 +35,6 @@ export function ChangesScreen() {
     <div className="grid h-full min-h-0" style={{ gridTemplateColumns: '1fr' }}>
       <section className="flex h-full min-h-0 flex-col">
         <DiffWorkspaceHeader
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={onToggleSidebar}
           activePath={activePath}
           commentContext={{ kind: 'changes' }}
           canComment

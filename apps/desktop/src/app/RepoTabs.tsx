@@ -1,20 +1,16 @@
 import { repoLabel } from '@/features/source-control/utils'
 
 type Props = {
-  sidebarOpen: boolean
   repos: Array<string | undefined>
   activeRepo: string
-  onToggleSidebar: () => void
   onSelectRepo: (repo: string) => void
   onCloseRepo: (repo: string) => void
   onAddRepo: () => void
 }
 
 export function RepoTabs({
-  sidebarOpen,
   repos,
   activeRepo,
-  onToggleSidebar,
   onSelectRepo,
   onCloseRepo,
   onAddRepo,
@@ -22,15 +18,6 @@ export function RepoTabs({
   return (
     <div className="border-border bg-surface border-t px-2">
       <div className="flex h-full items-center gap-1">
-        <button
-          type="button"
-          className="border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground border px-2 py-0.5 text-xs"
-          onClick={onToggleSidebar}
-          title={sidebarOpen ? 'Close Source Control' : 'Open Source Control'}
-        >
-          {sidebarOpen ? 'Hide' : 'Show'}
-        </button>
-
         {repos.map((repoPath) => {
           if (!repoPath) return null
 

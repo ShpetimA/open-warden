@@ -1,10 +1,11 @@
+import { AppThemeProvider } from '@/app/AppThemeProvider'
 import { AppShell } from '@/app/AppShell'
+import { Toaster } from '@/components/ui/sonner'
 import { CommentsScreen } from '@/features/comments/screens/CommentsScreen'
 import { ChangesScreen } from '@/features/source-control/screens/ChangesScreen'
 import { HistoryScreen } from '@/features/source-control/screens/HistoryScreen'
 import { ReviewScreen } from '@/features/source-control/screens/ReviewScreen'
 import { Navigate, RouterProvider, createHashRouter } from 'react-router'
-import { Toaster } from 'sonner'
 
 const router = createHashRouter([
   {
@@ -41,10 +42,10 @@ const router = createHashRouter([
 
 function App() {
   return (
-    <>
+    <AppThemeProvider>
       <RouterProvider router={router} />
-      <Toaster theme="dark" richColors />
-    </>
+      <Toaster richColors />
+    </AppThemeProvider>
   )
 }
 

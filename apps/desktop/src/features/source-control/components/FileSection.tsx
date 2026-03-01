@@ -46,8 +46,8 @@ export function FileSection({
   const isChanges = sectionKey === 'unstaged'
 
   return (
-    <div className="border-input bg-surface overflow-hidden border">
-      <div className="text-foreground/85 hover:bg-accent/60 group flex items-center gap-2 px-2 py-1 text-xs tracking-wide">
+    <div className="overflow-hidden">
+      <div className="text-foreground/80 border-border group flex items-center gap-2 border-b px-3 py-2 text-[11px] font-semibold tracking-[0.14em]">
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -61,11 +61,11 @@ export function FileSection({
           <span className="min-w-0 truncate font-medium">{title}</span>
           {isChanges ? (
             <>
-              <span className="bg-surface-alt px-1.5 py-0 text-[10px]">M {unstagedCount}</span>
-              <span className="bg-surface-alt px-1.5 py-0 text-[10px]">A {untrackedCount}</span>
+              <span className="text-muted-foreground text-[10px]">M {unstagedCount}</span>
+              <span className="text-muted-foreground text-[10px]">A {untrackedCount}</span>
             </>
           ) : null}
-          <span className="bg-surface-alt ml-auto px-1.5 py-0 text-[10px]">{rows.length}</span>
+          <span className="text-muted-foreground ml-auto text-[10px]">{rows.length}</span>
         </button>
 
         <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
@@ -105,7 +105,7 @@ export function FileSection({
       </div>
 
       {!collapsed ? (
-        <div className="border-input border-t">
+        <div>
           {rows.length > 0 ? (
             rows.map((file) => (
               <FileRow
@@ -119,7 +119,7 @@ export function FileSection({
               />
             ))
           ) : (
-            <div className="text-muted-foreground px-2 py-2 text-[11px]">No files.</div>
+            <div className="text-muted-foreground px-3 py-2 text-xs">No files.</div>
           )}
         </div>
       ) : null}

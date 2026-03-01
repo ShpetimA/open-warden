@@ -36,6 +36,7 @@
   --color-surface-alt: var(--surface-alt);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-active: var(--surface-active);
+  --color-surface-toolbar: var(--surface-toolbar);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
@@ -56,7 +57,7 @@
 }
 
 :root {
-  --radius: 0rem;
+  --radius: 1rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
@@ -81,6 +82,7 @@
   --surface-alt: oklch(0.967 0.001 286.375);
   --surface-elevated: oklch(1 0 0);
   --surface-active: oklch(0.92 0.004 286.32);
+  --surface-toolbar: oklch(0.973 0.001 286.3);
   --success: oklch(0.62 0.14 156.5);
   --success-foreground: oklch(0.985 0 0);
   --warning: oklch(0.71 0.17 67.8);
@@ -125,6 +127,7 @@
   --surface-alt: oklch(0.23 0.007 286.1);
   --surface-elevated: oklch(0.26 0.008 286.2);
   --surface-active: oklch(0.32 0.03 255.5);
+  --surface-toolbar: oklch(0.23 0.007 286.05);
   --success: oklch(0.74 0.13 156.5);
   --success-foreground: oklch(0.141 0.005 285.823);
   --warning: oklch(0.75 0.16 67.8);
@@ -155,5 +158,31 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .command-palette-modal {
+    @apply border-border bg-surface-elevated rounded-2xl;
+  }
+
+  .command-palette-modal [data-slot='command-input-wrapper'] {
+    @apply border-border bg-surface-toolbar h-14 border-b px-4;
+  }
+
+  .command-palette-modal [data-slot='command-input'] {
+    @apply text-base;
+  }
+
+  .command-palette-modal [data-slot='command-group'] {
+    @apply px-2 py-2;
+  }
+
+  .command-palette-modal [data-slot='command-group'] [cmdk-group-heading] {
+    @apply text-muted-foreground px-2 pb-2 text-[11px] font-semibold tracking-[0.12em];
+  }
+
+  .command-palette-modal [data-slot='command-item'] {
+    @apply rounded-md px-3 py-2.5;
   }
 }

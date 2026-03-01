@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { FileDiff as PierreFileDiff, Virtualizer } from '@pierre/diffs/react'
+import { useTheme } from 'next-themes'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { fileComments, removeComment, toLineAnnotations } from '@/features/comments/actions'
@@ -78,9 +79,11 @@ function updateComposerPositionForRange(
 
 export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
   const dispatch = useAppDispatch()
+  const { resolvedTheme } = useTheme()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const comments = useAppSelector((state) => state.comments)
+  const diffThemeType = resolvedTheme === 'dark' ? 'dark' : 'light'
 
   const diffViewportContainerRef = useRef<HTMLDivElement | null>(null)
   const diffViewportRef = useRef<HTMLDivElement | null>(null)
@@ -170,7 +173,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
 
   const diffOptions: FileDiffOptions<CommentItem> = {
     diffStyle,
-    themeType: 'dark' as const,
+    themeType: diffThemeType,
     disableLineNumbers: false,
     expandUnchanged: false,
     expansionLineCount: 20,
