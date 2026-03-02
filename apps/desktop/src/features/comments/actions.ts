@@ -114,48 +114,6 @@ export const copyComments =
     }
   }
 
-export const copyReviewPrompt =
-  (
-    scope: 'file' | 'all',
-    context: Extract<CommentContext, { kind: 'review' }>,
-    activePath?: string,
-  ): AppThunk<Promise<boolean>> =>
-  async (dispatch, getState) => {
-    const { comments } = getState()
-    const { activeRepo } = getState().sourceControl
-    if (!activeRepo) return false
-
-    const source =
-      scope === 'file'
-        ? comments.filter(
-            (c) =>
-              c.repoPath === activeRepo &&
-              c.filePath === activePath &&
-              isMatchingContext(c, context),
-          )
-        : comments.filter((c) => c.repoPath === activeRepo && isMatchingContext(c, context))
-    if (source.length === 0) return false
-
-    const payload = [
-      `Review feedback to apply on current branch`,
-      `Diff scope: ${context.baseRef} -> ${context.headRef}`,
-      '',
-      'Implement the following changes:',
-      ...source.map(
-        (comment) =>
-          `- [${comment.filePath} ${formatRange(comment.startLine, comment.endLine)}] ${comment.text}`,
-      ),
-    ].join('\n')
-
-    try {
-      await navigator.clipboard.writeText(payload)
-      return true
-    } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)))
-      return false
-    }
-  }
-
 export function fileComments(
   comments: CommentItem[],
   repoPath: string,

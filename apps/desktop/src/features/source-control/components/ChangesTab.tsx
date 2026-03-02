@@ -25,10 +25,10 @@ import { FileSection } from './FileSection'
 
 export function ChangesTab() {
   return (
-    <>
+    <div className="flex min-h-full flex-1 flex-col">
       <CommitBox />
       <ChangesFileList />
-    </>
+    </div>
   )
 }
 
@@ -99,11 +99,7 @@ function ChangesFileList() {
     void dispatch(discardFileAction(bucket, path))
   }
 
-  const onSelectFile = (
-    bucket: Bucket,
-    relPath: string,
-    event: MouseEvent<HTMLButtonElement>,
-  ) => {
+  const onSelectFile = (bucket: Bucket, relPath: string, event: MouseEvent<HTMLButtonElement>) => {
     if (event.shiftKey) {
       void dispatch(rangeSelectFile({ bucket, path: relPath }, visibleRows))
       return
@@ -116,46 +112,44 @@ function ChangesFileList() {
   }
 
   return (
-    <>
-      <ScrollArea className="min-h-0 flex-1 overflow-hidden ">
-        <div>
-          {loadingSnapshot ? (
-            <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
-          ) : null}
-          <FileSection
-            sectionKey="staged"
-            title="STAGED CHANGES"
-            rows={stagedRows}
-            collapsed={collapseStaged}
-            unstagedCount={unstagedFiles.length}
-            untrackedCount={untrackedFiles.length}
-            onToggle={onToggle}
-            onSelectFile={onSelectFile}
-            onStageFile={onStageFile}
-            onUnstageFile={onUnstageFile}
-            onDiscardFile={onDiscardFile}
-            onStageAll={onStageAll}
-            onUnstageAll={onUnstageAll}
-            onDiscardChangesGroup={onDiscardChangesGroup}
-          />
-          <FileSection
-            sectionKey="unstaged"
-            title="CHANGES"
-            rows={changedFiles}
-            collapsed={collapseUnstaged}
-            unstagedCount={unstagedFiles.length}
-            untrackedCount={untrackedFiles.length}
-            onToggle={onToggle}
-            onSelectFile={onSelectFile}
-            onStageFile={onStageFile}
-            onUnstageFile={onUnstageFile}
-            onDiscardFile={onDiscardFile}
-            onStageAll={onStageAll}
-            onUnstageAll={onUnstageAll}
-            onDiscardChangesGroup={onDiscardChangesGroup}
-          />
-        </div>
-      </ScrollArea>
-    </>
+    <ScrollArea className="bg-surface-toolbar min-h-full h-full flex-1 overflow-hidden">
+      <div className="min-h-full">
+        {loadingSnapshot ? (
+          <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
+        ) : null}
+        <FileSection
+          sectionKey="staged"
+          title="STAGED CHANGES"
+          rows={stagedRows}
+          collapsed={collapseStaged}
+          unstagedCount={unstagedFiles.length}
+          untrackedCount={untrackedFiles.length}
+          onToggle={onToggle}
+          onSelectFile={onSelectFile}
+          onStageFile={onStageFile}
+          onUnstageFile={onUnstageFile}
+          onDiscardFile={onDiscardFile}
+          onStageAll={onStageAll}
+          onUnstageAll={onUnstageAll}
+          onDiscardChangesGroup={onDiscardChangesGroup}
+        />
+        <FileSection
+          sectionKey="unstaged"
+          title="CHANGES"
+          rows={changedFiles}
+          collapsed={collapseUnstaged}
+          unstagedCount={unstagedFiles.length}
+          untrackedCount={untrackedFiles.length}
+          onToggle={onToggle}
+          onSelectFile={onSelectFile}
+          onStageFile={onStageFile}
+          onUnstageFile={onUnstageFile}
+          onDiscardFile={onDiscardFile}
+          onStageAll={onStageAll}
+          onUnstageAll={onUnstageAll}
+          onDiscardChangesGroup={onDiscardChangesGroup}
+        />
+      </div>
+    </ScrollArea>
   )
 }

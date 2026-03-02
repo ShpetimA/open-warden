@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
-import { copyComments, copyReviewPrompt, fileComments } from '@/features/comments/actions'
+import { copyComments, fileComments } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
 import type { CommentContext } from '@/features/source-control/types'
 import { setDiffStyleValue } from '@/features/source-control/actions'
@@ -52,12 +52,6 @@ export function DiffWorkspaceHeader({
   const onCopyAllComments = async () => {
     const copied = await dispatch(copyComments('all', { context: commentContext }))
     if (copied) toast.success('Copied comments')
-  }
-
-  const onCopyReviewPrompt = async () => {
-    if (commentContext.kind !== 'review') return
-    const copied = await dispatch(copyReviewPrompt('all', commentContext, activePath))
-    if (copied) toast.success('Copied agent review prompt')
   }
 
   useHotkey(
@@ -121,18 +115,6 @@ export function DiffWorkspaceHeader({
               >
                 Copy Comments (All)
               </Button>
-              {commentContext.kind === 'review' ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    void onCopyReviewPrompt()
-                  }}
-                  disabled={currentContextComments.length === 0}
-                >
-                  Copy Agent Prompt
-                </Button>
-              ) : null}
             </>
           ) : null}
         </>

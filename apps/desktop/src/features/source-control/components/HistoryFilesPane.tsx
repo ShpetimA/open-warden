@@ -39,7 +39,7 @@ export function HistoryFilesPane() {
       onMouseDown={() => {
         dispatch(setHistoryNavTarget('files'))
       }}
-      className="bg-surface flex min-h-0 flex-col overflow-hidden"
+      className="bg-surface-toolbar flex min-h-0 flex-col overflow-hidden"
     >
       <div className="border-border border-b px-3 py-2">
         <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">

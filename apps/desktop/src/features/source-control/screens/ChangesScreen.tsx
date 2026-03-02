@@ -2,7 +2,6 @@ import { skipToken } from '@reduxjs/toolkit/query'
 
 import { useAppSelector } from '@/app/hooks'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
-import { DiffWorkspaceHeader } from '@/features/diff-view/components/DiffWorkspaceHeader'
 import { useGetFileVersionsQuery } from '@/features/source-control/api'
 import { useChangesKeyboardNav } from '@/features/source-control/hooks/useChangesKeyboardNav'
 import { useChangesSync } from '@/features/source-control/hooks/useChangesSync'
@@ -29,18 +28,10 @@ export function ChangesScreen() {
   const oldFile = fileVersions?.oldFile ?? null
   const newFile = fileVersions?.newFile ?? null
   const errorMessage = errorMessageFrom(workingFileVersions.error, '')
-  const showDiffActions = Boolean(activePath && (oldFile || newFile))
 
   return (
     <div className="grid h-full min-h-0" style={{ gridTemplateColumns: '1fr' }}>
       <section className="flex h-full min-h-0 flex-col">
-        <DiffWorkspaceHeader
-          activePath={activePath}
-          commentContext={{ kind: 'changes' }}
-          canComment
-          showDiffActions={showDiffActions}
-        />
-
         <div className="min-h-0 flex-1">
           {errorMessage ? (
             <div className="text-destructive p-3 text-sm">{errorMessage}</div>

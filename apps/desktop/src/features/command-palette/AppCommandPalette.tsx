@@ -17,7 +17,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from '@/components/ui/command'
-import { confirmDiscard, copyComments, copyReviewPrompt } from '@/features/comments/actions'
+import { confirmDiscard, copyComments } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
 import {
   closeRepo,
@@ -353,17 +353,6 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
         if (!commentContext) return
         const copied = await dispatch(copyComments('all', { context: commentContext }))
         if (copied) toast.success('Copied comments')
-      },
-    },
-    {
-      id: 'comments:copy-review-prompt',
-      label: 'Copy Agent Review Prompt',
-      disabled: !commentContext || commentContext.kind !== 'review' || contextComments.length === 0,
-      keywords: ['comments', 'review', 'prompt'],
-      onSelect: async () => {
-        if (!commentContext || commentContext.kind !== 'review') return
-        const copied = await dispatch(copyReviewPrompt('all', commentContext, contextPath))
-        if (copied) toast.success('Copied agent review prompt')
       },
     },
     {

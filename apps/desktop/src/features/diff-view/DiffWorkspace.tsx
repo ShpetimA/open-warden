@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FileDiff as PierreFileDiff, Virtualizer } from '@pierre/diffs/react'
+import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from '@pierre/diffs/react'
 import { useTheme } from 'next-themes'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { fileComments, removeComment, toLineAnnotations } from '@/features/comments/actions'
+import {
+  fileComments,
+  removeComment,
+  toLineAnnotations,
+} from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
 import type {
   CommentContext,
@@ -13,6 +17,7 @@ import type {
 } from '@/features/source-control/types'
 import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
 import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
+import { DiffHeaderMetadataControls } from '@/features/diff-view/components/DiffHeaderMetadataControls'
 import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
 import {
   areRangesEqual,
@@ -31,6 +36,26 @@ type Props = {
 }
 
 type ComposerPosition = { top: number; left: number; visible: boolean }
+const DEFAULT_DARK_THEME = 'github-dark'
+const DEFAULT_LIGHT_THEME = 'github-light'
+const STICKY_HEADER_CSS = `
+[data-diffs-header] {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--diffs-bg);
+  border-bottom: 1px solid color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-fg));
+}
+`
+
+function areThemeValuesEqual(
+  currentTheme: string | { dark: string; light: string } | undefined,
+  nextTheme: { dark: string; light: string },
+): boolean {
+  if (!currentTheme) return false
+  if (typeof currentTheme === 'string') return false
+  return currentTheme.dark === nextTheme.dark && currentTheme.light === nextTheme.light
+}
 
 function updateComposerPositionForRange(
   viewport: HTMLDivElement | null,
@@ -80,6 +105,7 @@ function updateComposerPositionForRange(
 export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
   const dispatch = useAppDispatch()
   const { resolvedTheme } = useTheme()
+  const workerPool = useWorkerPool()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const comments = useAppSelector((state) => state.comments)
@@ -97,14 +123,17 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   })
 
   const allComments = compactComments(comments)
+  const diffTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME }
   const currentFileComments = canComment
     ? fileComments(allComments, activeRepo, activePath, commentContext)
     : []
   const currentAnnotations = toLineAnnotations(currentFileComments)
+  const diffThemeCacheSalt = `${DEFAULT_DARK_THEME}:${DEFAULT_LIGHT_THEME}:${diffThemeType}`
   const { currentFileDiff, isParsingDiff } = useParsedDiff({
     activePath,
     oldFile,
     newFile,
+    cacheSalt: diffThemeCacheSalt,
   })
 
   const onDiffViewportScroll = useCallback(() => {
@@ -149,6 +178,19 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     return () => window.cancelAnimationFrame(id)
   }, [selectedRange])
 
+  useEffect(() => {
+    if (!workerPool) return
+
+    const nextTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME }
+    const currentOptions = workerPool.getDiffRenderOptions()
+    if (areThemeValuesEqual(currentOptions.theme, nextTheme)) return
+
+    void workerPool.setRenderOptions({
+      ...currentOptions,
+      theme: nextTheme,
+    })
+  }, [workerPool])
+
   const applySelectionRange = (range: unknown) => {
     const parsedRange = parseSelectionRange(range)
     if (areRangesEqual(selectedRange, parsedRange)) return
@@ -173,7 +215,9 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
 
   const diffOptions: FileDiffOptions<CommentItem> = {
     diffStyle,
+    theme: diffTheme,
     themeType: diffThemeType,
+    unsafeCSS: STICKY_HEADER_CSS,
     disableLineNumbers: false,
     expandUnchanged: false,
     expansionLineCount: 20,
@@ -233,6 +277,13 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
               selectedLines={selectedRange}
               lineAnnotations={currentAnnotations}
               renderAnnotation={renderCommentAnnotation}
+              renderHeaderMetadata={() => (
+                <DiffHeaderMetadataControls
+                  activePath={activePath}
+                  canComment={canComment}
+                  commentContext={commentContext}
+                />
+              )}
               options={diffOptions}
             />
           ) : isParsingDiff ? (

@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/select'
 import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
-import { DiffWorkspaceHeader } from '@/features/diff-view/components/DiffWorkspaceHeader'
 import {
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
@@ -87,7 +86,6 @@ export function ReviewScreen() {
   const reviewVersions = branchFileVersionsQuery.data
   const oldFile = reviewVersions?.oldFile ?? null
   const newFile = reviewVersions?.newFile ?? null
-  const showDiffActions = Boolean(reviewActivePath && (oldFile || newFile))
   const loadingPatch = branchFileVersionsQuery.isFetching
   const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, '')
 
@@ -155,7 +153,7 @@ export function ReviewScreen() {
       sidebarMinSize={16}
       sidebarMaxSize={40}
       sidebar={
-        <aside className="bg-surface flex min-h-0 flex-col overflow-hidden">
+        <aside className="bg-surface-toolbar flex min-h-0 flex-col overflow-hidden">
           <div className="border-border border-b p-2">
             <div className="text-foreground/80 mb-2 text-[11px] font-semibold tracking-[0.14em]">
               BRANCH REVIEW
@@ -247,13 +245,6 @@ export function ReviewScreen() {
       }
       content={
         <section className="flex h-full min-h-0 flex-col">
-        <DiffWorkspaceHeader
-          activePath={reviewActivePath}
-          commentContext={context}
-          canComment
-          showDiffActions={showDiffActions}
-        />
-
         <div className="min-h-0 flex-1">
           {errorMessage ? (
             <div className="text-destructive p-3 text-sm">{errorMessage}</div>
