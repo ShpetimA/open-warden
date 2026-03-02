@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router'
 
 import { ThemeSwitcher } from '@/app/ThemeSwitcher'
 import { FEATURE_NAV_ITEMS, type FeatureKey } from '@/app/featureNavigation'
+import { Logo } from '@/components/Logo'
 
 type AppHeaderProps = {
   activeFeature: FeatureKey
@@ -17,7 +18,9 @@ export function AppHeader({
 
   return (
     <header className="border-border bg-surface-toolbar grid h-14 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b px-3">
-      <div aria-hidden />
+      <div className="min-w-0">
+        <Logo />
+      </div>
 
       <div className="min-w-0 justify-self-center">
         <div className="border-input bg-surface-alt inline-flex w-fit items-center gap-1 rounded-xl border p-1">
