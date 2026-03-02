@@ -52,7 +52,14 @@ function toErrorResult(error: unknown): ErrorResult {
 export const gitApi = createApi({
   reducerPath: 'gitApi',
   baseQuery: fakeBaseQuery<ErrorResult>(),
-  tagTypes: ['Snapshot', 'HistoryCommits', 'HistoryFiles', 'Branches', 'BranchFiles', 'FileVersions'],
+  tagTypes: [
+    'Snapshot',
+    'HistoryCommits',
+    'HistoryFiles',
+    'Branches',
+    'BranchFiles',
+    'FileVersions',
+  ],
   endpoints: (builder) => ({
     getGitSnapshot: builder.query<GitSnapshot, string>({
       async queryFn(repoPath) {
@@ -62,7 +69,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, repoPath) => [{ type: 'Snapshot', id: repoPath }],
+      providesTags: (_result, _error, repoPath) => [{ type: 'Snapshot', id: repoPath }],
     }),
     getCommitHistory: builder.query<HistoryCommit[], CommitHistoryArgs>({
       async queryFn({ repoPath, limit }) {
@@ -72,7 +79,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath }) => [{ type: 'HistoryCommits', id: repoPath }],
+      providesTags: (_result, _error, { repoPath }) => [{ type: 'HistoryCommits', id: repoPath }],
     }),
     getLocalBranches: builder.query<string[], string>({
       async queryFn(repoPath) {
@@ -82,7 +89,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, repoPath) => [{ type: 'Branches', id: repoPath }],
+      providesTags: (_result, _error, repoPath) => [{ type: 'Branches', id: repoPath }],
     }),
     getBranchFiles: builder.query<FileItem[], BranchFilesArgs>({
       async queryFn({ repoPath, baseRef, headRef }) {
@@ -92,7 +99,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, baseRef, headRef }) => [
+      providesTags: (_result, _error, { repoPath, baseRef, headRef }) => [
         { type: 'BranchFiles', id: `${repoPath}:${baseRef}:${headRef}` },
       ],
     }),
@@ -104,7 +111,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, commitId }) => [
+      providesTags: (_result, _error, { repoPath, commitId }) => [
         { type: 'HistoryFiles', id: `${repoPath}:${commitId}` },
       ],
     }),
@@ -116,7 +123,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, commitId, relPath }) => [
+      providesTags: (_result, _error, { repoPath, commitId, relPath }) => [
         { type: 'FileVersions', id: `history:${repoPath}:${commitId}:${relPath}` },
       ],
     }),
@@ -128,19 +135,21 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, relPath }) => [
+      providesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
     }),
     getBranchFileVersions: builder.query<FileVersions, BranchFileVersionsArgs>({
       async queryFn({ repoPath, baseRef, headRef, relPath, previousPath }) {
         try {
-          return { data: await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath) }
+          return {
+            data: await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
+          }
         } catch (error) {
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, baseRef, headRef, relPath }) => [
+      providesTags: (_result, _error, { repoPath, baseRef, headRef, relPath }) => [
         { type: 'FileVersions', id: `branch:${repoPath}:${baseRef}:${headRef}:${relPath}` },
       ],
     }),
@@ -153,7 +162,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath, relPath }) => [
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
@@ -167,7 +176,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath, relPath }) => [
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
@@ -181,7 +190,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath, relPath }) => [
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
@@ -195,7 +204,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
     }),
     stageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
@@ -206,7 +215,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
     }),
     unstageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
@@ -217,7 +226,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
     }),
     commitStaged: builder.mutation<string, CommitStagedArgs>({
       async queryFn({ repoPath, message }) {
@@ -227,7 +236,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [
+      invalidatesTags: (_result, _error, { repoPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'HistoryCommits', id: repoPath },
       ],

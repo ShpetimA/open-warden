@@ -39,7 +39,7 @@ export function ResizableSidebarLayout({
   }
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="min-h-0">
+    <ResizablePanelGroup orientation="horizontal" className="min-h-0">
       <ResizablePanel
         panelRef={sidebarPanelRef}
         defaultSize={defaultSize}

@@ -179,7 +179,8 @@ export const rangeSelectFile =
     }))
 
     const carryForward = selectedFiles.filter(
-      (file) => visibleRows.findIndex((row) => row.bucket === file.bucket && row.path === file.path) < 0,
+      (file) =>
+        visibleRows.findIndex((row) => row.bucket === file.bucket && row.path === file.path) < 0,
     )
 
     dispatch(setActiveBucket(target.bucket))
@@ -257,10 +258,7 @@ export const stageFileAction =
     await dispatch(
       runRepoAction(`file:stage:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
-          gitApi.endpoints.stageFile.initiate(
-            { repoPath: activeRepo, relPath: filePath },
-            { subscribe: false },
-          ),
+          gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
         )
         await result.unwrap()
       }),
@@ -276,10 +274,7 @@ export const unstageFileAction =
     await dispatch(
       runRepoAction(`file:unstage:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
-          gitApi.endpoints.unstageFile.initiate(
-            { repoPath: activeRepo, relPath: filePath },
-            { subscribe: false },
-          ),
+          gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
         )
         await result.unwrap()
       }),
@@ -295,10 +290,11 @@ export const discardFileAction =
     await dispatch(
       runRepoAction(`file:discard:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
-          gitApi.endpoints.discardFile.initiate(
-            { repoPath: activeRepo, relPath: filePath, bucket },
-            { subscribe: false },
-          ),
+          gitApi.endpoints.discardFile.initiate({
+            repoPath: activeRepo,
+            relPath: filePath,
+            bucket,
+          }),
         )
         await result.unwrap()
       }),
@@ -306,7 +302,8 @@ export const discardFileAction =
   }
 
 export const stageOrUnstageSelectionAction = (): AppThunk => async (dispatch, getState) => {
-  const { activeRepo, activeBucket, activePath, selectedFiles, runningAction } = getState().sourceControl
+  const { activeRepo, activeBucket, activePath, selectedFiles, runningAction } =
+    getState().sourceControl
   if (!activeRepo || runningAction) return
 
   const candidates = selectedFiles.length
@@ -335,9 +332,7 @@ export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
 
   await dispatch(
     runRepoAction('stage-all', async (innerDispatch) => {
-      const result = innerDispatch(
-        gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
-      )
+      const result = innerDispatch(gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }))
       await result.unwrap()
     }),
   )
@@ -349,9 +344,7 @@ export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
 
   await dispatch(
     runRepoAction('unstage-all', async (innerDispatch) => {
-      const result = innerDispatch(
-        gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }, { subscribe: false }),
-      )
+      const result = innerDispatch(gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }))
       await result.unwrap()
     }),
   )
@@ -367,10 +360,7 @@ export const discardChangesGroupAction =
       runRepoAction('discard-changes', async (innerDispatch) => {
         const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }))
         const result = innerDispatch(
-          gitApi.endpoints.discardFiles.initiate(
-            { repoPath: activeRepo, files: payload },
-            { subscribe: false },
-          ),
+          gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
         )
         await result.unwrap()
       }),
@@ -386,10 +376,7 @@ export const commitAction = (): AppThunk => async (dispatch, getState) => {
   await dispatch(
     runRepoAction('commit', async (innerDispatch) => {
       const result = innerDispatch(
-        gitApi.endpoints.commitStaged.initiate(
-          { repoPath: activeRepo, message: trimmed },
-          { subscribe: false },
-        ),
+        gitApi.endpoints.commitStaged.initiate({ repoPath: activeRepo, message: trimmed }),
       )
       const commitId = await result.unwrap()
       innerDispatch(setLastCommitId(commitId))

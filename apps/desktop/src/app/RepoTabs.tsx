@@ -45,7 +45,7 @@ export function RepoTabs({
           return (
             <div
               key={repoPath}
-              className={`flex h-7 shrink-0 items-center rounded-md border pl-2 ${tabClass} ${firstTabEdgeClass}`}
+              className={`flex h-7 shrink-0 items-center rounded-md border pl-1.5 ${tabClass} ${firstTabEdgeClass}`}
               title={repoPath}
             >
               <button
