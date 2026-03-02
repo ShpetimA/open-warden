@@ -49,6 +49,36 @@ function firstDifferentBranch(branches: string[], current: string): string {
 const EMPTY_BRANCHES: string[] = []
 const EMPTY_BRANCH_FILES: FileItem[] = []
 
+type BranchSelectFieldProps = {
+  label: string
+  value: string
+  placeholder: string
+  options: string[]
+  onChange: (value: string) => void
+}
+
+function BranchSelectField({ label, value, placeholder, options, onChange }: BranchSelectFieldProps) {
+  return (
+    <div className="min-w-0">
+      <div className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-[0.12em] uppercase">
+        {label}
+      </div>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-7 w-full text-xs">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((branch) => (
+            <SelectItem key={`${label}-${branch}`} value={branch}>
+              {branch}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+}
+
 export function ReviewScreen() {
   useReviewKeyboardNav()
 
@@ -157,54 +187,28 @@ export function ReviewScreen() {
       sidebarMinSize={16}
       sidebarMaxSize={40}
       sidebar={
-        <aside className="bg-surface-toolbar flex h-full min-h-0 flex-col overflow-hidden">
-          <div className="border-border border-b p-2">
-            <div className="text-foreground/80 mb-2 text-[11px] font-semibold tracking-[0.14em]">
+        <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
+          <div className="border-border border-b p-2.5">
+            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
               BRANCH REVIEW
             </div>
-            <div className="space-y-2">
-              <Select
-                value={reviewBaseRef}
-                onValueChange={(value) => {
-                  dispatch(setReviewBaseRef(value))
-                  dispatch(setReviewActivePath(''))
-                }}
-              >
-                <SelectTrigger className="h-7 text-xs">
-                  <SelectValue placeholder="Base branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branchList.map((branch) => (
-                    <SelectItem key={`base-${branch}`} value={branch}>
-                      {branch}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <div className="flex items-center gap-1">
-                <Select
-                  value={reviewHeadRef}
-                  onValueChange={(value) => {
-                    dispatch(setReviewHeadRef(value))
+            <div className="border-input bg-surface mt-2 rounded-md border p-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-1.5">
+                <BranchSelectField
+                  label="Base"
+                  value={reviewBaseRef}
+                  placeholder="Base branch"
+                  options={branchList}
+                  onChange={(value) => {
+                    dispatch(setReviewBaseRef(value))
                     dispatch(setReviewActivePath(''))
                   }}
-                >
-                  <SelectTrigger className="h-7 flex-1 text-xs">
-                    <SelectValue placeholder="Compare branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branchList.map((branch) => (
-                      <SelectItem key={`head-${branch}`} value={branch}>
-                        {branch}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
+
                 <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-7 w-7"
+                  size="icon-xs"
+                  variant="outline"
+                  className="mb-0.5"
                   onClick={() => {
                     const nextBase = reviewHeadRef
                     const nextHead = reviewBaseRef
@@ -217,6 +221,17 @@ export function ReviewScreen() {
                 >
                   <ArrowRightLeft className="h-3.5 w-3.5" />
                 </Button>
+
+                <BranchSelectField
+                  label="Compare"
+                  value={reviewHeadRef}
+                  placeholder="Compare branch"
+                  options={branchList}
+                  onChange={(value) => {
+                    dispatch(setReviewHeadRef(value))
+                    dispatch(setReviewActivePath(''))
+                  }}
+                />
               </div>
             </div>
           </div>

@@ -26,7 +26,7 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
           dispatch(setHistoryNavTarget('commits'))
         }
       }}
-      className="bg-surface-toolbar flex min-h-0 h-full flex-col overflow-hidden overflow-x-hidden"
+      className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden overflow-x-hidden border-r"
     >
       <div className="border-border border-b px-3 py-1.5">
         <div className="flex items-center gap-2">
