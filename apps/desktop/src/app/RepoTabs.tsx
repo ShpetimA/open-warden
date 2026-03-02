@@ -8,6 +8,11 @@ type Props = {
   onAddRepo: () => void
 }
 
+function tabStateClass(isActive: boolean): string {
+  if (isActive) return 'bg-surface-active text-foreground'
+  return 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+}
+
 export function RepoTabs({
   repos,
   activeRepo,
@@ -15,30 +20,31 @@ export function RepoTabs({
   onCloseRepo,
   onAddRepo,
 }: Props) {
-  return (
-    <div className="border-border bg-surface border-t px-2">
-      <div className="flex h-full items-center gap-1">
-        {repos.map((repoPath) => {
-          if (!repoPath) return null
+  const openRepos = repos.filter((repoPath): repoPath is string => Boolean(repoPath))
 
+  return (
+    <div className="border-border bg-surface h-full border-t">
+      <div className="flex h-full items-stretch overflow-x-auto">
+        {openRepos.map((repoPath, index) => {
           const isActive = repoPath === activeRepo
+          const firstTabBorderClass = index === 0 ? 'border-l' : ''
 
           return (
             <div
               key={repoPath}
-              className={`flex items-center border text-xs ${
-                isActive
-                  ? 'border-ring/40 bg-surface-active text-foreground'
-                  : 'border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              }`}
+              className={`border-border ${tabStateClass(isActive)} ${firstTabBorderClass} flex h-full shrink-0 items-stretch border-r`}
               title={repoPath}
             >
-              <button type="button" className="px-2 py-0.5" onClick={() => onSelectRepo(repoPath)}>
+              <button
+                type="button"
+                className="flex h-full max-w-56 items-center truncate px-3 text-xs"
+                onClick={() => onSelectRepo(repoPath)}
+              >
                 {repoLabel(repoPath)}
               </button>
               <button
                 type="button"
-                className="hover:bg-destructive/20 hover:text-destructive px-1.5 py-0.5"
+                className="border-border/70 hover:bg-destructive/20 hover:text-destructive flex h-full items-center border-l px-2 text-xs"
                 onClick={(event) => {
                   event.stopPropagation()
                   onCloseRepo(repoPath)
@@ -54,7 +60,7 @@ export function RepoTabs({
 
         <button
           type="button"
-          className="border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground border px-2 py-0.5 text-xs"
+          className="border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground flex h-full shrink-0 items-center border-r border-l px-3 text-xs"
           onClick={onAddRepo}
           title="Add repository"
         >

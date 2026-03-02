@@ -25,7 +25,7 @@ import { FileSection } from './FileSection'
 
 export function ChangesTab() {
   return (
-    <div className="flex min-h-full flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <CommitBox />
       <ChangesFileList />
     </div>
@@ -112,8 +112,8 @@ function ChangesFileList() {
   }
 
   return (
-    <ScrollArea className="bg-surface-toolbar min-h-full h-full flex-1 overflow-hidden">
-      <div className="min-h-full">
+    <ScrollArea className="bg-surface-toolbar min-h-0 h-full flex-1 overflow-hidden">
+      <div>
         {loadingSnapshot ? (
           <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
         ) : null}

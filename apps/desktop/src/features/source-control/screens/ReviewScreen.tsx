@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
 import { Button } from '@/components/ui/button'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import {
   useGetGitSnapshotQuery,
   useGetLocalBranchesQuery,
 } from '@/features/source-control/api'
+import { useReviewKeyboardNav } from '@/features/source-control/hooks/useReviewKeyboardNav'
 import {
   clearReviewSelection,
   setReviewActivePath,
@@ -48,6 +50,8 @@ const EMPTY_BRANCHES: string[] = []
 const EMPTY_BRANCH_FILES: FileItem[] = []
 
 export function ReviewScreen() {
+  useReviewKeyboardNav()
+
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef)
@@ -153,7 +157,7 @@ export function ReviewScreen() {
       sidebarMinSize={16}
       sidebarMaxSize={40}
       sidebar={
-        <aside className="bg-surface-toolbar flex min-h-0 flex-col overflow-hidden">
+        <aside className="bg-surface-toolbar flex h-full min-h-0 flex-col overflow-hidden">
           <div className="border-border border-b p-2">
             <div className="text-foreground/80 mb-2 text-[11px] font-semibold tracking-[0.14em]">
               BRANCH REVIEW
@@ -217,7 +221,7 @@ export function ReviewScreen() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <ScrollArea className="min-h-0 flex-1 overflow-hidden">
             {!reviewBaseRef || !reviewHeadRef ? (
               <div className="text-muted-foreground p-3 text-xs">Select both branches to start review.</div>
             ) : branchFiles.length === 0 ? (
@@ -240,7 +244,7 @@ export function ReviewScreen() {
                 )
               })
             )}
-          </div>
+          </ScrollArea>
         </aside>
       }
       content={
