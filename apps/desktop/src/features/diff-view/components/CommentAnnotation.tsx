@@ -8,9 +8,10 @@ import type { CommentItem } from '@/features/source-control/types'
 
 type Props = {
   comment: CommentItem
+  onBeforeMutate?: () => void
 }
 
-export function CommentAnnotation({ comment }: Props) {
+export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
   const dispatch = useAppDispatch()
   const [isEditing, setIsEditing] = useState(false)
   const [editingText, setEditingText] = useState(comment.text)
@@ -27,6 +28,7 @@ export function CommentAnnotation({ comment }: Props) {
 
   const onSaveEdit = () => {
     if (!editingText.trim()) return
+    onBeforeMutate?.()
     dispatch(updateComment(comment.id, editingText))
     setIsEditing(false)
   }
@@ -89,7 +91,10 @@ export function CommentAnnotation({ comment }: Props) {
         type="button"
         className="text-muted-foreground hover:text-foreground"
         onMouseDown={(event) => event.stopPropagation()}
-        onClick={() => dispatch(removeComment(comment.id))}
+        onClick={() => {
+          onBeforeMutate?.()
+          dispatch(removeComment(comment.id))
+        }}
         title="Remove"
       >
         <Trash2 className="h-3 w-3" />

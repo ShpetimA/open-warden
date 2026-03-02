@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { useAppDispatch } from '@/app/hooks'
@@ -16,6 +16,7 @@ type Props = {
   selectedRange: SelectionRange | null
   commentContext: CommentContext
   onClose: () => void
+  onBeforeSubmit?: () => void
 }
 
 export function CommentComposer({
@@ -27,6 +28,7 @@ export function CommentComposer({
   selectedRange,
   commentContext,
   onClose,
+  onBeforeSubmit,
 }: Props) {
   const dispatch = useAppDispatch()
   const [draftComment, setDraftComment] = useState('')
@@ -39,10 +41,21 @@ export function CommentComposer({
 
   const onSubmit = () => {
     if (!selectedRange || !draftComment.trim() || !activePath) return
+    onBeforeSubmit?.()
     dispatch(addComment(selectedRange, draftComment, commentContext))
     setDraftComment('')
     onClose()
   }
+
+  // Focus the input without triggering the browser's default scrollIntoView.
+  // Native `autoFocus` calls `element.focus()` which scrolls the nearest
+  // scrollable ancestor (the diff virtualizer viewport) to bring the input
+  // into view, causing a visible scroll jump.
+  useEffect(() => {
+    if (visible) {
+      inputRef.current?.focus({ preventScroll: true })
+    }
+  }, [visible])
 
   useHotkey(
     'Mod+Enter',
@@ -73,7 +86,6 @@ export function CommentComposer({
       <Input
         ref={inputRef}
         value={draftComment}
-        autoFocus
         onChange={(event) => setDraftComment(event.target.value)}
         placeholder="Type comment"
         className="border-input bg-input h-7 text-xs"

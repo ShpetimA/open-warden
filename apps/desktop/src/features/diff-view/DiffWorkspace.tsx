@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from '@pierre/diffs/react'
 import { useTheme } from 'next-themes'
 
@@ -102,18 +102,59 @@ function updateComposerPositionForRange(
   })
 }
 
+/**
+ * Shallow-compares two comment lists by id and text to avoid creating new
+ * references when Redux produces a new array with identical content.
+ */
+function areCommentListsEqual(a: CommentItem[], b: CommentItem[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].text !== b[i].text) return false
+  }
+  return true
+}
+
+type FileCommentsResult = {
+  comments: CommentItem[]
+  annotations: ReturnType<typeof toLineAnnotations>
+}
+
+/**
+ * Selects comments and their derived line annotations for the current file.
+ * Uses custom equality so both arrays are referentially stable when the
+ * underlying data hasn't actually changed.  A stable `annotations` reference
+ * prevents @pierre/diffs from re-rendering annotation DOM nodes on every
+ * unrelated Redux update, which is the primary cause of the scroll-jump bug.
+ */
+function useCurrentFileComments(
+  activeRepo: string,
+  activePath: string,
+  commentContext: CommentContext,
+  canComment: boolean,
+): FileCommentsResult {
+  return useAppSelector(
+    (state): FileCommentsResult => {
+      if (!canComment) return { comments: [], annotations: [] }
+      const allComments = compactComments(state.comments)
+      const filtered = fileComments(allComments, activeRepo, activePath, commentContext)
+      return { comments: filtered, annotations: toLineAnnotations(filtered) }
+    },
+    (a, b) => areCommentListsEqual(a.comments, b.comments),
+  )
+}
+
 export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
   const dispatch = useAppDispatch()
   const { resolvedTheme } = useTheme()
   const workerPool = useWorkerPool()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
-  const comments = useAppSelector((state) => state.comments)
   const diffThemeType = resolvedTheme === 'dark' ? 'dark' : 'light'
 
   const diffViewportContainerRef = useRef<HTMLDivElement | null>(null)
   const diffViewportRef = useRef<HTMLDivElement | null>(null)
   const composerScrollRafRef = useRef<number | null>(null)
+  const savedScrollTopRef = useRef<number | null>(null)
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
   const [composerPos, setComposerPos] = useState<ComposerPosition>({
@@ -122,12 +163,9 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     visible: false,
   })
 
-  const allComments = compactComments(comments)
   const diffTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME }
-  const currentFileComments = canComment
-    ? fileComments(allComments, activeRepo, activePath, commentContext)
-    : []
-  const currentAnnotations = toLineAnnotations(currentFileComments)
+  const { comments: currentFileComments, annotations: currentAnnotations } =
+    useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
   const diffThemeCacheSalt = `${DEFAULT_DARK_THEME}:${DEFAULT_LIGHT_THEME}:${diffThemeType}`
   const { currentFileDiff, isParsingDiff } = useParsedDiff({
     activePath,
@@ -178,6 +216,22 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     return () => window.cancelAnimationFrame(id)
   }, [selectedRange])
 
+  // Restore scroll position synchronously after DOM commits that follow
+  // comment mutations or selection changes. The @pierre/diffs library's
+  // useLayoutEffect (no deps) calls instance.render() on every React render,
+  // which can mutate DOM (buffer heights, annotation nodes) outside the
+  // Virtualizer's scroll-fix pipeline, causing the viewport to jump.
+  // This effect runs after that library layout effect and corrects the
+  // scroll position before the browser paints.
+  useLayoutEffect(() => {
+    if (savedScrollTopRef.current == null) return
+    const viewport = diffViewportRef.current
+    if (viewport) {
+      viewport.scrollTop = savedScrollTopRef.current
+    }
+    savedScrollTopRef.current = null
+  }, [currentFileComments, selectedRange])
+
   useEffect(() => {
     if (!workerPool) return
 
@@ -191,6 +245,19 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     })
   }, [workerPool])
 
+  /** Save the viewport scroll position before dispatching a comment mutation. */
+  const saveScrollPosition = () => {
+    const viewport = diffViewportRef.current
+    if (viewport) {
+      savedScrollTopRef.current = viewport.scrollTop
+    }
+  }
+
+  const dispatchRemoveComment = (id: string) => {
+    saveScrollPosition()
+    dispatch(removeComment(id))
+  }
+
   const applySelectionRange = (range: unknown) => {
     const parsedRange = parseSelectionRange(range)
     if (areRangesEqual(selectedRange, parsedRange)) return
@@ -200,6 +267,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const onLineSelectionEnd = (range: unknown) => {
     const parsedRange = parseSelectionRange(range)
     if (areRangesEqual(selectedRange, parsedRange)) return
+    saveScrollPosition()
     setSelectedRange(parsedRange)
     window.requestAnimationFrame(() => {
       updateComposerPositionForRange(diffViewportRef.current, parsedRange, setComposerPos)
@@ -210,7 +278,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     const data = annotation.metadata
     if (!data) return null
 
-    return <CommentAnnotation comment={data} />
+    return <CommentAnnotation comment={data} onBeforeMutate={saveScrollPosition} />
   }
 
   const diffOptions: FileDiffOptions<CommentItem> = {
@@ -254,7 +322,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground ml-auto"
-                  onClick={() => dispatch(removeComment(comment.id))}
+                  onClick={() => dispatchRemoveComment(comment.id)}
                   title="Remove"
                 >
                   x
@@ -301,6 +369,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
             selectedRange={selectedRange}
             commentContext={commentContext}
             onClose={onCloseCommentComposer}
+            onBeforeSubmit={saveScrollPosition}
           />
         </Virtualizer>
       </div>
