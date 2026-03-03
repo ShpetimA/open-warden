@@ -11,9 +11,8 @@ import { FileListRow } from './FileListRow'
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const commentCounts = useAppSelector((state) =>
-    createCommentCountByPathForRepo(state.comments, activeRepo),
-  )
+  const comments = useAppSelector((state) => state.comments)
+  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo)
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
   const { historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,

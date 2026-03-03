@@ -39,12 +39,42 @@ type ComposerPosition = { top: number; left: number; visible: boolean }
 const DEFAULT_DARK_THEME = 'github-dark'
 const DEFAULT_LIGHT_THEME = 'github-light'
 const STICKY_HEADER_CSS = `
+:host {
+  min-width: 0;
+  max-width: 100%;
+}
+
 [data-diffs-header] {
   position: sticky;
   top: 0;
   z-index: 10;
   background-color: var(--diffs-bg);
   border-bottom: 1px solid color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-fg));
+  min-width: 0;
+  overflow: hidden;
+}
+
+[data-diffs-header] [data-header-content] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+[data-diffs-header] [data-prev-name],
+[data-diffs-header] [data-title] {
+  flex: 1 1 0;
+  min-width: 0;
+  direction: ltr;
+  text-align: left;
+}
+
+[data-diffs-header] [data-metadata] {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+[data-diff-type='split'][data-overflow='scroll'] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 `
 
@@ -306,7 +336,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     : ''
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       {canComment && currentFileComments.length > 0 ? (
         <div className="border-border border-b px-2 py-1">
           <div className="space-y-1">
@@ -336,11 +366,15 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
       <div
         key={`${oldFile?.name}-${newFile?.name}`}
         ref={diffViewportContainerRef}
-        className="relative min-h-0 flex-1"
+        className="relative min-h-0 min-w-0 flex-1"
       >
-        <Virtualizer className="h-full overflow-auto" contentClassName="relative min-h-full">
+        <Virtualizer
+          className="h-full min-w-0 overflow-auto"
+          contentClassName="relative min-h-full min-w-0"
+        >
           {currentFileDiff ? (
             <PierreFileDiff
+              className="block min-w-0 max-w-full"
               fileDiff={currentFileDiff}
               selectedLines={selectedRange}
               lineAnnotations={currentAnnotations}
