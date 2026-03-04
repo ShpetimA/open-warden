@@ -1,8 +1,9 @@
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { confirm } from '@tauri-apps/plugin-dialog'
-import { ArrowUpRight, MessageSquare, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Copy, MessageSquare, Trash2 } from 'lucide-react'
 import { useRef, useState, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
+import { toast } from 'sonner'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
@@ -92,6 +93,10 @@ async function confirmDeleteComments(count: number, scopeLabel: string): Promise
 function summaryLabel(count: number, singular: string, plural: string): string {
   if (count === 1) return `1 ${singular}`
   return `${count} ${plural}`
+}
+
+function copyPayloadForComments(comments: CommentItem[]): string {
+  return comments.map((comment) => `@${comment.filePath}#${formatRange(comment.startLine, comment.endLine)} - ${comment.text}`).join('\n')
 }
 
 type CommentsSidebarFiltersProps = {
@@ -280,6 +285,7 @@ type CommentGroupListProps = {
   onToggleSelected: (commentId: string) => void
   onFocusComment: (commentId: string) => void
   onOpenComment: (comment: CommentItem) => void
+  onCopyComment: (comment: CommentItem) => void
   onDeleteComment: (comment: CommentItem) => void
 }
 
@@ -290,6 +296,7 @@ function CommentGroupList({
   onToggleSelected,
   onFocusComment,
   onOpenComment,
+  onCopyComment,
   onDeleteComment,
 }: CommentGroupListProps) {
   return (
@@ -304,6 +311,7 @@ function CommentGroupList({
             onToggleSelected={onToggleSelected}
             onFocusComment={onFocusComment}
             onOpenComment={onOpenComment}
+            onCopyComment={onCopyComment}
             onDeleteComment={onDeleteComment}
           />
         ))}
@@ -319,6 +327,7 @@ type CommentFileSectionProps = {
   onToggleSelected: (commentId: string) => void
   onFocusComment: (commentId: string) => void
   onOpenComment: (comment: CommentItem) => void
+  onCopyComment: (comment: CommentItem) => void
   onDeleteComment: (comment: CommentItem) => void
 }
 
@@ -329,6 +338,7 @@ function CommentFileSection({
   onToggleSelected,
   onFocusComment,
   onOpenComment,
+  onCopyComment,
   onDeleteComment,
 }: CommentFileSectionProps) {
   const { fileName, directoryPath } = splitFilePath(group.path)
@@ -362,12 +372,13 @@ function CommentFileSection({
             comment={comment}
             isSelected={selectedIdSet.has(comment.id)}
             isFocused={focusedCommentId === comment.id}
-            onToggleSelected={onToggleSelected}
-            onFocusComment={onFocusComment}
-            onOpenComment={onOpenComment}
-            onDeleteComment={onDeleteComment}
-          />
-        ))}
+              onToggleSelected={onToggleSelected}
+              onFocusComment={onFocusComment}
+              onOpenComment={onOpenComment}
+              onCopyComment={onCopyComment}
+              onDeleteComment={onDeleteComment}
+            />
+          ))}
       </div>
     </section>
   )
@@ -386,6 +397,7 @@ type CommentListRowProps = {
   onToggleSelected: (commentId: string) => void
   onFocusComment: (commentId: string) => void
   onOpenComment: (comment: CommentItem) => void
+  onCopyComment: (comment: CommentItem) => void
   onDeleteComment: (comment: CommentItem) => void
 }
 
@@ -396,6 +408,7 @@ function CommentListRow({
   onToggleSelected,
   onFocusComment,
   onOpenComment,
+  onCopyComment,
   onDeleteComment,
 }: CommentListRowProps) {
   return (
@@ -439,6 +452,18 @@ function CommentListRow({
           >
             Open
             <ArrowUpRight className="h-3 w-3" />
+          </Button>
+
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation()
+              onCopyComment(comment)
+            }}
+            title="Copy comment"
+          >
+            <Copy className="h-3.5 w-3.5" />
           </Button>
 
           <Button
@@ -589,6 +614,30 @@ export function CommentsScreen() {
   const onDeleteComment = (comment: CommentItem) => {
     dispatch(removeComment(comment.id))
     setSelectedIds((previousIds) => previousIds.filter((id) => id !== comment.id))
+  }
+
+  const onCopyComments = async (targetComments: CommentItem[], label: string) => {
+    if (targetComments.length === 0) return
+
+    try {
+      await navigator.clipboard.writeText(copyPayloadForComments(targetComments))
+      toast.success(`Copied ${label}`)
+    } catch {
+      toast.error('Unable to copy comments')
+    }
+  }
+
+  const onCopyComment = (comment: CommentItem) => {
+    void onCopyComments([comment], 'comment')
+  }
+
+  const onCopySelected = () => {
+    const selectedComments = visibleComments.filter((comment) => selectedIdSet.has(comment.id))
+    void onCopyComments(selectedComments, summaryLabel(selectedComments.length, 'comment', 'comments'))
+  }
+
+  const onCopyVisible = () => {
+    void onCopyComments(visibleComments, summaryLabel(visibleComments.length, 'comment', 'comments'))
   }
 
   const onDeleteSelected = async () => {
@@ -747,6 +796,23 @@ export function CommentsScreen() {
   )
 
   useHotkey(
+    'Mod+C',
+    (event) => {
+      if (isTypingTarget(event.target)) return
+      if (visibleSelectedIds.length > 0) {
+        event.preventDefault()
+        onCopySelected()
+        return
+      }
+      if (!focusedComment) return
+
+      event.preventDefault()
+      onCopyComment(focusedComment)
+    },
+    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+  )
+
+  useHotkey(
     'Backspace',
     (event) => {
       if (isTypingTarget(event.target)) return
@@ -825,8 +891,12 @@ export function CommentsScreen() {
               Delete Visible ({visibleComments.length})
             </Button>
 
+            <Button size="xs" variant="outline" onClick={onCopyVisible} disabled={visibleComments.length === 0}>
+              Copy Visible ({visibleComments.length})
+            </Button>
+
             <span className="text-muted-foreground ml-auto text-[11px]">
-              / search · J/K focus · X select · Enter open
+              / search · J/K focus · X select · Enter open · Mod+C copy
             </span>
           </div>
 
@@ -838,6 +908,10 @@ export function CommentsScreen() {
 
               <Button size="xs" variant="destructive" onClick={() => void onDeleteSelected()}>
                 Delete Selected
+              </Button>
+
+              <Button size="xs" variant="outline" onClick={onCopySelected}>
+                Copy Selected
               </Button>
 
               <Button size="xs" variant="ghost" onClick={onClearSelection}>
@@ -861,6 +935,7 @@ export function CommentsScreen() {
                 onToggleSelected={onToggleSelected}
                 onFocusComment={setFocusedCommentId}
                 onOpenComment={onOpenComment}
+                onCopyComment={onCopyComment}
                 onDeleteComment={onDeleteComment}
               />
             )}
