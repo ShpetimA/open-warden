@@ -41,6 +41,7 @@ export function HistoryScreen() {
 
   return (
     <ResizableSidebarLayout
+      panelId="history-files"
       sidebarDefaultSize={24}
       sidebarMinSize={16}
       sidebarMaxSize={40}

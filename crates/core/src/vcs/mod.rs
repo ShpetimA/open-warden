@@ -23,6 +23,7 @@ use git2::{
     build::CheckoutBuilder, BranchType, Delta, DiffFindOptions, DiffOptions, ObjectType, Oid,
     Repository, ResetType, Status, StatusOptions, Tree,
 };
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -280,7 +281,10 @@ fn resolve_ref_to_tree<'repo>(repo: &'repo Repository, git_ref: &str) -> Result<
         .revparse_single(trimmed)
         .map_err(|_| VcsError::InvalidRef(format!("reference not found: {}", git_ref)))?;
     let commit = object.peel_to_commit().map_err(|_| {
-        VcsError::InvalidRef(format!("reference does not resolve to a commit: {}", git_ref))
+        VcsError::InvalidRef(format!(
+            "reference does not resolve to a commit: {}",
+            git_ref
+        ))
     })?;
 
     commit
@@ -446,31 +450,57 @@ pub fn get_commit_history_for_path(path: &Path, limit: usize) -> Result<Vec<Hist
     Ok(commits)
 }
 
-pub fn get_local_branches_for_path(path: &Path) -> Result<Vec<String>> {
-    let repo = repo_for_path(path)?;
+fn collect_branch_names(repo: &Repository, branch_type: BranchType) -> Result<Vec<String>> {
+    let branch_kind = match branch_type {
+        BranchType::Local => "local",
+        BranchType::Remote => "remote",
+    };
+    let refs = repo
+        .branches(Some(branch_type))
+        .map_err(|e| VcsError::Other(format!("failed to list {} branches: {}", branch_kind, e)))?;
     let mut branches = Vec::new();
 
-    let refs = repo
-        .branches(Some(BranchType::Local))
-        .map_err(|e| VcsError::Other(format!("failed to list local branches: {}", e)))?;
-
     for branch_result in refs {
-        let (branch, _) = branch_result
-            .map_err(|e| VcsError::Other(format!("failed to read branch: {}", e)))?;
-
-        if let Some(name) = branch
+        let (branch, _) =
+            branch_result.map_err(|e| VcsError::Other(format!("failed to read branch: {}", e)))?;
+        let Some(name) = branch
             .name()
             .map_err(|e| VcsError::Other(format!("failed to read branch name: {}", e)))?
-        {
-            branches.push(name.to_string());
+        else {
+            continue;
+        };
+
+        if branch_type == BranchType::Remote && name.ends_with("/HEAD") {
+            continue;
         }
+
+        branches.push(name.to_string());
     }
 
     branches.sort();
     Ok(branches)
 }
 
-pub fn get_branch_files_for_path(path: &Path, base_ref: &str, head_ref: &str) -> Result<Vec<CommitFile>> {
+pub fn get_branches_for_path(path: &Path) -> Result<Vec<String>> {
+    let repo = repo_for_path(path)?;
+    let mut branches = collect_branch_names(&repo, BranchType::Local)?;
+    let remote_branches = collect_branch_names(&repo, BranchType::Remote)?;
+    let mut seen = branches.iter().cloned().collect::<HashSet<_>>();
+
+    for branch in remote_branches {
+        if seen.insert(branch.clone()) {
+            branches.push(branch);
+        }
+    }
+
+    Ok(branches)
+}
+
+pub fn get_branch_files_for_path(
+    path: &Path,
+    base_ref: &str,
+    head_ref: &str,
+) -> Result<Vec<CommitFile>> {
     let repo = repo_for_path(path)?;
     let base_tree = resolve_ref_to_tree(&repo, base_ref)?;
     let head_tree = resolve_ref_to_tree(&repo, head_ref)?;
@@ -869,6 +899,7 @@ pub fn commit_staged_for_path(path: &Path, message: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use git2::Repository;
     use test_utils::{git, RepoGuard};
 
     #[test]
@@ -941,6 +972,55 @@ mod tests {
 
         assert_eq!(old_contents.as_deref(), Some("v1"));
         assert_eq!(new_contents.as_deref(), Some("v2"));
+    }
+
+    #[test]
+    fn test_get_branches_includes_remote_refs_and_skips_remote_head_alias() {
+        let repo = RepoGuard::new();
+        let git_repo = Repository::open(&repo.dir).expect("should open repo");
+        let head_commit = git_repo
+            .head()
+            .expect("should get HEAD")
+            .peel_to_commit()
+            .expect("should resolve HEAD commit");
+        let current_branch = git_repo
+            .head()
+            .expect("should get HEAD")
+            .shorthand()
+            .expect("should resolve branch name")
+            .to_string();
+
+        git_repo
+            .reference(
+                "refs/remotes/origin/main",
+                head_commit.id(),
+                true,
+                "test remote branch",
+            )
+            .expect("should create remote branch ref");
+        git_repo
+            .reference(
+                "refs/remotes/upstream/feature/test",
+                head_commit.id(),
+                true,
+                "test remote branch",
+            )
+            .expect("should create remote branch ref");
+        git_repo
+            .reference_symbolic(
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+                true,
+                "test remote HEAD alias",
+            )
+            .expect("should create remote HEAD alias");
+
+        let branches = get_branches_for_path(&repo.dir).expect("should list branches");
+
+        assert!(branches.contains(&current_branch));
+        assert!(branches.contains(&"origin/main".to_string()));
+        assert!(branches.contains(&"upstream/feature/test".to_string()));
+        assert!(!branches.contains(&"origin/HEAD".to_string()));
     }
 
     #[test]

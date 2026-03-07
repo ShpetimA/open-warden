@@ -26,8 +26,8 @@ export async function getCommitHistory(repoPath: string, limit?: number) {
   return unwrapResult<HistoryCommit[]>(await commands.getCommitHistory(repoPath, limit ?? null))
 }
 
-export async function getLocalBranches(repoPath: string) {
-  return unwrapResult<string[]>(await commands.getLocalBranches(repoPath))
+export async function getBranches(repoPath: string) {
+  return unwrapResult<string[]>(await commands.getBranches(repoPath))
 }
 
 export async function getBranchFiles(repoPath: string, baseRef: string, headRef: string) {

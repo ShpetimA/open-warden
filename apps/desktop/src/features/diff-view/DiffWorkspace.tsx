@@ -187,6 +187,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const savedScrollTopRef = useRef<number | null>(null)
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
+  const [expandUnchanged, setExpandUnchanged] = useState(false)
   const [composerPos, setComposerPos] = useState<ComposerPosition>({
     top: 0,
     left: 0,
@@ -317,7 +318,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     themeType: diffThemeType,
     unsafeCSS: STICKY_HEADER_CSS,
     disableLineNumbers: false,
-    expandUnchanged: false,
+    expandUnchanged,
     expansionLineCount: 20,
     hunkSeparators: 'line-info' as const,
     enableLineSelection: canComment,
@@ -334,6 +335,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const selectedRangeLabel = normalizedRange
     ? formatRange(normalizedRange.start, normalizedRange.end)
     : ''
+  const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? 'expanded' : 'collapsed'}`
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -364,7 +366,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
       ) : null}
 
       <div
-        key={`${oldFile?.name}-${newFile?.name}`}
+        key={diffViewportKey}
         ref={diffViewportContainerRef}
         className="relative min-h-0 min-w-0 flex-1"
       >
@@ -384,6 +386,10 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                   activePath={activePath}
                   canComment={canComment}
                   commentContext={commentContext}
+                  expandUnchanged={expandUnchanged}
+                  onToggleExpandUnchanged={() => {
+                    setExpandUnchanged((current) => !current)
+                  }}
                 />
               )}
               options={diffOptions}

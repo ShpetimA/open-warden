@@ -6,6 +6,7 @@ import { AppHeader } from '@/app/AppHeader'
 import { featureHasPrimarySidebar, featureKeyFromPath } from '@/app/featureNavigation'
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
+import { SidebarPanelRegistryProvider } from '@/components/layout/SidebarPanelRegistry'
 import { AppCommandPalette } from '@/features/command-palette/AppCommandPalette'
 
 import { RepoTabs } from '@/app/RepoTabs'
@@ -50,6 +51,7 @@ export function AppShell() {
   const mainContent = renderMainContent(activeRepo, errorMessage)
 
   return (
+    <SidebarPanelRegistryProvider>
     <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
       <div
         className="grid h-full"
@@ -74,6 +76,7 @@ export function AppShell() {
 
           {showPrimarySidebar ? (
             <ResizableSidebarLayout
+              panelId="primary"
               sidebarDefaultSize={22}
               sidebarMinSize={14}
               sidebarMaxSize={34}
@@ -90,6 +93,7 @@ export function AppShell() {
 
       <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
+    </SidebarPanelRegistryProvider>
   )
 }
 

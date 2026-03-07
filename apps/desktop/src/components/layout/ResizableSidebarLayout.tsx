@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { PanelImperativeHandle } from 'react-resizable-panels'
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
+import { useSidebarPanelRegistryOptional } from '@/components/layout/SidebarPanelRegistry'
 
 type ResizableSidebarLayoutProps = {
   sidebar: ReactNode
   content: ReactNode
+  panelId?: string
   sidebarDefaultSize?: number | string
   sidebarMinSize?: number | string
   sidebarMaxSize?: number | string
@@ -19,14 +21,26 @@ function toPercentSize(value: number | string) {
 export function ResizableSidebarLayout({
   sidebar,
   content,
+  panelId,
   sidebarDefaultSize = 24,
   sidebarMinSize = 16,
   sidebarMaxSize = 40,
 }: ResizableSidebarLayoutProps) {
   const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null)
+  const registry = useSidebarPanelRegistryOptional()
   const defaultSize = toPercentSize(sidebarDefaultSize)
   const minSize = toPercentSize(sidebarMinSize)
   const maxSize = toPercentSize(sidebarMaxSize)
+
+  useEffect(() => {
+    if (!panelId || !registry || !sidebarPanelRef.current) return
+
+    registry.register(panelId, sidebarPanelRef.current)
+
+    return () => {
+      registry.unregister(panelId)
+    }
+  }, [panelId, registry])
 
   const onToggleSidebar = () => {
     const panel = sidebarPanelRef.current
@@ -38,6 +52,13 @@ export function ResizableSidebarLayout({
     panel.collapse()
   }
 
+  const onResize = () => {
+    if (!panelId || !registry) return
+    const panel = sidebarPanelRef.current
+    if (!panel) return
+    registry.setCollapsed(panelId, panel.isCollapsed())
+  }
+
   return (
     <ResizablePanelGroup orientation="horizontal" className="min-h-0">
       <ResizablePanel
@@ -47,6 +68,7 @@ export function ResizableSidebarLayout({
         maxSize={maxSize}
         collapsible
         collapsedSize={0}
+        onResize={onResize}
       >
         {sidebar}
       </ResizablePanel>

@@ -838,6 +838,7 @@ export function CommentsScreen() {
 
   return (
     <ResizableSidebarLayout
+      panelId="comments"
       sidebarDefaultSize={24}
       sidebarMinSize={18}
       sidebarMaxSize={38}

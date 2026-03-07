@@ -2,6 +2,7 @@ import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react'
 
 import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from './types'
 import {
+  getBranches,
   getBranchFiles,
   getBranchFileVersions,
   commitStaged,
@@ -12,7 +13,6 @@ import {
   getCommitHistory,
   getFileVersions,
   getGitSnapshot,
-  getLocalBranches,
   stageAll,
   stageFile,
   unstageAll,
@@ -81,10 +81,10 @@ export const gitApi = createApi({
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: 'HistoryCommits', id: repoPath }],
     }),
-    getLocalBranches: builder.query<string[], string>({
+    getBranches: builder.query<string[], string>({
       async queryFn(repoPath) {
         try {
-          return { data: await getLocalBranches(repoPath) }
+          return { data: await getBranches(repoPath) }
         } catch (error) {
           return { error: toErrorResult(error) }
         }
@@ -247,7 +247,7 @@ export const gitApi = createApi({
 export const {
   useGetGitSnapshotQuery,
   useGetCommitHistoryQuery,
-  useGetLocalBranchesQuery,
+  useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetCommitFilesQuery,
   useGetCommitFileVersionsQuery,

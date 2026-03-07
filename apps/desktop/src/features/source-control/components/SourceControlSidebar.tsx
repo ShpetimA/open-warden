@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { refreshActiveRepo } from '@/features/source-control/actions'
 import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
 import { repoLabel } from '@/features/source-control/utils'
+import { OpenInExternalEditor } from './OpenInExternalEditor'
 import { ChangesTab } from './ChangesTab'
 import { HistoryTab } from './HistoryTab'
 
@@ -33,18 +34,21 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
           <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
             CURRENT REPOSITORY
           </div>
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground ml-auto inline-flex h-6 w-6 items-center justify-center"
-            title="Refresh repository status"
-            aria-label="Refresh repository status"
-            disabled={!activeRepo || !!runningAction}
-            onClick={() => {
-              void dispatch(refreshActiveRepo())
-            }}
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
+          <div className="ml-auto flex items-center gap-0.5">
+            <OpenInExternalEditor repoPath={activeRepo} target="repository" compact disabled={!!runningAction} />
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center"
+              title="Refresh repository status"
+              aria-label="Refresh repository status"
+              disabled={!activeRepo || !!runningAction}
+              onClick={() => {
+                void dispatch(refreshActiveRepo())
+              }}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
         <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1 text-xs">
           <span className="truncate">
@@ -58,6 +62,7 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
             </>
           ) : null}
         </div>
+
       </div>
 
       {isHistoryFeature ? <HistoryTab /> : <ChangesTab />}

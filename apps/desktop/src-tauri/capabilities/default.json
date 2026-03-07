@@ -3,5 +3,22 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:default"]
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "**/*" },
+        { "path": "/**/*" },
+        { "path": "**/.*/*/**" },
+        { "path": "/**/.*/*/**" },
+        { "path": "**/*", "app": true },
+        { "path": "/**/*", "app": true },
+        { "path": "**/.*/*/**", "app": true },
+        { "path": "/**/.*/*/**", "app": true }
+      ]
+    }
+  ]
 }

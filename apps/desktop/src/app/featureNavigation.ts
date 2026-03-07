@@ -27,3 +27,18 @@ export function featureKeyFromPath(pathname: string): FeatureKey {
 export function featureHasPrimarySidebar(feature: FeatureKey): boolean {
   return feature === 'changes' || feature === 'history'
 }
+
+export type SidebarConfig = {
+  panelId: string
+  icon: 'left' | 'right'
+}
+
+export const FEATURE_SIDEBARS: Record<FeatureKey, SidebarConfig[]> = {
+  changes: [{ panelId: 'primary', icon: 'left' }],
+  history: [
+    { panelId: 'primary', icon: 'left' },
+    { panelId: 'history-files', icon: 'right' },
+  ],
+  review: [{ panelId: 'review', icon: 'left' }],
+  comments: [{ panelId: 'comments', icon: 'left' }],
+}

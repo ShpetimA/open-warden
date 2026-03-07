@@ -15,10 +15,10 @@ import {
 import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import {
+  useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
   useGetGitSnapshotQuery,
-  useGetLocalBranchesQuery,
 } from '@/features/source-control/api'
 import { useReviewKeyboardNav } from '@/features/source-control/hooks/useReviewKeyboardNav'
 import {
@@ -38,6 +38,10 @@ function firstAvailableBranch(branches: string[]): string {
 function preferredBaseBranch(branches: string[]): string {
   if (branches.includes('main')) return 'main'
   if (branches.includes('master')) return 'master'
+  const remoteMain = branches.find((branch) => branch.endsWith('/main'))
+  if (remoteMain) return remoteMain
+  const remoteMaster = branches.find((branch) => branch.endsWith('/master'))
+  if (remoteMaster) return remoteMaster
   return firstAvailableBranch(branches)
 }
 
@@ -264,7 +268,7 @@ export function ReviewScreen() {
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef)
 
   const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
-  const { data: branches } = useGetLocalBranchesQuery(activeRepo, { skip: !activeRepo })
+  const { data: branches } = useGetBranchesQuery(activeRepo, { skip: !activeRepo })
   const branchList = branches ?? EMPTY_BRANCHES
   const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef)
 
@@ -309,6 +313,7 @@ export function ReviewScreen() {
 
   return (
     <ResizableSidebarLayout
+      panelId="review"
       sidebarDefaultSize={24}
       sidebarMinSize={16}
       sidebarMaxSize={40}
@@ -323,7 +328,7 @@ export function ReviewScreen() {
                 <BranchSelectField
                   label="Base"
                   value={reviewBaseRef}
-                  placeholder="Base branch"
+                  placeholder="Base ref"
                   options={branchList}
                   onChange={(value) => {
                     dispatch(setReviewBaseRef(value))
@@ -351,7 +356,7 @@ export function ReviewScreen() {
                 <BranchSelectField
                   label="Compare"
                   value={reviewHeadRef}
-                  placeholder="Compare branch"
+                  placeholder="Compare ref"
                   options={branchList}
                   onChange={(value) => {
                     dispatch(setReviewHeadRef(value))

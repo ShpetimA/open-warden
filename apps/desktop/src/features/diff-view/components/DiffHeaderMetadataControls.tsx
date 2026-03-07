@@ -1,4 +1,4 @@
-import { Columns2, Copy, Files, Rows3 } from 'lucide-react'
+import { Columns2, Copy, Files, FoldVertical, Rows3, UnfoldVertical } from 'lucide-react'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { toast } from 'sonner'
 
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { copyComments, fileComments } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
+import { OpenInExternalEditor } from '@/features/source-control/components/OpenInExternalEditor'
 import { setDiffStyleValue } from '@/features/source-control/actions'
 import type { CommentContext, CommentItem } from '@/features/source-control/types'
 
@@ -14,6 +15,8 @@ type Props = {
   activePath: string
   canComment: boolean
   commentContext: CommentContext
+  expandUnchanged: boolean
+  onToggleExpandUnchanged: () => void
 }
 
 function inContext(comment: CommentItem, context: CommentContext): boolean {
@@ -25,11 +28,20 @@ function inContext(comment: CommentItem, context: CommentContext): boolean {
   return true
 }
 
-export function DiffHeaderMetadataControls({ activePath, canComment, commentContext }: Props) {
+export function DiffHeaderMetadataControls({
+  activePath,
+  canComment,
+  commentContext,
+  expandUnchanged,
+  onToggleExpandUnchanged,
+}: Props) {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const comments = useAppSelector((state) => state.comments)
+  const expandUnchangedLabel = expandUnchanged
+    ? 'Collapse unchanged sections'
+    : 'Expand unchanged sections'
 
   const allComments = compactComments(comments)
   const currentRepoComments = activeRepo
@@ -102,6 +114,28 @@ export function DiffHeaderMetadataControls({ activePath, canComment, commentCont
           </TooltipTrigger>
           <TooltipContent side="bottom">Unified diff</TooltipContent>
         </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon-xs"
+              variant={expandUnchanged ? 'secondary' : 'ghost'}
+              onClick={onToggleExpandUnchanged}
+              aria-label={expandUnchangedLabel}
+            >
+              {expandUnchanged ? <FoldVertical /> : <UnfoldVertical />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">{expandUnchangedLabel}</TooltipContent>
+        </Tooltip>
+
+        <OpenInExternalEditor
+          repoPath={activeRepo}
+          filePath={activePath}
+          target="file"
+          compact
+          disabled={!activePath}
+        />
 
         {canComment ? (
           <>

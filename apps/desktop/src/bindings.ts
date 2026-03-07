@@ -23,9 +23,9 @@ async getCommitHistory(repoPath: string, limit: number | null) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
-async getLocalBranches(repoPath: string) : Promise<Result<string[], ApiError>> {
+async getBranches(repoPath: string) : Promise<Result<string[], ApiError>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("get_local_branches", { repoPath }) };
+    return { status: "ok", data: await TAURI_INVOKE("get_branches", { repoPath }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -130,6 +130,22 @@ async discardAll(repoPath: string) : Promise<Result<null, ApiError>> {
 async commitStaged(repoPath: string, message: string) : Promise<Result<string, ApiError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("commit_staged", { repoPath, message }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async checkAppExists(appName: string) : Promise<Result<boolean, ApiError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("check_app_exists", { appName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async openPath(path: string, appName: string | null) : Promise<Result<null, ApiError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("open_path", { path, appName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
