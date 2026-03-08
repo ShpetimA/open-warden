@@ -21,7 +21,7 @@
   "dependencies": {
     "@base-ui/react": "^1.1.0",
     "@hookform/resolvers": "^5.2.2",
-    "@pierre/diffs": "1.1.0-beta.13",
+    "@pierre/diffs": "1.1.0-beta.16",
     "@reduxjs/toolkit": "^2.9.0",
     "@tanstack/react-hotkeys": "^0.1.0",
     "@tanstack/react-virtual": "^3.13.19",

@@ -17,6 +17,7 @@ import {
 
 function comment(overrides: Partial<CommentItem>): CommentItem {
   return {
+    type: 'annotation',
     id: overrides.id ?? 'comment-id',
     repoPath: overrides.repoPath ?? '/repo/a',
     filePath: overrides.filePath ?? 'src/main.ts',

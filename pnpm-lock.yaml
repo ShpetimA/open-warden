@@ -4,11 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  '@pierre/diffs@1.1.0-beta.13':
-    hash: a2b2cfe3751545a4e1a02c10f01d2174371db927c7271a870af48ede868c4f2f
-    path: patches/@pierre__diffs@1.1.0-beta.13.patch
-
 importers:
 
   .:
@@ -26,8 +21,8 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.1(react@19.2.4))
       '@pierre/diffs':
-        specifier: 1.1.0-beta.13
-        version: 1.1.0-beta.13(patch_hash=a2b2cfe3751545a4e1a02c10f01d2174371db927c7271a870af48ede868c4f2f)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: 1.1.0-beta.16
+        version: 1.1.0-beta.16(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@reduxjs/toolkit':
         specifier: ^2.9.0
         version: 2.11.2(react-redux@9.2.0(@types/react@19.2.13)(react@19.2.4)(redux@5.0.1))(react@19.2.4)
@@ -767,8 +762,8 @@ packages:
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
 
-  '@pierre/diffs@1.1.0-beta.13':
-    resolution: {integrity: sha512-D35rxDu5V7XHX5aVGU6PF12GhscL+I+9QYgxK/i3h0d2XSirAxDdVNm49aYwlOhgmdvL0NbS1IHxPswVB5yJvw==}
+  '@pierre/diffs@1.1.0-beta.16':
+    resolution: {integrity: sha512-McjTuEPuacSIcXdoI2O9W6VSHIOs9ApEHnEUwONKZnKqIo2GGv1vNg9Pr8tgBOL7lgBWNEHX5ROJ5z1X74sENQ==}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
@@ -4845,7 +4840,7 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@pierre/diffs@1.1.0-beta.13(patch_hash=a2b2cfe3751545a4e1a02c10f01d2174371db927c7271a870af48ede868c4f2f)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@pierre/diffs@1.1.0-beta.16(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@shikijs/transformers': 3.22.0
       diff: 8.0.3

@@ -9,7 +9,7 @@ import {
 } from '@/features/comments/commentsSlice'
 import { setError } from '@/features/source-control/sourceControlSlice'
 import type { Bucket, CommentContext, CommentItem, SelectionRange } from '@/features/source-control/types'
-import { formatRange, normalizeRange } from '@/features/source-control/utils'
+import { formatRange, } from '@/features/source-control/utils'
 
 function contextForComment(comment: CommentItem): CommentContext {
   if (comment.contextKind === 'review' && comment.baseRef && comment.headRef) {
@@ -36,18 +36,18 @@ export const addComment =
     const targetPath = context.kind === 'review' ? reviewActivePath : activePath
     if (!trimmed || !activeRepo || !targetPath) return
 
-    const normalized = normalizeRange(range)
     const side = range.side ?? 'additions'
     const endSide = range.endSide ?? side
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     const next: CommentItem = {
+      type: 'annotation',
       id,
       repoPath: activeRepo,
       filePath: targetPath,
       bucket: context.kind === 'review' ? 'unstaged' : activeBucket,
-      startLine: normalized.start,
-      endLine: normalized.end,
+      startLine: range.start,
+      endLine: range.end,
       side,
       endSide,
       text: trimmed,

@@ -39,6 +39,7 @@ export type CommentContext =
   | { kind: 'review'; baseRef: string; headRef: string }
 
 export type CommentItem = {
+  type: 'annotation'
   id: string
   repoPath: string
   filePath: string
@@ -52,6 +53,16 @@ export type CommentItem = {
   baseRef?: string
   headRef?: string
 }
+
+export type ComposerAnnotation = {
+  type: 'composer'
+  side: 'deletions' | 'additions'
+  endSide?: 'deletions' | 'additions'
+  startLine: number
+  endLine: number
+}
+
+export type DiffAnnotationItem = CommentItem | ComposerAnnotation
 
 export type GitSnapshot = ContractGitSnapshot
 

@@ -9,8 +9,6 @@ import type { CommentContext, SelectionRange } from '@/features/source-control/t
 
 type Props = {
   visible: boolean
-  top: number
-  left: number
   label: string
   activePath: string
   selectedRange: SelectionRange | null
@@ -21,8 +19,6 @@ type Props = {
 
 export function CommentComposer({
   visible,
-  top,
-  left,
   label,
   activePath,
   selectedRange,
@@ -47,10 +43,6 @@ export function CommentComposer({
     onClose()
   }
 
-  // Focus the input without triggering the browser's default scrollIntoView.
-  // Native `autoFocus` calls `element.focus()` which scrolls the nearest
-  // scrollable ancestor (the diff virtualizer viewport) to bring the input
-  // into view, causing a visible scroll jump.
   useEffect(() => {
     if (visible) {
       inputRef.current?.focus({ preventScroll: true })
@@ -79,8 +71,7 @@ export function CommentComposer({
 
   return (
     <div
-      className="border-input bg-surface-elevated absolute z-20 w-80 border p-2 shadow-xl"
-      style={{ top, left }}
+      className="border-input bg-surface-elevated border p-2 shadow-xl"
     >
       <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
       <Input

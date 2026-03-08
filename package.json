@@ -19,11 +19,6 @@
     "rust:dev": "turbo run dev --filter=agent-leash",
     "check": "pnpm lint && pnpm test && pnpm format:check && pnpm rust:lint && pnpm rust:test"
   },
-  "pnpm": {
-    "patchedDependencies": {
-      "@pierre/diffs@1.1.0-beta.13": "patches/@pierre__diffs@1.1.0-beta.13.patch"
-    }
-  },
   "devDependencies": {
     "turbo": "^2.5.8"
   }
