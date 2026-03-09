@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from '@pierre/diffs/react'
+import { FileWarning } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { useAppSelector } from '@/app/hooks'
+import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import {
   fileComments,
   toLineAnnotations,
@@ -26,6 +36,7 @@ import {
   getDiffThemeType,
 } from '@/features/diff-view/diffRenderConfig'
 import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
+import { MAX_DIFF_LINE_LENGTH } from '@/features/diff-view/services/diffRenderLimits'
 import {
   formatRange,
 } from '@/features/source-control/utils'
@@ -97,17 +108,23 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
   const [expandUnchanged, setExpandUnchanged] = useState(false)
+  const [forceShowLargeDiff, setForceShowLargeDiff] = useState(false)
 
   const diffTheme = getDiffTheme()
   const { annotations: currentAnnotations } =
     useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
   const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType)
-  const { currentFileDiff, isParsingDiff } = useParsedDiff({
+  const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
     activePath,
     oldFile,
     newFile,
     cacheSalt: diffThemeCacheSalt,
+    allowLargeDiff: forceShowLargeDiff,
   })
+
+  useEffect(() => {
+    setForceShowLargeDiff(false)
+  }, [activePath, oldFile?.name, oldFile?.contents.length, newFile?.name, newFile?.contents.length])
 
   useEffect(() => {
     if (!workerPool) return
@@ -156,7 +173,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     themeType: diffThemeType,
     unsafeCSS: STICKY_HEADER_CSS,
     disableLineNumbers: false,
-    maxLineDiffLength: 5000,
+    maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
     expandUnchanged,
     expansionLineCount: 20,
     hunkSeparators: 'line-info-basic' as const,
@@ -187,6 +204,40 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                   }
                 ] : currentAnnotations
   const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? 'expanded' : 'collapsed'}`
+
+  const renderLargeDiffWarning = () => {
+    return (
+      <Empty className="border-0 rounded-none h-full gap-4">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileWarning />
+          </EmptyMedia>
+          <EmptyTitle>Diff too large</EmptyTitle>
+          <EmptyDescription>
+            The diff is too large to be displayed by default. You can show it anyway, but
+            performance may be negatively impacted.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button onClick={() => setForceShowLargeDiff(true)}>Show diff</Button>
+        </EmptyContent>
+      </Empty>
+    )
+  }
+
+  const renderUnrenderableDiffWarning = () => {
+    return (
+      <Empty className="border-0 rounded-none h-full gap-4">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileWarning />
+          </EmptyMedia>
+          <EmptyTitle>Diff too large</EmptyTitle>
+          <EmptyDescription>The diff is too large to be displayed.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -219,6 +270,10 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
               )}
               options={diffOptions}
             />
+          ) : diffRenderGate === 'unrenderable' ? (
+            renderUnrenderableDiffWarning()
+          ) : diffRenderGate === 'large' && !forceShowLargeDiff ? (
+            renderLargeDiffWarning()
           ) : isParsingDiff ? (
             <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
           ) : (

@@ -11,6 +11,7 @@ import { usePrefetchHistoryDiffs } from '@/features/source-control/hooks/usePref
 import { HistoryFilesPane } from '@/features/source-control/components/HistoryFilesPane'
 import { useHistoryKeyboardNav } from '@/features/source-control/hooks/useHistoryKeyboardNav'
 import { useHistorySync } from '@/features/source-control/hooks/useHistorySync'
+import { useThrottledDiffSelection } from '@/features/source-control/hooks/useThrottledDiffSelection'
 import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
 
 export function HistoryScreen() {
@@ -25,13 +26,22 @@ export function HistoryScreen() {
   )
   usePrefetchHistoryDiffs(historyFiles ?? [], activeRepo, historyCommitId, activePath)
   const selectedHistoryFile = historyFiles?.find((file) => file.path === activePath)
+  const previewSelection = useThrottledDiffSelection(
+    historyCommitId && activePath
+      ? {
+          commitId: historyCommitId,
+          path: activePath,
+          previousPath: selectedHistoryFile?.previousPath ?? undefined,
+        }
+      : null,
+  )
   const historyFileVersions = useGetCommitFileVersionsQuery(
-    activeRepo && historyCommitId && activePath
+    activeRepo && previewSelection
       ? {
           repoPath: activeRepo,
-          commitId: historyCommitId,
-          relPath: activePath,
-          previousPath: selectedHistoryFile?.previousPath ?? undefined,
+          commitId: previewSelection.commitId,
+          relPath: previewSelection.path,
+          previousPath: previewSelection.previousPath,
         }
       : skipToken,
   )
@@ -40,6 +50,7 @@ export function HistoryScreen() {
   const oldFile = fileVersions?.oldFile ?? null
   const newFile = fileVersions?.newFile ?? null
   const errorMessage = errorMessageFrom(historyFileVersions.error, '')
+  const previewPath = previewSelection?.path ?? ''
 
   return (
     <ResizableSidebarLayout
@@ -64,7 +75,7 @@ export function HistoryScreen() {
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}
-              activePath={activePath}
+              activePath={previewPath}
               commentContext={{ kind: 'changes' }}
               canComment={false}
             />

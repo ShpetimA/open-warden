@@ -1,3 +1,4 @@
+import { AsyncQueuer } from '@tanstack/react-pacer'
 import type { parseDiffFromFile } from '@pierre/diffs'
 
 import type { DiffFile } from '@/features/source-control/types'
@@ -18,9 +19,7 @@ type ParseResponseMessage =
       message: string
     }
 
-let nextRequestId = 1
-
-type QueueItem = {
+type ParseTask = {
   requestId: number
   oldFile: ParseWorkerFile
   newFile: ParseWorkerFile
@@ -29,12 +28,19 @@ type QueueItem = {
   signal?: AbortSignal
   aborted: boolean
   priority: ParsePriority
-  onAbort: () => void
+  onSignalAbort: () => void
 }
 
+type ActiveParseTask = {
+  task: ParseTask
+  resolveRun: () => void
+  rejectRun: (reason?: unknown) => void
+  cleanup: () => void
+}
+
+let nextRequestId = 1
 let worker: Worker | null = null
-let activeItem: QueueItem | null = null
-const queuedItems: QueueItem[] = []
+let activeParseTask: ActiveParseTask | null = null
 
 function priorityWeight(priority: ParsePriority): number {
   return priority === 'high' ? 1 : 0
@@ -51,66 +57,6 @@ function getWorker(): Worker {
   return worker
 }
 
-function queueTask(task: QueueItem) {
-  if (task.priority === 'high' && activeItem) {
-    interruptActiveTask()
-  }
-
-  queuedItems.push(task)
-  queuedItems.sort((left, right) => {
-    const priorityDelta = priorityWeight(right.priority) - priorityWeight(left.priority)
-    if (priorityDelta !== 0) return priorityDelta
-    return left.requestId - right.requestId
-  })
-}
-
-function cleanupTask(task: QueueItem) {
-  task.signal?.removeEventListener('abort', task.onAbort)
-}
-
-function startNextTask() {
-  if (activeItem) return
-
-  while (queuedItems.length > 0) {
-    const nextItem = queuedItems.shift()
-    if (!nextItem) return
-    if (nextItem.aborted) {
-      cleanupTask(nextItem)
-      continue
-    }
-
-    activeItem = nextItem
-    getWorker().postMessage({
-      type: 'parse',
-      requestId: nextItem.requestId,
-      oldFile: nextItem.oldFile,
-      newFile: nextItem.newFile,
-    })
-    return
-  }
-}
-
-function finishActiveTask(callback: (task: QueueItem) => void) {
-  const task = activeItem
-  if (!task) return
-
-  activeItem = null
-  cleanupTask(task)
-  callback(task)
-  startNextTask()
-}
-
-function interruptActiveTask() {
-  const task = activeItem
-  if (!task) return
-
-  activeItem = null
-  task.aborted = true
-  cleanupTask(task)
-  recreateWorker()
-  task.reject(toAbortError())
-}
-
 function recreateWorker() {
   if (!worker) return
 
@@ -120,42 +66,128 @@ function recreateWorker() {
   worker = null
 }
 
-function onWorkerMessage(event: MessageEvent<ParseResponseMessage>) {
-  const message = event.data
-  if (!activeItem || message.requestId !== activeItem.requestId) return
-
-  finishActiveTask((task) => {
-    if (task.aborted) return
-
-    if (message.type === 'parsed') {
-      task.resolve(message.data)
-      return
-    }
-
-    task.reject(new Error(message.message))
-  })
-}
-
-function onWorkerError(event: ErrorEvent) {
-  const error = event.error instanceof Error ? event.error : new Error(event.message)
-
-  const task = activeItem
-  if (!task) {
-    recreateWorker()
-    return
-  }
-
-  activeItem = null
-  cleanupTask(task)
-  if (!task.aborted) {
-    task.reject(error)
-  }
-  recreateWorker()
-  startNextTask()
+function cleanupTask(task: ParseTask) {
+  task.signal?.removeEventListener('abort', task.onSignalAbort)
 }
 
 function toAbortError(): DOMException {
   return new DOMException('Aborted', 'AbortError')
+}
+
+let parseTaskQueuer: AsyncQueuer<ParseTask>
+
+function removePendingParseTask(requestId: number): boolean {
+  const pendingTasks = parseTaskQueuer.peekPendingItems()
+  if (pendingTasks.length === 0) return false
+
+  const nextPendingTasks = pendingTasks.filter((task) => task.requestId !== requestId)
+  if (nextPendingTasks.length === pendingTasks.length) return false
+
+  parseTaskQueuer.clear()
+  for (const task of nextPendingTasks) {
+    parseTaskQueuer.addItem(task)
+  }
+  return true
+}
+
+function interruptActiveParseTask() {
+  if (!activeParseTask) return
+  parseTaskQueuer.abort()
+}
+
+function runParseTask(task: ParseTask): Promise<void> {
+  if (task.aborted || task.signal?.aborted) {
+    cleanupTask(task)
+    return Promise.resolve()
+  }
+
+  return new Promise<void>((resolveRun, rejectRun) => {
+    const queueAbortSignal = parseTaskQueuer.getAbortSignal()
+
+    let settled = false
+    const cleanup = () => {
+      queueAbortSignal?.removeEventListener('abort', onQueueAbort)
+      cleanupTask(task)
+      if (activeParseTask?.task.requestId === task.requestId) {
+        activeParseTask = null
+      }
+    }
+
+    const finish = (callback: () => void) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      callback()
+    }
+
+    const onQueueAbort = () => {
+      task.aborted = true
+      const error = toAbortError()
+      recreateWorker()
+      finish(() => {
+        task.reject(error)
+        rejectRun(error)
+      })
+    }
+
+    if (queueAbortSignal?.aborted) {
+      onQueueAbort()
+      return
+    }
+
+    queueAbortSignal?.addEventListener('abort', onQueueAbort, { once: true })
+
+    activeParseTask = {
+      task,
+      resolveRun: () => {
+        finish(resolveRun)
+      },
+      rejectRun: (reason) => {
+        finish(() => rejectRun(reason))
+      },
+      cleanup,
+    }
+
+    getWorker().postMessage({
+      type: 'parse',
+      requestId: task.requestId,
+      oldFile: task.oldFile,
+      newFile: task.newFile,
+    })
+  })
+}
+
+parseTaskQueuer = new AsyncQueuer(runParseTask, {
+  concurrency: 1,
+  getPriority: (task) => priorityWeight(task.priority),
+  onError: () => {},
+  throwOnError: false,
+})
+
+function onWorkerMessage(event: MessageEvent<ParseResponseMessage>) {
+  const message = event.data
+  const currentTask = activeParseTask
+  if (!currentTask || message.requestId !== currentTask.task.requestId) return
+
+  if (message.type === 'parsed') {
+    currentTask.task.resolve(message.data)
+    currentTask.resolveRun()
+    return
+  }
+
+  const error = new Error(message.message)
+  currentTask.task.reject(error)
+  currentTask.rejectRun(error)
+}
+
+function onWorkerError(event: ErrorEvent) {
+  const currentTask = activeParseTask
+  recreateWorker()
+  if (!currentTask) return
+
+  const error = event.error instanceof Error ? event.error : new Error(event.message)
+  currentTask.task.reject(error)
+  currentTask.rejectRun(error)
 }
 
 export function parseDiffInWorker(
@@ -172,7 +204,7 @@ export function parseDiffInWorker(
       return
     }
 
-    const task: QueueItem & { onAbort: () => void } = {
+    const task: ParseTask = {
       requestId,
       oldFile,
       newFile,
@@ -181,27 +213,30 @@ export function parseDiffInWorker(
       signal,
       aborted: false,
       priority,
-      onAbort: () => {
+      onSignalAbort: () => {
         if (task.aborted) return
         task.aborted = true
 
-        const queuedIndex = queuedItems.findIndex((item) => item.requestId === requestId)
-        if (queuedIndex >= 0) {
-          queuedItems.splice(queuedIndex, 1)
+        if (activeParseTask?.task.requestId === requestId) {
+          interruptActiveParseTask()
+          return
+        }
+
+        const removedFromQueue = removePendingParseTask(requestId)
+        if (removedFromQueue) {
           cleanupTask(task)
-        } else if (activeItem?.requestId === requestId) {
-          cleanupTask(task)
-          activeItem = null
-          recreateWorker()
-          startNextTask()
         }
 
         reject(toAbortError())
       },
     }
 
-    signal?.addEventListener('abort', task.onAbort, { once: true })
-    queueTask(task)
-    startNextTask()
+    signal?.addEventListener('abort', task.onSignalAbort, { once: true })
+
+    if (priority === 'high' && activeParseTask) {
+      interruptActiveParseTask()
+    }
+
+    parseTaskQueuer.addItem(task)
   })
 }

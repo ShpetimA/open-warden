@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { useAsyncQueuer } from '@tanstack/react-pacer'
 import { useTheme } from 'next-themes'
 import { useStore } from 'react-redux'
 
@@ -26,6 +27,12 @@ type NearbyDiffItem = {
   key: string
   path: string
   queryArgs: QueryArgs
+}
+
+type PrefetchTask = {
+  cacheSalt: string
+  item: NearbyDiffItem
+  orderIndex: number
 }
 
 function getItemsSignature(items: NearbyDiffItem[]): string {
@@ -130,8 +137,67 @@ function usePrefetchNearbyDiffs(items: NearbyDiffItem[], activeKey: string) {
   }
   const stableItems = stableItemsRef.current
 
+  const prefetchQueuer = useAsyncQueuer<PrefetchTask, null>(
+    async (task: PrefetchTask) => {
+      const queueAbortSignal = prefetchQueuer.getAbortSignal()
+      let activeRequest: ReturnType<typeof loadVersions> | null = null
+
+      const abortActiveRequest = () => {
+        activeRequest?.abort?.()
+        activeRequest?.unsubscribe?.()
+        activeRequest = null
+      }
+
+      queueAbortSignal?.addEventListener('abort', abortActiveRequest, { once: true })
+
+      try {
+        let versions = selectCachedVersions(store.getState(), task.item)
+
+        if (!versions) {
+          activeRequest = loadVersions(dispatch, task.item)
+          versions = await activeRequest.unwrap()
+        }
+
+        if (!versions || queueAbortSignal?.aborted) return
+
+        const parsePromise = prefetchParsedDiff({
+          activePath: task.item.path,
+          oldFile: versions.oldFile ?? null,
+          newFile: versions.newFile ?? null,
+          cacheSalt: task.cacheSalt,
+          priority: task.orderIndex === 0 ? 'high' : 'low',
+        })
+
+        if (task.orderIndex === 0) {
+          await parsePromise
+        }
+      } catch {
+        if (!queueAbortSignal?.aborted) {
+          return
+        }
+      } finally {
+        abortActiveRequest()
+        queueAbortSignal?.removeEventListener('abort', abortActiveRequest)
+      }
+    },
+    {
+      concurrency: 1,
+      getPriority: (task) => -task.orderIndex,
+      onError: () => {},
+      onUnmount: (queuer) => {
+        queuer.abort()
+        queuer.clear()
+        queuer.stop()
+      },
+      throwOnError: false,
+    },
+    () => null,
+  )
+
   useEffect(() => {
     if (!activeKey || stableItems.length === 0) {
+      prefetchQueuer.abort()
+      prefetchQueuer.clear()
       previousIndexRef.current = null
       previousItemsSignatureRef.current = itemsSignature
       return
@@ -144,6 +210,8 @@ function usePrefetchNearbyDiffs(items: NearbyDiffItem[], activeKey: string) {
 
     const activeIndex = stableItems.findIndex((item) => item.key === activeKey)
     if (activeIndex < 0) {
+      prefetchQueuer.abort()
+      prefetchQueuer.clear()
       previousIndexRef.current = null
       return
     }
@@ -154,53 +222,25 @@ function usePrefetchNearbyDiffs(items: NearbyDiffItem[], activeKey: string) {
     previousIndexRef.current = activeIndex
 
     const orderedIndexes = getPrefetchOrder(activeIndex, stableItems.length, direction)
-    let cancelled = false
-    let activeRequest: ReturnType<typeof loadVersions> | null = null
+    prefetchQueuer.abort()
+    prefetchQueuer.clear()
 
-    void (async () => {
-      for (const [orderIndex, itemIndex] of orderedIndexes.entries()) {
-        if (cancelled) return
+    for (const [orderIndex, itemIndex] of orderedIndexes.entries()) {
+      const item = stableItems[itemIndex]
+      if (!item) continue
 
-        const item = stableItems[itemIndex]
-        if (!item) continue
-
-        let versions = selectCachedVersions(store.getState(), item)
-
-        if (!versions) {
-          try {
-            activeRequest = loadVersions(dispatch, item)
-            versions = await activeRequest.unwrap()
-          } catch {
-            if (cancelled) return
-            continue
-          } finally {
-            activeRequest?.unsubscribe?.()
-            activeRequest = null
-          }
-        }
-
-        if (cancelled) return
-
-        const parsePromise = prefetchParsedDiff({
-          activePath: item.path,
-          oldFile: versions.oldFile ?? null,
-          newFile: versions.newFile ?? null,
-          cacheSalt,
-          priority: orderIndex === 0 ? 'high' : 'low',
-        })
-
-        if (orderIndex === 0) {
-          await parsePromise
-        }
-      }
-    })()
+      prefetchQueuer.addItem({
+        cacheSalt,
+        item,
+        orderIndex,
+      })
+    }
 
     return () => {
-      cancelled = true
-      activeRequest?.abort?.()
-      activeRequest?.unsubscribe?.()
+      prefetchQueuer.abort()
+      prefetchQueuer.clear()
     }
-  }, [activeKey, cacheSalt, dispatch, itemsSignature, stableItems, store])
+  }, [activeKey, cacheSalt, itemsSignature, prefetchQueuer, stableItems])
 }
 
 export function usePrefetchChangesDiffs(

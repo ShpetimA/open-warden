@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  getDiffRenderGate,
+  type DiffRenderGate,
+} from '@/features/diff-view/services/diffRenderLimits'
+import {
   getCachedParsedDiff,
   getParsedDiffRequest,
   isParsedDiffInFlight,
@@ -17,15 +21,26 @@ type UseParsedDiffArgs = {
   oldFile: DiffFile | null
   newFile: DiffFile | null
   cacheSalt?: string
+  allowLargeDiff?: boolean
 }
 
-export function useParsedDiff({ activePath, oldFile, newFile, cacheSalt = '' }: UseParsedDiffArgs) {
+export function useParsedDiff({
+  activePath,
+  oldFile,
+  newFile,
+  cacheSalt = '',
+  allowLargeDiff = false,
+}: UseParsedDiffArgs) {
   const parseRequestTokenRef = useRef(0)
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null)
 
+  const diffRenderGate = useMemo<DiffRenderGate | null>(() => {
+    return getDiffRenderGate(activePath, oldFile, newFile)
+  }, [activePath, oldFile, newFile])
+
   const requestPayload = useMemo(() => {
-    return getParsedDiffRequest(activePath, oldFile, newFile, cacheSalt)
-  }, [activePath, oldFile, newFile, cacheSalt])
+    return getParsedDiffRequest(activePath, oldFile, newFile, cacheSalt, { allowLargeDiff })
+  }, [activePath, oldFile, newFile, cacheSalt, allowLargeDiff])
 
   useEffect(() => {
     const requestToken = parseRequestTokenRef.current + 1
@@ -59,5 +74,5 @@ export function useParsedDiff({ activePath, oldFile, newFile, cacheSalt = '' }: 
     cachedDiff === undefined &&
     (isParsedDiffInFlight(requestKey) || parsedState?.key !== requestKey)
 
-  return { currentFileDiff, isParsingDiff }
+  return { currentFileDiff, diffRenderGate, isParsingDiff }
 }

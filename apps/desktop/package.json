@@ -24,6 +24,7 @@
     "@pierre/diffs": "1.1.0-beta.16",
     "@reduxjs/toolkit": "^2.9.0",
     "@tanstack/react-hotkeys": "^0.1.0",
+    "@tanstack/react-pacer": "^0.20.0",
     "@tanstack/react-virtual": "^3.13.19",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",

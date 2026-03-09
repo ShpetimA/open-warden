@@ -22,6 +22,7 @@ import {
 } from '@/features/source-control/api'
 import { usePrefetchReviewDiffs } from '@/features/source-control/hooks/usePrefetchNearbyDiffs'
 import { useReviewKeyboardNav } from '@/features/source-control/hooks/useReviewKeyboardNav'
+import { useThrottledDiffSelection } from '@/features/source-control/hooks/useThrottledDiffSelection'
 import {
   clearReviewSelection,
   setReviewActivePath,
@@ -225,14 +226,22 @@ function ReviewDiffPane({
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath)
   usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath)
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath)
+  const previewSelection = useThrottledDiffSelection(
+    reviewActivePath
+      ? {
+          path: reviewActivePath,
+          previousPath: selectedReviewFile?.previousPath ?? undefined,
+        }
+      : null,
+  )
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
-    readyForDiff && reviewActivePath
+    readyForDiff && previewSelection
       ? {
           repoPath: activeRepo,
           baseRef: reviewBaseRef,
           headRef: reviewHeadRef,
-          relPath: reviewActivePath,
-          previousPath: selectedReviewFile?.previousPath ?? undefined,
+          relPath: previewSelection.path,
+          previousPath: previewSelection.previousPath,
         }
       : skipToken,
   )
@@ -243,6 +252,7 @@ function ReviewDiffPane({
   const loadingPatch = branchFileVersionsQuery.isFetching
   const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, '')
   const context = { kind: 'review' as const, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+  const previewPath = previewSelection?.path ?? ''
 
   return (
     <section className="flex h-full min-h-0 flex-col">
@@ -259,7 +269,7 @@ function ReviewDiffPane({
           <DiffWorkspace
             oldFile={oldFile}
             newFile={newFile}
-            activePath={reviewActivePath}
+            activePath={previewPath}
             commentContext={context}
             canComment
           />

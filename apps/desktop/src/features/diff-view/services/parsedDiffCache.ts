@@ -1,4 +1,5 @@
 import type { ParsePriority } from '@/features/diff-view/services/parseDiffInWorker'
+import { getDiffRenderGate } from '@/features/diff-view/services/diffRenderLimits'
 import { parseDiffInWorker } from '@/features/diff-view/services/parseDiffInWorker'
 import type { DiffFile } from '@/features/source-control/types'
 
@@ -70,11 +71,15 @@ export function getParsedDiffRequest(
   oldFile: DiffFile | null,
   newFile: DiffFile | null,
   cacheSalt = '',
+  options: { allowLargeDiff?: boolean } = {},
 ): ParsedDiffRequest | null {
-  if (!activePath || (!oldFile && !newFile)) return null
+  const diffRenderGate = getDiffRenderGate(activePath, oldFile, newFile)
+  if (!diffRenderGate || diffRenderGate === 'unrenderable') return null
+  if (diffRenderGate === 'large' && !options.allowLargeDiff) return null
 
-  const oldTargetFile = oldFile ?? { name: activePath, contents: '' }
-  const newTargetFile = newFile ?? { name: activePath, contents: '' }
+  const fallbackPath = activePath ?? ''
+  const oldTargetFile = oldFile ?? { name: fallbackPath, contents: '' }
+  const newTargetFile = newFile ?? { name: fallbackPath, contents: '' }
   const oldFileWithCacheKey = withCacheKey(oldTargetFile, cacheSalt)
   const newFileWithCacheKey = withCacheKey(newTargetFile, cacheSalt)
 
