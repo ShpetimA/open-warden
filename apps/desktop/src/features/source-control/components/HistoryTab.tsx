@@ -97,7 +97,7 @@ function HistoryCommitRow({ commit, navIndex, onSelect }: HistoryCommitRowProps)
     <button
       type="button"
       data-nav-index={navIndex}
-      className={`block w-full min-w-0 overflow-hidden rounded-md border px-2.5 py-2 text-left transition-colors ${stateClass}`}
+      className={`block w-full min-w-0 overflow-hidden rounded-md border px-2.5 py-2 text-left ${stateClass}`}
       onClick={() => onSelect(commit.commitId)}
       title={commit.summary || commit.commitId}
     >
