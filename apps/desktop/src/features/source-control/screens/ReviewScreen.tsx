@@ -20,6 +20,7 @@ import {
   useGetBranchFileVersionsQuery,
   useGetGitSnapshotQuery,
 } from '@/features/source-control/api'
+import { usePrefetchReviewDiffs } from '@/features/source-control/hooks/usePrefetchNearbyDiffs'
 import { useReviewKeyboardNav } from '@/features/source-control/hooks/useReviewKeyboardNav'
 import {
   clearReviewSelection,
@@ -214,6 +215,7 @@ function ReviewDiffPane({
   branchFiles,
 }: ReviewDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath)
+  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath)
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath)
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
     readyForDiff && reviewActivePath

@@ -18,6 +18,13 @@ import type {
 import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
 import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
 import { DiffHeaderMetadataControls } from '@/features/diff-view/components/DiffHeaderMetadataControls'
+import {
+  DEFAULT_DARK_THEME,
+  DEFAULT_LIGHT_THEME,
+  getDiffTheme,
+  getDiffThemeCacheSalt,
+  getDiffThemeType,
+} from '@/features/diff-view/diffRenderConfig'
 import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
 import {
   formatRange,
@@ -32,8 +39,6 @@ type Props = {
   canComment: boolean
 }
 
-const DEFAULT_DARK_THEME = 'github-dark'
-const DEFAULT_LIGHT_THEME = 'github-light'
 const STICKY_HEADER_CSS = `
 :host {
   min-width: 0;
@@ -109,17 +114,17 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const workerPool = useWorkerPool()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
-  const diffThemeType = resolvedTheme === 'dark' ? 'dark' : 'light'
+  const diffThemeType = getDiffThemeType(resolvedTheme)
 
   const diffViewportContainerRef = useRef<HTMLDivElement | null>(null)
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
   const [expandUnchanged, setExpandUnchanged] = useState(false)
 
-  const diffTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME }
+  const diffTheme = getDiffTheme()
   const { annotations: currentAnnotations } =
     useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
-  const diffThemeCacheSalt = `${DEFAULT_DARK_THEME}:${DEFAULT_LIGHT_THEME}:${diffThemeType}`
+  const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType)
   const { currentFileDiff, isParsingDiff } = useParsedDiff({
     activePath,
     oldFile,
