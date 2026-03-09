@@ -20,9 +20,10 @@ pub use git::GitBackend;
 pub use jj::JjBackend;
 
 use git2::{
-    build::CheckoutBuilder, Delta, DiffFindOptions, DiffOptions, ObjectType, Oid, Repository,
-    ResetType, Status, StatusOptions, Tree,
+    build::CheckoutBuilder, BranchType, Delta, DiffFindOptions, DiffOptions, ObjectType, Oid,
+    Repository, ResetType, Status, StatusOptions, Tree,
 };
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -270,6 +271,27 @@ fn parse_commit_oid(commit_id: &str) -> Result<Oid> {
         .map_err(|_| VcsError::InvalidRef(format!("invalid commit id: {}", commit_id)))
 }
 
+fn resolve_ref_to_tree<'repo>(repo: &'repo Repository, git_ref: &str) -> Result<Tree<'repo>> {
+    let trimmed = git_ref.trim();
+    if trimmed.is_empty() {
+        return Err(VcsError::InvalidRef("reference is empty".to_string()));
+    }
+
+    let object = repo
+        .revparse_single(trimmed)
+        .map_err(|_| VcsError::InvalidRef(format!("reference not found: {}", git_ref)))?;
+    let commit = object.peel_to_commit().map_err(|_| {
+        VcsError::InvalidRef(format!(
+            "reference does not resolve to a commit: {}",
+            git_ref
+        ))
+    })?;
+
+    commit
+        .tree()
+        .map_err(|e| VcsError::Other(format!("failed to read reference tree: {}", e)))
+}
+
 fn read_index_blob(repo: &Repository, rel_path: &Path) -> Result<Option<Vec<u8>>> {
     let index = repo
         .index()
@@ -428,6 +450,102 @@ pub fn get_commit_history_for_path(path: &Path, limit: usize) -> Result<Vec<Hist
     Ok(commits)
 }
 
+fn collect_branch_names(repo: &Repository, branch_type: BranchType) -> Result<Vec<String>> {
+    let branch_kind = match branch_type {
+        BranchType::Local => "local",
+        BranchType::Remote => "remote",
+    };
+    let refs = repo
+        .branches(Some(branch_type))
+        .map_err(|e| VcsError::Other(format!("failed to list {} branches: {}", branch_kind, e)))?;
+    let mut branches = Vec::new();
+
+    for branch_result in refs {
+        let (branch, _) =
+            branch_result.map_err(|e| VcsError::Other(format!("failed to read branch: {}", e)))?;
+        let Some(name) = branch
+            .name()
+            .map_err(|e| VcsError::Other(format!("failed to read branch name: {}", e)))?
+        else {
+            continue;
+        };
+
+        if branch_type == BranchType::Remote && name.ends_with("/HEAD") {
+            continue;
+        }
+
+        branches.push(name.to_string());
+    }
+
+    branches.sort();
+    Ok(branches)
+}
+
+pub fn get_branches_for_path(path: &Path) -> Result<Vec<String>> {
+    let repo = repo_for_path(path)?;
+    let mut branches = collect_branch_names(&repo, BranchType::Local)?;
+    let remote_branches = collect_branch_names(&repo, BranchType::Remote)?;
+    let mut seen = branches.iter().cloned().collect::<HashSet<_>>();
+
+    for branch in remote_branches {
+        if seen.insert(branch.clone()) {
+            branches.push(branch);
+        }
+    }
+
+    Ok(branches)
+}
+
+pub fn get_branch_files_for_path(
+    path: &Path,
+    base_ref: &str,
+    head_ref: &str,
+) -> Result<Vec<CommitFile>> {
+    let repo = repo_for_path(path)?;
+    let base_tree = resolve_ref_to_tree(&repo, base_ref)?;
+    let head_tree = resolve_ref_to_tree(&repo, head_ref)?;
+
+    let mut opts = DiffOptions::new();
+    opts.include_typechange(true);
+
+    let mut diff = repo
+        .diff_tree_to_tree(Some(&base_tree), Some(&head_tree), Some(&mut opts))
+        .map_err(|e| VcsError::Other(format!("failed to create branch diff: {}", e)))?;
+
+    let mut find_opts = DiffFindOptions::new();
+    find_opts.renames(true).copies(true);
+    let _ = diff.find_similar(Some(&mut find_opts));
+
+    let mut files = Vec::new();
+    for delta in diff.deltas() {
+        let path = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        if path.is_empty() {
+            continue;
+        }
+
+        let old_path = delta
+            .old_file()
+            .path()
+            .map(|p| p.to_string_lossy().to_string());
+        let previous_path = old_path.filter(|old| old != &path);
+
+        files.push(CommitFile {
+            path,
+            previous_path,
+            status: delta_status_label(delta.status()),
+        });
+    }
+
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
+}
+
 pub fn get_commit_files_for_path(path: &Path, commit_id: &str) -> Result<Vec<CommitFile>> {
     let repo = repo_for_path(path)?;
     let commit_oid = parse_commit_oid(commit_id)?;
@@ -576,6 +694,50 @@ pub fn get_file_versions_for_path(
         .map(|bytes| {
             bytes_to_utf8(bytes, &file_name).map(|contents| DiffFile {
                 name: file_name.clone(),
+                contents,
+            })
+        })
+        .transpose()?;
+
+    Ok(FileVersions { old_file, new_file })
+}
+
+pub fn get_branch_file_versions_for_path(
+    path: &Path,
+    base_ref: &str,
+    head_ref: &str,
+    rel_path: &Path,
+    previous_rel_path: Option<&Path>,
+) -> Result<FileVersions> {
+    validate_repo_relative_path(rel_path)?;
+    if let Some(previous_path) = previous_rel_path {
+        validate_repo_relative_path(previous_path)?;
+    }
+
+    let repo = repo_for_path(path)?;
+    let base_tree = resolve_ref_to_tree(&repo, base_ref)?;
+    let head_tree = resolve_ref_to_tree(&repo, head_ref)?;
+
+    let old_lookup_path = previous_rel_path.unwrap_or(rel_path);
+    let old_label = old_lookup_path.to_string_lossy().to_string();
+    let new_label = rel_path.to_string_lossy().to_string();
+
+    let old_bytes = read_tree_blob(&repo, &base_tree, old_lookup_path)?;
+    let new_bytes = read_tree_blob(&repo, &head_tree, rel_path)?;
+
+    let old_file = old_bytes
+        .map(|bytes| {
+            bytes_to_utf8(bytes, &old_label).map(|contents| DiffFile {
+                name: old_label.clone(),
+                contents,
+            })
+        })
+        .transpose()?;
+
+    let new_file = new_bytes
+        .map(|bytes| {
+            bytes_to_utf8(bytes, &new_label).map(|contents| DiffFile {
+                name: new_label.clone(),
                 contents,
             })
         })
@@ -737,6 +899,7 @@ pub fn commit_staged_for_path(path: &Path, message: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use git2::Repository;
     use test_utils::{git, RepoGuard};
 
     #[test]
@@ -809,6 +972,55 @@ mod tests {
 
         assert_eq!(old_contents.as_deref(), Some("v1"));
         assert_eq!(new_contents.as_deref(), Some("v2"));
+    }
+
+    #[test]
+    fn test_get_branches_includes_remote_refs_and_skips_remote_head_alias() {
+        let repo = RepoGuard::new();
+        let git_repo = Repository::open(&repo.dir).expect("should open repo");
+        let head_commit = git_repo
+            .head()
+            .expect("should get HEAD")
+            .peel_to_commit()
+            .expect("should resolve HEAD commit");
+        let current_branch = git_repo
+            .head()
+            .expect("should get HEAD")
+            .shorthand()
+            .expect("should resolve branch name")
+            .to_string();
+
+        git_repo
+            .reference(
+                "refs/remotes/origin/main",
+                head_commit.id(),
+                true,
+                "test remote branch",
+            )
+            .expect("should create remote branch ref");
+        git_repo
+            .reference(
+                "refs/remotes/upstream/feature/test",
+                head_commit.id(),
+                true,
+                "test remote branch",
+            )
+            .expect("should create remote branch ref");
+        git_repo
+            .reference_symbolic(
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+                true,
+                "test remote HEAD alias",
+            )
+            .expect("should create remote HEAD alias");
+
+        let branches = get_branches_for_path(&repo.dir).expect("should list branches");
+
+        assert!(branches.contains(&current_branch));
+        assert!(branches.contains(&"origin/main".to_string()));
+        assert!(branches.contains(&"upstream/feature/test".to_string()));
+        assert!(!branches.contains(&"origin/HEAD".to_string()));
     }
 
     #[test]

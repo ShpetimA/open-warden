@@ -1,4 +1,4 @@
-import { Check, GitPullRequestArrow, PanelLeft } from 'lucide-react'
+import { Check, GitPullRequestArrow } from 'lucide-react'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { toast } from 'sonner'
 
@@ -6,24 +6,24 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
 import { copyComments, fileComments } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
+import type { CommentContext } from '@/features/source-control/types'
 import { setDiffStyleValue } from '@/features/source-control/actions'
 
 type Props = {
-  sidebarOpen: boolean
-  onToggleSidebar: () => void
+  activePath: string
+  commentContext: CommentContext
   canComment: boolean
   showDiffActions: boolean
 }
 
 export function DiffWorkspaceHeader({
-  sidebarOpen,
-  onToggleSidebar,
+  activePath,
+  commentContext,
   canComment,
   showDiffActions,
 }: Props) {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const activePath = useAppSelector((state) => state.sourceControl.activePath)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const comments = useAppSelector((state) => state.comments)
 
@@ -31,16 +31,27 @@ export function DiffWorkspaceHeader({
   const currentRepoComments = activeRepo
     ? allComments.filter((comment) => comment.repoPath === activeRepo)
     : []
-  const currentFileComments = canComment ? fileComments(allComments, activeRepo, activePath) : []
+  const currentContextComments =
+    commentContext.kind === 'review'
+      ? currentRepoComments.filter(
+          (comment) =>
+            comment.contextKind === 'review' &&
+            comment.baseRef === commentContext.baseRef &&
+            comment.headRef === commentContext.headRef,
+        )
+      : currentRepoComments.filter((comment) => (comment.contextKind ?? 'changes') === 'changes')
+  const currentFileComments = canComment
+    ? fileComments(allComments, activeRepo, activePath, commentContext)
+    : []
 
   const onCopyFileComments = async () => {
-    const copied = await dispatch(copyComments('file'))
+    const copied = await dispatch(copyComments('file', { context: commentContext, activePath }))
     if (copied) toast.success('Copied file comments')
   }
 
   const onCopyAllComments = async () => {
-    const copied = await dispatch(copyComments('all'))
-    if (copied) toast.success('Copied repo comments')
+    const copied = await dispatch(copyComments('all', { context: commentContext }))
+    if (copied) toast.success('Copied comments')
   }
 
   useHotkey(
@@ -59,22 +70,12 @@ export function DiffWorkspaceHeader({
       void onCopyAllComments()
     },
     {
-      enabled: showDiffActions && canComment && currentRepoComments.length > 0,
+      enabled: showDiffActions && canComment && currentContextComments.length > 0,
     },
   )
 
   return (
     <div className="border-border flex items-center gap-1 border-b px-2 py-1">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={onToggleSidebar}
-        title={sidebarOpen ? 'Close Source Control' : 'Open Source Control'}
-      >
-        <PanelLeft className="mr-1 h-3.5 w-3.5" />
-        {sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
-      </Button>
-
       {showDiffActions ? (
         <>
           <Button
@@ -110,9 +111,9 @@ export function DiffWorkspaceHeader({
                 onClick={() => {
                   void onCopyAllComments()
                 }}
-                disabled={currentRepoComments.length === 0}
+                disabled={currentContextComments.length === 0}
               >
-                Copy Comments (Repo)
+                Copy Comments (All)
               </Button>
             </>
           ) : null}

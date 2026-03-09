@@ -26,6 +26,14 @@ export async function getCommitHistory(repoPath: string, limit?: number) {
   return unwrapResult<HistoryCommit[]>(await commands.getCommitHistory(repoPath, limit ?? null))
 }
 
+export async function getBranches(repoPath: string) {
+  return unwrapResult<string[]>(await commands.getBranches(repoPath))
+}
+
+export async function getBranchFiles(repoPath: string, baseRef: string, headRef: string) {
+  return unwrapResult<FileItem[]>(await commands.getBranchFiles(repoPath, baseRef, headRef))
+}
+
 export async function getCommitFiles(repoPath: string, commitId: string) {
   return unwrapResult<FileItem[]>(await commands.getCommitFiles(repoPath, commitId))
 }
@@ -43,6 +51,18 @@ export async function getCommitFileVersions(
 
 export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
   return unwrapResult<FileVersions>(await commands.getFileVersions(repoPath, relPath, bucket))
+}
+
+export async function getBranchFileVersions(
+  repoPath: string,
+  baseRef: string,
+  headRef: string,
+  relPath: string,
+  previousPath?: string,
+) {
+  return unwrapResult<FileVersions>(
+    await commands.getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath ?? null),
+  )
 }
 
 export async function stageFile(repoPath: string, relPath: string) {

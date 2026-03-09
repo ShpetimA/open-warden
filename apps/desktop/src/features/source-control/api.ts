@@ -2,6 +2,9 @@ import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react'
 
 import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from './types'
 import {
+  getBranches,
+  getBranchFiles,
+  getBranchFileVersions,
   commitStaged,
   discardFile,
   discardFiles,
@@ -19,6 +22,7 @@ import {
 type ErrorResult = { message: string }
 
 type CommitHistoryArgs = { repoPath: string; limit?: number }
+type BranchFilesArgs = { repoPath: string; baseRef: string; headRef: string }
 type CommitFilesArgs = { repoPath: string; commitId: string }
 type CommitFileVersionsArgs = {
   repoPath: string
@@ -27,6 +31,13 @@ type CommitFileVersionsArgs = {
   previousPath?: string
 }
 type FileVersionsArgs = { repoPath: string; bucket: Bucket; relPath: string }
+type BranchFileVersionsArgs = {
+  repoPath: string
+  baseRef: string
+  headRef: string
+  relPath: string
+  previousPath?: string
+}
 
 type StageFileArgs = { repoPath: string; relPath: string }
 type UnstageFileArgs = { repoPath: string; relPath: string }
@@ -41,7 +52,14 @@ function toErrorResult(error: unknown): ErrorResult {
 export const gitApi = createApi({
   reducerPath: 'gitApi',
   baseQuery: fakeBaseQuery<ErrorResult>(),
-  tagTypes: ['Snapshot', 'HistoryCommits', 'HistoryFiles', 'FileVersions'],
+  tagTypes: [
+    'Snapshot',
+    'HistoryCommits',
+    'HistoryFiles',
+    'Branches',
+    'BranchFiles',
+    'FileVersions',
+  ],
   endpoints: (builder) => ({
     getGitSnapshot: builder.query<GitSnapshot, string>({
       async queryFn(repoPath) {
@@ -51,7 +69,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, repoPath) => [{ type: 'Snapshot', id: repoPath }],
+      providesTags: (_result, _error, repoPath) => [{ type: 'Snapshot', id: repoPath }],
     }),
     getCommitHistory: builder.query<HistoryCommit[], CommitHistoryArgs>({
       async queryFn({ repoPath, limit }) {
@@ -61,7 +79,29 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath }) => [{ type: 'HistoryCommits', id: repoPath }],
+      providesTags: (_result, _error, { repoPath }) => [{ type: 'HistoryCommits', id: repoPath }],
+    }),
+    getBranches: builder.query<string[], string>({
+      async queryFn(repoPath) {
+        try {
+          return { data: await getBranches(repoPath) }
+        } catch (error) {
+          return { error: toErrorResult(error) }
+        }
+      },
+      providesTags: (_result, _error, repoPath) => [{ type: 'Branches', id: repoPath }],
+    }),
+    getBranchFiles: builder.query<FileItem[], BranchFilesArgs>({
+      async queryFn({ repoPath, baseRef, headRef }) {
+        try {
+          return { data: await getBranchFiles(repoPath, baseRef, headRef) }
+        } catch (error) {
+          return { error: toErrorResult(error) }
+        }
+      },
+      providesTags: (_result, _error, { repoPath, baseRef, headRef }) => [
+        { type: 'BranchFiles', id: `${repoPath}:${baseRef}:${headRef}` },
+      ],
     }),
     getCommitFiles: builder.query<FileItem[], CommitFilesArgs>({
       async queryFn({ repoPath, commitId }) {
@@ -71,7 +111,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, commitId }) => [
+      providesTags: (_result, _error, { repoPath, commitId }) => [
         { type: 'HistoryFiles', id: `${repoPath}:${commitId}` },
       ],
     }),
@@ -83,7 +123,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, commitId, relPath }) => [
+      providesTags: (_result, _error, { repoPath, commitId, relPath }) => [
         { type: 'FileVersions', id: `history:${repoPath}:${commitId}:${relPath}` },
       ],
     }),
@@ -95,8 +135,22 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      providesTags: (result, error, { repoPath, relPath }) => [
+      providesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
+      ],
+    }),
+    getBranchFileVersions: builder.query<FileVersions, BranchFileVersionsArgs>({
+      async queryFn({ repoPath, baseRef, headRef, relPath, previousPath }) {
+        try {
+          return {
+            data: await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
+          }
+        } catch (error) {
+          return { error: toErrorResult(error) }
+        }
+      },
+      providesTags: (_result, _error, { repoPath, baseRef, headRef, relPath }) => [
+        { type: 'FileVersions', id: `branch:${repoPath}:${baseRef}:${headRef}:${relPath}` },
       ],
     }),
     stageFile: builder.mutation<void, StageFileArgs>({
@@ -108,7 +162,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath, relPath }) => [
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
@@ -122,7 +176,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath, relPath }) => [
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
@@ -136,7 +190,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath, relPath }) => [
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'FileVersions', id: `${repoPath}:${relPath}` },
       ],
@@ -150,7 +204,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
     }),
     stageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
@@ -161,7 +215,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
     }),
     unstageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
@@ -172,7 +226,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
     }),
     commitStaged: builder.mutation<string, CommitStagedArgs>({
       async queryFn({ repoPath, message }) {
@@ -182,7 +236,7 @@ export const gitApi = createApi({
           return { error: toErrorResult(error) }
         }
       },
-      invalidatesTags: (result, error, { repoPath }) => [
+      invalidatesTags: (_result, _error, { repoPath }) => [
         { type: 'Snapshot', id: repoPath },
         { type: 'HistoryCommits', id: repoPath },
       ],
@@ -193,7 +247,10 @@ export const gitApi = createApi({
 export const {
   useGetGitSnapshotQuery,
   useGetCommitHistoryQuery,
+  useGetBranchesQuery,
+  useGetBranchFilesQuery,
   useGetCommitFilesQuery,
   useGetCommitFileVersionsQuery,
   useGetFileVersionsQuery,
+  useGetBranchFileVersionsQuery,
 } = gitApi

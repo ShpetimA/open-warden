@@ -21,9 +21,10 @@
   "dependencies": {
     "@base-ui/react": "^1.1.0",
     "@hookform/resolvers": "^5.2.2",
-    "@pierre/diffs": "1.1.0-beta.13",
+    "@pierre/diffs": "1.1.0-beta.16",
     "@reduxjs/toolkit": "^2.9.0",
     "@tanstack/react-hotkeys": "^0.1.0",
+    "@tanstack/react-virtual": "^3.13.19",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "class-variance-authority": "^0.7.1",
@@ -50,9 +51,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.56.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tauri-apps/cli": "^2",
-    "@playwright/test": "^1.56.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@types/node": "^24.10.1",

@@ -34,7 +34,12 @@ export type SelectionRange = {
   endSide?: 'deletions' | 'additions'
 }
 
+export type CommentContext =
+  | { kind: 'changes' }
+  | { kind: 'review'; baseRef: string; headRef: string }
+
 export type CommentItem = {
+  type: 'annotation'
   id: string
   repoPath: string
   filePath: string
@@ -44,7 +49,20 @@ export type CommentItem = {
   side: 'deletions' | 'additions'
   endSide?: 'deletions' | 'additions'
   text: string
+  contextKind?: CommentContext['kind']
+  baseRef?: string
+  headRef?: string
 }
+
+export type ComposerAnnotation = {
+  type: 'composer'
+  side: 'deletions' | 'additions'
+  endSide?: 'deletions' | 'additions'
+  startLine: number
+  endLine: number
+}
+
+export type DiffAnnotationItem = CommentItem | ComposerAnnotation
 
 export type GitSnapshot = ContractGitSnapshot
 

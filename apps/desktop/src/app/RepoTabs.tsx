@@ -1,57 +1,63 @@
+import { Plus, X } from 'lucide-react'
+
 import { repoLabel } from '@/features/source-control/utils'
 
 type Props = {
-  sidebarOpen: boolean
   repos: Array<string | undefined>
   activeRepo: string
-  onToggleSidebar: () => void
   onSelectRepo: (repo: string) => void
   onCloseRepo: (repo: string) => void
   onAddRepo: () => void
 }
 
+function tabStateClass(isActive: boolean): string {
+  if (isActive) {
+    return 'border-ring/30 bg-surface-active text-foreground shadow-[inset_0_0_0_1px_rgba(120,132,160,0.22)]'
+  }
+  return 'border-border/70 bg-surface-alt/40 text-muted-foreground hover:bg-accent/45 hover:text-foreground'
+}
+
+function closeButtonClass(isActive: boolean): string {
+  if (isActive) {
+    return 'text-muted-foreground hover:bg-destructive/20 hover:text-destructive'
+  }
+  return 'text-muted-foreground/85 hover:bg-accent hover:text-foreground'
+}
+
 export function RepoTabs({
-  sidebarOpen,
   repos,
   activeRepo,
-  onToggleSidebar,
   onSelectRepo,
   onCloseRepo,
   onAddRepo,
 }: Props) {
+  const openRepos = repos.filter((repoPath): repoPath is string => Boolean(repoPath))
+
   return (
-    <div className="border-border bg-surface border-t px-2">
-      <div className="flex h-full items-center gap-1">
-        <button
-          type="button"
-          className="border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground border px-2 py-0.5 text-xs"
-          onClick={onToggleSidebar}
-          title={sidebarOpen ? 'Close Source Control' : 'Open Source Control'}
-        >
-          {sidebarOpen ? 'Hide' : 'Show'}
-        </button>
-
-        {repos.map((repoPath) => {
-          if (!repoPath) return null
-
+    <div className="border-border/70 bg-surface h-full border-t px-1.5">
+      <div className="flex h-full items-center gap-1 overflow-x-auto">
+        {openRepos.map((repoPath, index) => {
           const isActive = repoPath === activeRepo
+          const tabClass = tabStateClass(isActive)
+          const closeClass = closeButtonClass(isActive)
+          const firstTabEdgeClass = index === 0 ? 'rounded-tl-none' : ''
 
           return (
             <div
               key={repoPath}
-              className={`flex items-center border text-xs ${
-                isActive
-                  ? 'border-ring/40 bg-surface-active text-foreground'
-                  : 'border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              }`}
+              className={`flex h-7 shrink-0 items-center rounded-md border pl-1.5 ${tabClass} ${firstTabEdgeClass}`}
               title={repoPath}
             >
-              <button type="button" className="px-2 py-0.5" onClick={() => onSelectRepo(repoPath)}>
+              <button
+                type="button"
+                className="flex h-full max-w-56 min-w-0 items-center truncate pr-1 text-sm font-medium"
+                onClick={() => onSelectRepo(repoPath)}
+              >
                 {repoLabel(repoPath)}
               </button>
               <button
                 type="button"
-                className="hover:bg-destructive/20 hover:text-destructive px-1.5 py-0.5"
+                className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm transition-colors ${closeClass}`}
                 onClick={(event) => {
                   event.stopPropagation()
                   onCloseRepo(repoPath)
@@ -59,7 +65,7 @@ export function RepoTabs({
                 title={`Close ${repoLabel(repoPath)}`}
                 aria-label={`Close ${repoLabel(repoPath)} repository`}
               >
-                x
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           )
@@ -67,11 +73,12 @@ export function RepoTabs({
 
         <button
           type="button"
-          className="border-input text-muted-foreground hover:bg-accent hover:text-accent-foreground border px-2 py-0.5 text-xs"
+          className="border-border/70 text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors"
           onClick={onAddRepo}
           title="Add repository"
+          aria-label="Add repository"
         >
-          +
+          <Plus className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

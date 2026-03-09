@@ -1,8 +1,8 @@
 {
   "$schema": "../../../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Agent Leash Desktop",
+  "productName": "OpenWarden",
   "version": "0.1.0",
-  "identifier": "com.agentleash.desktop",
+  "identifier": "com.openwarden.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "Agent Leash",
+        "title": "OpenWarden",
+        "hiddenTitle": true,
+        "titleBarStyle": "Overlay",
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 18
+        },
         "width": 800,
         "height": 600,
         "resizable": true,

@@ -3,7 +3,7 @@ import type { MouseEvent } from 'react'
 
 import { useAppSelector } from '@/app/hooks'
 import type { Bucket, BucketedFile } from '@/features/source-control/types'
-import { statusBadge } from '@/features/source-control/utils'
+import { FileListRow } from './FileListRow'
 
 type Props = {
   file: BucketedFile
@@ -42,40 +42,17 @@ export function FileRow({
     ),
   )
   const commentCount = commentCounts.get(file.path) ?? 0
-  const normalizedPath = file.path.replace(/\\/g, '/')
-  const pathParts = normalizedPath.split('/').filter(Boolean)
-  const fileName = pathParts[pathParts.length - 1] ?? file.path
-  const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
-  return (
-    <div
-      className={`border-input group flex min-w-0 items-center gap-2 overflow-hidden border-b px-2 py-1 text-xs last:border-b-0 ${
-        isActive ? 'bg-surface-active' : isSelected ? 'bg-accent/50' : 'hover:bg-accent/60'
-      }`}
-    >
-      <button
-        type="button"
-        className="w-0 min-w-0 flex-1 overflow-hidden text-left"
-        onClick={(event) => onSelectFile(file.bucket, file.path, event)}
-        title={file.path}
-      >
-        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-          <span className="text-warning w-3 text-center text-[10px]">
-            {statusBadge(file.status)}
-          </span>
-          <span className="text-foreground shrink-0 font-medium">{fileName}</span>
-          {commentCount > 0 ? (
-            <span className="border-input bg-surface-alt text-foreground inline-flex h-4 min-w-4 items-center justify-center border px-1 text-[10px]">
-              {commentCount}
-            </span>
-          ) : null}
-          {directoryPath ? (
-            <span className="text-muted-foreground block min-w-0 flex-1 truncate whitespace-nowrap">{` ${directoryPath}`}</span>
-          ) : null}
-        </div>
-      </button>
 
-      <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
-        {file.bucket === 'staged' ? (
+  return (
+    <FileListRow
+      path={file.path}
+      status={file.status}
+      commentCount={commentCount}
+      isActive={isActive}
+      isSelected={isSelected}
+      onSelect={(event) => onSelectFile(file.bucket, file.path, event)}
+      actions={
+        file.bucket === 'staged' ? (
           <button
             type="button"
             className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
@@ -110,8 +87,8 @@ export function FileRow({
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   )
 }

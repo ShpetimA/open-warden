@@ -1,30 +1,30 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useHotkey } from '@tanstack/react-hotkeys'
 
 import { useAppDispatch } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { addComment } from '@/features/comments/actions'
-import type { SelectionRange } from '@/features/source-control/types'
+import type { CommentContext, SelectionRange } from '@/features/source-control/types'
 
 type Props = {
   visible: boolean
-  top: number
-  left: number
   label: string
   activePath: string
   selectedRange: SelectionRange | null
+  commentContext: CommentContext
   onClose: () => void
+  onBeforeSubmit?: () => void
 }
 
 export function CommentComposer({
   visible,
-  top,
-  left,
   label,
   activePath,
   selectedRange,
+  commentContext,
   onClose,
+  onBeforeSubmit,
 }: Props) {
   const dispatch = useAppDispatch()
   const [draftComment, setDraftComment] = useState('')
@@ -37,10 +37,17 @@ export function CommentComposer({
 
   const onSubmit = () => {
     if (!selectedRange || !draftComment.trim() || !activePath) return
-    dispatch(addComment(selectedRange, draftComment))
+    onBeforeSubmit?.()
+    dispatch(addComment(selectedRange, draftComment, commentContext))
     setDraftComment('')
     onClose()
   }
+
+  useEffect(() => {
+    if (visible) {
+      inputRef.current?.focus({ preventScroll: true })
+    }
+  }, [visible])
 
   useHotkey(
     'Mod+Enter',
@@ -64,14 +71,12 @@ export function CommentComposer({
 
   return (
     <div
-      className="border-input bg-surface-elevated absolute z-20 w-80 border p-2 shadow-xl"
-      style={{ top, left }}
+      className="border-input bg-surface-elevated border p-2 shadow-xl"
     >
       <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
       <Input
         ref={inputRef}
         value={draftComment}
-        autoFocus
         onChange={(event) => setDraftComment(event.target.value)}
         placeholder="Type comment"
         className="border-input bg-input h-7 text-xs"

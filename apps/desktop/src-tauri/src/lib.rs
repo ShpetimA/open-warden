@@ -2,9 +2,11 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use specta_typescript::Typescript;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use agent_leash::vcs::{
     commit_staged_for_path, discard_all_for_path, discard_file_for_path,
+    get_branch_file_versions_for_path, get_branch_files_for_path, get_branches_for_path,
     get_commit_file_versions_for_path, get_commit_files_for_path, get_commit_history_for_path,
     get_file_versions_for_path, get_git_snapshot_for_path, stage_all_for_path, stage_file_for_path,
     unstage_all_for_path, unstage_file_for_path, DiffBucket,
@@ -170,6 +172,78 @@ fn map_diff_file(file: agent_leash::vcs::DiffFile) -> DiffFile {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn check_macos_app(app_name: &str) -> bool {
+    let mut app_locations = vec![
+        format!("/Applications/{}.app", app_name),
+        format!("/System/Applications/{}.app", app_name),
+    ];
+
+    if let Ok(home) = std::env::var("HOME") {
+        app_locations.push(format!("{}/Applications/{}.app", home, app_name));
+    }
+
+    for location in app_locations {
+        if Path::new(&location).exists() {
+            return true;
+        }
+    }
+
+    Command::new("which")
+        .arg(app_name)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn check_linux_app(_app_name: &str) -> bool {
+    true
+}
+
+#[cfg(target_os = "windows")]
+fn check_windows_app(app_name: &str) -> bool {
+    Command::new("where")
+        .arg(app_name)
+        .output()
+        .map(|output| output.status.success())
+        .unwrap_or(false)
+}
+
+#[tauri::command]
+#[specta::specta]
+fn check_app_exists(app_name: String) -> CmdResult<bool> {
+    if app_name.trim().is_empty() {
+        return Err(ApiError::invalid_input("app name is empty"));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        return Ok(check_windows_app(&app_name));
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        return Ok(check_macos_app(&app_name));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Ok(check_linux_app(&app_name))
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+fn open_path(path: String, app_name: Option<String>) -> CmdResult<()> {
+    if path.trim().is_empty() {
+        return Err(ApiError::invalid_input("path is empty"));
+    }
+
+    tauri_plugin_opener::open_path(path, app_name.as_deref())
+        .map_err(|e| ApiError::backend("failed to open path", e))
+}
+
 #[tauri::command]
 #[specta::specta]
 fn get_git_snapshot(repo_path: String) -> CmdResult<GitSnapshot> {
@@ -210,6 +284,30 @@ fn get_commit_history(repo_path: String, limit: Option<u32>) -> CmdResult<Vec<Hi
             relative_time: commit.relative_time,
         })
         .collect())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_branches(repo_path: String) -> CmdResult<Vec<String>> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    get_branches_for_path(&repo_path).map_err(|e| ApiError::backend("failed to load branches", e))
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_branch_files(
+    repo_path: String,
+    base_ref: String,
+    head_ref: String,
+) -> CmdResult<Vec<FileItem>> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let files = get_branch_files_for_path(&repo_path, &base_ref, &head_ref)
+        .map_err(|e| ApiError::backend("failed to load branch diff files", e))?;
+
+    files
+        .into_iter()
+        .map(|file| map_file_item(file.path, file.previous_path, &file.status))
+        .collect()
 }
 
 #[tauri::command]
@@ -258,6 +356,31 @@ fn get_file_versions(
     let repo_path = parse_repo_path(&repo_path)?;
     let versions = get_file_versions_for_path(&repo_path, Path::new(&rel_path), bucket.into())
         .map_err(|e| ApiError::backend("failed to load file versions", e))?;
+
+    Ok(FileVersions {
+        old_file: versions.old_file.map(map_diff_file),
+        new_file: versions.new_file.map(map_diff_file),
+    })
+}
+
+#[tauri::command]
+#[specta::specta]
+fn get_branch_file_versions(
+    repo_path: String,
+    base_ref: String,
+    head_ref: String,
+    rel_path: String,
+    previous_path: Option<String>,
+) -> CmdResult<FileVersions> {
+    let repo_path = parse_repo_path(&repo_path)?;
+    let versions = get_branch_file_versions_for_path(
+        &repo_path,
+        &base_ref,
+        &head_ref,
+        Path::new(&rel_path),
+        previous_path.as_deref().map(Path::new),
+    )
+    .map_err(|e| ApiError::backend("failed to load branch file versions", e))?;
 
     Ok(FileVersions {
         old_file: versions.old_file.map(map_diff_file),
@@ -335,9 +458,12 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
         get_git_snapshot,
         get_commit_history,
+        get_branches,
+        get_branch_files,
         get_commit_files,
         get_commit_file_versions,
         get_file_versions,
+        get_branch_file_versions,
         stage_file,
         unstage_file,
         stage_all,
@@ -346,6 +472,8 @@ fn command_builder() -> tauri_specta::Builder<tauri::Wry> {
         discard_files,
         discard_all,
         commit_staged,
+        check_app_exists,
+        open_path,
     ])
 }
 
@@ -371,6 +499,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_log::Builder::default()
                 .level(log::LevelFilter::Info)

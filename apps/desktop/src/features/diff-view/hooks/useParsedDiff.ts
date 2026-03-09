@@ -25,10 +25,11 @@ function getFileCacheKey(file: DiffFile): string {
   return `f-${nameHash}-${file.contents.length}-${contentsHash}`
 }
 
-function withCacheKey(file: DiffFile): ParseWorkerFile {
+function withCacheKey(file: DiffFile, salt = ''): ParseWorkerFile {
+  const baseCacheKey = getFileCacheKey(file)
   return {
     ...file,
-    cacheKey: getFileCacheKey(file),
+    cacheKey: salt ? `${baseCacheKey}:${salt}` : baseCacheKey,
   }
 }
 
@@ -36,11 +37,12 @@ function getRequestPayload(
   activePath: string,
   oldFile: DiffFile | null,
   newFile: DiffFile | null,
+  cacheSalt: string,
 ): { key: string; oldFile: ParseWorkerFile; newFile: ParseWorkerFile } {
   const oldTargetFile = oldFile ?? { name: activePath, contents: '' }
   const newTargetFile = newFile ?? { name: activePath, contents: '' }
-  const oldFileWithCacheKey = withCacheKey(oldTargetFile)
-  const newFileWithCacheKey = withCacheKey(newTargetFile)
+  const oldFileWithCacheKey = withCacheKey(oldTargetFile, cacheSalt)
+  const newFileWithCacheKey = withCacheKey(newTargetFile, cacheSalt)
 
   return {
     key: `${oldFileWithCacheKey.cacheKey}:${newFileWithCacheKey.cacheKey}`,
@@ -53,16 +55,17 @@ type UseParsedDiffArgs = {
   activePath: string | null
   oldFile: DiffFile | null
   newFile: DiffFile | null
+  cacheSalt?: string
 }
 
-export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArgs) {
+export function useParsedDiff({ activePath, oldFile, newFile, cacheSalt = '' }: UseParsedDiffArgs) {
   const parseRequestTokenRef = useRef(0)
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null)
 
   const requestPayload = useMemo(() => {
     if (!activePath || (!oldFile && !newFile)) return null
-    return getRequestPayload(activePath, oldFile, newFile)
-  }, [activePath, oldFile, newFile])
+    return getRequestPayload(activePath, oldFile, newFile, cacheSalt)
+  }, [activePath, oldFile, newFile, cacheSalt])
 
   useEffect(() => {
     const requestToken = parseRequestTokenRef.current + 1
@@ -78,11 +81,7 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
 
     const controller = new AbortController()
 
-    void parseDiffInWorker(
-      requestPayload.oldFile,
-      requestPayload.newFile,
-      controller.signal,
-    )
+    void parseDiffInWorker(requestPayload.oldFile, requestPayload.newFile, controller.signal)
       .then((parsedDiff) => {
         if (parseRequestTokenRef.current !== requestToken) return
         setParsedState({ key: requestPayload.key, diff: parsedDiff })
@@ -103,7 +102,8 @@ export function useParsedDiff({ activePath, oldFile, newFile }: UseParsedDiffArg
   }, [parsedState?.key, requestPayload])
 
   const requestKey = requestPayload?.key ?? null
-  const currentFileDiff = requestKey && parsedState?.key === requestKey ? (parsedState.diff ?? null) : null
+  const currentFileDiff =
+    requestKey && parsedState?.key === requestKey ? (parsedState.diff ?? null) : null
   const isParsingDiff = requestKey !== null && parsedState?.key !== requestKey
 
   return { currentFileDiff, isParsingDiff }
