@@ -11,6 +11,7 @@ createRoot(document.getElementById('root')!).render(
     <WorkerPoolContextProvider
       poolOptions={{
         workerFactory,
+        poolSize: 4,
         totalASTLRUCacheSize: 200,
       }}
       highlighterOptions={{}}

@@ -9,6 +9,10 @@ import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
 import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
 import type { FileItem, HistoryCommit } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
+import {
+  getWrappedNavigationIndex,
+  scrollKeyboardNavItemIntoView,
+} from '@/lib/keyboard-navigation'
 
 export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch()
@@ -56,17 +60,11 @@ export function useHistoryKeyboardNav() {
 
       const activeIndex = allHistoryFiles.findIndex((file) => file.path === activePath)
 
-      let targetIndex = 0
-      if (activeIndex < 0) {
-        targetIndex = nextKey ? 0 : allHistoryFiles.length - 1
-      } else if (nextKey) {
-        targetIndex = Math.min(activeIndex + 1, allHistoryFiles.length - 1)
-      } else {
-        targetIndex = Math.max(activeIndex - 1, 0)
-      }
+      const targetIndex = getWrappedNavigationIndex(activeIndex, allHistoryFiles.length, nextKey)
 
       const targetFile = allHistoryFiles[targetIndex]
       if (!targetFile) return
+      scrollKeyboardNavItemIntoView('history-files', targetIndex)
       void dispatch(selectHistoryFile(targetFile.path))
       return
     }
@@ -89,17 +87,11 @@ export function useHistoryKeyboardNav() {
       (commit) => commit.commitId === historyCommitId,
     )
 
-    let targetIndex = 0
-    if (activeIndex < 0) {
-      targetIndex = nextKey ? 0 : filteredHistoryCommits.length - 1
-    } else if (nextKey) {
-      targetIndex = Math.min(activeIndex + 1, filteredHistoryCommits.length - 1)
-    } else {
-      targetIndex = Math.max(activeIndex - 1, 0)
-    }
+    const targetIndex = getWrappedNavigationIndex(activeIndex, filteredHistoryCommits.length, nextKey)
 
     const targetCommit = filteredHistoryCommits[targetIndex]
     if (!targetCommit) return
+    scrollKeyboardNavItemIntoView('history-commits', targetIndex)
     void dispatch(selectHistoryCommit(targetCommit.commitId))
   }
 

@@ -9,6 +9,7 @@ type FileListRowProps = {
   commentCount?: number
   isActive?: boolean
   isSelected?: boolean
+  navIndex?: number
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void
   actions?: ReactNode
   secondaryLabel?: string
@@ -34,6 +35,7 @@ export function FileListRow({
   commentCount = 0,
   isActive = false,
   isSelected = false,
+  navIndex,
   onSelect,
   actions,
   secondaryLabel,
@@ -43,6 +45,7 @@ export function FileListRow({
 
   return (
     <div
+      data-nav-index={navIndex}
       className={`border-input group flex min-w-0 items-center gap-2 overflow-hidden border-b px-2 py-1 text-xs last:border-b-0 ${stateClass}`}
     >
       <button

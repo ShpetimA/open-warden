@@ -11,6 +11,10 @@ import {
 } from '@/features/source-control/actions'
 import type { BucketedFile } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
+import {
+  getWrappedNavigationIndex,
+  scrollKeyboardNavItemIntoView,
+} from '@/lib/keyboard-navigation'
 
 export function useChangesKeyboardNav() {
   const dispatch = useAppDispatch()
@@ -67,17 +71,12 @@ export function useChangesKeyboardNav() {
       (file) => file.bucket === activeBucket && file.path === activePath,
     )
 
-    let targetIndex = 0
-    if (activeIndex < 0) {
-      targetIndex = nextKey ? 0 : visibleChangeRows.length - 1
-    } else if (nextKey) {
-      targetIndex = Math.min(activeIndex + 1, visibleChangeRows.length - 1)
-    } else {
-      targetIndex = Math.max(activeIndex - 1, 0)
-    }
+    const targetIndex = getWrappedNavigationIndex(activeIndex, visibleChangeRows.length, nextKey)
 
     const targetFile = visibleChangeRows[targetIndex]
     if (!targetFile) return
+
+    scrollKeyboardNavItemIntoView('changes-files', targetIndex)
 
     if (extendSelection) {
       void dispatch(

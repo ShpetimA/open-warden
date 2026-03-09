@@ -54,29 +54,6 @@ const STICKY_HEADER_CSS = `
   min-width: 0;
   overflow: hidden;
 }
-
-[data-diffs-header] [data-header-content] {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
-[data-diffs-header] [data-prev-name],
-[data-diffs-header] [data-title] {
-  flex: 1 1 0;
-  min-width: 0;
-  direction: ltr;
-  text-align: left;
-}
-
-[data-diffs-header] [data-metadata] {
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-[data-diff-type='split'][data-overflow='scroll'] {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-}
 `
 
 function areThemeValuesEqual(
@@ -179,6 +156,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     themeType: diffThemeType,
     unsafeCSS: STICKY_HEADER_CSS,
     disableLineNumbers: false,
+    maxLineDiffLength: 5000,
     expandUnchanged,
     expansionLineCount: 20,
     hunkSeparators: 'line-info-basic' as const,

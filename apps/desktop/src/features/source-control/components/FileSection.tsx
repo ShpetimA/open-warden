@@ -10,6 +10,7 @@ type Props = {
   sectionKey: 'staged' | 'unstaged'
   title: string
   rows: BucketedFile[]
+  startIndex: number
   collapsed: boolean
   unstagedCount: number
   untrackedCount: number
@@ -27,6 +28,7 @@ export function FileSection({
   sectionKey,
   title,
   rows,
+  startIndex,
   collapsed,
   unstagedCount,
   untrackedCount,
@@ -107,10 +109,11 @@ export function FileSection({
       {!collapsed ? (
         <div>
           {rows.length > 0 ? (
-            rows.map((file) => (
+            rows.map((file, index) => (
               <FileRow
                 key={`${file.bucket}-${file.path}`}
                 file={file}
+                navIndex={startIndex + index}
                 onSelectFile={onSelectFile}
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}
