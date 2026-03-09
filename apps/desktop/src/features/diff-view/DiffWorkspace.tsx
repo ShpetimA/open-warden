@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from '@pierre/diffs/react'
+import { FileWarning } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { useAppSelector } from '@/app/hooks'
+import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from '@/components/ui/empty'
 import {
   fileComments,
   toLineAnnotations,
@@ -18,7 +28,15 @@ import type {
 import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
 import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
 import { DiffHeaderMetadataControls } from '@/features/diff-view/components/DiffHeaderMetadataControls'
+import {
+  DEFAULT_DARK_THEME,
+  DEFAULT_LIGHT_THEME,
+  getDiffTheme,
+  getDiffThemeCacheSalt,
+  getDiffThemeType,
+} from '@/features/diff-view/diffRenderConfig'
 import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
+import { MAX_DIFF_LINE_LENGTH } from '@/features/diff-view/services/diffRenderLimits'
 import {
   formatRange,
 } from '@/features/source-control/utils'
@@ -32,8 +50,6 @@ type Props = {
   canComment: boolean
 }
 
-const DEFAULT_DARK_THEME = 'github-dark'
-const DEFAULT_LIGHT_THEME = 'github-light'
 const STICKY_HEADER_CSS = `
 :host {
   min-width: 0;
@@ -48,29 +64,6 @@ const STICKY_HEADER_CSS = `
   border-bottom: 1px solid color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-fg));
   min-width: 0;
   overflow: hidden;
-}
-
-[data-diffs-header] [data-header-content] {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-}
-
-[data-diffs-header] [data-prev-name],
-[data-diffs-header] [data-title] {
-  flex: 1 1 0;
-  min-width: 0;
-  direction: ltr;
-  text-align: left;
-}
-
-[data-diffs-header] [data-metadata] {
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-[data-diff-type='split'][data-overflow='scroll'] {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 `
 
@@ -109,23 +102,29 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const workerPool = useWorkerPool()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
-  const diffThemeType = resolvedTheme === 'dark' ? 'dark' : 'light'
+  const diffThemeType = getDiffThemeType(resolvedTheme)
 
   const diffViewportContainerRef = useRef<HTMLDivElement | null>(null)
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
   const [expandUnchanged, setExpandUnchanged] = useState(false)
+  const [forceShowLargeDiff, setForceShowLargeDiff] = useState(false)
 
-  const diffTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME }
+  const diffTheme = getDiffTheme()
   const { annotations: currentAnnotations } =
     useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
-  const diffThemeCacheSalt = `${DEFAULT_DARK_THEME}:${DEFAULT_LIGHT_THEME}:${diffThemeType}`
-  const { currentFileDiff, isParsingDiff } = useParsedDiff({
+  const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType)
+  const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
     activePath,
     oldFile,
     newFile,
     cacheSalt: diffThemeCacheSalt,
+    allowLargeDiff: forceShowLargeDiff,
   })
+
+  useEffect(() => {
+    setForceShowLargeDiff(false)
+  }, [activePath, oldFile?.name, oldFile?.contents.length, newFile?.name, newFile?.contents.length])
 
   useEffect(() => {
     if (!workerPool) return
@@ -174,6 +173,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     themeType: diffThemeType,
     unsafeCSS: STICKY_HEADER_CSS,
     disableLineNumbers: false,
+    maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
     expandUnchanged,
     expansionLineCount: 20,
     hunkSeparators: 'line-info-basic' as const,
@@ -204,6 +204,40 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                   }
                 ] : currentAnnotations
   const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? 'expanded' : 'collapsed'}`
+
+  const renderLargeDiffWarning = () => {
+    return (
+      <Empty className="border-0 rounded-none h-full gap-4">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileWarning />
+          </EmptyMedia>
+          <EmptyTitle>Diff too large</EmptyTitle>
+          <EmptyDescription>
+            The diff is too large to be displayed by default. You can show it anyway, but
+            performance may be negatively impacted.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button onClick={() => setForceShowLargeDiff(true)}>Show diff</Button>
+        </EmptyContent>
+      </Empty>
+    )
+  }
+
+  const renderUnrenderableDiffWarning = () => {
+    return (
+      <Empty className="border-0 rounded-none h-full gap-4">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileWarning />
+          </EmptyMedia>
+          <EmptyTitle>Diff too large</EmptyTitle>
+          <EmptyDescription>The diff is too large to be displayed.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -236,6 +270,10 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
               )}
               options={diffOptions}
             />
+          ) : diffRenderGate === 'unrenderable' ? (
+            renderUnrenderableDiffWarning()
+          ) : diffRenderGate === 'large' && !forceShowLargeDiff ? (
+            renderLargeDiffWarning()
           ) : isParsingDiff ? (
             <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
           ) : (

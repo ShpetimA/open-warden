@@ -1,71 +1,46 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
-import { parseDiffInWorker } from '@/features/diff-view/services/parseDiffInWorker'
+import {
+  getDiffRenderGate,
+  type DiffRenderGate,
+} from '@/features/diff-view/services/diffRenderLimits'
+import {
+  getCachedParsedDiff,
+  getParsedDiffRequest,
+  isParsedDiffInFlight,
+  loadParsedDiff,
+  peekCachedParsedDiff,
+  type ParsedDiff,
+} from '@/features/diff-view/services/parsedDiffCache'
 import type { DiffFile } from '@/features/source-control/types'
 
-type ParsedDiff = Awaited<ReturnType<typeof parseDiffInWorker>>
 type ParsedDiffState = { key: string; diff: ParsedDiff | null }
-type ParseWorkerFile = DiffFile & { cacheKey?: string }
-
-function hashStringFNV1a(value: string): string {
-  let hash = 0x811c9dc5
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
-  }
-
-  return (hash >>> 0).toString(36)
-}
-
-function getFileCacheKey(file: DiffFile): string {
-  const nameHash = hashStringFNV1a(file.name)
-  const contentsHash = hashStringFNV1a(file.contents)
-
-  return `f-${nameHash}-${file.contents.length}-${contentsHash}`
-}
-
-function withCacheKey(file: DiffFile, salt = ''): ParseWorkerFile {
-  const baseCacheKey = getFileCacheKey(file)
-  return {
-    ...file,
-    cacheKey: salt ? `${baseCacheKey}:${salt}` : baseCacheKey,
-  }
-}
-
-function getRequestPayload(
-  activePath: string,
-  oldFile: DiffFile | null,
-  newFile: DiffFile | null,
-  cacheSalt: string,
-): { key: string; oldFile: ParseWorkerFile; newFile: ParseWorkerFile } {
-  const oldTargetFile = oldFile ?? { name: activePath, contents: '' }
-  const newTargetFile = newFile ?? { name: activePath, contents: '' }
-  const oldFileWithCacheKey = withCacheKey(oldTargetFile, cacheSalt)
-  const newFileWithCacheKey = withCacheKey(newTargetFile, cacheSalt)
-
-  return {
-    key: `${oldFileWithCacheKey.cacheKey}:${newFileWithCacheKey.cacheKey}`,
-    oldFile: oldFileWithCacheKey,
-    newFile: newFileWithCacheKey,
-  }
-}
 
 type UseParsedDiffArgs = {
   activePath: string | null
   oldFile: DiffFile | null
   newFile: DiffFile | null
   cacheSalt?: string
+  allowLargeDiff?: boolean
 }
 
-export function useParsedDiff({ activePath, oldFile, newFile, cacheSalt = '' }: UseParsedDiffArgs) {
+export function useParsedDiff({
+  activePath,
+  oldFile,
+  newFile,
+  cacheSalt = '',
+  allowLargeDiff = false,
+}: UseParsedDiffArgs) {
   const parseRequestTokenRef = useRef(0)
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null)
 
+  const diffRenderGate = useMemo<DiffRenderGate | null>(() => {
+    return getDiffRenderGate(activePath, oldFile, newFile)
+  }, [activePath, oldFile, newFile])
+
   const requestPayload = useMemo(() => {
-    if (!activePath || (!oldFile && !newFile)) return null
-    return getRequestPayload(activePath, oldFile, newFile, cacheSalt)
-  }, [activePath, oldFile, newFile, cacheSalt])
+    return getParsedDiffRequest(activePath, oldFile, newFile, cacheSalt, { allowLargeDiff })
+  }, [activePath, oldFile, newFile, cacheSalt, allowLargeDiff])
 
   useEffect(() => {
     const requestToken = parseRequestTokenRef.current + 1
@@ -75,36 +50,29 @@ export function useParsedDiff({ activePath, oldFile, newFile, cacheSalt = '' }: 
       return
     }
 
-    if (parsedState?.key === requestPayload.key) {
+    const cachedDiff = getCachedParsedDiff(requestPayload.key)
+    if (cachedDiff !== undefined) {
       return
     }
 
-    const controller = new AbortController()
-
-    void parseDiffInWorker(requestPayload.oldFile, requestPayload.newFile, controller.signal)
-      .then((parsedDiff) => {
-        if (parseRequestTokenRef.current !== requestToken) return
-        setParsedState({ key: requestPayload.key, diff: parsedDiff })
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return
-        }
-
-        if (parseRequestTokenRef.current !== requestToken) return
-
-        setParsedState({ key: requestPayload.key, diff: null })
-      })
-
-    return () => {
-      controller.abort()
-    }
-  }, [parsedState?.key, requestPayload])
+    void loadParsedDiff(requestPayload, 'high').then((parsedDiff) => {
+      if (parseRequestTokenRef.current !== requestToken) return
+      setParsedState({ key: requestPayload.key, diff: parsedDiff })
+    })
+  }, [requestPayload])
 
   const requestKey = requestPayload?.key ?? null
+  const cachedDiff = requestKey ? peekCachedParsedDiff(requestKey) : undefined
   const currentFileDiff =
-    requestKey && parsedState?.key === requestKey ? (parsedState.diff ?? null) : null
-  const isParsingDiff = requestKey !== null && parsedState?.key !== requestKey
+    cachedDiff !== undefined
+      ? cachedDiff
+      : requestKey && parsedState?.key === requestKey
+        ? (parsedState.diff ?? null)
+        : null
+  const isParsingDiff =
+    requestKey !== null &&
+    cachedDiff === undefined &&
+    (isParsedDiffInFlight(requestKey) || parsedState?.key !== requestKey)
 
-  return { currentFileDiff, isParsingDiff }
+  return { currentFileDiff, diffRenderGate, isParsingDiff }
 }

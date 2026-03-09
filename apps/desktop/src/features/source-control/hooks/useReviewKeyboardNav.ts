@@ -7,8 +7,13 @@ import { gitApi } from '@/features/source-control/api'
 import { setReviewActivePath } from '@/features/source-control/sourceControlSlice'
 import type { FileItem } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
+import { getWrappedNavigationIndex } from '@/lib/keyboard-navigation'
 
-export function useReviewKeyboardNav() {
+type ReviewKeyboardNavOptions = {
+  scrollToIndex?: (targetIndex: number) => void
+}
+
+export function useReviewKeyboardNav(options: ReviewKeyboardNavOptions = {}) {
   const dispatch = useAppDispatch()
   const store = useStore<RootState>()
 
@@ -42,17 +47,11 @@ export function useReviewKeyboardNav() {
 
     const activeIndex = allReviewFiles.findIndex((file) => file.path === reviewActivePath)
 
-    let targetIndex = 0
-    if (activeIndex < 0) {
-      targetIndex = nextKey ? 0 : allReviewFiles.length - 1
-    } else if (nextKey) {
-      targetIndex = Math.min(activeIndex + 1, allReviewFiles.length - 1)
-    } else {
-      targetIndex = Math.max(activeIndex - 1, 0)
-    }
+    const targetIndex = getWrappedNavigationIndex(activeIndex, allReviewFiles.length, nextKey)
 
     const targetFile = allReviewFiles[targetIndex]
     if (!targetFile) return
+    options.scrollToIndex?.(targetIndex)
     dispatch(setReviewActivePath(targetFile.path))
   }
 

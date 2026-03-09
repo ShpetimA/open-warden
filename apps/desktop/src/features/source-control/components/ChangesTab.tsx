@@ -112,7 +112,10 @@ function ChangesFileList() {
   }
 
   return (
-    <ScrollArea className="bg-surface-toolbar min-h-0 h-full flex-1 overflow-hidden">
+    <ScrollArea
+      data-nav-region="changes-files"
+      className="bg-surface-toolbar min-h-0 h-full flex-1 overflow-hidden"
+    >
       <div>
         {loadingSnapshot ? (
           <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
@@ -121,6 +124,7 @@ function ChangesFileList() {
           sectionKey="staged"
           title="STAGED CHANGES"
           rows={stagedRows}
+          startIndex={0}
           collapsed={collapseStaged}
           unstagedCount={unstagedFiles.length}
           untrackedCount={untrackedFiles.length}
@@ -137,6 +141,7 @@ function ChangesFileList() {
           sectionKey="unstaged"
           title="CHANGES"
           rows={changedFiles}
+          startIndex={collapseStaged ? 0 : stagedRows.length}
           collapsed={collapseUnstaged}
           unstagedCount={unstagedFiles.length}
           untrackedCount={untrackedFiles.length}

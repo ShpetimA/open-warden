@@ -51,7 +51,7 @@ export function HistoryFilesPane() {
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1 overflow-hidden">
+      <ScrollArea data-nav-region="history-files" className="min-h-0 flex-1 overflow-hidden">
         {loadingHistoryFiles ? (
           <div className="border-input bg-surface m-2 border px-2 py-2 text-[11px] text-muted-foreground">
             Loading files...
@@ -62,10 +62,11 @@ export function HistoryFilesPane() {
           </div>
         ) : (
           <div>
-            {files.map((file) => (
+            {files.map((file, index) => (
               <HistoryFileRow
                 key={`${file.path}:${file.status}`}
                 file={file}
+                navIndex={index}
                 commentCounts={commentCounts}
               />
             ))}
@@ -78,10 +79,11 @@ export function HistoryFilesPane() {
 
 type HistoryFileRowProps = {
   file: FileItem
+  navIndex: number
   commentCounts: Map<string, number>
 }
 
-function HistoryFileRow({ file, commentCounts }: HistoryFileRowProps) {
+function HistoryFileRow({ file, navIndex, commentCounts }: HistoryFileRowProps) {
   const dispatch = useAppDispatch()
   const commentCount = commentCounts.get(file.path) ?? 0
   const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path)
@@ -92,6 +94,7 @@ function HistoryFileRow({ file, commentCounts }: HistoryFileRowProps) {
       status={file.status}
       commentCount={commentCount}
       isActive={isActive}
+      navIndex={navIndex}
       onSelect={() => {
         dispatch(setHistoryNavTarget('files'))
         void dispatch(selectHistoryFile(file.path))

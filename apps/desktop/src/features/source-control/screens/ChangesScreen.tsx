@@ -4,8 +4,12 @@ import { useAppSelector } from '@/app/hooks'
 import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
 import { useGetFileVersionsQuery } from '@/features/source-control/api'
 import { useChangesKeyboardNav } from '@/features/source-control/hooks/useChangesKeyboardNav'
+import { usePrefetchChangesDiffs } from '@/features/source-control/hooks/usePrefetchNearbyDiffs'
 import { useChangesSync } from '@/features/source-control/hooks/useChangesSync'
+import { useThrottledDiffSelection } from '@/features/source-control/hooks/useThrottledDiffSelection'
 import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
+import { useGetGitSnapshotQuery } from '@/features/source-control/api'
+import type { BucketedFile } from '@/features/source-control/types'
 
 export function ChangesScreen() {
   useChangesKeyboardNav()
@@ -14,9 +18,34 @@ export function ChangesScreen() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket)
   const activePath = useAppSelector((state) => state.sourceControl.activePath)
+  const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged)
+  const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
+  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
+
+  const visibleRows: BucketedFile[] = [
+    ...(collapseStaged ? [] : (snapshot?.staged ?? []).map((file) => ({ ...file, bucket: 'staged' as const }))),
+    ...(collapseUnstaged
+      ? []
+      : [
+          ...(snapshot?.unstaged ?? []).map((file) => ({ ...file, bucket: 'unstaged' as const })),
+          ...(snapshot?.untracked ?? []).map((file) => ({ ...file, bucket: 'untracked' as const })),
+        ]),
+  ]
+
+  usePrefetchChangesDiffs(visibleRows, activeRepo, activeBucket, activePath)
+
+  const previewSelection = useThrottledDiffSelection(
+    activePath
+      ? {
+          bucket: activeBucket,
+          path: activePath,
+        }
+      : null,
+  )
+
   const workingFileVersions = useGetFileVersionsQuery(
-    activeRepo && activePath
-      ? { repoPath: activeRepo, bucket: activeBucket, relPath: activePath }
+    activeRepo && previewSelection
+      ? { repoPath: activeRepo, bucket: previewSelection.bucket, relPath: previewSelection.path }
       : skipToken,
     {
       refetchOnFocus: true,
@@ -28,6 +57,7 @@ export function ChangesScreen() {
   const oldFile = fileVersions?.oldFile ?? null
   const newFile = fileVersions?.newFile ?? null
   const errorMessage = errorMessageFrom(workingFileVersions.error, '')
+  const previewPath = previewSelection?.path ?? ''
 
   return (
     <div className="grid h-full min-h-0" style={{ gridTemplateColumns: '1fr' }}>
@@ -45,7 +75,7 @@ export function ChangesScreen() {
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}
-              activePath={activePath}
+              activePath={previewPath}
               commentContext={{ kind: 'changes' }}
               canComment
             />

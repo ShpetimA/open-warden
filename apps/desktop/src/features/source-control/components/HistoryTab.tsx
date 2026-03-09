@@ -33,7 +33,7 @@ export function HistoryTab() {
     : allHistoryCommits
 
   return (
-    <ScrollArea className="min-h-0 flex-1 overflow-hidden">
+    <ScrollArea data-nav-region="history-commits" className="min-h-0 flex-1 overflow-hidden">
       <div className="flex w-full min-w-0 flex-col gap-2 p-2">
         <div className="border-input bg-surface-alt/50 rounded-md border p-2">
           <Input
@@ -62,10 +62,11 @@ export function HistoryTab() {
           </div>
         ) : (
           <div className="space-y-1.5 pb-2">
-            {filteredHistoryCommits.map((commit) => (
+            {filteredHistoryCommits.map((commit, index) => (
               <HistoryCommitRow
                 key={commit.commitId}
                 commit={commit}
+                navIndex={index}
                 onSelect={(commitId) => {
                   void dispatch(selectHistoryCommit(commitId))
                 }}
@@ -80,10 +81,11 @@ export function HistoryTab() {
 
 type HistoryCommitRowProps = {
   commit: HistoryCommit
+  navIndex: number
   onSelect: (commitId: string) => void
 }
 
-function HistoryCommitRow({ commit, onSelect }: HistoryCommitRowProps) {
+function HistoryCommitRow({ commit, navIndex, onSelect }: HistoryCommitRowProps) {
   const isActive = useAppSelector(
     (state) => state.sourceControl.historyCommitId === commit.commitId,
   )
@@ -94,7 +96,8 @@ function HistoryCommitRow({ commit, onSelect }: HistoryCommitRowProps) {
   return (
     <button
       type="button"
-      className={`block w-full min-w-0 overflow-hidden rounded-md border px-2.5 py-2 text-left transition-colors ${stateClass}`}
+      data-nav-index={navIndex}
+      className={`block w-full min-w-0 overflow-hidden rounded-md border px-2.5 py-2 text-left ${stateClass}`}
       onClick={() => onSelect(commit.commitId)}
       title={commit.summary || commit.commitId}
     >

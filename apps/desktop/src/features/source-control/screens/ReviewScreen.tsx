@@ -20,7 +20,9 @@ import {
   useGetBranchFileVersionsQuery,
   useGetGitSnapshotQuery,
 } from '@/features/source-control/api'
+import { usePrefetchReviewDiffs } from '@/features/source-control/hooks/usePrefetchNearbyDiffs'
 import { useReviewKeyboardNav } from '@/features/source-control/hooks/useReviewKeyboardNav'
+import { useThrottledDiffSelection } from '@/features/source-control/hooks/useThrottledDiffSelection'
 import {
   clearReviewSelection,
   setReviewActivePath,
@@ -151,10 +153,16 @@ function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef 
     overscan: REVIEW_FILE_LIST_OVERSCAN,
   })
 
+  useReviewKeyboardNav({
+    scrollToIndex: (targetIndex) => {
+      rowVirtualizer.scrollToIndex(targetIndex, { align: 'auto' })
+    },
+  })
+
   const virtualRows = rowVirtualizer.getVirtualItems()
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-auto">
+    <div ref={scrollContainerRef} data-nav-region="review-files" className="h-full overflow-auto">
       <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
         {virtualRows.map((virtualRow) => {
           const file = branchFiles[virtualRow.index]
@@ -167,7 +175,7 @@ function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef 
               className="absolute inset-x-0 top-0"
               style={{ transform: `translateY(${virtualRow.start}px)` }}
             >
-              <ReviewFileRow file={file} commentCount={commentCount} />
+              <ReviewFileRow file={file} commentCount={commentCount} navIndex={virtualRow.index} />
             </div>
           )
         })}
@@ -179,9 +187,10 @@ function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef 
 type ReviewFileRowProps = {
   file: FileItem
   commentCount: number
+  navIndex: number
 }
 
-function ReviewFileRow({ file, commentCount }: ReviewFileRowProps) {
+function ReviewFileRow({ file, commentCount, navIndex }: ReviewFileRowProps) {
   const dispatch = useAppDispatch()
   const isActive = useAppSelector((state) => state.sourceControl.reviewActivePath === file.path)
 
@@ -191,6 +200,7 @@ function ReviewFileRow({ file, commentCount }: ReviewFileRowProps) {
       status={file.status}
       commentCount={commentCount}
       isActive={isActive}
+      navIndex={navIndex}
       onSelect={() => {
         dispatch(setReviewActivePath(file.path))
       }}
@@ -214,15 +224,24 @@ function ReviewDiffPane({
   branchFiles,
 }: ReviewDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath)
+  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath)
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath)
+  const previewSelection = useThrottledDiffSelection(
+    reviewActivePath
+      ? {
+          path: reviewActivePath,
+          previousPath: selectedReviewFile?.previousPath ?? undefined,
+        }
+      : null,
+  )
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
-    readyForDiff && reviewActivePath
+    readyForDiff && previewSelection
       ? {
           repoPath: activeRepo,
           baseRef: reviewBaseRef,
           headRef: reviewHeadRef,
-          relPath: reviewActivePath,
-          previousPath: selectedReviewFile?.previousPath ?? undefined,
+          relPath: previewSelection.path,
+          previousPath: previewSelection.previousPath,
         }
       : skipToken,
   )
@@ -233,6 +252,7 @@ function ReviewDiffPane({
   const loadingPatch = branchFileVersionsQuery.isFetching
   const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, '')
   const context = { kind: 'review' as const, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+  const previewPath = previewSelection?.path ?? ''
 
   return (
     <section className="flex h-full min-h-0 flex-col">
@@ -249,7 +269,7 @@ function ReviewDiffPane({
           <DiffWorkspace
             oldFile={oldFile}
             newFile={newFile}
-            activePath={reviewActivePath}
+            activePath={previewPath}
             commentContext={context}
             canComment
           />
@@ -260,8 +280,6 @@ function ReviewDiffPane({
 }
 
 export function ReviewScreen() {
-  useReviewKeyboardNav()
-
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef)

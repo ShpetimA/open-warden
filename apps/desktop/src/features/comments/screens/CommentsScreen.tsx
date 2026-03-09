@@ -49,28 +49,26 @@ import { selectFile } from '@/features/source-control/actions'
 import { setReviewActivePath, setReviewBaseRef, setReviewHeadRef } from '@/features/source-control/sourceControlSlice'
 import type { CommentItem } from '@/features/source-control/types'
 import { formatRange, isTypingTarget, repoLabel } from '@/features/source-control/utils'
+import {
+  getWrappedNavigationIndex,
+  scrollKeyboardNavItemIntoView,
+} from '@/lib/keyboard-navigation'
 
 function nextFocusedCommentId(
   comments: CommentItem[],
   focusedCommentId: string | null,
   goForward: boolean,
-): string | null {
-  if (comments.length === 0) return null
+): { id: string | null; index: number } {
+  if (comments.length === 0) return { id: null, index: -1 }
 
   if (!focusedCommentId) {
-    return goForward ? comments[0].id : comments[comments.length - 1].id
+    const targetIndex = goForward ? 0 : comments.length - 1
+    return { id: comments[targetIndex]?.id ?? null, index: targetIndex }
   }
 
   const activeIndex = comments.findIndex((comment) => comment.id === focusedCommentId)
-  if (activeIndex < 0) {
-    return goForward ? comments[0].id : comments[comments.length - 1].id
-  }
-
-  if (goForward) {
-    return comments[Math.min(activeIndex + 1, comments.length - 1)]?.id ?? null
-  }
-
-  return comments[Math.max(activeIndex - 1, 0)]?.id ?? null
+  const targetIndex = getWrappedNavigationIndex(activeIndex, comments.length, goForward)
+  return { id: comments[targetIndex]?.id ?? null, index: targetIndex }
 }
 
 async function confirmDeleteComments(count: number, scopeLabel: string): Promise<boolean> {
@@ -280,6 +278,7 @@ function FileFilterButton({ pathLabel, count, isActive, onClick }: FileFilterBut
 
 type CommentGroupListProps = {
   groups: CommentFileGroup[]
+  commentIndexById: Map<string, number>
   selectedIdSet: Set<string>
   focusedCommentId: string | null
   onToggleSelected: (commentId: string) => void
@@ -291,6 +290,7 @@ type CommentGroupListProps = {
 
 function CommentGroupList({
   groups,
+  commentIndexById,
   selectedIdSet,
   focusedCommentId,
   onToggleSelected,
@@ -300,12 +300,13 @@ function CommentGroupList({
   onDeleteComment,
 }: CommentGroupListProps) {
   return (
-    <ScrollArea className="h-full">
+    <ScrollArea data-nav-region="comments-list" className="h-full">
       <div className="space-y-3 p-3">
         {groups.map((group) => (
           <CommentFileSection
             key={group.path}
             group={group}
+            commentIndexById={commentIndexById}
             selectedIdSet={selectedIdSet}
             focusedCommentId={focusedCommentId}
             onToggleSelected={onToggleSelected}
@@ -322,6 +323,7 @@ function CommentGroupList({
 
 type CommentFileSectionProps = {
   group: CommentFileGroup
+  commentIndexById: Map<string, number>
   selectedIdSet: Set<string>
   focusedCommentId: string | null
   onToggleSelected: (commentId: string) => void
@@ -333,6 +335,7 @@ type CommentFileSectionProps = {
 
 function CommentFileSection({
   group,
+  commentIndexById,
   selectedIdSet,
   focusedCommentId,
   onToggleSelected,
@@ -370,6 +373,7 @@ function CommentFileSection({
           <CommentListRow
             key={comment.id}
             comment={comment}
+            navIndex={commentIndexById.get(comment.id) ?? -1}
             isSelected={selectedIdSet.has(comment.id)}
             isFocused={focusedCommentId === comment.id}
               onToggleSelected={onToggleSelected}
@@ -392,6 +396,7 @@ function commentRowClassName(isFocused: boolean, isSelected: boolean): string {
 
 type CommentListRowProps = {
   comment: CommentItem
+  navIndex: number
   isSelected: boolean
   isFocused: boolean
   onToggleSelected: (commentId: string) => void
@@ -403,6 +408,7 @@ type CommentListRowProps = {
 
 function CommentListRow({
   comment,
+  navIndex,
   isSelected,
   isFocused,
   onToggleSelected,
@@ -413,6 +419,7 @@ function CommentListRow({
 }: CommentListRowProps) {
   return (
     <div
+      data-nav-index={navIndex}
       className={`group px-3 py-2 text-xs ${commentRowClassName(isFocused, isSelected)}`}
       onClick={() => onFocusComment(comment.id)}
     >
@@ -549,6 +556,7 @@ export function CommentsScreen() {
 
   const visibleComments = filterCommentsByFile(searchedComments, effectiveSelectedFilePath)
   const groupedComments = groupCommentsByFile(visibleComments)
+  const commentIndexById = new Map(visibleComments.map((comment, index) => [comment.id, index]))
 
   const visibleIdSet = new Set(visibleComments.map((comment) => comment.id))
   const visibleSelectedIds = selectedIds.filter((id) => visibleIdSet.has(id))
@@ -708,9 +716,10 @@ export function CommentsScreen() {
     if (isTypingTarget(event.target)) return
 
     event.preventDefault()
-    const nextId = nextFocusedCommentId(visibleComments, effectiveFocusedCommentId, goForward)
-    if (!nextId) return
-    setFocusedCommentId(nextId)
+    const nextFocus = nextFocusedCommentId(visibleComments, effectiveFocusedCommentId, goForward)
+    if (!nextFocus.id) return
+    scrollKeyboardNavItemIntoView('comments-list', nextFocus.index)
+    setFocusedCommentId(nextFocus.id)
   }
 
   useHotkey('/', (event) => focusSearchInput(event), {
@@ -931,6 +940,7 @@ export function CommentsScreen() {
             ) : (
               <CommentGroupList
                 groups={groupedComments}
+                commentIndexById={commentIndexById}
                 selectedIdSet={selectedIdSet}
                 focusedCommentId={effectiveFocusedCommentId}
                 onToggleSelected={onToggleSelected}
