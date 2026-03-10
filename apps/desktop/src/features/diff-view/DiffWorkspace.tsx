@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from '@pierre/diffs/react'
 import { FileWarning } from 'lucide-react'
 import { useTheme } from 'next-themes'
