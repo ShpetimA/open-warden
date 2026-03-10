@@ -1,7 +1,5 @@
 # OpenWarden
 
-![OpenWarden screenshot](./OpenWarden.png)
-
 OpenWarden is a desktop Git review app for moving through local changes, commit history, branch comparisons, and review comments without leaving your workflow.
 
 ## What it does
@@ -17,13 +15,29 @@ Tauri, React, TypeScript, Redux Toolkit, and Rust.
 
 ## Run locally
 
+Prerequisites: Node.js, `pnpm`, and Rust (for Tauri).
+
 ```bash
 pnpm install
 pnpm dev
 ```
 
-## Ship desktop builds
+To run the full desktop app shell (Tauri) locally:
 
-- Create and push a version tag with `git tag v0.1.0 && git push origin v0.1.0`.
-- Watch the release build with `gh run watch --exit-status` and open the published release with `gh release view v0.1.0 --web`.
-- The workflow triggers from tags matching `v*`, builds desktop bundles for macOS, Windows, and Linux, and uploads them to the matching GitHub release.
+```bash
+pnpm --filter desktop tauri dev
+```
+
+## Install on macOS
+
+1. Go to this repo's **Releases** page.
+2. Download the latest `OpenWarden.dmg` from the release assets.
+3. Open the `.dmg` and move `OpenWarden.app` into your `Applications` folder.
+
+If macOS blocks the app and says it is damaged or cannot be opened, remove the quarantine attribute (the app is currently not Apple-signed):
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/OpenWarden.app"
+```
+
+Then try launching `OpenWarden.app` again.
