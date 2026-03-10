@@ -84,7 +84,7 @@ export function CommentComposer({
 
   return (
     <div
-      className="border-input bg-surface-elevated border p-2 shadow-xl"
+      className="border-input bg-surface-elevated border p-2 shadow-xl max-w-lg"
     >
       <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
       <Textarea
@@ -93,7 +93,7 @@ export function CommentComposer({
         onChange={(event) => setDraftComment(event.target.value)}
         placeholder="Type comment"
         rows={1}
-        className="border-input bg-input min-h-7 resize-none overflow-hidden px-2 py-1.5 text-xs"
+        className="border-input rounded-sm bg-input resize-none min-h-7 overflow-hidden px-2 py-1.5 text-xs"
       />
       <div className="mt-2 flex items-center gap-1">
         <Button
