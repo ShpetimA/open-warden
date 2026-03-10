@@ -60,9 +60,9 @@ export function ChangesScreen() {
   const previewPath = previewSelection?.path ?? ''
 
   return (
-    <div className="grid h-full min-h-0" style={{ gridTemplateColumns: '1fr' }}>
-      <section className="flex h-full min-h-0 flex-col">
-        <div className="min-h-0 flex-1">
+    <div className="grid h-full min-h-0 min-w-0">
+      <section className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="min-h-0 min-w-0 flex-1">
           {errorMessage ? (
             <div className="text-destructive p-3 text-sm">{errorMessage}</div>
           ) : loadingPatch ? (

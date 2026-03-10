@@ -65,6 +65,11 @@ const STICKY_HEADER_CSS = `
   min-width: 0;
   overflow: hidden;
 }
+
+pre[data-diff-type='single'] {
+  overflow: hidden;
+  min-width: 0;
+}
 `
 
 function areThemeValuesEqual(
@@ -241,46 +246,41 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <div
+      <Virtualizer
         key={diffViewportKey}
-        ref={diffViewportContainerRef}
-        className="relative min-h-0 min-w-0 flex-1"
+        className="h-full min-w-0 overflow-y-auto overflow-x-hidden"
+        contentClassName="relative min-h-full min-w-0"
       >
-        <Virtualizer
-          className="h-full min-w-0 overflow-auto"
-          contentClassName="relative min-h-full min-w-0"
-        >
-          {currentFileDiff ? (
-            <PierreFileDiff
-              className="block min-w-0 max-w-full"
-              fileDiff={currentFileDiff}
-              selectedLines={selectedRange}
-              lineAnnotations={annotationsWithComposer}
-              renderAnnotation={renderCommentAnnotation}
-              renderHeaderMetadata={() => (
-                <DiffHeaderMetadataControls
-                  activePath={activePath}
-                  canComment={canComment}
-                  commentContext={commentContext}
-                  expandUnchanged={expandUnchanged}
-                  onToggleExpandUnchanged={() => {
-                    setExpandUnchanged((current) => !current)
-                  }}
-                />
-              )}
-              options={diffOptions}
-            />
-          ) : diffRenderGate === 'unrenderable' ? (
-            renderUnrenderableDiffWarning()
-          ) : diffRenderGate === 'large' && !forceShowLargeDiff ? (
-            renderLargeDiffWarning()
-          ) : isParsingDiff ? (
-            <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
-          ) : (
-            <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
-          )}
-        </Virtualizer>
-      </div>
+        {currentFileDiff ? (
+          <PierreFileDiff
+            className="block min-w-0 max-w-full"
+            fileDiff={currentFileDiff}
+            selectedLines={selectedRange}
+            lineAnnotations={annotationsWithComposer}
+            renderAnnotation={renderCommentAnnotation}
+            renderHeaderMetadata={() => (
+              <DiffHeaderMetadataControls
+                activePath={activePath}
+                canComment={canComment}
+                commentContext={commentContext}
+                expandUnchanged={expandUnchanged}
+                onToggleExpandUnchanged={() => {
+                  setExpandUnchanged((current) => !current)
+                }}
+              />
+            )}
+            options={diffOptions}
+          />
+        ) : diffRenderGate === 'unrenderable' ? (
+          renderUnrenderableDiffWarning()
+        ) : diffRenderGate === 'large' && !forceShowLargeDiff ? (
+          renderLargeDiffWarning()
+        ) : isParsingDiff ? (
+          <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
+        ) : (
+          <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
+        )}
+      </Virtualizer>
     </div>
   )
 }
