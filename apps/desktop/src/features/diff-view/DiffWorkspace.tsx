@@ -18,6 +18,7 @@ import {
   toLineAnnotations,
 } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
+import { useFirstCommentTip } from '@/features/comments/useFirstCommentTip'
 import type {
   CommentContext,
   CommentItem,
@@ -109,8 +110,6 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const diffThemeType = getDiffThemeType(resolvedTheme)
 
-  const diffViewportContainerRef = useRef<HTMLDivElement | null>(null)
-
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
   const [expandUnchanged, setExpandUnchanged] = useState(false)
   const [forceShowLargeDiff, setForceShowLargeDiff] = useState(false)
@@ -118,6 +117,12 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const diffTheme = getDiffTheme()
   const { annotations: currentAnnotations } =
     useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
+  const contextCommentCount = useAppSelector((state) => {
+    if (!canComment || !activeRepo) return 0
+    return state.comments.filter((c) => c.repoPath === activeRepo).length
+  })
+  const { showTip: showCopyTip, dismissTip: dismissCopyTip } =
+    useFirstCommentTip(contextCommentCount)
   const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType)
   const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
     activePath,
@@ -264,6 +269,8 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                 canComment={canComment}
                 commentContext={commentContext}
                 expandUnchanged={expandUnchanged}
+                showCopyTip={showCopyTip}
+                onDismissCopyTip={dismissCopyTip}
                 onToggleExpandUnchanged={() => {
                   setExpandUnchanged((current) => !current)
                 }}

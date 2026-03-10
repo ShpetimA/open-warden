@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { useAppDispatch, useAppSelector } from '@/app/hooks'
 import { Button } from '@/components/ui/button'
+import { Kbd, KbdGroup } from '@/components/ui/kbd'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { copyComments, fileComments } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
@@ -17,6 +18,8 @@ type Props = {
   commentContext: CommentContext
   expandUnchanged: boolean
   onToggleExpandUnchanged: () => void
+  showCopyTip?: boolean
+  onDismissCopyTip?: () => void
 }
 
 function inContext(comment: CommentItem, context: CommentContext): boolean {
@@ -34,6 +37,8 @@ export function DiffHeaderMetadataControls({
   commentContext,
   expandUnchanged,
   onToggleExpandUnchanged,
+  showCopyTip,
+  onDismissCopyTip,
 }: Props) {
   const dispatch = useAppDispatch()
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
@@ -156,12 +161,18 @@ export function DiffHeaderMetadataControls({
               <TooltipContent side="bottom">Copy file comments</TooltipContent>
             </Tooltip>
 
-            <Tooltip>
+            <Tooltip
+              open={showCopyTip ? true : undefined}
+              onOpenChange={(open) => {
+                if (showCopyTip && !open) onDismissCopyTip?.()
+              }}
+            >
               <TooltipTrigger asChild>
                 <Button
                   size="icon-xs"
                   variant="ghost"
                   onClick={() => {
+                    if (showCopyTip) onDismissCopyTip?.()
                     void onCopyAllComments()
                   }}
                   disabled={currentContextComments.length === 0}
@@ -170,7 +181,24 @@ export function DiffHeaderMetadataControls({
                   <Files />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">Copy all comments</TooltipContent>
+              <TooltipContent
+                side="bottom"
+                onClick={() => onDismissCopyTip?.()}
+              >
+                {showCopyTip ? (
+                  <span className="flex items-center gap-1.5">
+                    Press
+                    <KbdGroup>
+                      <Kbd>⌘</Kbd>
+                      <Kbd>⌥</Kbd>
+                      <Kbd>C</Kbd>
+                    </KbdGroup>
+                    to copy all comments
+                  </span>
+                ) : (
+                  'Copy all comments'
+                )}
+              </TooltipContent>
             </Tooltip>
           </>
         ) : null}
