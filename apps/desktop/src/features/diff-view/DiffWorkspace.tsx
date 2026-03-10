@@ -73,6 +73,20 @@ pre[data-diff-type='single'] {
 }
 `
 
+function getDiffIdentity(
+  activePath: string,
+  oldFile: DiffFile | null,
+  newFile: DiffFile | null,
+): string {
+  return [
+    activePath,
+    oldFile?.name ?? '',
+    oldFile?.contents.length ?? 0,
+    newFile?.name ?? '',
+    newFile?.contents.length ?? 0,
+  ].join(':')
+}
+
 function areThemeValuesEqual(
   currentTheme: string | { dark: string; light: string } | undefined,
   nextTheme: { dark: string; light: string },
@@ -109,20 +123,25 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
   const diffThemeType = getDiffThemeType(resolvedTheme)
+  const activeDiffIdentity = getDiffIdentity(activePath, oldFile, newFile)
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
   const [expandUnchanged, setExpandUnchanged] = useState(false)
-  const [forceShowLargeDiff, setForceShowLargeDiff] = useState(false)
+  const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null)
+  const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity
 
   const diffTheme = getDiffTheme()
   const { annotations: currentAnnotations } =
     useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
-  const contextCommentCount = useAppSelector((state) => {
+  const repoCommentCount = useAppSelector((state) => {
     if (!canComment || !activeRepo) return 0
     return state.comments.filter((c) => c.repoPath === activeRepo).length
   })
-  const { showTip: showCopyTip, dismissTip: dismissCopyTip } =
-    useFirstCommentTip(contextCommentCount)
+  const {
+    showTip: showCopyTip,
+    dismissTip: dismissCopyTip,
+    showFirstCommentTip,
+  } = useFirstCommentTip()
   const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType)
   const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
     activePath,
@@ -131,10 +150,6 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     cacheSalt: diffThemeCacheSalt,
     allowLargeDiff: forceShowLargeDiff,
   })
-
-  useEffect(() => {
-    setForceShowLargeDiff(false)
-  }, [activePath, oldFile?.name, oldFile?.contents.length, newFile?.name, newFile?.contents.length])
 
   useEffect(() => {
     if (!workerPool) return
@@ -170,6 +185,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           selectedRange={selectedRange}
           commentContext={commentContext}
           onClose={onCloseCommentComposer}
+          onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
         />
       )
     }
@@ -229,7 +245,9 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
-          <Button onClick={() => setForceShowLargeDiff(true)}>Show diff</Button>
+          <Button onClick={() => setForceShowLargeDiffIdentity(activeDiffIdentity)}>
+            Show diff
+          </Button>
         </EmptyContent>
       </Empty>
     )

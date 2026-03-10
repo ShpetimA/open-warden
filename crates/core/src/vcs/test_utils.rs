@@ -181,6 +181,12 @@ impl RepoGuard {
     }
 }
 
+impl Default for RepoGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for RepoGuard {
     fn drop(&mut self) {
         let _ = env::set_current_dir(&self.original);

@@ -9,6 +9,9 @@ OpenWarden is a desktop Git review app for moving through local changes, commit 
 - Compare branches side by side for lightweight local review.
 - Leave comments tied to files and ranges, then copy them and send them to an agent.
 
+## Demo video
+https://www.youtube.com/watch?v=rVR5dRlyFKc
+
 ## Built with
 
 Tauri, React, TypeScript, Redux Toolkit, and Rust.

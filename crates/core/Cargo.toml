@@ -9,7 +9,7 @@ path = "src/lib.rs"
 
 [features]
 default = []
-jj = ["jj-lib", "chrono", "pollster", "futures"]
+jj = ["jj-lib", "chrono", "pollster", "futures", "tokio"]
 
 [dependencies]
 # VCS
@@ -20,6 +20,7 @@ jj-lib = { version = "0.37.0", features = ["git"], optional = true }
 chrono = { version = "0.4", optional = true }
 pollster = { version = "0.4", optional = true }
 futures = { version = "0.3", optional = true }
+tokio = { version = "1", features = ["io-util"], optional = true }
 
 thiserror = "1.0"
 

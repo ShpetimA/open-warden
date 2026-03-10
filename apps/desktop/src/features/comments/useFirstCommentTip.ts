@@ -1,48 +1,50 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'open-warden.seen-copy-comments-tip'
 
-function hasSeenTip(): boolean {
+function getLocalStorage(): Storage | null {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === '1'
+    return window.localStorage
   } catch {
-    return false
+    return null
   }
+}
+
+function hasSeenTip(): boolean {
+  const storage = getLocalStorage()
+  return storage?.getItem(STORAGE_KEY) === '1'
 }
 
 function markTipSeen(): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, '1')
-  } catch {
-  }
+  const storage = getLocalStorage()
+  if (!storage) return
+  storage.setItem(STORAGE_KEY, '1')
 }
 
-export function useFirstCommentTip(commentCount: number) {
+export function useFirstCommentTip() {
   const [showTip, setShowTip] = useState(false)
-  const prevCountRef = useRef(commentCount)
-
-  useEffect(() => {
-    const prev = prevCountRef.current
-    prevCountRef.current = commentCount
-
-    if (prev === 0 && commentCount > 0 && !hasSeenTip()) {
-      setShowTip(true)
-    }
-  }, [commentCount])
 
   useEffect(() => {
     if (!showTip) return
+
     const timer = setTimeout(() => {
       setShowTip(false)
       markTipSeen()
     }, 5000)
+
     return () => clearTimeout(timer)
   }, [showTip])
 
+  const showFirstCommentTip = () => {
+    if (hasSeenTip()) return
+    setShowTip(true)
+  }
+
   const dismissTip = () => {
+    if (!showTip) return
     setShowTip(false)
     markTipSeen()
   }
 
-  return { showTip, dismissTip }
+  return { showTip, dismissTip, showFirstCommentTip }
 }

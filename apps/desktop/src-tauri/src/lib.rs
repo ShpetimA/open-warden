@@ -224,7 +224,7 @@ fn check_app_exists(app_name: String) -> CmdResult<bool> {
 
     #[cfg(target_os = "macos")]
     {
-        return Ok(check_macos_app(&app_name));
+        Ok(check_macos_app(&app_name))
     }
 
     #[cfg(target_os = "linux")]

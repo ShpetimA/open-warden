@@ -1,7 +1,7 @@
 //! Jujutsu (jj) backend implementation using jj-lib.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use chrono::Local;
@@ -31,6 +31,7 @@ use jj_lib::time_util::DatePatternContext;
 use jj_lib::tree_merge::MergeOptions;
 use jj_lib::workspace::{default_working_copy_factories, Workspace};
 use pollster::FutureExt;
+use tokio::io::AsyncReadExt;
 
 use super::backend::{CommitInfo, Result, StackedCommitInfo, VcsBackend, VcsError};
 
@@ -295,7 +296,7 @@ impl JjBackend {
                         .block_on()
                         .map_err(|e| VcsError::Other(format!("failed to read file: {}", e)))?;
 
-                    async { tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut content).await }
+                    async { reader.read_to_end(&mut content).await }
                         .block_on()
                         .map_err(|e| VcsError::Other(format!("failed to read content: {}", e)))?;
 
@@ -616,7 +617,7 @@ impl VcsBackend for JjBackend {
                         .block_on()
                         .map_err(|e| VcsError::Other(format!("failed to read file: {}", e)))?;
 
-                    async { tokio::io::AsyncReadExt::read_to_end(&mut reader, &mut content).await }
+                    async { reader.read_to_end(&mut content).await }
                         .block_on()
                         .map_err(|e| VcsError::Other(format!("failed to read content: {}", e)))?;
 
@@ -870,6 +871,24 @@ impl VcsBackend for JjBackend {
 
     fn name(&self) -> &'static str {
         "jj"
+    }
+
+    fn stage_file(&self, _path: &Path) -> Result<()> {
+        Ok(())
+    }
+
+    fn unstage_file(&self, _path: &Path) -> Result<()> {
+        Ok(())
+    }
+
+    fn commit(&self, _message: &str) -> Result<String> {
+        Err(VcsError::Other(
+            "committing is not supported for the jj backend".to_string(),
+        ))
+    }
+
+    fn get_staged_files(&self) -> Result<Vec<PathBuf>> {
+        Ok(Vec::new())
     }
 }
 

@@ -74,7 +74,12 @@ function toAbortError(): DOMException {
   return new DOMException('Aborted', 'AbortError')
 }
 
-let parseTaskQueuer: AsyncQueuer<ParseTask>
+const parseTaskQueuer: AsyncQueuer<ParseTask> = new AsyncQueuer(runParseTask, {
+  concurrency: 1,
+  getPriority: (task) => priorityWeight(task.priority),
+  onError: () => {},
+  throwOnError: false,
+})
 
 function removePendingParseTask(requestId: number): boolean {
   const pendingTasks = parseTaskQueuer.peekPendingItems()
@@ -156,13 +161,6 @@ function runParseTask(task: ParseTask): Promise<void> {
     })
   })
 }
-
-parseTaskQueuer = new AsyncQueuer(runParseTask, {
-  concurrency: 1,
-  getPriority: (task) => priorityWeight(task.priority),
-  onError: () => {},
-  throwOnError: false,
-})
 
 function onWorkerMessage(event: MessageEvent<ParseResponseMessage>) {
   const message = event.data
