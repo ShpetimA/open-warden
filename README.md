@@ -12,9 +12,6 @@ https://github.com/user-attachments/assets/6866ec19-b518-4d1b-a3ef-6ebeee587e22
 - Compare branches side by side for lightweight local review.
 - Leave comments tied to files and ranges, then copy them and send them to an agent.
 
-## Demo video
-https://www.youtube.com/watch?v=rVR5dRlyFKc
-
 ## Built with
 
 Tauri, React, TypeScript, Redux Toolkit, and Rust.
