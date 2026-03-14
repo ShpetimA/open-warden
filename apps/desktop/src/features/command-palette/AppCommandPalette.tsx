@@ -123,6 +123,38 @@ async function runCommandItem(
 }
 
 export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps) {
+  useHotkey(
+    'Mod+K',
+    (event) => {
+      event.preventDefault()
+      onOpenChange(!open)
+    },
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  )
+
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="command-palette-modal max-w-[920px] overflow-hidden border p-0 shadow-2xl"
+      title="Quick Open"
+      description="Search files, commands, or commits"
+      showCloseButton={false}
+    >
+      {open ? <AppCommandPaletteContent onOpenChange={onOpenChange} /> : null}
+    </CommandDialog>
+  )
+}
+
+type AppCommandPaletteContentProps = {
+  onOpenChange: (open: boolean) => void
+}
+
+function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProps) {
   const dispatch = useAppDispatch()
   const navigate = useNavigate()
   const location = useLocation()
@@ -451,28 +483,8 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
     })),
   )
 
-  useHotkey(
-    'Mod+K',
-    (event) => {
-      event.preventDefault()
-      onOpenChange(!open)
-    },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  )
-
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      className="command-palette-modal max-w-[920px] overflow-hidden border p-0 shadow-2xl"
-      title="Quick Open"
-      description="Search files, commands, or commits"
-      showCloseButton={false}
-    >
+    <>
       <CommandInput placeholder="Search files, commands, or commits..." />
       <CommandList className="max-h-[65vh]">
         <CommandEmpty>No matching commands.</CommandEmpty>
@@ -559,6 +571,6 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
         <span>Select</span>
         <span className="border-input rounded border px-1 py-0 text-[10px]">ESC</span>
       </div>
-    </CommandDialog>
+    </>
   )
 }
