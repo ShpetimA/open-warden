@@ -1,6 +1,7 @@
 import { type Action, configureStore, type ThunkAction } from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 
+import { commentsClipboardReducer } from "@/features/comments/commentsClipboardSlice";
 import { desktopUpdateReducer } from "@/features/desktop-update/desktopUpdateSlice";
 import { commentsReducer } from "@/features/comments/commentsSlice";
 import { gitApi } from "@/features/source-control/api";
@@ -11,6 +12,7 @@ export const store = configureStore({
     desktopUpdate: desktopUpdateReducer,
     sourceControl: sourceControlReducer,
     comments: commentsReducer,
+    commentsClipboard: commentsClipboardReducer,
     [gitApi.reducerPath]: gitApi.reducer,
   },
   middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(gitApi.middleware),

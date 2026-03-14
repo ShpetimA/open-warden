@@ -1,5 +1,6 @@
 import type { AppThunk } from "@/app/store";
 import { desktop } from "@/platform/desktop";
+import { setLastCopiedPayload } from "@/features/comments/commentsClipboardSlice";
 import {
   addComment as addCommentAction,
   removeComment as removeCommentAction,
@@ -14,6 +15,12 @@ import type {
   SelectionRange,
 } from "@/features/source-control/types";
 import { formatRange } from "@/features/source-control/utils";
+
+export type CopyCommentsResult = {
+  ok: boolean;
+  copiedCount: number;
+  clearedCount: number;
+};
 
 function contextForComment(comment: CommentItem): CommentContext {
   if (comment.contextKind === "review" && comment.baseRef && comment.headRef) {
@@ -83,16 +90,22 @@ export const updateComment =
     dispatch(updateCommentAction({ id, text: trimmed }));
   };
 
+function copyPayloadForComments(source: CommentItem[]): string {
+  return source
+    .map((c) => `@${c.filePath}#${formatRange(c.startLine, c.endLine)} - ${c.text}`)
+    .join("\n");
+}
+
 export const copyComments =
   (
     scope: "file" | "all",
     options?: { context?: CommentContext; activePath?: string },
-  ): AppThunk<Promise<boolean>> =>
+  ): AppThunk<Promise<CopyCommentsResult>> =>
   async (dispatch, getState) => {
     const { comments } = getState();
     const { activeRepo, activePath } = getState().sourceControl;
     const currentPath = options?.activePath ?? activePath;
-    if (!activeRepo) return false;
+    if (!activeRepo) return { ok: false, copiedCount: 0, clearedCount: 0 };
     const source =
       scope === "file"
         ? comments.filter(
@@ -105,18 +118,34 @@ export const copyComments =
             (c) => c.repoPath === activeRepo && isMatchingContext(c, options?.context),
           );
 
-    if (source.length === 0) return false;
+    if (source.length === 0) return { ok: false, copiedCount: 0, clearedCount: 0 };
 
-    const payload = source
-      .map((c) => `@${c.filePath}#${formatRange(c.startLine, c.endLine)} - ${c.text}`)
-      .join("\n");
+    const payload = copyPayloadForComments(source);
 
     try {
       await navigator.clipboard.writeText(payload);
-      return true;
+      const sourceIds = source.map((comment) => comment.id);
+      dispatch(removeCommentsByIdsAction(sourceIds));
+      dispatch(setLastCopiedPayload(payload));
+      return { ok: true, copiedCount: source.length, clearedCount: source.length };
     } catch (error) {
       dispatch(setError(error instanceof Error ? error.message : String(error)));
-      return false;
+      return { ok: false, copiedCount: 0, clearedCount: 0 };
+    }
+  };
+
+export const copyLastCommentsPayload =
+  (): AppThunk<Promise<{ ok: boolean }>> =>
+  async (dispatch, getState) => {
+    const payload = getState().commentsClipboard.lastCopiedPayload;
+    if (!payload) return { ok: false };
+
+    try {
+      await navigator.clipboard.writeText(payload);
+      return { ok: true };
+    } catch (error) {
+      dispatch(setError(error instanceof Error ? error.message : String(error)));
+      return { ok: false };
     }
   };
 

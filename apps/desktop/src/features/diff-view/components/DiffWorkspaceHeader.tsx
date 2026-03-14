@@ -16,6 +16,10 @@ type Props = {
   showDiffActions: boolean;
 };
 
+function copyAndClearMessage(count: number): string {
+  return `Copied ${count} comment${count === 1 ? "" : "s"} and cleared them`;
+}
+
 export function DiffWorkspaceHeader({
   activePath,
   commentContext,
@@ -45,13 +49,13 @@ export function DiffWorkspaceHeader({
     : [];
 
   const onCopyFileComments = async () => {
-    const copied = await dispatch(copyComments("file", { context: commentContext, activePath }));
-    if (copied) toast.success("Copied file comments");
+    const result = await dispatch(copyComments("file", { context: commentContext, activePath }));
+    if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
   };
 
   const onCopyAllComments = async () => {
-    const copied = await dispatch(copyComments("all", { context: commentContext }));
-    if (copied) toast.success("Copied comments");
+    const result = await dispatch(copyComments("all", { context: commentContext }));
+    if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
   };
 
   useHotkey(

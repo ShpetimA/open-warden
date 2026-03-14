@@ -1,4 +1,4 @@
-import { Columns2, Copy, Files, FoldVertical, Rows3, UnfoldVertical } from "lucide-react";
+import { Columns2, Copy, Files, FoldVertical, Repeat, Rows3, UnfoldVertical } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { toast } from "sonner";
 
@@ -6,7 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { copyComments, fileComments } from "@/features/comments/actions";
+import { copyComments, copyLastCommentsPayload, fileComments } from "@/features/comments/actions";
 import { compactComments } from "@/features/comments/selectors";
 import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import { setDiffStyleValue } from "@/features/source-control/actions";
@@ -31,6 +31,10 @@ function inContext(comment: CommentItem, context: CommentContext): boolean {
   return true;
 }
 
+function copyAndClearMessage(count: number): string {
+  return `Copied ${count} comment${count === 1 ? "" : "s"} and cleared them`;
+}
+
 export function DiffHeaderMetadataControls({
   activePath,
   canComment,
@@ -44,6 +48,9 @@ export function DiffHeaderMetadataControls({
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const comments = useAppSelector((state) => state.comments);
+  const hasLastCopiedPayload = useAppSelector(
+    (state) => state.commentsClipboard.lastCopiedPayload.length > 0,
+  );
   const expandUnchangedLabel = expandUnchanged
     ? "Collapse unchanged sections"
     : "Expand unchanged sections";
@@ -60,13 +67,18 @@ export function DiffHeaderMetadataControls({
     : [];
 
   const onCopyFileComments = async () => {
-    const copied = await dispatch(copyComments("file", { context: commentContext, activePath }));
-    if (copied) toast.success("Copied file comments");
+    const result = await dispatch(copyComments("file", { context: commentContext, activePath }));
+    if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
   };
 
   const onCopyAllComments = async () => {
-    const copied = await dispatch(copyComments("all", { context: commentContext }));
-    if (copied) toast.success("Copied comments");
+    const result = await dispatch(copyComments("all", { context: commentContext }));
+    if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
+  };
+
+  const onCopyLastComments = async () => {
+    const result = await dispatch(copyLastCommentsPayload());
+    if (result.ok) toast.success("Copied last comments payload");
   };
 
   useHotkey(
@@ -160,6 +172,24 @@ export function DiffHeaderMetadataControls({
               </TooltipTrigger>
               <TooltipContent side="bottom">Copy file comments</TooltipContent>
             </Tooltip>
+
+            {hasLastCopiedPayload ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    onClick={() => {
+                      void onCopyLastComments();
+                    }}
+                    aria-label="Copy last comments payload"
+                  >
+                    <Repeat />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Copy last comments</TooltipContent>
+              </Tooltip>
+            ) : null}
 
             <Tooltip
               open={showCopyTip ? true : undefined}
