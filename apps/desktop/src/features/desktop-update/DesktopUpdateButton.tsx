@@ -55,9 +55,7 @@ function buttonClassName(state: ReturnType<typeof selectDesktopUpdateState>): st
 
   return [
     "border-input bg-surface-alt inline-flex h-8 w-8 items-center justify-center rounded-md border",
-    activeState
-      ? "text-foreground hover:bg-accent"
-      : "text-muted-foreground hover:text-foreground",
+    activeState ? "text-foreground hover:bg-accent" : "text-muted-foreground hover:text-foreground",
   ].join(" ");
 }
 

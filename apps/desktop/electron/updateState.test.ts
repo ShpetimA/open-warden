@@ -96,12 +96,7 @@ describe("updateState", () => {
     );
 
     expect(
-      markUpdateActionFailed(
-        available,
-        "network failed",
-        "download",
-        "2026-03-14T10:05:00.000Z",
-      ),
+      markUpdateActionFailed(available, "network failed", "download", "2026-03-14T10:05:00.000Z"),
     ).toMatchObject({
       status: "error",
       errorContext: "download",

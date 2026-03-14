@@ -69,10 +69,7 @@ export function createUpdateManager({ getWindow }: UpdateManagerOptions) {
     broadcastState();
   }
 
-  function createActionResult(
-    accepted: boolean,
-    completed: boolean,
-  ): DesktopUpdateActionResult {
+  function createActionResult(accepted: boolean, completed: boolean): DesktopUpdateActionResult {
     return {
       accepted,
       completed,
@@ -154,14 +151,16 @@ export function createUpdateManager({ getWindow }: UpdateManagerOptions) {
       }
 
       const checkedAt = new Date().toISOString();
-      const errorContext = state.downloadedVersion ? "install" : state.availableVersion ? "download" : "check";
+      const errorContext = state.downloadedVersion
+        ? "install"
+        : state.availableVersion
+          ? "download"
+          : "check";
       setState(markUpdateActionFailed(state, formatError(error), errorContext, checkedAt));
     });
   }
 
-  async function checkForUpdates(
-    reason: UpdateCheckReason,
-  ): Promise<DesktopUpdateActionResult> {
+  async function checkForUpdates(reason: UpdateCheckReason): Promise<DesktopUpdateActionResult> {
     if (!state.enabled || checkInFlight || downloadInFlight || state.status === "downloaded") {
       return createActionResult(false, false);
     }

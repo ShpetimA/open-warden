@@ -69,10 +69,13 @@ function createMainWindow() {
 }
 
 ipcMain.removeHandler(DESKTOP_INVOKE_CHANNEL);
-ipcMain.handle(DESKTOP_INVOKE_CHANNEL, async (_event, method: DesktopMethod, ...args: unknown[]) => {
-  const handler = desktopApi[method] as (...params: unknown[]) => unknown;
-  return handler(...args);
-});
+ipcMain.handle(
+  DESKTOP_INVOKE_CHANNEL,
+  async (_event, method: DesktopMethod, ...args: unknown[]) => {
+    const handler = desktopApi[method] as (...params: unknown[]) => unknown;
+    return handler(...args);
+  },
+);
 ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
 ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () => updateManager.getState());
 ipcMain.removeHandler(UPDATE_CHECK_CHANNEL);

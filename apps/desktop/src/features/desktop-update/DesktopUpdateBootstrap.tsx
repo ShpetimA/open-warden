@@ -19,7 +19,10 @@ export function DesktopUpdateBootstrap() {
       dispatch(desktopUpdateStateReceived(state));
     };
 
-    void desktop.getUpdateState().then(applyState).catch(() => {});
+    void desktop
+      .getUpdateState()
+      .then(applyState)
+      .catch(() => {});
 
     const unsubscribe = desktop.onUpdateState((state) => {
       applyState(state);
