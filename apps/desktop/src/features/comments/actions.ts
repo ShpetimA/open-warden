@@ -135,8 +135,7 @@ export const copyComments =
   };
 
 export const copyLastCommentsPayload =
-  (): AppThunk<Promise<{ ok: boolean }>> =>
-  async (dispatch, getState) => {
+  (): AppThunk<Promise<{ ok: boolean }>> => async (dispatch, getState) => {
     const payload = getState().commentsClipboard.lastCopiedPayload;
     if (!payload) return { ok: false };
 
