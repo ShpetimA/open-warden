@@ -1,6 +1,5 @@
-import { confirm } from '@tauri-apps/plugin-dialog'
-
 import type { AppThunk } from '@/app/store'
+import { desktop } from '@/platform/desktop'
 import {
   addComment as addCommentAction,
   removeComment as removeCommentAction,
@@ -8,8 +7,13 @@ import {
   updateComment as updateCommentAction,
 } from '@/features/comments/commentsSlice'
 import { setError } from '@/features/source-control/sourceControlSlice'
-import type { Bucket, CommentContext, CommentItem, SelectionRange } from '@/features/source-control/types'
-import { formatRange, } from '@/features/source-control/utils'
+import type {
+  Bucket,
+  CommentContext,
+  CommentItem,
+  SelectionRange,
+} from '@/features/source-control/types'
+import { formatRange } from '@/features/source-control/utils'
 
 function contextForComment(comment: CommentItem): CommentContext {
   if (comment.contextKind === 'review' && comment.baseRef && comment.headRef) {
@@ -97,7 +101,9 @@ export const copyComments =
               c.filePath === currentPath &&
               isMatchingContext(c, options?.context),
           )
-        : comments.filter((c) => c.repoPath === activeRepo && isMatchingContext(c, options?.context))
+        : comments.filter(
+            (c) => c.repoPath === activeRepo && isMatchingContext(c, options?.context),
+          )
 
     if (source.length === 0) return false
 
@@ -137,7 +143,7 @@ export function toLineAnnotations(comments: CommentItem[]) {
 
 export async function confirmDiscard(message: string): Promise<boolean> {
   try {
-    return await confirm(message, {
+    return await desktop.confirm(message, {
       title: 'Discard Changes',
       kind: 'warning',
       okLabel: 'Discard',

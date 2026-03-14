@@ -68,14 +68,5 @@ export function useChangesSync() {
     if (existingBucket !== activeBucket) {
       dispatch(setActiveBucket(existingBucket))
     }
-
-  }, [
-    activeRepo,
-    activeBucket,
-    activePath,
-    dispatch,
-    selectedFiles,
-    selectionAnchor,
-    snapshot,
-  ])
+  }, [activeRepo, activeBucket, activePath, dispatch, selectedFiles, selectionAnchor, snapshot])
 }

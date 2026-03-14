@@ -70,7 +70,9 @@ export function FileListRow({
         </div>
 
         {secondaryLabel ? (
-          <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">{secondaryLabel}</div>
+          <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">
+            {secondaryLabel}
+          </div>
         ) : null}
       </button>
 

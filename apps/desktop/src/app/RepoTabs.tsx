@@ -24,13 +24,7 @@ function closeButtonClass(isActive: boolean): string {
   return 'text-muted-foreground/85 hover:bg-accent hover:text-foreground'
 }
 
-export function RepoTabs({
-  repos,
-  activeRepo,
-  onSelectRepo,
-  onCloseRepo,
-  onAddRepo,
-}: Props) {
+export function RepoTabs({ repos, activeRepo, onSelectRepo, onCloseRepo, onAddRepo }: Props) {
   const openRepos = repos.filter((repoPath): repoPath is string => Boolean(repoPath))
 
   return (

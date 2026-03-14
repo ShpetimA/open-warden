@@ -1,6 +1,5 @@
-import { open } from '@tauri-apps/plugin-dialog'
-
 import type { AppThunk } from '@/app/store'
+import { desktop } from '@/platform/desktop'
 import { removeCommentsForRepo } from '@/features/comments/commentsSlice'
 import { gitApi } from './api'
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from './types'
@@ -61,8 +60,16 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
 }
 
 export const selectFolder = (): AppThunk => async (dispatch) => {
-  const selected = await open({ directory: true, multiple: false })
-  if (typeof selected !== 'string') return
+  let selected: string | null
+
+  try {
+    selected = await desktop.selectFolder()
+  } catch (error) {
+    dispatch(setError(error instanceof Error ? error.message : String(error)))
+    return
+  }
+
+  if (!selected) return
 
   dispatch(addRepo(selected))
   dispatch(setActiveRepo(selected))

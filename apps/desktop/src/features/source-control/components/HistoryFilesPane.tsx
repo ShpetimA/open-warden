@@ -100,7 +100,9 @@ function HistoryFileRow({ file, navIndex, commentCounts }: HistoryFileRowProps) 
         void dispatch(selectHistoryFile(file.path))
       }}
       secondaryLabel={
-        file.previousPath && file.previousPath !== file.path ? `from ${file.previousPath}` : undefined
+        file.previousPath && file.previousPath !== file.path
+          ? `from ${file.previousPath}`
+          : undefined
       }
     />
   )

@@ -9,10 +9,6 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
-    "tauri:build": {
-      "dependsOn": ["build"],
-      "outputs": ["src-tauri/target/**"]
-    },
     "lint": {
       "dependsOn": ["^lint"]
     },
@@ -26,9 +22,6 @@
     },
     "format:check": {
       "dependsOn": ["^format:check"],
-      "outputs": []
-    },
-    "rust:build": {
       "outputs": []
     }
   }

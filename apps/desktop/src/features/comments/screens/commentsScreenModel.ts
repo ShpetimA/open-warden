@@ -109,7 +109,9 @@ export function createReviewPairOptions(comments: CommentItem[]): ReviewPairOpti
     })
   }
 
-  return Array.from(uniquePairs.values()).sort((left, right) => left.label.localeCompare(right.label))
+  return Array.from(uniquePairs.values()).sort((left, right) =>
+    left.label.localeCompare(right.label),
+  )
 }
 
 export function filterCommentsByScope(
@@ -129,7 +131,10 @@ export function filterCommentsBySearch(comments: CommentItem[], searchText: stri
   return comments.filter((comment) => queryMatchesComment(comment, query))
 }
 
-export function filterCommentsByFile(comments: CommentItem[], selectedFilePath: string | null): CommentItem[] {
+export function filterCommentsByFile(
+  comments: CommentItem[],
+  selectedFilePath: string | null,
+): CommentItem[] {
   if (!selectedFilePath) return comments
   return comments.filter((comment) => comment.filePath === selectedFilePath)
 }

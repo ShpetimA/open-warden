@@ -11,10 +11,7 @@ import {
 } from '@/features/source-control/actions'
 import type { BucketedFile } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
-import {
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from '@/lib/keyboard-navigation'
+import { getWrappedNavigationIndex, scrollKeyboardNavItemIntoView } from '@/lib/keyboard-navigation'
 
 export function useChangesKeyboardNav() {
   const dispatch = useAppDispatch()

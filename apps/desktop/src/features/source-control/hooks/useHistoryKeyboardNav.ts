@@ -9,10 +9,7 @@ import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
 import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
 import type { FileItem, HistoryCommit } from '@/features/source-control/types'
 import { isTypingTarget } from '@/features/source-control/utils'
-import {
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from '@/lib/keyboard-navigation'
+import { getWrappedNavigationIndex, scrollKeyboardNavItemIntoView } from '@/lib/keyboard-navigation'
 
 export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch()
@@ -87,7 +84,11 @@ export function useHistoryKeyboardNav() {
       (commit) => commit.commitId === historyCommitId,
     )
 
-    const targetIndex = getWrappedNavigationIndex(activeIndex, filteredHistoryCommits.length, nextKey)
+    const targetIndex = getWrappedNavigationIndex(
+      activeIndex,
+      filteredHistoryCommits.length,
+      nextKey,
+    )
 
     const targetCommit = filteredHistoryCommits[targetIndex]
     if (!targetCommit) return

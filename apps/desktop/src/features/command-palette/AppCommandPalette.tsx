@@ -41,7 +41,12 @@ import {
   useGetGitSnapshotQuery,
 } from '@/features/source-control/api'
 import { setReviewActivePath } from '@/features/source-control/sourceControlSlice'
-import type { BucketedFile, CommentContext, CommentItem, SelectedFile } from '@/features/source-control/types'
+import type {
+  BucketedFile,
+  CommentContext,
+  CommentItem,
+  SelectedFile,
+} from '@/features/source-control/types'
 
 import {
   buildCommandActionItems,
@@ -186,7 +191,9 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
     feature === 'changes' ? selectedOrFocusedFiles(selectedFiles, activeBucket, activePath) : []
   const stageTargets = selectionTargets.filter((file) => file.bucket !== 'staged')
   const discardTargets = selectionTargets
-    .map((selected) => snapshotRows.find((row) => row.bucket === selected.bucket && row.path === selected.path))
+    .map((selected) =>
+      snapshotRows.find((row) => row.bucket === selected.bucket && row.path === selected.path),
+    )
     .filter((row): row is BucketedFile => !!row)
 
   const stagedCount = snapshot?.staged.length ?? 0
@@ -201,7 +208,9 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
 
   const contextPath = feature === 'review' ? reviewActivePath : activePath
   const allComments = compactComments(comments)
-  const repoComments = activeRepo ? allComments.filter((comment) => comment.repoPath === activeRepo) : []
+  const repoComments = activeRepo
+    ? allComments.filter((comment) => comment.repoPath === activeRepo)
+    : []
   const contextComments = commentContext
     ? repoComments.filter((comment) => isMatchingContext(comment, commentContext))
     : []
@@ -303,7 +312,9 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
     {
       id: 'changes:commit',
       label: 'Commit Staged Changes',
-      subtitle: commitMessage.trim() ? `Message: ${commitMessage.trim()}` : 'Commit message is empty',
+      subtitle: commitMessage.trim()
+        ? `Message: ${commitMessage.trim()}`
+        : 'Commit message is empty',
       disabled: !activeRepo || hasRunningAction || stagedCount === 0 || !commitMessage.trim(),
       keywords: ['commit', 'staged'],
       onSelect: async () => {
@@ -481,7 +492,9 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{item.label}</span>
                   {item.subtitle ? (
-                    <span className="text-muted-foreground truncate text-xs">{commandItemSubtitle(item)}</span>
+                    <span className="text-muted-foreground truncate text-xs">
+                      {commandItemSubtitle(item)}
+                    </span>
                   ) : null}
                 </div>
                 {item.shortcut ? <CommandShortcut>{item.shortcut}</CommandShortcut> : null}
@@ -505,7 +518,9 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
                 <File className="h-4 w-4" />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{item.label}</span>
-                  <span className="text-muted-foreground truncate text-xs">{commandItemSubtitle(item)}</span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {commandItemSubtitle(item)}
+                  </span>
                 </div>
               </CommandItem>
             ))}
@@ -527,7 +542,9 @@ export function AppCommandPalette({ open, onOpenChange }: AppCommandPaletteProps
                 <Clock3 className="h-4 w-4" />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate">{item.label}</span>
-                  <span className="text-muted-foreground truncate text-xs">{commandItemSubtitle(item)}</span>
+                  <span className="text-muted-foreground truncate text-xs">
+                    {commandItemSubtitle(item)}
+                  </span>
                 </div>
                 <CommandShortcut>
                   <GitCommitHorizontal className="h-3 w-3" />

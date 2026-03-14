@@ -15,21 +15,15 @@ type AppHeaderProps = {
   onOpenCommandPalette: () => void
 }
 
-export function AppHeader({
-  activeFeature,
-  onOpenCommandPalette,
-}: AppHeaderProps) {
+export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProps) {
   const navigate = useNavigate()
   const { panels, toggle } = useSidebarPanelRegistry()
   const sidebars = FEATURE_SIDEBARS[activeFeature]
 
   return (
-    <header
-      className="border-border bg-surface-toolbar grid h-14 select-none grid-cols-[1fr_auto_1fr] items-center gap-3 border-b pl-22 pr-3"
-      data-tauri-drag-region
-    >
-      <div className="min-w-0" data-tauri-drag-region>
-        <div className="bg-surface-alt border-input inline-flex items-center gap-0.5 rounded-md border p-0.5">
+    <header className="app-drag-region border-border bg-surface-toolbar grid h-14 select-none grid-cols-[1fr_auto_1fr] items-center gap-3 border-b pl-22 pr-3">
+      <div className="min-w-0">
+        <div className="app-no-drag bg-surface-alt border-input inline-flex items-center gap-0.5 rounded-md border p-0.5">
           {sidebars.map((sidebar) => {
             const entry = panels.get(sidebar.panelId)
             const isCollapsed = entry?.collapsed ?? true
@@ -65,7 +59,7 @@ export function AppHeader({
       </div>
 
       <div className="min-w-0 justify-self-center">
-        <div className="border-input bg-surface-alt inline-flex w-fit items-center gap-1 rounded-xl border p-1">
+        <div className="app-no-drag border-input bg-surface-alt inline-flex w-fit items-center gap-1 rounded-xl border p-1">
           {FEATURE_NAV_ITEMS.map((item) => {
             const Icon = item.icon
             const isActive = item.key === activeFeature
@@ -91,7 +85,7 @@ export function AppHeader({
         </div>
       </div>
 
-      <div className="flex min-w-0 items-center justify-self-end gap-1.5" data-tauri-drag-region>
+      <div className="app-no-drag flex min-w-0 items-center justify-self-end gap-1.5">
         <button
           type="button"
           className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border"

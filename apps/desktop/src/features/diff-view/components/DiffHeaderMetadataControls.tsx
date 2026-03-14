@@ -181,10 +181,7 @@ export function DiffHeaderMetadataControls({
                   <Files />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                onClick={() => onDismissCopyTip?.()}
-              >
+              <TooltipContent side="bottom" onClick={() => onDismissCopyTip?.()}>
                 {showCopyTip ? (
                   <span className="flex items-center gap-1.5">
                     Press

@@ -35,7 +35,12 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
             CURRENT REPOSITORY
           </div>
           <div className="ml-auto flex items-center gap-0.5">
-            <OpenInExternalEditor repoPath={activeRepo} target="repository" compact disabled={!!runningAction} />
+            <OpenInExternalEditor
+              repoPath={activeRepo}
+              target="repository"
+              compact
+              disabled={!!runningAction}
+            />
             <button
               type="button"
               className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center"
@@ -62,7 +67,6 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
             </>
           ) : null}
         </div>
-
       </div>
 
       {isHistoryFeature ? <HistoryTab /> : <ChangesTab />}

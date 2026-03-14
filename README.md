@@ -14,28 +14,36 @@ https://github.com/user-attachments/assets/6866ec19-b518-4d1b-a3ef-6ebeee587e22
 
 ## Built with
 
-Tauri, React, TypeScript, Redux Toolkit, and Rust.
+Electron, React, TypeScript, Redux Toolkit, and system Git.
 
 ## Run locally
 
-Prerequisites: Node.js, `pnpm`, and Rust (for Tauri).
+Prerequisites: Node.js, `pnpm`, and `git`.
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-To run the full desktop app shell (Tauri) locally:
+`pnpm dev` runs the browser fallback for UI work by setting `VITE_DESKTOP_FALLBACK=browser`.
+
+To run the full desktop app shell (Electron) locally:
 
 ```bash
-pnpm --filter desktop tauri dev
+pnpm dev:electron
+```
+
+To build a local macOS Electron package:
+
+```bash
+pnpm build:electron
 ```
 
 ## Install on macOS
 
 1. Go to this repo's **Releases** page.
-2. Download the latest `OpenWarden.dmg` from the release assets.
-3. Open the `.dmg` and move `OpenWarden.app` into your `Applications` folder.
+2. Download the latest macOS release archive.
+3. Open the archive and move `OpenWarden.app` into your `Applications` folder.
 
 If macOS blocks the app and says it is damaged or cannot be opened, remove the quarantine attribute (the app is currently not Apple-signed):
 

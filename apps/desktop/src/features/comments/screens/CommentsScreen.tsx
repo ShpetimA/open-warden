@@ -1,5 +1,4 @@
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { confirm } from '@tauri-apps/plugin-dialog'
 import { ArrowUpRight, Copy, MessageSquare, Trash2 } from 'lucide-react'
 import { useRef, useState, type RefObject } from 'react'
 import { useNavigate } from 'react-router'
@@ -10,6 +9,7 @@ import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayo
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { desktop } from '@/platform/desktop'
 import {
   Empty,
   EmptyContent,
@@ -46,13 +46,14 @@ import {
   type ReviewPairOption,
 } from '@/features/comments/screens/commentsScreenModel'
 import { selectFile } from '@/features/source-control/actions'
-import { setReviewActivePath, setReviewBaseRef, setReviewHeadRef } from '@/features/source-control/sourceControlSlice'
+import {
+  setReviewActivePath,
+  setReviewBaseRef,
+  setReviewHeadRef,
+} from '@/features/source-control/sourceControlSlice'
 import type { CommentItem } from '@/features/source-control/types'
 import { formatRange, isTypingTarget, repoLabel } from '@/features/source-control/utils'
-import {
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from '@/lib/keyboard-navigation'
+import { getWrappedNavigationIndex, scrollKeyboardNavItemIntoView } from '@/lib/keyboard-navigation'
 
 function nextFocusedCommentId(
   comments: CommentItem[],
@@ -77,7 +78,7 @@ async function confirmDeleteComments(count: number, scopeLabel: string): Promise
   const message = `Delete ${count} ${scopeLabel} comment${count === 1 ? '' : 's'}?`
 
   try {
-    return await confirm(message, {
+    return await desktop.confirm(message, {
       title: 'Delete Comments',
       kind: 'warning',
       okLabel: 'Delete',
@@ -94,7 +95,12 @@ function summaryLabel(count: number, singular: string, plural: string): string {
 }
 
 function copyPayloadForComments(comments: CommentItem[]): string {
-  return comments.map((comment) => `@${comment.filePath}#${formatRange(comment.startLine, comment.endLine)} - ${comment.text}`).join('\n')
+  return comments
+    .map(
+      (comment) =>
+        `@${comment.filePath}#${formatRange(comment.startLine, comment.endLine)} - ${comment.text}`,
+    )
+    .join('\n')
 }
 
 type CommentsSidebarFiltersProps = {
@@ -140,7 +146,9 @@ function CommentsSidebarFilters({
     <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
       <div className="border-border border-b p-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">COMMENT FILTERS</div>
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            COMMENT FILTERS
+          </div>
           <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
             {summaryLabel(matchingCommentsCount, 'match', 'matches')}
           </Badge>
@@ -212,7 +220,9 @@ function CommentsSidebarFilters({
 
       <div className="border-border min-h-0 flex-1 border-t">
         <div className="border-border flex items-center justify-between border-b px-2.5 py-2">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">FILES</div>
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            FILES
+          </div>
           <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
             {fileFilters.length}
           </Badge>
@@ -376,13 +386,13 @@ function CommentFileSection({
             navIndex={commentIndexById.get(comment.id) ?? -1}
             isSelected={selectedIdSet.has(comment.id)}
             isFocused={focusedCommentId === comment.id}
-              onToggleSelected={onToggleSelected}
-              onFocusComment={onFocusComment}
-              onOpenComment={onOpenComment}
-              onCopyComment={onCopyComment}
-              onDeleteComment={onDeleteComment}
-            />
-          ))}
+            onToggleSelected={onToggleSelected}
+            onFocusComment={onFocusComment}
+            onOpenComment={onOpenComment}
+            onCopyComment={onCopyComment}
+            onDeleteComment={onDeleteComment}
+          />
+        ))}
       </div>
     </section>
   )
@@ -442,7 +452,9 @@ function CommentListRow({
             >
               {isReviewComment(comment) ? 'Review' : 'Changes'}
             </Badge>
-            <span className="text-muted-foreground truncate text-[11px]">{commentContextLabel(comment)}</span>
+            <span className="text-muted-foreground truncate text-[11px]">
+              {commentContextLabel(comment)}
+            </span>
           </div>
 
           <p className="text-foreground mt-1 whitespace-pre-wrap break-words">{comment.text}</p>
@@ -496,7 +508,11 @@ type CommentsEmptyStateProps = {
   onClearFilters: () => void
 }
 
-function CommentsEmptyState({ hasComments, hasActiveFilters, onClearFilters }: CommentsEmptyStateProps) {
+function CommentsEmptyState({
+  hasComments,
+  hasActiveFilters,
+  onClearFilters,
+}: CommentsEmptyStateProps) {
   const title = hasComments ? 'No comments match your filters' : 'No comments yet'
   const description = hasComments
     ? 'Try broadening your search or clearing one of the active filters.'
@@ -542,7 +558,9 @@ export function CommentsScreen() {
   const allComments = compactComments(comments)
   const repoComments = commentsForRepo(allComments, activeRepo)
   const reviewPairs = createReviewPairOptions(repoComments)
-  const reviewPairIsAvailable = selectedPair ? reviewPairs.some((pair) => pair.value === selectedPair) : false
+  const reviewPairIsAvailable = selectedPair
+    ? reviewPairs.some((pair) => pair.value === selectedPair)
+    : false
   const effectiveSelectedPair =
     contextFilter === 'review' && reviewPairIsAvailable ? selectedPair : null
 
@@ -577,7 +595,7 @@ export function CommentsScreen() {
     ? focusedCommentId
     : (visibleComments[0]?.id ?? null)
   const focusedComment = effectiveFocusedCommentId
-    ? visibleComments.find((comment) => comment.id === effectiveFocusedCommentId) ?? null
+    ? (visibleComments.find((comment) => comment.id === effectiveFocusedCommentId) ?? null)
     : null
 
   const onToggleSelected = (commentId: string) => {
@@ -641,11 +659,17 @@ export function CommentsScreen() {
 
   const onCopySelected = () => {
     const selectedComments = visibleComments.filter((comment) => selectedIdSet.has(comment.id))
-    void onCopyComments(selectedComments, summaryLabel(selectedComments.length, 'comment', 'comments'))
+    void onCopyComments(
+      selectedComments,
+      summaryLabel(selectedComments.length, 'comment', 'comments'),
+    )
   }
 
   const onCopyVisible = () => {
-    void onCopyComments(visibleComments, summaryLabel(visibleComments.length, 'comment', 'comments'))
+    void onCopyComments(
+      visibleComments,
+      summaryLabel(visibleComments.length, 'comment', 'comments'),
+    )
   }
 
   const onDeleteSelected = async () => {
@@ -728,15 +752,11 @@ export function CommentsScreen() {
     stopPropagation: false,
   })
 
-  useHotkey(
-    { key: '?' },
-    (event) => focusSearchInput(event),
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  )
+  useHotkey({ key: '?' }, (event) => focusSearchInput(event), {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  })
 
   useHotkey(
     'ArrowDown',
@@ -873,7 +893,9 @@ export function CommentsScreen() {
         <section className="flex h-full min-h-0 flex-col">
           <header className="border-border bg-surface border-b px-3 py-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">COMMENTS</div>
+              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+                COMMENTS
+              </div>
               <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
                 {summaryLabel(repoComments.length, 'total', 'total')}
               </Badge>
@@ -893,15 +915,30 @@ export function CommentsScreen() {
           </header>
 
           <div className="border-border bg-surface-toolbar flex flex-wrap items-center gap-2 border-b px-3 py-2">
-            <Button size="xs" variant="outline" onClick={onToggleAllVisible} disabled={visibleComments.length === 0}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onToggleAllVisible}
+              disabled={visibleComments.length === 0}
+            >
               {allVisibleSelected ? 'Unselect Visible' : 'Select Visible'}
             </Button>
 
-            <Button size="xs" variant="outline" onClick={() => void onDeleteVisible()} disabled={visibleComments.length === 0}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void onDeleteVisible()}
+              disabled={visibleComments.length === 0}
+            >
               Delete Visible ({visibleComments.length})
             </Button>
 
-            <Button size="xs" variant="outline" onClick={onCopyVisible} disabled={visibleComments.length === 0}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onCopyVisible}
+              disabled={visibleComments.length === 0}
+            >
               Copy Visible ({visibleComments.length})
             </Button>
 

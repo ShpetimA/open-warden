@@ -97,10 +97,7 @@ export function useSidebarPanelRegistry() {
     throw new Error('useSidebarPanelRegistry must be used within a SidebarPanelRegistryProvider')
   }
 
-  const subscribe = useCallback(
-    (callback: () => void) => api.subscribe(callback),
-    [api],
-  )
+  const subscribe = useCallback((callback: () => void) => api.subscribe(callback), [api])
 
   const getSnapshot = useCallback(() => api.getSnapshot(), [api])
 

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, Copy, FolderOpen } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { commands, type ApiError, type Result as CommandResult } from '@/bindings'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { desktop } from '@/platform/desktop'
 import { Spinner } from '@/components/ui/spinner'
 
 const OPEN_APP_PREFERENCE_KEY = 'open-warden.open-app'
@@ -113,17 +113,6 @@ function readPreferredApp(): OpenApp {
   return saved
 }
 
-function toErrorMessage(error: ApiError): string {
-  return error.details ? `${error.message}: ${error.details}` : error.message
-}
-
-function unwrapResult<T>(result: CommandResult<T, ApiError>): T {
-  if (result.status === 'error') {
-    throw new Error(toErrorMessage(result.error))
-  }
-  return result.data
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
   return String(error)
@@ -151,7 +140,7 @@ function targetLabel(target: OpenTarget): string {
 
 async function checkAppExists(appName: string): Promise<boolean> {
   try {
-    return Boolean(unwrapResult(await commands.checkAppExists(appName)))
+    return await desktop.checkAppExists(appName)
   } catch {
     return false
   }
@@ -226,7 +215,7 @@ export function OpenInExternalEditor({
     setOpeningApp(app)
 
     try {
-      unwrapResult(await commands.openPath(path, option.openWith ?? null))
+      await desktop.openPath(path, option.openWith ?? null)
     } catch (error) {
       toast.error(`Failed to open ${noun}`, { description: errorMessage(error) })
     } finally {

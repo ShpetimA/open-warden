@@ -6,7 +6,7 @@ import type {
   FileVersions as ContractFileVersions,
   GitSnapshot as ContractGitSnapshot,
   HistoryCommit as ContractHistoryCommit,
-} from '@/bindings'
+} from '@/platform/desktop'
 
 export type Bucket = ContractBucket
 

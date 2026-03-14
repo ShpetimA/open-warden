@@ -13,10 +13,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import {
-  fileComments,
-  toLineAnnotations,
-} from '@/features/comments/actions'
+import { fileComments, toLineAnnotations } from '@/features/comments/actions'
 import { compactComments } from '@/features/comments/selectors'
 import { useFirstCommentTip } from '@/features/comments/useFirstCommentTip'
 import type {
@@ -38,9 +35,7 @@ import {
 } from '@/features/diff-view/diffRenderConfig'
 import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
 import { MAX_DIFF_LINE_LENGTH } from '@/features/diff-view/services/diffRenderLimits'
-import {
-  formatRange,
-} from '@/features/source-control/utils'
+import { formatRange } from '@/features/source-control/utils'
 import type { DiffLineAnnotation, FileDiffOptions } from '@pierre/diffs'
 
 type Props = {
@@ -107,14 +102,12 @@ function useCurrentFileComments(
   commentContext: CommentContext,
   canComment: boolean,
 ): FileCommentsResult {
-  return useAppSelector(
-    (state): FileCommentsResult => {
-      if (!canComment) return { comments: [], annotations: [] }
-      const allComments = compactComments(state.comments)
-      const filtered = fileComments(allComments, activeRepo, activePath, commentContext)
-      return { comments: filtered, annotations: toLineAnnotations(filtered) }
-    }
-  )
+  return useAppSelector((state): FileCommentsResult => {
+    if (!canComment) return { comments: [], annotations: [] }
+    const allComments = compactComments(state.comments)
+    const filtered = fileComments(allComments, activeRepo, activePath, commentContext)
+    return { comments: filtered, annotations: toLineAnnotations(filtered) }
+  })
 }
 
 export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
@@ -131,8 +124,12 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity
 
   const diffTheme = getDiffTheme()
-  const { annotations: currentAnnotations } =
-    useCurrentFileComments(activeRepo, activePath, commentContext, canComment)
+  const { annotations: currentAnnotations } = useCurrentFileComments(
+    activeRepo,
+    activePath,
+    commentContext,
+    canComment,
+  )
   const repoCommentCount = useAppSelector((state) => {
     if (!canComment || !activeRepo) return 0
     return state.comments.filter((c) => c.repoPath === activeRepo).length
@@ -215,20 +212,22 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const selectedRangeLabel = selectedRange
     ? formatRange(selectedRange.start, selectedRange.end)
     : ''
-  const annotationsWithComposer: DiffLineAnnotation<DiffAnnotationItem>[] = selectedRange ? [
-                ...currentAnnotations,
-                {
-                    lineNumber: selectedRange.end,
-                    metadata: {
-                      type: 'composer',
-                      side: selectedRange.side ?? 'deletions',
-                      endSide: selectedRange.endSide,
-                      startLine: selectedRange.start,
-                      endLine: selectedRange.end,
-                    },
-                    side: selectedRange.side ?? 'deletions'
-                  }
-                ] : currentAnnotations
+  const annotationsWithComposer: DiffLineAnnotation<DiffAnnotationItem>[] = selectedRange
+    ? [
+        ...currentAnnotations,
+        {
+          lineNumber: selectedRange.end,
+          metadata: {
+            type: 'composer',
+            side: selectedRange.side ?? 'deletions',
+            endSide: selectedRange.endSide,
+            startLine: selectedRange.start,
+            endLine: selectedRange.end,
+          },
+          side: selectedRange.side ?? 'deletions',
+        },
+      ]
+    : currentAnnotations
   const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? 'expanded' : 'collapsed'}`
 
   const renderLargeDiffWarning = () => {

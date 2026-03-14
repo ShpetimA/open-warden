@@ -83,9 +83,7 @@ export function CommentComposer({
   if (!visible) return null
 
   return (
-    <div
-      className="border-input bg-surface-elevated border p-2 shadow-xl max-w-lg"
-    >
+    <div className="border-input bg-surface-elevated border p-2 shadow-xl max-w-lg">
       <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
       <Textarea
         ref={inputRef}

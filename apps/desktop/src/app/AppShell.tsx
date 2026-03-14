@@ -16,16 +16,16 @@ import { SourceControlSidebar } from '@/features/source-control/components/Sourc
 import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
 
 function renderMainContent(activeRepo: string, errorMessage: string) {
+  if (errorMessage) {
+    return <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+  }
+
   if (!activeRepo) {
     return (
       <div className="text-muted-foreground p-3 text-sm">
         Select a repository tab or add one with +.
       </div>
     )
-  }
-
-  if (errorMessage) {
-    return <div className="text-destructive p-3 text-sm">{errorMessage}</div>
   }
 
   return <Outlet />
@@ -52,47 +52,49 @@ export function AppShell() {
 
   return (
     <SidebarPanelRegistryProvider>
-    <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-      <div
-        className="grid h-full"
-        style={{ gridTemplateRows: headerCollapsed ? '0px 1fr 34px' : '56px 1fr 34px' }}
-      >
-        <div className="overflow-hidden">
-          <AppHeader
-            activeFeature={activeFeature}
-            onOpenCommandPalette={() => {
-              setCommandPaletteOpen(true)
-            }}
-          />
-        </div>
-
-        <div className="relative min-h-0">
-          <HeaderEdgeToggle
-            collapsed={headerCollapsed}
-            onToggle={() => {
-              setHeaderCollapsed((value) => !value)
-            }}
-          />
-
-          {showPrimarySidebar ? (
-            <ResizableSidebarLayout
-              panelId="primary"
-              sidebarDefaultSize={22}
-              sidebarMinSize={14}
-              sidebarMaxSize={34}
-              sidebar={<SourceControlSidebar feature={sidebarFeature} activeBranch={activeBranch} />}
-              content={<main className="h-full min-h-0">{mainContent}</main>}
+      <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
+        <div
+          className="grid h-full"
+          style={{ gridTemplateRows: headerCollapsed ? '0px 1fr 34px' : '56px 1fr 34px' }}
+        >
+          <div className="overflow-hidden">
+            <AppHeader
+              activeFeature={activeFeature}
+              onOpenCommandPalette={() => {
+                setCommandPaletteOpen(true)
+              }}
             />
-          ) : (
-            <main className="h-full min-h-0">{mainContent}</main>
-          )}
+          </div>
+
+          <div className="relative min-h-0">
+            <HeaderEdgeToggle
+              collapsed={headerCollapsed}
+              onToggle={() => {
+                setHeaderCollapsed((value) => !value)
+              }}
+            />
+
+            {showPrimarySidebar ? (
+              <ResizableSidebarLayout
+                panelId="primary"
+                sidebarDefaultSize={22}
+                sidebarMinSize={14}
+                sidebarMaxSize={34}
+                sidebar={
+                  <SourceControlSidebar feature={sidebarFeature} activeBranch={activeBranch} />
+                }
+                content={<main className="h-full min-h-0">{mainContent}</main>}
+              />
+            ) : (
+              <main className="h-full min-h-0">{mainContent}</main>
+            )}
+          </div>
+
+          <RepoTabsContainer />
         </div>
 
-        <RepoTabsContainer />
+        <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       </div>
-
-      <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
-    </div>
     </SidebarPanelRegistryProvider>
   )
 }

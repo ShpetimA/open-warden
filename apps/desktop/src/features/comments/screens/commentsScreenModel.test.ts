@@ -97,7 +97,14 @@ describe('commentsScreenModel', () => {
   it('builds file filters and groups with per-context counts', () => {
     const source = [
       comment({ id: '1', filePath: 'src/z.ts', startLine: 10, contextKind: 'changes' }),
-      comment({ id: '2', filePath: 'src/a.ts', startLine: 4, contextKind: 'review', baseRef: 'main', headRef: 'feature/x' }),
+      comment({
+        id: '2',
+        filePath: 'src/a.ts',
+        startLine: 4,
+        contextKind: 'review',
+        baseRef: 'main',
+        headRef: 'feature/x',
+      }),
       comment({ id: '3', filePath: 'src/a.ts', startLine: 2, contextKind: 'changes' }),
     ]
 

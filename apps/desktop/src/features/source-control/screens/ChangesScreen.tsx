@@ -23,7 +23,9 @@ export function ChangesScreen() {
   const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
 
   const visibleRows: BucketedFile[] = [
-    ...(collapseStaged ? [] : (snapshot?.staged ?? []).map((file) => ({ ...file, bucket: 'staged' as const }))),
+    ...(collapseStaged
+      ? []
+      : (snapshot?.staged ?? []).map((file) => ({ ...file, bucket: 'staged' as const }))),
     ...(collapseUnstaged
       ? []
       : [

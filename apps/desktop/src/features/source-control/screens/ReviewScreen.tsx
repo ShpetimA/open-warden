@@ -65,7 +65,13 @@ type BranchSelectFieldProps = {
   onChange: (value: string) => void
 }
 
-function BranchSelectField({ label, value, placeholder, options, onChange }: BranchSelectFieldProps) {
+function BranchSelectField({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+}: BranchSelectFieldProps) {
   return (
     <div className="min-w-0">
       <div className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-[0.12em] uppercase">
@@ -118,13 +124,7 @@ function ReviewSelectionSync({
     if (!existing) {
       dispatch(setReviewActivePath(branchFiles[0].path))
     }
-  }, [
-    branchFiles,
-    dispatch,
-    hasBranchFilesData,
-    readyForDiff,
-    reviewActivePath,
-  ])
+  }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath])
 
   return null
 }
@@ -136,7 +136,12 @@ type ReviewFileListProps = {
   reviewHeadRef: string
 }
 
-function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef }: ReviewFileListProps) {
+function ReviewFileList({
+  branchFiles,
+  activeRepo,
+  reviewBaseRef,
+  reviewHeadRef,
+}: ReviewFileListProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const comments = useAppSelector((state) => state.comments)
   const reviewCommentCounts = createCommentCountByPathForRepo(comments, activeRepo, {
@@ -291,7 +296,9 @@ export function ReviewScreen() {
   const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef)
 
   const branchFilesQuery = useGetBranchFilesQuery(
-    readyForDiff ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef } : skipToken,
+    readyForDiff
+      ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+      : skipToken,
   )
   const branchFiles = branchFilesQuery.data ?? EMPTY_BRANCH_FILES
 
@@ -315,19 +322,15 @@ export function ReviewScreen() {
       dispatch(setReviewBaseRef(nextBase))
     }
 
-    const preferredHead = snapshot?.branch && branchList.includes(snapshot.branch) ? snapshot.branch : ''
-    const nextHead = hasHead ? reviewHeadRef : preferredHead || firstDifferentBranch(branchList, nextBase)
+    const preferredHead =
+      snapshot?.branch && branchList.includes(snapshot.branch) ? snapshot.branch : ''
+    const nextHead = hasHead
+      ? reviewHeadRef
+      : preferredHead || firstDifferentBranch(branchList, nextBase)
     if (nextHead !== reviewHeadRef) {
       dispatch(setReviewHeadRef(nextHead))
     }
-  }, [
-    activeRepo,
-    branchList,
-    dispatch,
-    reviewBaseRef,
-    reviewHeadRef,
-    snapshot?.branch,
-  ])
+  }, [activeRepo, branchList, dispatch, reviewBaseRef, reviewHeadRef, snapshot?.branch])
 
   return (
     <ResizableSidebarLayout
@@ -393,9 +396,13 @@ export function ReviewScreen() {
 
           <div className="min-h-0 flex-1 overflow-hidden">
             {!reviewBaseRef || !reviewHeadRef ? (
-              <div className="text-muted-foreground p-3 text-xs">Select both branches to start review.</div>
+              <div className="text-muted-foreground p-3 text-xs">
+                Select both branches to start review.
+              </div>
             ) : branchFiles.length === 0 ? (
-              <div className="text-muted-foreground p-3 text-xs">No changed files in this comparison.</div>
+              <div className="text-muted-foreground p-3 text-xs">
+                No changed files in this comparison.
+              </div>
             ) : (
               <ReviewFileList
                 branchFiles={branchFiles}

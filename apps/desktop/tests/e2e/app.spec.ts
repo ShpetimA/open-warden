@@ -18,6 +18,6 @@ test('navigates with top-level feature tabs', async ({ page }) => {
 test('opens command palette with keyboard shortcut', async ({ page }) => {
   await page.goto('/')
 
-  await page.keyboard.press('Control+K')
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+K' : 'Control+K')
   await expect(page.getByPlaceholder('Search files, commands, or commits...')).toBeVisible()
 })

@@ -5,10 +5,7 @@ import { useStore } from 'react-redux'
 
 import { useAppDispatch } from '@/app/hooks'
 import type { AppDispatch, RootState } from '@/app/store'
-import {
-  getDiffThemeCacheSalt,
-  getDiffThemeType,
-} from '@/features/diff-view/diffRenderConfig'
+import { getDiffThemeCacheSalt, getDiffThemeType } from '@/features/diff-view/diffRenderConfig'
 import { prefetchParsedDiff } from '@/features/diff-view/services/parsedDiffCache'
 import { gitApi } from '@/features/source-control/api'
 import type { BucketedFile, FileItem, FileVersions } from '@/features/source-control/types'
@@ -218,7 +215,13 @@ function usePrefetchNearbyDiffs(items: NearbyDiffItem[], activeKey: string) {
 
     const previousIndex = previousIndexRef.current
     const direction: NavigationDirection =
-      previousIndex === null ? 0 : activeIndex > previousIndex ? 1 : activeIndex < previousIndex ? -1 : 0
+      previousIndex === null
+        ? 0
+        : activeIndex > previousIndex
+          ? 1
+          : activeIndex < previousIndex
+            ? -1
+            : 0
     previousIndexRef.current = activeIndex
 
     const orderedIndexes = getPrefetchOrder(activeIndex, stableItems.length, direction)
@@ -266,7 +269,12 @@ export function usePrefetchChangesDiffs(
   )
 }
 
-export function usePrefetchHistoryDiffs(items: FileItem[], activeRepo: string, commitId: string, activePath: string) {
+export function usePrefetchHistoryDiffs(
+  items: FileItem[],
+  activeRepo: string,
+  commitId: string,
+  activePath: string,
+) {
   const nearbyItems =
     activeRepo && commitId
       ? items.map((item) => ({

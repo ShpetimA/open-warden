@@ -33,6 +33,11 @@ const commentsSlice = createSlice({
   },
 })
 
-export const { addComment, removeComment, removeCommentsByIds, removeCommentsForRepo, updateComment } =
-  commentsSlice.actions
+export const {
+  addComment,
+  removeComment,
+  removeCommentsByIds,
+  removeCommentsForRepo,
+  updateComment,
+} = commentsSlice.actions
 export const commentsReducer = commentsSlice.reducer

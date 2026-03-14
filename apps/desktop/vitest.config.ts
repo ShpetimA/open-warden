@@ -17,13 +17,14 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    environmentMatchGlobs: [['electron/**/*.test.ts', 'node']],
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'electron/**/*.test.ts'],
     coverage: {
       reporter: ['text', 'lcov'],
-      include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.d.ts', 'src/main.tsx', 'src/bindings.ts'],
+      include: ['src/**/*.{ts,tsx}', 'electron/**/*.ts'],
+      exclude: ['src/**/*.d.ts', 'src/main.tsx'],
     },
   },
 })

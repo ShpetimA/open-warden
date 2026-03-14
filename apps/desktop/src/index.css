@@ -162,6 +162,14 @@
 }
 
 @layer components {
+  .app-drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
   .command-palette-modal {
     @apply border-border bg-surface-elevated rounded-2xl;
   }

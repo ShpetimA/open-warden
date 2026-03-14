@@ -59,29 +59,31 @@ export function HistoryScreen() {
       sidebarMinSize={16}
       sidebarMaxSize={40}
       sidebar={<HistoryFilesPane />}
-      content={<section className="flex h-full min-h-0 flex-col">
-        <div className="min-h-0 flex-1">
-          {errorMessage ? (
-            <div className="text-destructive p-3 text-sm">{errorMessage}</div>
-          ) : loadingPatch ? (
-            <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
-          ) : !activePath ? (
-            <div className="text-muted-foreground p-3 text-sm">
-              Select a commit file to view diff.
-            </div>
-          ) : !oldFile && !newFile ? (
-            <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
-          ) : (
-            <DiffWorkspace
-              oldFile={oldFile}
-              newFile={newFile}
-              activePath={previewPath}
-              commentContext={{ kind: 'changes' }}
-              canComment={false}
-            />
-          )}
-        </div>
-      </section>}
+      content={
+        <section className="flex h-full min-h-0 flex-col">
+          <div className="min-h-0 flex-1">
+            {errorMessage ? (
+              <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+            ) : loadingPatch ? (
+              <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
+            ) : !activePath ? (
+              <div className="text-muted-foreground p-3 text-sm">
+                Select a commit file to view diff.
+              </div>
+            ) : !oldFile && !newFile ? (
+              <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
+            ) : (
+              <DiffWorkspace
+                oldFile={oldFile}
+                newFile={newFile}
+                activePath={previewPath}
+                commentContext={{ kind: 'changes' }}
+                canComment={false}
+              />
+            )}
+          </div>
+        </section>
+      }
     />
   )
 }
