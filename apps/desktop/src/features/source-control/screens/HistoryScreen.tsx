@@ -1,31 +1,31 @@
-import { skipToken } from '@reduxjs/toolkit/query'
+import { skipToken } from "@reduxjs/toolkit/query";
 
-import { useAppSelector } from '@/app/hooks'
-import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
-import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
+import { useAppSelector } from "@/app/hooks";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetCommitFilesQuery,
   useGetCommitFileVersionsQuery,
-} from '@/features/source-control/api'
-import { usePrefetchHistoryDiffs } from '@/features/source-control/hooks/usePrefetchNearbyDiffs'
-import { HistoryFilesPane } from '@/features/source-control/components/HistoryFilesPane'
-import { useHistoryKeyboardNav } from '@/features/source-control/hooks/useHistoryKeyboardNav'
-import { useHistorySync } from '@/features/source-control/hooks/useHistorySync'
-import { useThrottledDiffSelection } from '@/features/source-control/hooks/useThrottledDiffSelection'
-import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
+} from "@/features/source-control/api";
+import { usePrefetchHistoryDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
+import { HistoryFilesPane } from "@/features/source-control/components/HistoryFilesPane";
+import { useHistoryKeyboardNav } from "@/features/source-control/hooks/useHistoryKeyboardNav";
+import { useHistorySync } from "@/features/source-control/hooks/useHistorySync";
+import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 
 export function HistoryScreen() {
-  useHistoryKeyboardNav()
-  useHistorySync()
+  useHistoryKeyboardNav();
+  useHistorySync();
 
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
-  const activePath = useAppSelector((state) => state.sourceControl.activePath)
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const { data: historyFiles } = useGetCommitFilesQuery(
     activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
-  )
-  usePrefetchHistoryDiffs(historyFiles ?? [], activeRepo, historyCommitId, activePath)
-  const selectedHistoryFile = historyFiles?.find((file) => file.path === activePath)
+  );
+  usePrefetchHistoryDiffs(historyFiles ?? [], activeRepo, historyCommitId, activePath);
+  const selectedHistoryFile = historyFiles?.find((file) => file.path === activePath);
   const previewSelection = useThrottledDiffSelection(
     historyCommitId && activePath
       ? {
@@ -34,7 +34,7 @@ export function HistoryScreen() {
           previousPath: selectedHistoryFile?.previousPath ?? undefined,
         }
       : null,
-  )
+  );
   const historyFileVersions = useGetCommitFileVersionsQuery(
     activeRepo && previewSelection
       ? {
@@ -44,13 +44,13 @@ export function HistoryScreen() {
           previousPath: previewSelection.previousPath,
         }
       : skipToken,
-  )
-  const fileVersions = historyFileVersions.data
-  const loadingPatch = historyFileVersions.isFetching
-  const oldFile = fileVersions?.oldFile ?? null
-  const newFile = fileVersions?.newFile ?? null
-  const errorMessage = errorMessageFrom(historyFileVersions.error, '')
-  const previewPath = previewSelection?.path ?? ''
+  );
+  const fileVersions = historyFileVersions.data;
+  const loadingPatch = historyFileVersions.isFetching;
+  const oldFile = fileVersions?.oldFile ?? null;
+  const newFile = fileVersions?.newFile ?? null;
+  const errorMessage = errorMessageFrom(historyFileVersions.error, "");
+  const previewPath = previewSelection?.path ?? "";
 
   return (
     <ResizableSidebarLayout
@@ -77,7 +77,7 @@ export function HistoryScreen() {
                 oldFile={oldFile}
                 newFile={newFile}
                 activePath={previewPath}
-                commentContext={{ kind: 'changes' }}
+                commentContext={{ kind: "changes" }}
                 canComment={false}
               />
             )}
@@ -85,5 +85,5 @@ export function HistoryScreen() {
         </section>
       }
     />
-  )
+  );
 }

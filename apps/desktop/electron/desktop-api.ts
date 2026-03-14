@@ -1,4 +1,4 @@
-import type { DesktopApi } from '../src/platform/desktop/contracts'
+import type { DesktopApi } from "../src/platform/desktop/contracts";
 import {
   commitStaged,
   discardAll,
@@ -16,8 +16,8 @@ import {
   stageFile,
   unstageAll,
   unstageFile,
-} from './git'
-import { checkAppExists, confirm, openPath, selectFolder } from './system'
+} from "./git";
+import { checkAppExists, confirm, openPath, selectFolder } from "./system";
 
 export const desktopApi: DesktopApi = {
   selectFolder,
@@ -40,4 +40,4 @@ export const desktopApi: DesktopApi = {
   discardFiles,
   discardAll,
   commitStaged,
-}
+};

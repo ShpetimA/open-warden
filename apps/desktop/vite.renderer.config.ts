@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from "vite";
 
-import { createRendererConfig } from './vite.shared.config'
+import { createRendererConfig } from "./vite.shared.config";
 
-export default defineConfig(createRendererConfig())
+export default defineConfig(createRendererConfig());

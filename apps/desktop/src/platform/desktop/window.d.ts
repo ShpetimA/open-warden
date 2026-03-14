@@ -1,10 +1,10 @@
-import type { DesktopApi } from './contracts'
+import type { DesktopApi } from "./contracts";
 
 declare global {
   interface Window {
-    desktopBridge?: DesktopApi
-    openWarden?: DesktopApi
+    desktopBridge?: DesktopApi;
+    openWarden?: DesktopApi;
   }
 }
 
-export {}
+export {};

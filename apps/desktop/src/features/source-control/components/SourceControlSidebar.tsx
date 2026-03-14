@@ -1,30 +1,30 @@
-import type { FeatureKey } from '@/app/featureNavigation'
-import { GitBranch, RefreshCw } from 'lucide-react'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { refreshActiveRepo } from '@/features/source-control/actions'
-import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
-import { repoLabel } from '@/features/source-control/utils'
-import { OpenInExternalEditor } from './OpenInExternalEditor'
-import { ChangesTab } from './ChangesTab'
-import { HistoryTab } from './HistoryTab'
+import type { FeatureKey } from "@/app/featureNavigation";
+import { GitBranch, RefreshCw } from "lucide-react";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { refreshActiveRepo } from "@/features/source-control/actions";
+import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import { repoLabel } from "@/features/source-control/utils";
+import { OpenInExternalEditor } from "./OpenInExternalEditor";
+import { ChangesTab } from "./ChangesTab";
+import { HistoryTab } from "./HistoryTab";
 
 type SourceControlSidebarProps = {
-  feature: Extract<FeatureKey, 'changes' | 'history'>
-  activeBranch?: string
-}
+  feature: Extract<FeatureKey, "changes" | "history">;
+  activeBranch?: string;
+};
 
 export function SourceControlSidebar({ feature, activeBranch }: SourceControlSidebarProps) {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
-  const isHistoryFeature = feature === 'history'
-  const branchLabel = activeBranch || 'Detached HEAD'
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
+  const isHistoryFeature = feature === "history";
+  const branchLabel = activeBranch || "Detached HEAD";
 
   return (
     <aside
       onMouseDown={() => {
         if (isHistoryFeature) {
-          dispatch(setHistoryNavTarget('commits'))
+          dispatch(setHistoryNavTarget("commits"));
         }
       }}
       className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden overflow-x-hidden border-r"
@@ -48,7 +48,7 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
               aria-label="Refresh repository status"
               disabled={!activeRepo || !!runningAction}
               onClick={() => {
-                void dispatch(refreshActiveRepo())
+                void dispatch(refreshActiveRepo());
               }}
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -57,7 +57,7 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
         </div>
         <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1 text-xs">
           <span className="truncate">
-            {activeRepo ? repoLabel(activeRepo) : 'No repo selected'}
+            {activeRepo ? repoLabel(activeRepo) : "No repo selected"}
           </span>
           {activeRepo ? (
             <>
@@ -71,5 +71,5 @@ export function SourceControlSidebar({ feature, activeBranch }: SourceControlSid
 
       {isHistoryFeature ? <HistoryTab /> : <ChangesTab />}
     </aside>
-  )
+  );
 }

@@ -1,8 +1,8 @@
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import type { MouseEvent } from 'react'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { confirmDiscard } from '@/features/comments/actions'
-import { useGetGitSnapshotQuery } from '@/features/source-control/api'
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import type { MouseEvent } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { confirmDiscard } from "@/features/comments/actions";
+import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
   discardChangesGroupAction,
   discardFileAction,
@@ -13,15 +13,15 @@ import {
   toggleSelectFile,
   unstageAllAction,
   unstageFileAction,
-} from '@/features/source-control/actions'
+} from "@/features/source-control/actions";
 import {
   setActiveBucket,
   setCollapseStaged,
   setCollapseUnstaged,
-} from '@/features/source-control/sourceControlSlice'
-import type { Bucket, BucketedFile } from '@/features/source-control/types'
-import { CommitBox } from './CommitBox'
-import { FileSection } from './FileSection'
+} from "@/features/source-control/sourceControlSlice";
+import type { Bucket, BucketedFile } from "@/features/source-control/types";
+import { CommitBox } from "./CommitBox";
+import { FileSection } from "./FileSection";
 
 export function ChangesTab() {
   return (
@@ -29,14 +29,14 @@ export function ChangesTab() {
       <CommitBox />
       <ChangesFileList />
     </div>
-  )
+  );
 }
 
 function ChangesFileList() {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged)
-  const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged)
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
+  const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
   const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
@@ -45,71 +45,71 @@ function ChangesFileList() {
       snapshot: data,
       loadingSnapshot: isFetching,
     }),
-  })
+  });
 
-  const unstagedFiles = snapshot?.unstaged ?? []
-  const stagedFiles = snapshot?.staged ?? []
-  const untrackedFiles = snapshot?.untracked ?? []
+  const unstagedFiles = snapshot?.unstaged ?? [];
+  const stagedFiles = snapshot?.staged ?? [];
+  const untrackedFiles = snapshot?.untracked ?? [];
 
   const changedFiles: BucketedFile[] = [
-    ...unstagedFiles.map((file) => ({ ...file, bucket: 'unstaged' as const })),
-    ...untrackedFiles.map((file) => ({ ...file, bucket: 'untracked' as const })),
-  ]
+    ...unstagedFiles.map((file) => ({ ...file, bucket: "unstaged" as const })),
+    ...untrackedFiles.map((file) => ({ ...file, bucket: "untracked" as const })),
+  ];
   const stagedRows: BucketedFile[] = stagedFiles.map((file) => ({
     ...file,
-    bucket: 'staged' as const,
-  }))
+    bucket: "staged" as const,
+  }));
   const visibleRows: BucketedFile[] = [
     ...(collapseStaged ? [] : stagedRows),
     ...(collapseUnstaged ? [] : changedFiles),
-  ]
+  ];
 
-  const onToggle = (key: 'staged' | 'unstaged') => {
-    if (key === 'staged') {
-      dispatch(setCollapseStaged(!collapseStaged))
+  const onToggle = (key: "staged" | "unstaged") => {
+    if (key === "staged") {
+      dispatch(setCollapseStaged(!collapseStaged));
     } else {
-      dispatch(setCollapseUnstaged(!collapseUnstaged))
+      dispatch(setCollapseUnstaged(!collapseUnstaged));
     }
-    dispatch(setActiveBucket(key))
-  }
+    dispatch(setActiveBucket(key));
+  };
 
   const onStageAll = () => {
-    void dispatch(stageAllAction())
-  }
+    void dispatch(stageAllAction());
+  };
   const onUnstageAll = () => {
-    void dispatch(unstageAllAction())
-  }
+    void dispatch(unstageAllAction());
+  };
 
   const onDiscardChangesGroup = async (files: BucketedFile[]) => {
-    if (files.length === 0) return
-    if (!(await confirmDiscard(`Discard all changes in CHANGES (${files.length} files)?`))) return
-    void dispatch(discardChangesGroupAction(files))
-  }
+    if (files.length === 0) return;
+    if (!(await confirmDiscard(`Discard all changes in CHANGES (${files.length} files)?`))) return;
+    void dispatch(discardChangesGroupAction(files));
+  };
 
   const onStageFile = (path: string) => {
-    void dispatch(stageFileAction(path))
-  }
+    void dispatch(stageFileAction(path));
+  };
 
   const onUnstageFile = (path: string) => {
-    void dispatch(unstageFileAction(path))
-  }
+    void dispatch(unstageFileAction(path));
+  };
 
   const onDiscardFile = async (bucket: Bucket, path: string) => {
-    if (!(await confirmDiscard(`Discard changes for ${path}?`))) return
-    void dispatch(discardFileAction(bucket, path))
-  }
+    if (!(await confirmDiscard(`Discard changes for ${path}?`))) return;
+    void dispatch(discardFileAction(bucket, path));
+  };
 
   const onSelectFile = (bucket: Bucket, relPath: string, event: MouseEvent<HTMLButtonElement>) => {
     if (event.shiftKey) {
-      void dispatch(rangeSelectFile({ bucket, path: relPath }, visibleRows))
-      return
+      void dispatch(rangeSelectFile({ bucket, path: relPath }, visibleRows));
+      return;
     }
     if (event.metaKey || event.ctrlKey) {
-      void dispatch(toggleSelectFile(bucket, relPath))
-      return
+      void dispatch(toggleSelectFile(bucket, relPath));
+      return;
     }
-    void dispatch(selectFile(bucket, relPath))
-  }
+    void dispatch(selectFile(bucket, relPath));
+  };
 
   return (
     <ScrollArea
@@ -156,5 +156,5 @@ function ChangesFileList() {
         />
       </div>
     </ScrollArea>
-  )
+  );
 }

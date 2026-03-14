@@ -1,21 +1,21 @@
-import type { ReactNode } from 'react'
-import { useEffect, useRef } from 'react'
-import type { PanelImperativeHandle } from 'react-resizable-panels'
+import type { ReactNode } from "react";
+import { useEffect, useRef } from "react";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
-import { useSidebarPanelRegistryOptional } from '@/components/layout/SidebarPanelRegistry'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { useSidebarPanelRegistryOptional } from "@/components/layout/SidebarPanelRegistry";
 
 type ResizableSidebarLayoutProps = {
-  sidebar: ReactNode
-  content: ReactNode
-  panelId?: string
-  sidebarDefaultSize?: number | string
-  sidebarMinSize?: number | string
-  sidebarMaxSize?: number | string
-}
+  sidebar: ReactNode;
+  content: ReactNode;
+  panelId?: string;
+  sidebarDefaultSize?: number | string;
+  sidebarMinSize?: number | string;
+  sidebarMaxSize?: number | string;
+};
 
 function toPercentSize(value: number | string) {
-  return typeof value === 'number' ? `${value}%` : value
+  return typeof value === "number" ? `${value}%` : value;
 }
 
 export function ResizableSidebarLayout({
@@ -26,38 +26,38 @@ export function ResizableSidebarLayout({
   sidebarMinSize = 16,
   sidebarMaxSize = 40,
 }: ResizableSidebarLayoutProps) {
-  const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null)
-  const registry = useSidebarPanelRegistryOptional()
-  const defaultSize = toPercentSize(sidebarDefaultSize)
-  const minSize = toPercentSize(sidebarMinSize)
-  const maxSize = toPercentSize(sidebarMaxSize)
+  const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null);
+  const registry = useSidebarPanelRegistryOptional();
+  const defaultSize = toPercentSize(sidebarDefaultSize);
+  const minSize = toPercentSize(sidebarMinSize);
+  const maxSize = toPercentSize(sidebarMaxSize);
 
   useEffect(() => {
-    if (!panelId || !registry || !sidebarPanelRef.current) return
+    if (!panelId || !registry || !sidebarPanelRef.current) return;
 
-    registry.register(panelId, sidebarPanelRef.current)
+    registry.register(panelId, sidebarPanelRef.current);
 
     return () => {
-      registry.unregister(panelId)
-    }
-  }, [panelId, registry])
+      registry.unregister(panelId);
+    };
+  }, [panelId, registry]);
 
   const onToggleSidebar = () => {
-    const panel = sidebarPanelRef.current
-    if (!panel) return
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
     if (panel.isCollapsed()) {
-      panel.expand()
-      return
+      panel.expand();
+      return;
     }
-    panel.collapse()
-  }
+    panel.collapse();
+  };
 
   const onResize = () => {
-    if (!panelId || !registry) return
-    const panel = sidebarPanelRef.current
-    if (!panel) return
-    registry.setCollapsed(panelId, panel.isCollapsed())
-  }
+    if (!panelId || !registry) return;
+    const panel = sidebarPanelRef.current;
+    if (!panel) return;
+    registry.setCollapsed(panelId, panel.isCollapsed());
+  };
 
   return (
     <ResizablePanelGroup orientation="horizontal" className="w-full max-w-[100vw]">
@@ -85,5 +85,5 @@ export function ResizableSidebarLayout({
         <div className="h-full min-h-0">{content}</div>
       </ResizablePanel>
     </ResizablePanelGroup>
-  )
+  );
 }

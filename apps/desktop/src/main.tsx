@@ -1,13 +1,13 @@
-import { createRoot } from 'react-dom/client'
-import { Provider } from 'react-redux'
-import { WorkerPoolContextProvider } from '@pierre/diffs/react'
-import { PacerProvider } from '@tanstack/react-pacer'
-import './index.css'
-import App from './App.tsx'
-import { store } from './app/store'
-import { workerFactory } from './lib/diffs-worker'
+import { createRoot } from "react-dom/client";
+import { Provider } from "react-redux";
+import { WorkerPoolContextProvider } from "@pierre/diffs/react";
+import { PacerProvider } from "@tanstack/react-pacer";
+import "./index.css";
+import App from "./App.tsx";
+import { store } from "./app/store";
+import { workerFactory } from "./lib/diffs-worker";
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
     <PacerProvider
       defaultOptions={{
@@ -33,4 +33,4 @@ createRoot(document.getElementById('root')!).render(
       </WorkerPoolContextProvider>
     </PacerProvider>
   </Provider>,
-)
+);

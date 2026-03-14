@@ -1,4 +1,4 @@
-import { Shield } from 'lucide-react'
+import { Shield } from "lucide-react";
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -8,5 +8,5 @@ export function Logo({ className }: { className?: string }) {
       </div>
       <span className="text-foreground font-semibold tracking-tight">Warden</span>
     </div>
-  )
+  );
 }

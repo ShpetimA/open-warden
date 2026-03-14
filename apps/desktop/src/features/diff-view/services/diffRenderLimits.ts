@@ -1,40 +1,40 @@
-import type { DiffFile } from '@/features/source-control/types'
+import type { DiffFile } from "@/features/source-control/types";
 
-const MAX_DIFF_BUFFER_SIZE = 70_000_000
+const MAX_DIFF_BUFFER_SIZE = 70_000_000;
 
-export const MAX_REASONABLE_DIFF_SIZE = Math.floor(MAX_DIFF_BUFFER_SIZE / 16)
+export const MAX_REASONABLE_DIFF_SIZE = Math.floor(MAX_DIFF_BUFFER_SIZE / 16);
 
-export const MAX_DIFF_LINE_LENGTH = 5000
+export const MAX_DIFF_LINE_LENGTH = 5000;
 
-export type DiffRenderGate = 'large' | 'renderable' | 'unrenderable'
+export type DiffRenderGate = "large" | "renderable" | "unrenderable";
 
 function getDiffContentSize(file: DiffFile | null): number {
-  return file?.contents.length ?? 0
+  return file?.contents.length ?? 0;
 }
 
 function exceedsMaxLineLength(contents: string): boolean {
-  let currentLineLength = 0
+  let currentLineLength = 0;
 
   for (let index = 0; index < contents.length; index += 1) {
-    const charCode = contents.charCodeAt(index)
+    const charCode = contents.charCodeAt(index);
 
     if (charCode === 10 || charCode === 13) {
-      currentLineLength = 0
+      currentLineLength = 0;
 
       if (charCode === 13 && contents.charCodeAt(index + 1) === 10) {
-        index += 1
+        index += 1;
       }
 
-      continue
+      continue;
     }
 
-    currentLineLength += 1
+    currentLineLength += 1;
     if (currentLineLength > MAX_DIFF_LINE_LENGTH) {
-      return true
+      return true;
     }
   }
 
-  return false
+  return false;
 }
 
 export function getDiffRenderGate(
@@ -42,24 +42,24 @@ export function getDiffRenderGate(
   oldFile: DiffFile | null,
   newFile: DiffFile | null,
 ): DiffRenderGate | null {
-  if (!activePath || (!oldFile && !newFile)) return null
+  if (!activePath || (!oldFile && !newFile)) return null;
 
-  const totalDiffSize = getDiffContentSize(oldFile) + getDiffContentSize(newFile)
+  const totalDiffSize = getDiffContentSize(oldFile) + getDiffContentSize(newFile);
   if (totalDiffSize > MAX_DIFF_BUFFER_SIZE) {
-    return 'unrenderable'
+    return "unrenderable";
   }
 
   if (totalDiffSize >= MAX_REASONABLE_DIFF_SIZE) {
-    return 'large'
+    return "large";
   }
 
   if (oldFile && exceedsMaxLineLength(oldFile.contents)) {
-    return 'large'
+    return "large";
   }
 
   if (newFile && exceedsMaxLineLength(newFile.contents)) {
-    return 'large'
+    return "large";
   }
 
-  return 'renderable'
+  return "renderable";
 }

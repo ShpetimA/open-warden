@@ -1,8 +1,7 @@
 {
   "name": "open-warden",
-  "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@10.28.0",
+  "private": true,
   "scripts": {
     "dev": "turbo run dev --filter=desktop",
     "dev:electron": "pnpm --filter desktop dev:electron",
@@ -12,15 +11,20 @@
     "electron:build": "pnpm --filter desktop electron:build",
     "make:electron": "pnpm --filter desktop make:electron",
     "electron:make": "pnpm --filter desktop electron:make",
-    "lint": "turbo run lint",
+    "lint": "oxlint --report-unused-disable-directives",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter desktop test:e2e",
     "test:e2e:install": "pnpm --filter desktop test:e2e:install",
-    "format": "turbo run format",
-    "format:check": "turbo run format:check",
-    "check": "pnpm lint && pnpm test && pnpm format:check"
+    "fmt": "oxfmt --ignore-path .oxfmtignore",
+    "fmt:check": "oxfmt --check --ignore-path .oxfmtignore",
+    "format": "pnpm fmt",
+    "format:check": "pnpm fmt:check",
+    "check": "pnpm lint && pnpm test && pnpm fmt:check"
   },
   "devDependencies": {
+    "oxfmt": "^0.40.0",
+    "oxlint": "^1.55.0",
     "turbo": "^2.5.8"
-  }
+  },
+  "packageManager": "pnpm@10.28.0"
 }

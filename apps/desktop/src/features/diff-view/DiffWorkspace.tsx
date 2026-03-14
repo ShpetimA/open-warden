@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from '@pierre/diffs/react'
-import { FileWarning } from 'lucide-react'
-import { useTheme } from 'next-themes'
+import { useEffect, useState } from "react";
+import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from "@pierre/diffs/react";
+import { FileWarning } from "lucide-react";
+import { useTheme } from "next-themes";
 
-import { useAppSelector } from '@/app/hooks'
-import { Button } from '@/components/ui/button'
+import { useAppSelector } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyContent,
@@ -12,39 +12,39 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import { fileComments, toLineAnnotations } from '@/features/comments/actions'
-import { compactComments } from '@/features/comments/selectors'
-import { useFirstCommentTip } from '@/features/comments/useFirstCommentTip'
+} from "@/components/ui/empty";
+import { fileComments, toLineAnnotations } from "@/features/comments/actions";
+import { compactComments } from "@/features/comments/selectors";
+import { useFirstCommentTip } from "@/features/comments/useFirstCommentTip";
 import type {
   CommentContext,
   CommentItem,
   DiffAnnotationItem,
   DiffFile,
   SelectionRange,
-} from '@/features/source-control/types'
-import { CommentAnnotation } from '@/features/diff-view/components/CommentAnnotation'
-import { CommentComposer } from '@/features/diff-view/components/CommentComposer'
-import { DiffHeaderMetadataControls } from '@/features/diff-view/components/DiffHeaderMetadataControls'
+} from "@/features/source-control/types";
+import { CommentAnnotation } from "@/features/diff-view/components/CommentAnnotation";
+import { CommentComposer } from "@/features/diff-view/components/CommentComposer";
+import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
 import {
   DEFAULT_DARK_THEME,
   DEFAULT_LIGHT_THEME,
   getDiffTheme,
   getDiffThemeCacheSalt,
   getDiffThemeType,
-} from '@/features/diff-view/diffRenderConfig'
-import { useParsedDiff } from '@/features/diff-view/hooks/useParsedDiff'
-import { MAX_DIFF_LINE_LENGTH } from '@/features/diff-view/services/diffRenderLimits'
-import { formatRange } from '@/features/source-control/utils'
-import type { DiffLineAnnotation, FileDiffOptions } from '@pierre/diffs'
+} from "@/features/diff-view/diffRenderConfig";
+import { useParsedDiff } from "@/features/diff-view/hooks/useParsedDiff";
+import { MAX_DIFF_LINE_LENGTH } from "@/features/diff-view/services/diffRenderLimits";
+import { formatRange } from "@/features/source-control/utils";
+import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
 
 type Props = {
-  oldFile: DiffFile | null
-  newFile: DiffFile | null
-  activePath: string
-  commentContext: CommentContext
-  canComment: boolean
-}
+  oldFile: DiffFile | null;
+  newFile: DiffFile | null;
+  activePath: string;
+  commentContext: CommentContext;
+  canComment: boolean;
+};
 
 const STICKY_HEADER_CSS = `
 :host {
@@ -66,7 +66,7 @@ pre[data-diff-type='single'] {
   overflow: hidden;
   min-width: 0;
 }
-`
+`;
 
 function getDiffIdentity(
   activePath: string,
@@ -75,26 +75,26 @@ function getDiffIdentity(
 ): string {
   return [
     activePath,
-    oldFile?.name ?? '',
+    oldFile?.name ?? "",
     oldFile?.contents.length ?? 0,
-    newFile?.name ?? '',
+    newFile?.name ?? "",
     newFile?.contents.length ?? 0,
-  ].join(':')
+  ].join(":");
 }
 
 function areThemeValuesEqual(
   currentTheme: string | { dark: string; light: string } | undefined,
   nextTheme: { dark: string; light: string },
 ): boolean {
-  if (!currentTheme) return false
-  if (typeof currentTheme === 'string') return false
-  return currentTheme.dark === nextTheme.dark && currentTheme.light === nextTheme.light
+  if (!currentTheme) return false;
+  if (typeof currentTheme === "string") return false;
+  return currentTheme.dark === nextTheme.dark && currentTheme.light === nextTheme.light;
 }
 
 type FileCommentsResult = {
-  comments: CommentItem[]
-  annotations: ReturnType<typeof toLineAnnotations>
-}
+  comments: CommentItem[];
+  annotations: ReturnType<typeof toLineAnnotations>;
+};
 
 function useCurrentFileComments(
   activeRepo: string,
@@ -103,77 +103,77 @@ function useCurrentFileComments(
   canComment: boolean,
 ): FileCommentsResult {
   return useAppSelector((state): FileCommentsResult => {
-    if (!canComment) return { comments: [], annotations: [] }
-    const allComments = compactComments(state.comments)
-    const filtered = fileComments(allComments, activeRepo, activePath, commentContext)
-    return { comments: filtered, annotations: toLineAnnotations(filtered) }
-  })
+    if (!canComment) return { comments: [], annotations: [] };
+    const allComments = compactComments(state.comments);
+    const filtered = fileComments(allComments, activeRepo, activePath, commentContext);
+    return { comments: filtered, annotations: toLineAnnotations(filtered) };
+  });
 }
 
 export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
-  const { resolvedTheme } = useTheme()
-  const workerPool = useWorkerPool()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
-  const diffThemeType = getDiffThemeType(resolvedTheme)
-  const activeDiffIdentity = getDiffIdentity(activePath, oldFile, newFile)
+  const { resolvedTheme } = useTheme();
+  const workerPool = useWorkerPool();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
+  const diffThemeType = getDiffThemeType(resolvedTheme);
+  const activeDiffIdentity = getDiffIdentity(activePath, oldFile, newFile);
 
-  const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null)
-  const [expandUnchanged, setExpandUnchanged] = useState(false)
-  const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null)
-  const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity
+  const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null);
+  const [expandUnchanged, setExpandUnchanged] = useState(false);
+  const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
+  const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
 
-  const diffTheme = getDiffTheme()
+  const diffTheme = getDiffTheme();
   const { annotations: currentAnnotations } = useCurrentFileComments(
     activeRepo,
     activePath,
     commentContext,
     canComment,
-  )
+  );
   const repoCommentCount = useAppSelector((state) => {
-    if (!canComment || !activeRepo) return 0
-    return state.comments.filter((c) => c.repoPath === activeRepo).length
-  })
+    if (!canComment || !activeRepo) return 0;
+    return state.comments.filter((c) => c.repoPath === activeRepo).length;
+  });
   const {
     showTip: showCopyTip,
     dismissTip: dismissCopyTip,
     showFirstCommentTip,
-  } = useFirstCommentTip()
-  const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType)
+  } = useFirstCommentTip();
+  const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType);
   const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
     activePath,
     oldFile,
     newFile,
     cacheSalt: diffThemeCacheSalt,
     allowLargeDiff: forceShowLargeDiff,
-  })
+  });
 
   useEffect(() => {
-    if (!workerPool) return
+    if (!workerPool) return;
 
-    const nextTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME }
-    const currentOptions = workerPool.getDiffRenderOptions()
-    if (areThemeValuesEqual(currentOptions.theme, nextTheme)) return
+    const nextTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME };
+    const currentOptions = workerPool.getDiffRenderOptions();
+    if (areThemeValuesEqual(currentOptions.theme, nextTheme)) return;
 
     void workerPool.setRenderOptions({
       ...currentOptions,
       theme: nextTheme,
-    })
-  }, [workerPool])
+    });
+  }, [workerPool]);
 
   const applySelectionRange = (range: SelectionRange | null) => {
-    setSelectedRange(range)
-  }
+    setSelectedRange(range);
+  };
 
   const onLineSelectionEnd = (range: SelectionRange | null) => {
-    setSelectedRange(range)
-  }
+    setSelectedRange(range);
+  };
 
   const renderCommentAnnotation = (annotation: { metadata?: DiffAnnotationItem }) => {
-    const data = annotation.metadata
-    if (!data) return null
+    const data = annotation.metadata;
+    if (!data) return null;
 
-    if (data.type === 'composer') {
+    if (data.type === "composer") {
       return (
         <CommentComposer
           visible
@@ -184,11 +184,11 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           onClose={onCloseCommentComposer}
           onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
         />
-      )
+      );
     }
 
-    return <CommentAnnotation comment={data} />
-  }
+    return <CommentAnnotation comment={data} />;
+  };
 
   const diffOptions: FileDiffOptions<DiffAnnotationItem> = {
     diffStyle,
@@ -199,36 +199,36 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
     expandUnchanged,
     expansionLineCount: 20,
-    hunkSeparators: 'line-info-basic' as const,
+    hunkSeparators: "line-info-basic" as const,
     enableLineSelection: canComment,
     onLineSelected: canComment ? applySelectionRange : undefined,
     onLineSelectionEnd: canComment ? onLineSelectionEnd : undefined,
-  }
+  };
 
   const onCloseCommentComposer = () => {
-    setSelectedRange(null)
-  }
+    setSelectedRange(null);
+  };
 
   const selectedRangeLabel = selectedRange
     ? formatRange(selectedRange.start, selectedRange.end)
-    : ''
+    : "";
   const annotationsWithComposer: DiffLineAnnotation<DiffAnnotationItem>[] = selectedRange
     ? [
         ...currentAnnotations,
         {
           lineNumber: selectedRange.end,
           metadata: {
-            type: 'composer',
-            side: selectedRange.side ?? 'deletions',
+            type: "composer",
+            side: selectedRange.side ?? "deletions",
             endSide: selectedRange.endSide,
             startLine: selectedRange.start,
             endLine: selectedRange.end,
           },
-          side: selectedRange.side ?? 'deletions',
+          side: selectedRange.side ?? "deletions",
         },
       ]
-    : currentAnnotations
-  const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? 'expanded' : 'collapsed'}`
+    : currentAnnotations;
+  const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? "expanded" : "collapsed"}`;
 
   const renderLargeDiffWarning = () => {
     return (
@@ -249,8 +249,8 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           </Button>
         </EmptyContent>
       </Empty>
-    )
-  }
+    );
+  };
 
   const renderUnrenderableDiffWarning = () => {
     return (
@@ -263,8 +263,8 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           <EmptyDescription>The diff is too large to be displayed.</EmptyDescription>
         </EmptyHeader>
       </Empty>
-    )
-  }
+    );
+  };
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -289,15 +289,15 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                 showCopyTip={showCopyTip}
                 onDismissCopyTip={dismissCopyTip}
                 onToggleExpandUnchanged={() => {
-                  setExpandUnchanged((current) => !current)
+                  setExpandUnchanged((current) => !current);
                 }}
               />
             )}
             options={diffOptions}
           />
-        ) : diffRenderGate === 'unrenderable' ? (
+        ) : diffRenderGate === "unrenderable" ? (
           renderUnrenderableDiffWarning()
-        ) : diffRenderGate === 'large' && !forceShowLargeDiff ? (
+        ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
           renderLargeDiffWarning()
         ) : isParsingDiff ? (
           <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
@@ -306,5 +306,5 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
         )}
       </Virtualizer>
     </div>
-  )
+  );
 }

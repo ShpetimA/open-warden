@@ -1,15 +1,15 @@
-import { AppThemeProvider } from '@/app/AppThemeProvider'
-import { AppShell } from '@/app/AppShell'
-import { Toaster } from '@/components/ui/sonner'
-import { CommentsScreen } from '@/features/comments/screens/CommentsScreen'
-import { ChangesScreen } from '@/features/source-control/screens/ChangesScreen'
-import { HistoryScreen } from '@/features/source-control/screens/HistoryScreen'
-import { ReviewScreen } from '@/features/source-control/screens/ReviewScreen'
-import { Navigate, RouterProvider, createHashRouter } from 'react-router'
+import { AppThemeProvider } from "@/app/AppThemeProvider";
+import { AppShell } from "@/app/AppShell";
+import { Toaster } from "@/components/ui/sonner";
+import { CommentsScreen } from "@/features/comments/screens/CommentsScreen";
+import { ChangesScreen } from "@/features/source-control/screens/ChangesScreen";
+import { HistoryScreen } from "@/features/source-control/screens/HistoryScreen";
+import { ReviewScreen } from "@/features/source-control/screens/ReviewScreen";
+import { Navigate, RouterProvider, createHashRouter } from "react-router";
 
 const router = createHashRouter([
   {
-    path: '/',
+    path: "/",
     element: <AppShell />,
     children: [
       {
@@ -17,28 +17,28 @@ const router = createHashRouter([
         element: <Navigate to="/changes" replace />,
       },
       {
-        path: 'changes',
+        path: "changes",
         element: <ChangesScreen />,
       },
       {
-        path: 'history',
+        path: "history",
         element: <HistoryScreen />,
       },
       {
-        path: 'review',
+        path: "review",
         element: <ReviewScreen />,
       },
       {
-        path: 'comments',
+        path: "comments",
         element: <CommentsScreen />,
       },
       {
-        path: '*',
+        path: "*",
         element: <Navigate to="/changes" replace />,
       },
     ],
   },
-])
+]);
 
 function App() {
   return (
@@ -46,7 +46,7 @@ function App() {
       <RouterProvider router={router} />
       <Toaster richColors />
     </AppThemeProvider>
-  )
+  );
 }
 
-export default App
+export default App;

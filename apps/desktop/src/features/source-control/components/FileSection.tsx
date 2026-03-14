@@ -1,28 +1,28 @@
-import { ChevronDown, ChevronRight, Minus, Plus, Trash2 } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { ChevronDown, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
+import type { MouseEvent } from "react";
 
-import { useAppSelector } from '@/app/hooks'
-import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
-import type { Bucket, BucketedFile } from '@/features/source-control/types'
-import { FileRow } from './FileRow'
+import { useAppSelector } from "@/app/hooks";
+import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
+import type { Bucket, BucketedFile } from "@/features/source-control/types";
+import { FileRow } from "./FileRow";
 
 type Props = {
-  sectionKey: 'staged' | 'unstaged'
-  title: string
-  rows: BucketedFile[]
-  startIndex: number
-  collapsed: boolean
-  unstagedCount: number
-  untrackedCount: number
-  onToggle: (key: 'staged' | 'unstaged') => void
-  onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void
-  onStageFile: (path: string) => void
-  onUnstageFile: (path: string) => void
-  onDiscardFile: (bucket: Bucket, path: string) => void
-  onStageAll: () => void
-  onUnstageAll: () => void
-  onDiscardChangesGroup: (files: BucketedFile[]) => void
-}
+  sectionKey: "staged" | "unstaged";
+  title: string;
+  rows: BucketedFile[];
+  startIndex: number;
+  collapsed: boolean;
+  unstagedCount: number;
+  untrackedCount: number;
+  onToggle: (key: "staged" | "unstaged") => void;
+  onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void;
+  onStageFile: (path: string) => void;
+  onUnstageFile: (path: string) => void;
+  onDiscardFile: (bucket: Bucket, path: string) => void;
+  onStageAll: () => void;
+  onUnstageAll: () => void;
+  onDiscardChangesGroup: (files: BucketedFile[]) => void;
+};
 
 export function FileSection({
   sectionKey,
@@ -41,11 +41,11 @@ export function FileSection({
   onUnstageAll,
   onDiscardChangesGroup,
 }: Props) {
-  const runningAction = useAppSelector((state) => state.sourceControl.runningAction)
-  const comments = useAppSelector((state) => state.comments)
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo, { kind: 'changes' })
-  const isChanges = sectionKey === 'unstaged'
+  const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
+  const comments = useAppSelector((state) => state.comments);
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo, { kind: "changes" });
+  const isChanges = sectionKey === "unstaged";
 
   return (
     <div className="overflow-hidden">
@@ -127,5 +127,5 @@ export function FileSection({
         </div>
       ) : null}
     </div>
-  )
+  );
 }

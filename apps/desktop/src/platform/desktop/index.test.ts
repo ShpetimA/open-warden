@@ -1,19 +1,19 @@
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, expect, test, vi } from "vitest";
 
 afterEach(() => {
-  vi.unstubAllEnvs()
-  vi.unstubAllGlobals()
-  vi.resetModules()
-})
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.resetModules();
+});
 
-test('desktop API resolves Electron runtime lazily after import', async () => {
-  vi.stubEnv('DEV', 'true')
-  vi.stubEnv('VITE_DESKTOP_FALLBACK', '')
-  vi.stubGlobal('window', {})
+test("desktop API resolves Electron runtime lazily after import", async () => {
+  vi.stubEnv("DEV", "true");
+  vi.stubEnv("VITE_DESKTOP_FALLBACK", "");
+  vi.stubGlobal("window", {});
 
-  const { desktop } = await import('./index')
+  const { desktop } = await import("./index");
 
-  const selectFolder = vi.fn().mockResolvedValue('/tmp/repo')
+  const selectFolder = vi.fn().mockResolvedValue("/tmp/repo");
   window.desktopBridge = {
     selectFolder,
     confirm: vi.fn(),
@@ -35,8 +35,8 @@ test('desktop API resolves Electron runtime lazily after import', async () => {
     discardFiles: vi.fn(),
     discardAll: vi.fn(),
     commitStaged: vi.fn(),
-  }
+  };
 
-  await expect(desktop.selectFolder()).resolves.toEqual('/tmp/repo')
-  expect(selectFolder).toHaveBeenCalledTimes(1)
-})
+  await expect(desktop.selectFolder()).resolves.toEqual("/tmp/repo");
+  expect(selectFolder).toHaveBeenCalledTimes(1);
+});

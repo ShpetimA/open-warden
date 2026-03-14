@@ -1,21 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
-import { useHotkey } from '@tanstack/react-hotkeys'
+import { useEffect, useRef, useState } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 
-import { useAppDispatch } from '@/app/hooks'
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { addComment } from '@/features/comments/actions'
-import type { CommentContext, SelectionRange } from '@/features/source-control/types'
+import { useAppDispatch } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { addComment } from "@/features/comments/actions";
+import type { CommentContext, SelectionRange } from "@/features/source-control/types";
 
 type Props = {
-  visible: boolean
-  label: string
-  activePath: string
-  selectedRange: SelectionRange | null
-  commentContext: CommentContext
-  onClose: () => void
-  onBeforeSubmit?: () => void
-}
+  visible: boolean;
+  label: string;
+  activePath: string;
+  selectedRange: SelectionRange | null;
+  commentContext: CommentContext;
+  onClose: () => void;
+  onBeforeSubmit?: () => void;
+};
 
 export function CommentComposer({
   visible,
@@ -26,61 +26,61 @@ export function CommentComposer({
   onClose,
   onBeforeSubmit,
 }: Props) {
-  const dispatch = useAppDispatch()
-  const [draftComment, setDraftComment] = useState('')
-  const inputRef = useRef<HTMLTextAreaElement | null>(null)
+  const dispatch = useAppDispatch();
+  const [draftComment, setDraftComment] = useState("");
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const resizeComposer = () => {
-    const input = inputRef.current
-    if (!input) return
+    const input = inputRef.current;
+    if (!input) return;
 
-    input.style.height = '0px'
-    input.style.height = `${input.scrollHeight}px`
-  }
+    input.style.height = "0px";
+    input.style.height = `${input.scrollHeight}px`;
+  };
 
   const onCancel = () => {
-    setDraftComment('')
-    onClose()
-  }
+    setDraftComment("");
+    onClose();
+  };
 
   const onSubmit = () => {
-    if (!selectedRange || !draftComment.trim() || !activePath) return
-    onBeforeSubmit?.()
-    dispatch(addComment(selectedRange, draftComment, commentContext))
-    setDraftComment('')
-    onClose()
-  }
+    if (!selectedRange || !draftComment.trim() || !activePath) return;
+    onBeforeSubmit?.();
+    dispatch(addComment(selectedRange, draftComment, commentContext));
+    setDraftComment("");
+    onClose();
+  };
 
   useEffect(() => {
     if (visible) {
-      resizeComposer()
-      inputRef.current?.focus({ preventScroll: true })
+      resizeComposer();
+      inputRef.current?.focus({ preventScroll: true });
     }
-  }, [visible])
+  }, [visible]);
 
   useEffect(() => {
-    resizeComposer()
-  }, [draftComment])
+    resizeComposer();
+  }, [draftComment]);
 
   useHotkey(
-    'Mod+Enter',
+    "Mod+Enter",
     (event) => {
-      event.preventDefault()
-      onSubmit()
+      event.preventDefault();
+      onSubmit();
     },
     { target: inputRef, enabled: visible, ignoreInputs: false },
-  )
+  );
 
   useHotkey(
-    'Escape',
+    "Escape",
     (event) => {
-      event.preventDefault()
-      onCancel()
+      event.preventDefault();
+      onCancel();
     },
     { target: inputRef, enabled: visible, ignoreInputs: false },
-  )
+  );
 
-  if (!visible) return null
+  if (!visible) return null;
 
   return (
     <div className="border-input bg-surface-elevated border p-2 shadow-xl max-w-lg">
@@ -107,5 +107,5 @@ export function CommentComposer({
         </Button>
       </div>
     </div>
-  )
+  );
 }

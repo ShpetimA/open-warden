@@ -1,20 +1,20 @@
-import { Check, GitPullRequestArrow } from 'lucide-react'
-import { useHotkey } from '@tanstack/react-hotkeys'
-import { toast } from 'sonner'
+import { Check, GitPullRequestArrow } from "lucide-react";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { toast } from "sonner";
 
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { Button } from '@/components/ui/button'
-import { copyComments, fileComments } from '@/features/comments/actions'
-import { compactComments } from '@/features/comments/selectors'
-import type { CommentContext } from '@/features/source-control/types'
-import { setDiffStyleValue } from '@/features/source-control/actions'
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
+import { copyComments, fileComments } from "@/features/comments/actions";
+import { compactComments } from "@/features/comments/selectors";
+import type { CommentContext } from "@/features/source-control/types";
+import { setDiffStyleValue } from "@/features/source-control/actions";
 
 type Props = {
-  activePath: string
-  commentContext: CommentContext
-  canComment: boolean
-  showDiffActions: boolean
-}
+  activePath: string;
+  commentContext: CommentContext;
+  canComment: boolean;
+  showDiffActions: boolean;
+};
 
 export function DiffWorkspaceHeader({
   activePath,
@@ -22,57 +22,57 @@ export function DiffWorkspaceHeader({
   canComment,
   showDiffActions,
 }: Props) {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
-  const comments = useAppSelector((state) => state.comments)
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
+  const comments = useAppSelector((state) => state.comments);
 
-  const allComments = compactComments(comments)
+  const allComments = compactComments(comments);
   const currentRepoComments = activeRepo
     ? allComments.filter((comment) => comment.repoPath === activeRepo)
-    : []
+    : [];
   const currentContextComments =
-    commentContext.kind === 'review'
+    commentContext.kind === "review"
       ? currentRepoComments.filter(
           (comment) =>
-            comment.contextKind === 'review' &&
+            comment.contextKind === "review" &&
             comment.baseRef === commentContext.baseRef &&
             comment.headRef === commentContext.headRef,
         )
-      : currentRepoComments.filter((comment) => (comment.contextKind ?? 'changes') === 'changes')
+      : currentRepoComments.filter((comment) => (comment.contextKind ?? "changes") === "changes");
   const currentFileComments = canComment
     ? fileComments(allComments, activeRepo, activePath, commentContext)
-    : []
+    : [];
 
   const onCopyFileComments = async () => {
-    const copied = await dispatch(copyComments('file', { context: commentContext, activePath }))
-    if (copied) toast.success('Copied file comments')
-  }
+    const copied = await dispatch(copyComments("file", { context: commentContext, activePath }));
+    if (copied) toast.success("Copied file comments");
+  };
 
   const onCopyAllComments = async () => {
-    const copied = await dispatch(copyComments('all', { context: commentContext }))
-    if (copied) toast.success('Copied comments')
-  }
+    const copied = await dispatch(copyComments("all", { context: commentContext }));
+    if (copied) toast.success("Copied comments");
+  };
 
   useHotkey(
-    'Mod+C',
+    "Mod+C",
     () => {
-      void onCopyFileComments()
+      void onCopyFileComments();
     },
     {
       enabled: showDiffActions && canComment && !!activePath && currentFileComments.length > 0,
     },
-  )
+  );
 
   useHotkey(
-    'Mod+Alt+C',
+    "Mod+Alt+C",
     () => {
-      void onCopyAllComments()
+      void onCopyAllComments();
     },
     {
       enabled: showDiffActions && canComment && currentContextComments.length > 0,
     },
-  )
+  );
 
   return (
     <div className="border-border flex items-center gap-1 border-b px-2 py-1">
@@ -80,15 +80,15 @@ export function DiffWorkspaceHeader({
         <>
           <Button
             size="sm"
-            variant={diffStyle === 'split' ? 'secondary' : 'ghost'}
-            onClick={() => dispatch(setDiffStyleValue('split'))}
+            variant={diffStyle === "split" ? "secondary" : "ghost"}
+            onClick={() => dispatch(setDiffStyleValue("split"))}
           >
             <GitPullRequestArrow className="mr-1 h-3.5 w-3.5" /> Split
           </Button>
           <Button
             size="sm"
-            variant={diffStyle === 'unified' ? 'secondary' : 'ghost'}
-            onClick={() => dispatch(setDiffStyleValue('unified'))}
+            variant={diffStyle === "unified" ? "secondary" : "ghost"}
+            onClick={() => dispatch(setDiffStyleValue("unified"))}
           >
             <Check className="mr-1 h-3.5 w-3.5" /> Unified
           </Button>
@@ -99,7 +99,7 @@ export function DiffWorkspaceHeader({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void onCopyFileComments()
+                  void onCopyFileComments();
                 }}
                 disabled={!activePath || currentFileComments.length === 0}
               >
@@ -109,7 +109,7 @@ export function DiffWorkspaceHeader({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void onCopyAllComments()
+                  void onCopyAllComments();
                 }}
                 disabled={currentContextComments.length === 0}
               >
@@ -120,5 +120,5 @@ export function DiffWorkspaceHeader({
         </>
       ) : null}
     </div>
-  )
+  );
 }

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { ChevronDown, Copy, FolderOpen } from 'lucide-react'
-import { toast } from 'sonner'
+import { useEffect, useState } from "react";
+import { ChevronDown, Copy, FolderOpen } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -11,148 +11,148 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { desktop } from '@/platform/desktop'
-import { Spinner } from '@/components/ui/spinner'
+} from "@/components/ui/dropdown-menu";
+import { desktop } from "@/platform/desktop";
+import { Spinner } from "@/components/ui/spinner";
 
-const OPEN_APP_PREFERENCE_KEY = 'open-warden.open-app'
+const OPEN_APP_PREFERENCE_KEY = "open-warden.open-app";
 
 const OPEN_APPS = [
-  'finder',
-  'vscode',
-  'cursor',
-  'zed',
-  'textmate',
-  'antigravity',
-  'terminal',
-  'iterm2',
-  'ghostty',
-  'warp',
-  'xcode',
-  'android-studio',
-  'powershell',
-  'sublime-text',
-] as const
+  "finder",
+  "vscode",
+  "cursor",
+  "zed",
+  "textmate",
+  "antigravity",
+  "terminal",
+  "iterm2",
+  "ghostty",
+  "warp",
+  "xcode",
+  "android-studio",
+  "powershell",
+  "sublime-text",
+] as const;
 
-type OpenApp = (typeof OPEN_APPS)[number]
-type DesktopOS = 'macos' | 'windows' | 'linux' | 'unknown'
-type OpenTarget = 'repository' | 'file'
+type OpenApp = (typeof OPEN_APPS)[number];
+type DesktopOS = "macos" | "windows" | "linux" | "unknown";
+type OpenTarget = "repository" | "file";
 
 type OpenOption = {
-  id: OpenApp
-  label: string
-  openWith?: string
-}
+  id: OpenApp;
+  label: string;
+  openWith?: string;
+};
 
 type EditorOption = {
-  id: Exclude<OpenApp, 'finder'>
-  label: string
-  openWith: string
-}
+  id: Exclude<OpenApp, "finder">;
+  label: string;
+  openWith: string;
+};
 
 const MAC_APPS: EditorOption[] = [
-  { id: 'vscode', label: 'VS Code', openWith: 'Visual Studio Code' },
-  { id: 'cursor', label: 'Cursor', openWith: 'Cursor' },
-  { id: 'zed', label: 'Zed', openWith: 'Zed' },
-  { id: 'textmate', label: 'TextMate', openWith: 'TextMate' },
-  { id: 'antigravity', label: 'Antigravity', openWith: 'Antigravity' },
-  { id: 'terminal', label: 'Terminal', openWith: 'Terminal' },
-  { id: 'iterm2', label: 'iTerm2', openWith: 'iTerm' },
-  { id: 'ghostty', label: 'Ghostty', openWith: 'Ghostty' },
-  { id: 'warp', label: 'Warp', openWith: 'Warp' },
-  { id: 'xcode', label: 'Xcode', openWith: 'Xcode' },
-  { id: 'android-studio', label: 'Android Studio', openWith: 'Android Studio' },
-  { id: 'sublime-text', label: 'Sublime Text', openWith: 'Sublime Text' },
-]
+  { id: "vscode", label: "VS Code", openWith: "Visual Studio Code" },
+  { id: "cursor", label: "Cursor", openWith: "Cursor" },
+  { id: "zed", label: "Zed", openWith: "Zed" },
+  { id: "textmate", label: "TextMate", openWith: "TextMate" },
+  { id: "antigravity", label: "Antigravity", openWith: "Antigravity" },
+  { id: "terminal", label: "Terminal", openWith: "Terminal" },
+  { id: "iterm2", label: "iTerm2", openWith: "iTerm" },
+  { id: "ghostty", label: "Ghostty", openWith: "Ghostty" },
+  { id: "warp", label: "Warp", openWith: "Warp" },
+  { id: "xcode", label: "Xcode", openWith: "Xcode" },
+  { id: "android-studio", label: "Android Studio", openWith: "Android Studio" },
+  { id: "sublime-text", label: "Sublime Text", openWith: "Sublime Text" },
+];
 
 const WINDOWS_APPS: EditorOption[] = [
-  { id: 'vscode', label: 'VS Code', openWith: 'code' },
-  { id: 'cursor', label: 'Cursor', openWith: 'cursor' },
-  { id: 'zed', label: 'Zed', openWith: 'zed' },
-  { id: 'powershell', label: 'PowerShell', openWith: 'powershell' },
-  { id: 'sublime-text', label: 'Sublime Text', openWith: 'Sublime Text' },
-]
+  { id: "vscode", label: "VS Code", openWith: "code" },
+  { id: "cursor", label: "Cursor", openWith: "cursor" },
+  { id: "zed", label: "Zed", openWith: "zed" },
+  { id: "powershell", label: "PowerShell", openWith: "powershell" },
+  { id: "sublime-text", label: "Sublime Text", openWith: "Sublime Text" },
+];
 
 const LINUX_APPS: EditorOption[] = [
-  { id: 'vscode', label: 'VS Code', openWith: 'code' },
-  { id: 'cursor', label: 'Cursor', openWith: 'cursor' },
-  { id: 'zed', label: 'Zed', openWith: 'zed' },
-  { id: 'sublime-text', label: 'Sublime Text', openWith: 'Sublime Text' },
-]
+  { id: "vscode", label: "VS Code", openWith: "code" },
+  { id: "cursor", label: "Cursor", openWith: "cursor" },
+  { id: "zed", label: "Zed", openWith: "zed" },
+  { id: "sublime-text", label: "Sublime Text", openWith: "Sublime Text" },
+];
 
 function detectOS(): DesktopOS {
-  if (typeof navigator !== 'object') return 'unknown'
+  if (typeof navigator !== "object") return "unknown";
 
-  const value = navigator.platform || navigator.userAgent
-  if (/Mac/i.test(value)) return 'macos'
-  if (/Win/i.test(value)) return 'windows'
-  if (/Linux/i.test(value)) return 'linux'
-  return 'unknown'
+  const value = navigator.platform || navigator.userAgent;
+  if (/Mac/i.test(value)) return "macos";
+  if (/Win/i.test(value)) return "windows";
+  if (/Linux/i.test(value)) return "linux";
+  return "unknown";
 }
 
 function fileManagerOption(os: DesktopOS): OpenOption {
-  if (os === 'macos') return { id: 'finder', label: 'Finder' }
-  if (os === 'windows') return { id: 'finder', label: 'File Explorer' }
-  return { id: 'finder', label: 'File Manager' }
+  if (os === "macos") return { id: "finder", label: "Finder" };
+  if (os === "windows") return { id: "finder", label: "File Explorer" };
+  return { id: "finder", label: "File Manager" };
 }
 
 function editorOptions(os: DesktopOS): EditorOption[] {
-  if (os === 'macos') return MAC_APPS
-  if (os === 'windows') return WINDOWS_APPS
-  return LINUX_APPS
+  if (os === "macos") return MAC_APPS;
+  if (os === "windows") return WINDOWS_APPS;
+  return LINUX_APPS;
 }
 
 function isOpenApp(value: string): value is OpenApp {
-  return OPEN_APPS.includes(value as OpenApp)
+  return OPEN_APPS.includes(value as OpenApp);
 }
 
 function readPreferredApp(): OpenApp {
-  if (typeof window !== 'object') return 'finder'
-  const saved = window.localStorage.getItem(OPEN_APP_PREFERENCE_KEY)
-  if (!saved || !isOpenApp(saved)) return 'finder'
-  return saved
+  if (typeof window !== "object") return "finder";
+  const saved = window.localStorage.getItem(OPEN_APP_PREFERENCE_KEY);
+  if (!saved || !isOpenApp(saved)) return "finder";
+  return saved;
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message
-  return String(error)
+  if (error instanceof Error) return error.message;
+  return String(error);
 }
 
 function resolveOpenPath(repoPath: string, filePath?: string): string {
-  if (!repoPath) return ''
-  if (!filePath) return repoPath
-  if (/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(filePath)) return filePath
+  if (!repoPath) return "";
+  if (!filePath) return repoPath;
+  if (/^(?:[a-zA-Z]:[\\/]|\\\\|\/)/.test(filePath)) return filePath;
 
-  const cleanedFilePath = filePath.replace(/^[/\\]+/, '')
-  if (/^[a-zA-Z]:[\\/]/.test(repoPath) || repoPath.includes('\\')) {
-    const base = repoPath.replace(/[\\/]+$/, '')
-    return `${base}\\${cleanedFilePath.replace(/\//g, '\\')}`
+  const cleanedFilePath = filePath.replace(/^[/\\]+/, "");
+  if (/^[a-zA-Z]:[\\/]/.test(repoPath) || repoPath.includes("\\")) {
+    const base = repoPath.replace(/[\\/]+$/, "");
+    return `${base}\\${cleanedFilePath.replace(/\//g, "\\")}`;
   }
 
-  const base = repoPath.replace(/\/+$/, '')
-  return `${base}/${cleanedFilePath.replace(/\\/g, '/')}`
+  const base = repoPath.replace(/\/+$/, "");
+  return `${base}/${cleanedFilePath.replace(/\\/g, "/")}`;
 }
 
 function targetLabel(target: OpenTarget): string {
-  if (target === 'file') return 'file'
-  return 'repository'
+  if (target === "file") return "file";
+  return "repository";
 }
 
 async function checkAppExists(appName: string): Promise<boolean> {
   try {
-    return await desktop.checkAppExists(appName)
+    return await desktop.checkAppExists(appName);
   } catch {
-    return false
+    return false;
   }
 }
 
 type OpenInExternalEditorProps = {
-  repoPath: string
-  filePath?: string
-  target?: OpenTarget
-  disabled?: boolean
-  compact?: boolean
-}
+  repoPath: string;
+  filePath?: string;
+  target?: OpenTarget;
+  disabled?: boolean;
+  compact?: boolean;
+};
 
 export function OpenInExternalEditor({
   repoPath,
@@ -161,81 +161,81 @@ export function OpenInExternalEditor({
   disabled = false,
   compact = false,
 }: OpenInExternalEditorProps) {
-  const [preferredApp, setPreferredApp] = useState<OpenApp>(readPreferredApp)
-  const [openingApp, setOpeningApp] = useState<OpenApp | null>(null)
-  const [exists, setExists] = useState<Partial<Record<OpenApp, boolean>>>({ finder: true })
+  const [preferredApp, setPreferredApp] = useState<OpenApp>(readPreferredApp);
+  const [openingApp, setOpeningApp] = useState<OpenApp | null>(null);
+  const [exists, setExists] = useState<Partial<Record<OpenApp, boolean>>>({ finder: true });
 
-  const os = detectOS()
-  const apps = editorOptions(os)
-  const options: OpenOption[] = [fileManagerOption(os), ...apps.filter((app) => exists[app.id])]
-  const current = options.find((option) => option.id === preferredApp) ?? options[0]
-  const path = resolveOpenPath(repoPath, filePath)
-  const currentTarget = target ?? (filePath ? 'file' : 'repository')
-  const noun = targetLabel(currentTarget)
-  const opening = openingApp !== null
-  const openDisabled = disabled || !path || !current || opening
-
-  useEffect(() => {
-    if (typeof window !== 'object') return
-    window.localStorage.setItem(OPEN_APP_PREFERENCE_KEY, preferredApp)
-  }, [preferredApp])
+  const os = detectOS();
+  const apps = editorOptions(os);
+  const options: OpenOption[] = [fileManagerOption(os), ...apps.filter((app) => exists[app.id])];
+  const current = options.find((option) => option.id === preferredApp) ?? options[0];
+  const path = resolveOpenPath(repoPath, filePath);
+  const currentTarget = target ?? (filePath ? "file" : "repository");
+  const noun = targetLabel(currentTarget);
+  const opening = openingApp !== null;
+  const openDisabled = disabled || !path || !current || opening;
 
   useEffect(() => {
-    let cancelled = false
-    const list = editorOptions(os)
+    if (typeof window !== "object") return;
+    window.localStorage.setItem(OPEN_APP_PREFERENCE_KEY, preferredApp);
+  }, [preferredApp]);
 
-    setExists({ finder: true })
+  useEffect(() => {
+    let cancelled = false;
+    const list = editorOptions(os);
+
+    setExists({ finder: true });
 
     void Promise.all(
       list.map(async (app) => {
-        const value = await checkAppExists(app.openWith)
-        return [app.id, value] as const
+        const value = await checkAppExists(app.openWith);
+        return [app.id, value] as const;
       }),
     ).then((entries) => {
-      if (cancelled) return
-      const next: Partial<Record<OpenApp, boolean>> = { finder: true }
+      if (cancelled) return;
+      const next: Partial<Record<OpenApp, boolean>> = { finder: true };
       for (const [id, value] of entries) {
-        next[id] = value
+        next[id] = value;
       }
-      setExists(next)
-    })
+      setExists(next);
+    });
 
     return () => {
-      cancelled = true
-    }
-  }, [os])
+      cancelled = true;
+    };
+  }, [os]);
 
   const openPathInApp = async (app: OpenApp) => {
-    if (!path || opening) return
+    if (!path || opening) return;
 
-    const option = options.find((item) => item.id === app)
-    if (!option) return
+    const option = options.find((item) => item.id === app);
+    if (!option) return;
 
-    setPreferredApp(app)
-    setOpeningApp(app)
+    setPreferredApp(app);
+    setOpeningApp(app);
 
     try {
-      await desktop.openPath(path, option.openWith ?? null)
+      await desktop.openPath(path, option.openWith ?? null);
     } catch (error) {
-      toast.error(`Failed to open ${noun}`, { description: errorMessage(error) })
+      toast.error(`Failed to open ${noun}`, { description: errorMessage(error) });
     } finally {
-      setOpeningApp(null)
+      setOpeningApp(null);
     }
-  }
+  };
 
   const copyPath = async () => {
-    if (!path) return
+    if (!path) return;
 
     try {
-      await navigator.clipboard.writeText(path)
-      if (currentTarget === 'file') toast.success('File path copied')
-      if (currentTarget === 'repository') toast.success('Repository path copied')
+      await navigator.clipboard.writeText(path);
+      if (currentTarget === "file") toast.success("File path copied");
+      if (currentTarget === "repository") toast.success("Repository path copied");
     } catch (error) {
-      toast.error(`Failed to copy ${noun} path`, { description: errorMessage(error) })
+      toast.error(`Failed to copy ${noun} path`, { description: errorMessage(error) });
     }
-  }
+  };
 
-  if (!current) return null
+  if (!current) return null;
 
   if (compact) {
     return (
@@ -247,7 +247,7 @@ export function OpenInExternalEditor({
           aria-label={`Open ${noun} in ${current.label}`}
           disabled={openDisabled}
           onClick={() => {
-            void openPathInApp(current.id)
+            void openPathInApp(current.id);
           }}
         >
           {opening ? <Spinner className="size-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
@@ -271,8 +271,8 @@ export function OpenInExternalEditor({
             <DropdownMenuRadioGroup
               value={current.id}
               onValueChange={(value) => {
-                if (!isOpenApp(value)) return
-                setPreferredApp(value)
+                if (!isOpenApp(value)) return;
+                setPreferredApp(value);
               }}
             >
               {options.map((option) => (
@@ -281,7 +281,7 @@ export function OpenInExternalEditor({
                   value={option.id}
                   disabled={openDisabled}
                   onSelect={() => {
-                    void openPathInApp(option.id)
+                    void openPathInApp(option.id);
                   }}
                 >
                   {option.label}
@@ -294,7 +294,7 @@ export function OpenInExternalEditor({
             <DropdownMenuItem
               disabled={!path}
               onSelect={() => {
-                void copyPath()
+                void copyPath();
               }}
             >
               <Copy className="h-3.5 w-3.5" />
@@ -303,7 +303,7 @@ export function OpenInExternalEditor({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    )
+    );
   }
 
   return (
@@ -315,7 +315,7 @@ export function OpenInExternalEditor({
         aria-label={`Open ${noun} in ${current.label}`}
         disabled={openDisabled}
         onClick={() => {
-          void openPathInApp(current.id)
+          void openPathInApp(current.id);
         }}
       >
         {opening ? <Spinner className="size-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
@@ -342,8 +342,8 @@ export function OpenInExternalEditor({
           <DropdownMenuRadioGroup
             value={current.id}
             onValueChange={(value) => {
-              if (!isOpenApp(value)) return
-              setPreferredApp(value)
+              if (!isOpenApp(value)) return;
+              setPreferredApp(value);
             }}
           >
             {options.map((option) => (
@@ -352,7 +352,7 @@ export function OpenInExternalEditor({
                 value={option.id}
                 disabled={openDisabled}
                 onSelect={() => {
-                  void openPathInApp(option.id)
+                  void openPathInApp(option.id);
                 }}
               >
                 {option.label}
@@ -365,7 +365,7 @@ export function OpenInExternalEditor({
           <DropdownMenuItem
             disabled={!path}
             onSelect={() => {
-              void copyPath()
+              void copyPath();
             }}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -374,5 +374,5 @@ export function OpenInExternalEditor({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-  )
+  );
 }

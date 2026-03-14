@@ -4,7 +4,6 @@ OpenWarden is a desktop Git review app for moving through local changes, commit 
 
 https://github.com/user-attachments/assets/6866ec19-b518-4d1b-a3ef-6ebeee587e22
 
-
 ## What it does
 
 - Browse staged, unstaged, and untracked changes with inline diffs.

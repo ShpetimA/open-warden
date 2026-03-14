@@ -1,35 +1,35 @@
-import type { DesktopApi } from './contracts'
-import { browserDesktopApi, unavailableDesktopApi } from './browser'
+import type { DesktopApi } from "./contracts";
+import { browserDesktopApi, unavailableDesktopApi } from "./browser";
 
 function hasElectronRuntime() {
-  if (typeof window === 'undefined') return false
+  if (typeof window === "undefined") return false;
 
   return (
-    (typeof window.desktopBridge === 'object' && window.desktopBridge !== null) ||
-    (typeof window.openWarden === 'object' && window.openWarden !== null)
-  )
+    (typeof window.desktopBridge === "object" && window.desktopBridge !== null) ||
+    (typeof window.openWarden === "object" && window.openWarden !== null)
+  );
 }
 
 function getElectronRuntime(): DesktopApi | null {
-  if (!hasElectronRuntime()) return null
-  return window.desktopBridge ?? window.openWarden ?? null
+  if (!hasElectronRuntime()) return null;
+  return window.desktopBridge ?? window.openWarden ?? null;
 }
 
 function browserFallbackEnabled() {
-  return import.meta.env.DEV && import.meta.env.VITE_DESKTOP_FALLBACK === 'browser'
+  return import.meta.env.DEV && import.meta.env.VITE_DESKTOP_FALLBACK === "browser";
 }
 
 function resolveDesktopApi(): DesktopApi {
-  const electronRuntime = getElectronRuntime()
+  const electronRuntime = getElectronRuntime();
   if (electronRuntime) {
-    return electronRuntime
+    return electronRuntime;
   }
 
   if (browserFallbackEnabled()) {
-    return browserDesktopApi
+    return browserDesktopApi;
   }
 
-  return unavailableDesktopApi
+  return unavailableDesktopApi;
 }
 
 export const desktop: DesktopApi = {
@@ -58,7 +58,7 @@ export const desktop: DesktopApi = {
   discardFiles: (repoPath, files) => resolveDesktopApi().discardFiles(repoPath, files),
   discardAll: (repoPath) => resolveDesktopApi().discardAll(repoPath),
   commitStaged: (repoPath, message) => resolveDesktopApi().commitStaged(repoPath, message),
-}
+};
 
 export type {
   ApiError,
@@ -72,4 +72,4 @@ export type {
   FileVersions,
   GitSnapshot,
   HistoryCommit,
-} from './contracts'
+} from "./contracts";

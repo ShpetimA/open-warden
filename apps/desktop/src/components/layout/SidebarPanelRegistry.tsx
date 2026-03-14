@@ -1,110 +1,110 @@
-import { createContext, useContext, useCallback, useState, useSyncExternalStore } from 'react'
-import type { ReactNode } from 'react'
-import type { PanelImperativeHandle } from 'react-resizable-panels'
+import { createContext, useContext, useCallback, useState, useSyncExternalStore } from "react";
+import type { ReactNode } from "react";
+import type { PanelImperativeHandle } from "react-resizable-panels";
 
 type PanelEntry = {
-  ref: PanelImperativeHandle
-  collapsed: boolean
-}
+  ref: PanelImperativeHandle;
+  collapsed: boolean;
+};
 
 type SidebarPanelRegistryApi = {
-  register: (id: string, ref: PanelImperativeHandle) => void
-  unregister: (id: string) => void
-  setCollapsed: (id: string, collapsed: boolean) => void
-  toggle: (id: string) => void
-  subscribe: (callback: () => void) => () => void
-  getSnapshot: () => ReadonlyMap<string, PanelEntry>
-}
+  register: (id: string, ref: PanelImperativeHandle) => void;
+  unregister: (id: string) => void;
+  setCollapsed: (id: string, collapsed: boolean) => void;
+  toggle: (id: string) => void;
+  subscribe: (callback: () => void) => () => void;
+  getSnapshot: () => ReadonlyMap<string, PanelEntry>;
+};
 
 function createRegistryApi(): SidebarPanelRegistryApi {
-  const panels = new Map<string, PanelEntry>()
-  const listeners = new Set<() => void>()
-  let snapshot: ReadonlyMap<string, PanelEntry> = new Map()
+  const panels = new Map<string, PanelEntry>();
+  const listeners = new Set<() => void>();
+  let snapshot: ReadonlyMap<string, PanelEntry> = new Map();
 
   function emit() {
-    snapshot = new Map(panels)
+    snapshot = new Map(panels);
     for (const listener of listeners) {
-      listener()
+      listener();
     }
   }
 
   return {
     register(id, ref) {
-      panels.set(id, { ref, collapsed: ref.isCollapsed() })
-      emit()
+      panels.set(id, { ref, collapsed: ref.isCollapsed() });
+      emit();
     },
 
     unregister(id) {
-      panels.delete(id)
-      emit()
+      panels.delete(id);
+      emit();
     },
 
     setCollapsed(id, collapsed) {
-      const entry = panels.get(id)
-      if (!entry || entry.collapsed === collapsed) return
-      panels.set(id, { ...entry, collapsed })
-      emit()
+      const entry = panels.get(id);
+      if (!entry || entry.collapsed === collapsed) return;
+      panels.set(id, { ...entry, collapsed });
+      emit();
     },
 
     toggle(id) {
-      const entry = panels.get(id)
-      if (!entry) return
+      const entry = panels.get(id);
+      if (!entry) return;
       if (entry.ref.isCollapsed()) {
-        entry.ref.expand()
+        entry.ref.expand();
       } else {
-        entry.ref.collapse()
+        entry.ref.collapse();
       }
     },
 
     subscribe(callback) {
-      listeners.add(callback)
+      listeners.add(callback);
       return () => {
-        listeners.delete(callback)
-      }
+        listeners.delete(callback);
+      };
     },
 
     getSnapshot() {
-      return snapshot
+      return snapshot;
     },
-  }
+  };
 }
 
-const SidebarPanelRegistryContext = createContext<SidebarPanelRegistryApi | null>(null)
+const SidebarPanelRegistryContext = createContext<SidebarPanelRegistryApi | null>(null);
 
 type SidebarPanelRegistryProviderProps = {
-  children: ReactNode
-}
+  children: ReactNode;
+};
 
 export function SidebarPanelRegistryProvider({ children }: SidebarPanelRegistryProviderProps) {
-  const [api] = useState(createRegistryApi)
+  const [api] = useState(createRegistryApi);
 
   return (
     <SidebarPanelRegistryContext.Provider value={api}>
       {children}
     </SidebarPanelRegistryContext.Provider>
-  )
+  );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarPanelRegistryOptional() {
-  return useContext(SidebarPanelRegistryContext)
+  return useContext(SidebarPanelRegistryContext);
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarPanelRegistry() {
-  const api = useContext(SidebarPanelRegistryContext)
+  const api = useContext(SidebarPanelRegistryContext);
   if (!api) {
-    throw new Error('useSidebarPanelRegistry must be used within a SidebarPanelRegistryProvider')
+    throw new Error("useSidebarPanelRegistry must be used within a SidebarPanelRegistryProvider");
   }
 
-  const subscribe = useCallback((callback: () => void) => api.subscribe(callback), [api])
+  const subscribe = useCallback((callback: () => void) => api.subscribe(callback), [api]);
 
-  const getSnapshot = useCallback(() => api.getSnapshot(), [api])
+  const getSnapshot = useCallback(() => api.getSnapshot(), [api]);
 
-  const panels = useSyncExternalStore(subscribe, getSnapshot)
+  const panels = useSyncExternalStore(subscribe, getSnapshot);
 
   return {
     panels,
     toggle: api.toggle,
-  }
+  };
 }
