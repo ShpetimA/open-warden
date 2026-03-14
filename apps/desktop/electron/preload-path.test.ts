@@ -14,21 +14,21 @@ describe("resolvePreloadPath", () => {
     existsSync.mockReset();
   });
 
-  test("prefers preload.js when Forge emits a js preload bundle", async () => {
+  test("prefers preload.cjs for the current electron-builder preload bundle", async () => {
     existsSync.mockReturnValueOnce(true);
 
     const { resolvePreloadPath } = await import("./preload-path");
 
-    expect(resolvePreloadPath("/tmp/build")).toBe("/tmp/build/preload.js");
-    expect(existsSync).toHaveBeenCalledWith("/tmp/build/preload.js");
+    expect(resolvePreloadPath("/tmp/build")).toBe("/tmp/build/preload.cjs");
+    expect(existsSync).toHaveBeenCalledWith("/tmp/build/preload.cjs");
   });
 
-  test("falls back to preload.cjs when no js preload bundle exists", async () => {
+  test("falls back to preload.js only when the cjs preload bundle is missing", async () => {
     existsSync.mockReturnValueOnce(false);
 
     const { resolvePreloadPath } = await import("./preload-path");
 
-    expect(resolvePreloadPath("/tmp/build")).toBe("/tmp/build/preload.cjs");
-    expect(existsSync).toHaveBeenCalledWith("/tmp/build/preload.js");
+    expect(resolvePreloadPath("/tmp/build")).toBe("/tmp/build/preload.js");
+    expect(existsSync).toHaveBeenCalledWith("/tmp/build/preload.cjs");
   });
 });

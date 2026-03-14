@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const exposeInMainWorld = vi.fn();
 const invoke = vi.fn();
+const on = vi.fn();
+const removeListener = vi.fn();
 
 vi.mock("electron", () => ({
   contextBridge: {
@@ -9,6 +11,8 @@ vi.mock("electron", () => ({
   },
   ipcRenderer: {
     invoke,
+    on,
+    removeListener,
   },
 }));
 
@@ -16,6 +20,8 @@ describe("electron preload bridge", () => {
   beforeEach(() => {
     exposeInMainWorld.mockReset();
     invoke.mockReset();
+    on.mockReset();
+    removeListener.mockReset();
     vi.resetModules();
   });
 
@@ -43,5 +49,11 @@ describe("electron preload bridge", () => {
     const branches = await desktopBridge.getBranches("/tmp/repo");
     expect(branches).toEqual(["main"]);
     expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getBranches", "/tmp/repo");
+
+    const unsubscribe = desktopBridge.onUpdateState(() => {});
+    expect(on).toHaveBeenCalledWith("desktop:update-state", expect.any(Function));
+
+    unsubscribe();
+    expect(removeListener).toHaveBeenCalledWith("desktop:update-state", expect.any(Function));
   });
 });

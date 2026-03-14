@@ -8,14 +8,14 @@ export default defineConfig({
   build: {
     emptyOutDir: false,
     outDir: ".vite/build",
-    lib: {
-      entry: path.resolve(__dirname, "electron/main.ts"),
-      formats: ["cjs"],
-      fileName: () => "main.cjs",
-    },
     rollupOptions: {
       external,
+      output: {
+        entryFileNames: "main.cjs",
+        format: "cjs",
+      },
     },
+    ssr: path.resolve(__dirname, "electron/main.ts"),
     target: "node20",
   },
   clearScreen: false,

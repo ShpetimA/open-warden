@@ -9,6 +9,7 @@ import { useNavigate } from "react-router";
 import { ThemeSwitcher } from "@/app/ThemeSwitcher";
 import { FEATURE_NAV_ITEMS, FEATURE_SIDEBARS, type FeatureKey } from "@/app/featureNavigation";
 import { useSidebarPanelRegistry } from "@/components/layout/SidebarPanelRegistry";
+import { DesktopUpdateButton } from "@/features/desktop-update/DesktopUpdateButton";
 
 type AppHeaderProps = {
   activeFeature: FeatureKey;
@@ -86,6 +87,8 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
       </div>
 
       <div className="app-no-drag flex min-w-0 items-center justify-self-end gap-1.5">
+        <DesktopUpdateButton />
+
         <button
           type="button"
           className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border"

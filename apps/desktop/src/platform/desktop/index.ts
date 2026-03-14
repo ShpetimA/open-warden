@@ -1,4 +1,4 @@
-import type { DesktopApi } from "./contracts";
+import type { DesktopBridge } from "./contracts";
 import { browserDesktopApi, unavailableDesktopApi } from "./browser";
 
 function hasElectronRuntime() {
@@ -10,7 +10,7 @@ function hasElectronRuntime() {
   );
 }
 
-function getElectronRuntime(): DesktopApi | null {
+function getElectronRuntime(): DesktopBridge | null {
   if (!hasElectronRuntime()) return null;
   return window.desktopBridge ?? window.openWarden ?? null;
 }
@@ -19,7 +19,7 @@ function browserFallbackEnabled() {
   return import.meta.env.DEV && import.meta.env.VITE_DESKTOP_FALLBACK === "browser";
 }
 
-function resolveDesktopApi(): DesktopApi {
+function resolveDesktopApi(): DesktopBridge {
   const electronRuntime = getElectronRuntime();
   if (electronRuntime) {
     return electronRuntime;
@@ -32,7 +32,7 @@ function resolveDesktopApi(): DesktopApi {
   return unavailableDesktopApi;
 }
 
-export const desktop: DesktopApi = {
+export const desktop: DesktopBridge = {
   selectFolder: () => resolveDesktopApi().selectFolder(),
   confirm: (message, options) => resolveDesktopApi().confirm(message, options),
   checkAppExists: (appName) => resolveDesktopApi().checkAppExists(appName),
@@ -58,6 +58,11 @@ export const desktop: DesktopApi = {
   discardFiles: (repoPath, files) => resolveDesktopApi().discardFiles(repoPath, files),
   discardAll: (repoPath) => resolveDesktopApi().discardAll(repoPath),
   commitStaged: (repoPath, message) => resolveDesktopApi().commitStaged(repoPath, message),
+  getUpdateState: () => resolveDesktopApi().getUpdateState(),
+  checkForUpdates: () => resolveDesktopApi().checkForUpdates(),
+  downloadUpdate: () => resolveDesktopApi().downloadUpdate(),
+  installUpdate: () => resolveDesktopApi().installUpdate(),
+  onUpdateState: (listener) => resolveDesktopApi().onUpdateState(listener),
 };
 
 export type {
@@ -65,6 +70,12 @@ export type {
   Bucket,
   ConfirmOptions,
   DesktopApi,
+  DesktopBridge,
+  DesktopUpdateActionResult,
+  DesktopUpdateApi,
+  DesktopUpdateErrorContext,
+  DesktopUpdateState,
+  DesktopUpdateStatus,
   DiffFile,
   DiscardFileInput,
   FileItem,

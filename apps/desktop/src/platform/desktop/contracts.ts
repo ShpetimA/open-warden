@@ -95,3 +95,45 @@ export type DesktopApi = {
   discardAll(repoPath: string): Promise<void>;
   commitStaged(repoPath: string, message: string): Promise<string>;
 };
+
+export type DesktopUpdateStatus =
+  | "disabled"
+  | "idle"
+  | "checking"
+  | "available"
+  | "downloading"
+  | "downloaded"
+  | "up-to-date"
+  | "error";
+
+export type DesktopUpdateErrorContext = "check" | "download" | "install" | null;
+
+export type DesktopUpdateState = {
+  enabled: boolean;
+  status: DesktopUpdateStatus;
+  currentVersion: string;
+  availableVersion: string | null;
+  downloadedVersion: string | null;
+  checkedAt: string | null;
+  downloadPercent: number | null;
+  message: string | null;
+  errorContext: DesktopUpdateErrorContext;
+  canRetry: boolean;
+  disabledReason: string | null;
+};
+
+export type DesktopUpdateActionResult = {
+  accepted: boolean;
+  completed: boolean;
+  state: DesktopUpdateState;
+};
+
+export type DesktopUpdateApi = {
+  getUpdateState(): Promise<DesktopUpdateState>;
+  checkForUpdates(): Promise<DesktopUpdateActionResult>;
+  downloadUpdate(): Promise<DesktopUpdateActionResult>;
+  installUpdate(): Promise<DesktopUpdateActionResult>;
+  onUpdateState(listener: (state: DesktopUpdateState) => void): () => void;
+};
+
+export type DesktopBridge = DesktopApi & DesktopUpdateApi;

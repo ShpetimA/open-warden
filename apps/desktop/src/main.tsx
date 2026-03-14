@@ -5,10 +5,12 @@ import { PacerProvider } from "@tanstack/react-pacer";
 import "./index.css";
 import App from "./App.tsx";
 import { store } from "./app/store";
+import { DesktopUpdateBootstrap } from "./features/desktop-update/DesktopUpdateBootstrap";
 import { workerFactory } from "./lib/diffs-worker";
 
 createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
+    <DesktopUpdateBootstrap />
     <PacerProvider
       defaultOptions={{
         asyncQueuer: {

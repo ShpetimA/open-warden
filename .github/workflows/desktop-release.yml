@@ -3,7 +3,13 @@ name: Desktop Release
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (for example 1.2.3 or v1.2.3)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -12,27 +18,46 @@ env:
   NODE_VERSION: 22
 
 jobs:
-  prepare:
+  preflight:
     name: Preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
-      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release_meta.outputs.version }}
+      tag: ${{ steps.release_meta.outputs.tag }}
+      is_prerelease: ${{ steps.release_meta.outputs.is_prerelease }}
+      make_latest: ${{ steps.release_meta.outputs.make_latest }}
+      ref: ${{ github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Resolve release metadata
-        id: release
+      - name: Resolve release version
+        id: release_meta
         shell: bash
         run: |
-          tag="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            raw="${{ github.event.inputs.version }}"
+          else
+            raw="${GITHUB_REF_NAME}"
+          fi
 
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.].+)?$ ]]; then
-            echo "Release tag must look like v0.1.0" >&2
+          version="${raw#v}"
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: $raw" >&2
             exit 1
           fi
 
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "make_latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "make_latest=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -59,18 +84,35 @@ jobs:
         run: pnpm test
 
   build:
-    name: Build ${{ matrix.platform.name }} bundle
-    needs: prepare
-    runs-on: ${{ matrix.platform.runner }}
+    name: Build ${{ matrix.label }}
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        platform:
-          - name: macOS
-            runner: macos-latest
+        include:
+          - label: macOS arm64
+            runner: macos-14
+            platform: mac
+            arch: arm64
+          - label: macOS x64
+            runner: macos-15-intel
+            platform: mac
+            arch: x64
+          - label: Linux x64
+            runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - label: Windows x64
+            runner: windows-2022
+            platform: win
+            arch: x64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -84,47 +126,97 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Make desktop app
-        run: pnpm make:electron
+      - name: Build desktop artifact
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          OPEN_WARDEN_UPDATE_REPOSITORY: ${{ github.repository }}
+        run: |
+          pnpm --filter desktop run build
 
-      - name: Upload release bundles
+          args=(
+            --config electron-builder.config.mjs
+            --publish never
+            "-c.extraMetadata.version=${{ needs.preflight.outputs.version }}"
+            "--${{ matrix.platform }}"
+            "--${{ matrix.arch }}"
+          )
+
+          pnpm --filter desktop exec electron-builder "${args[@]}"
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-publish
+
+          shopt -s nullglob
+          for pattern in \
+            "apps/desktop/release/*.dmg" \
+            "apps/desktop/release/*.zip" \
+            "apps/desktop/release/*.AppImage" \
+            "apps/desktop/release/*.exe" \
+            "apps/desktop/release/*.blockmap" \
+            "apps/desktop/release/latest*.yml"; do
+            for file in $pattern; do
+              cp "$file" release-publish/
+            done
+          done
+
+          if [[ "${{ matrix.platform }}" == "mac" && "${{ matrix.arch }}" == "x64" && -f release-publish/latest-mac.yml ]]; then
+            mv release-publish/latest-mac.yml release-publish/latest-mac-x64.yml
+          fi
+
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-bundles-${{ matrix.platform.runner }}
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: release-publish/*
           if-no-files-found: error
-          path: apps/desktop/out/make/**/*
 
   release:
-    name: Publish GitHub release
-    needs:
-      - prepare
-      - build
-    runs-on: ubuntu-latest
+    name: Publish GitHub Release
+    needs: [preflight, build]
+    runs-on: ubuntu-24.04
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.preflight.outputs.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-assets
-          pattern: desktop-bundles-*
+          pattern: desktop-*
           merge-multiple: true
+          path: release-assets
 
-      - name: Create or update release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_TARGET: ${{ github.sha }}
-        shell: bash
+      - name: Merge macOS updater manifests
         run: |
-          shopt -s globstar nullglob
-          assets=(release-assets/**/*)
+          node scripts/merge-mac-update-manifests.mjs \
+            release-assets/latest-mac.yml \
+            release-assets/latest-mac-x64.yml
+          rm -f release-assets/latest-mac-x64.yml
 
-          if (( ${#assets[@]} == 0 )); then
-            echo "No release assets were downloaded" >&2
-            exit 1
-          fi
-
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
-          else
-            gh release create "$RELEASE_TAG" "${assets[@]}" --target "$RELEASE_TARGET" --generate-notes
-          fi
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.preflight.outputs.tag }}
+          target_commitish: ${{ needs.preflight.outputs.ref }}
+          name: OpenWarden v${{ needs.preflight.outputs.version }}
+          generate_release_notes: true
+          prerelease: ${{ needs.preflight.outputs.is_prerelease == 'true' }}
+          make_latest: ${{ needs.preflight.outputs.make_latest == 'true' }}
+          files: |
+            release-assets/*.dmg
+            release-assets/*.zip
+            release-assets/*.AppImage
+            release-assets/*.exe
+            release-assets/*.blockmap
+            release-assets/latest*.yml
+          fail_on_unmatched_files: true

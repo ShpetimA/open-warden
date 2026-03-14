@@ -7,10 +7,13 @@ on:
       - master
       - main
 
+env:
+  NODE_VERSION: 22
+
 jobs:
   desktop:
     name: Desktop Format/Lint/Typecheck/Test/Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +24,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Install dependencies
@@ -40,20 +43,21 @@ jobs:
         run: pnpm fmt:check
 
       - name: Build Electron package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          OPEN_WARDEN_UPDATE_REPOSITORY: ${{ github.repository }}
         run: pnpm build:electron
 
       - name: Verify desktop build outputs
         run: |
-          test -f apps/desktop/.vite/renderer/main_window/index.html
+          test -f apps/desktop/dist/index.html
           test -f apps/desktop/.vite/build/main.cjs
-          if [[ ! -f apps/desktop/.vite/build/preload.js && ! -f apps/desktop/.vite/build/preload.cjs ]]; then
-            echo "Missing preload bundle" >&2
-            exit 1
-          fi
+          test -f apps/desktop/.vite/build/preload.cjs
+          test -d apps/desktop/release
 
   e2e:
     name: Playwright E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +68,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
       - name: Install dependencies

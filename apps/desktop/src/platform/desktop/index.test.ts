@@ -35,6 +35,11 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     discardFiles: vi.fn(),
     discardAll: vi.fn(),
     commitStaged: vi.fn(),
+    getUpdateState: vi.fn(),
+    checkForUpdates: vi.fn(),
+    downloadUpdate: vi.fn(),
+    installUpdate: vi.fn(),
+    onUpdateState: vi.fn(() => () => {}),
   };
 
   await expect(desktop.selectFolder()).resolves.toEqual("/tmp/repo");

@@ -1,7 +1,9 @@
 import type {
   Bucket,
   ConfirmOptions,
-  DesktopApi,
+  DesktopBridge,
+  DesktopUpdateActionResult,
+  DesktopUpdateState,
   DiscardFileInput,
   FileItem,
   FileVersions,
@@ -9,6 +11,30 @@ import type {
   HistoryCommit,
 } from "./contracts";
 import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
+
+function createDisabledUpdateState(reason: string): DesktopUpdateState {
+  return {
+    enabled: false,
+    status: "disabled",
+    currentVersion: "0.0.0",
+    availableVersion: null,
+    downloadedVersion: null,
+    checkedAt: null,
+    downloadPercent: null,
+    message: null,
+    errorContext: null,
+    canRetry: false,
+    disabledReason: reason,
+  };
+}
+
+function createRejectedUpdateActionResult(reason: string): DesktopUpdateActionResult {
+  return {
+    accepted: false,
+    completed: false,
+    state: createDisabledUpdateState(reason),
+  };
+}
 
 function unsupported(feature: string): never {
   throw unsupportedInBrowser(feature);
@@ -22,7 +48,7 @@ function readBrowserDirectorySelectionError(): Error {
   return unsupportedInBrowser("Repository selection");
 }
 
-export const browserDesktopApi: DesktopApi = {
+export const browserDesktopApi: DesktopBridge = {
   async selectFolder() {
     throw readBrowserDirectorySelectionError();
   },
@@ -98,6 +124,27 @@ export const browserDesktopApi: DesktopApi = {
   async commitStaged(_repoPath: string, _message: string) {
     return unsupportedAsync<string>("Creating commits");
   },
+  async getUpdateState() {
+    return createDisabledUpdateState("Automatic updates are only available in desktop builds.");
+  },
+  async checkForUpdates() {
+    return createRejectedUpdateActionResult(
+      "Automatic updates are only available in desktop builds.",
+    );
+  },
+  async downloadUpdate() {
+    return createRejectedUpdateActionResult(
+      "Automatic updates are only available in desktop builds.",
+    );
+  },
+  async installUpdate() {
+    return createRejectedUpdateActionResult(
+      "Automatic updates are only available in desktop builds.",
+    );
+  },
+  onUpdateState() {
+    return () => {};
+  },
 };
 
 function unavailable(): never {
@@ -108,7 +155,7 @@ async function unavailableAsync<T>(): Promise<T> {
   unavailable();
 }
 
-export const unavailableDesktopApi: DesktopApi = {
+export const unavailableDesktopApi: DesktopBridge = {
   async selectFolder() {
     unavailable();
   },
@@ -183,5 +230,20 @@ export const unavailableDesktopApi: DesktopApi = {
   },
   async commitStaged(_repoPath: string, _message: string) {
     return unavailableAsync<string>();
+  },
+  async getUpdateState() {
+    return createDisabledUpdateState("Automatic updates are unavailable right now.");
+  },
+  async checkForUpdates() {
+    return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
+  },
+  async downloadUpdate() {
+    return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
+  },
+  async installUpdate() {
+    return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
+  },
+  onUpdateState() {
+    return () => {};
   },
 };

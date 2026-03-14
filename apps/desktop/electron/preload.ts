@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { DesktopApi } from "../src/platform/desktop/contracts";
+import type { DesktopApi, DesktopBridge } from "../src/platform/desktop/contracts";
+import {
+  DESKTOP_INVOKE_CHANNEL,
+  UPDATE_CHECK_CHANNEL,
+  UPDATE_DOWNLOAD_CHANNEL,
+  UPDATE_GET_STATE_CHANNEL,
+  UPDATE_INSTALL_CHANNEL,
+  UPDATE_STATE_CHANNEL,
+} from "./ipc-channels";
 
 type DesktopMethod = keyof DesktopApi;
 
@@ -8,10 +16,10 @@ function invoke<K extends DesktopMethod>(
   method: K,
   ...args: Parameters<DesktopApi[K]>
 ): ReturnType<DesktopApi[K]> {
-  return ipcRenderer.invoke("desktop:invoke", method, ...args) as ReturnType<DesktopApi[K]>;
+  return ipcRenderer.invoke(DESKTOP_INVOKE_CHANNEL, method, ...args) as ReturnType<DesktopApi[K]>;
 }
 
-const desktopBridge: DesktopApi = {
+const desktopBridge: DesktopBridge = {
   selectFolder: () => invoke("selectFolder"),
   confirm: (message, options) => invoke("confirm", message, options),
   checkAppExists: (appName) => invoke("checkAppExists", appName),
@@ -36,6 +44,24 @@ const desktopBridge: DesktopApi = {
   discardFiles: (repoPath, files) => invoke("discardFiles", repoPath, files),
   discardAll: (repoPath) => invoke("discardAll", repoPath),
   commitStaged: (repoPath, message) => invoke("commitStaged", repoPath, message),
+  getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
+  checkForUpdates: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),
+  downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
+  installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),
+  onUpdateState: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
+      if (typeof state !== "object" || state === null) {
+        return;
+      }
+
+      listener(state as Parameters<typeof listener>[0]);
+    };
+
+    ipcRenderer.on(UPDATE_STATE_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("desktopBridge", desktopBridge);

@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 test.runIf(process.platform === "darwin")(
-  "electron forge dev shell boots successfully",
+  "electron dev shell boots successfully",
   { timeout: 45_000 },
   async () => {
     const appDir = path.resolve(import.meta.dirname, "..");
