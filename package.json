@@ -12,6 +12,7 @@
     "make:electron": "pnpm --filter desktop make:electron",
     "electron:make": "pnpm --filter desktop electron:make",
     "lint": "oxlint --report-unused-disable-directives",
+    "typecheck": "pnpm --filter desktop typecheck",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter desktop test:e2e",
     "test:e2e:install": "pnpm --filter desktop test:e2e:install",
@@ -19,7 +20,7 @@
     "fmt:check": "oxfmt --check --ignore-path .oxfmtignore",
     "format": "pnpm fmt",
     "format:check": "pnpm fmt:check",
-    "check": "pnpm lint && pnpm test && pnpm fmt:check"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm fmt:check"
   },
   "devDependencies": {
     "oxfmt": "^0.40.0",

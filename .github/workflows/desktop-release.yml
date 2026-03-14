@@ -13,11 +13,14 @@ env:
 
 jobs:
   prepare:
-    name: Prepare release
+    name: Preflight
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Resolve release metadata
         id: release
         shell: bash
@@ -31,6 +34,30 @@ jobs:
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm fmt:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
   build:
     name: Build ${{ matrix.platform.name }} bundle
     needs: prepare
@@ -41,10 +68,6 @@ jobs:
         platform:
           - name: macOS
             runner: macos-latest
-          - name: Windows
-            runner: windows-latest
-          - name: Linux
-            runner: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,37 +81,18 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux system dependencies
-        if: matrix.platform.runner == 'ubuntu-22.04'
-        run: sudo apt-get update && sudo apt-get install -y libglib2.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build desktop app
-        run: pnpm tauri:build
+      - name: Make desktop app
+        run: pnpm make:electron
 
       - name: Upload release bundles
         uses: actions/upload-artifact@v4
         with:
           name: desktop-bundles-${{ matrix.platform.runner }}
           if-no-files-found: error
-          path: |
-            target/release/bundle/**/*.dmg
-            target/release/bundle/**/*.app.tar.gz
-            target/release/bundle/**/*.app.tar.gz.sig
-            target/release/bundle/**/*.app
-            target/release/bundle/**/*.msi
-            target/release/bundle/**/*.msi.zip
-            target/release/bundle/**/*.nsis.zip
-            target/release/bundle/**/*.exe
-            target/release/bundle/**/*.deb
-            target/release/bundle/**/*.rpm
-            target/release/bundle/**/*.AppImage
-            target/release/bundle/**/*.tar.gz
+          path: apps/desktop/out/make/**/*
 
   release:
     name: Publish GitHub release

@@ -9,6 +9,7 @@
     "dev:electron": "electron-forge start",
     "electron:dev": "electron-forge start",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit --pretty false -p tsconfig.app.json && tsc --noEmit --pretty false -p tsconfig.electron.json",
     "build:electron": "electron-forge package",
     "electron:build": "electron-forge package",
     "make:electron": "electron-forge make",
