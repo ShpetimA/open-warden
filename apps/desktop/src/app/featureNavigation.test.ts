@@ -11,7 +11,7 @@ describe("feature navigation", () => {
     expect(featureKeyFromPath("/changes")).toBe("changes");
     expect(featureKeyFromPath("/history")).toBe("history");
     expect(featureKeyFromPath("/review")).toBe("review");
-    expect(featureKeyFromPath("/comments")).toBe("comments");
+    expect(featureKeyFromPath("/comments")).toBe("changes");
     expect(featureKeyFromPath("/")).toBe("changes");
     expect(featureKeyFromPath("/unknown/path")).toBe("changes");
   });
@@ -20,15 +20,9 @@ describe("feature navigation", () => {
     expect(featureHasPrimarySidebar("changes")).toBe(true);
     expect(featureHasPrimarySidebar("history")).toBe(true);
     expect(featureHasPrimarySidebar("review")).toBe(false);
-    expect(featureHasPrimarySidebar("comments")).toBe(false);
   });
 
   it("exposes all top-level feature tabs", () => {
-    expect(FEATURE_NAV_ITEMS.map((item) => item.key)).toEqual([
-      "changes",
-      "history",
-      "review",
-      "comments",
-    ]);
+    expect(FEATURE_NAV_ITEMS.map((item) => item.key)).toEqual(["changes", "history", "review"]);
   });
 });

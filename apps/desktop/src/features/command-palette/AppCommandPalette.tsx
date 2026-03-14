@@ -109,6 +109,10 @@ function commandItemSearchValue(item: CommandActionItem | CommandFileItem | Comm
   return `${item.label} ${item.searchText}`;
 }
 
+function copyAndClearMessage(count: number): string {
+  return `Copied ${count} comment${count === 1 ? "" : "s"} and cleared them`;
+}
+
 async function runCommandItem(
   item: CommandActionItem | CommandFileItem | CommandCommitItem,
   onOpenChange: (open: boolean) => void,
@@ -378,13 +382,13 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       keywords: ["comments", "copy", "file"],
       onSelect: async () => {
         if (!commentContext || !contextPath) return;
-        const copied = await dispatch(
+        const result = await dispatch(
           copyComments("file", {
             context: commentContext,
             activePath: contextPath,
           }),
         );
-        if (copied) toast.success("Copied file comments");
+        if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
       },
     },
     {
@@ -394,8 +398,8 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       keywords: ["comments", "copy", "all"],
       onSelect: async () => {
         if (!commentContext) return;
-        const copied = await dispatch(copyComments("all", { context: commentContext }));
-        if (copied) toast.success("Copied comments");
+        const result = await dispatch(copyComments("all", { context: commentContext }));
+        if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
       },
     },
     {
