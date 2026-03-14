@@ -1,71 +1,77 @@
-import { skipToken } from '@reduxjs/toolkit/query'
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { ArrowRightLeft } from 'lucide-react'
-import { useEffect, useRef } from 'react'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
-import { Button } from '@/components/ui/button'
+import { skipToken } from "@reduxjs/toolkit/query";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { ArrowRightLeft } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
-import { DiffWorkspace } from '@/features/diff-view/DiffWorkspace'
+} from "@/components/ui/select";
+import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
+import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
   useGetGitSnapshotQuery,
-} from '@/features/source-control/api'
-import { usePrefetchReviewDiffs } from '@/features/source-control/hooks/usePrefetchNearbyDiffs'
-import { useReviewKeyboardNav } from '@/features/source-control/hooks/useReviewKeyboardNav'
-import { useThrottledDiffSelection } from '@/features/source-control/hooks/useThrottledDiffSelection'
+} from "@/features/source-control/api";
+import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
+import { useReviewKeyboardNav } from "@/features/source-control/hooks/useReviewKeyboardNav";
+import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import {
   clearReviewSelection,
   setReviewActivePath,
   setReviewBaseRef,
   setReviewHeadRef,
-} from '@/features/source-control/sourceControlSlice'
-import { FileListRow } from '@/features/source-control/components/FileListRow'
-import { errorMessageFrom } from '@/features/source-control/shared-utils/errorMessage'
-import type { FileItem } from '@/features/source-control/types'
+} from "@/features/source-control/sourceControlSlice";
+import { FileListRow } from "@/features/source-control/components/FileListRow";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
+import type { FileItem } from "@/features/source-control/types";
 
 function firstAvailableBranch(branches: string[]): string {
-  return branches[0] ?? ''
+  return branches[0] ?? "";
 }
 
 function preferredBaseBranch(branches: string[]): string {
-  if (branches.includes('main')) return 'main'
-  if (branches.includes('master')) return 'master'
-  const remoteMain = branches.find((branch) => branch.endsWith('/main'))
-  if (remoteMain) return remoteMain
-  const remoteMaster = branches.find((branch) => branch.endsWith('/master'))
-  if (remoteMaster) return remoteMaster
-  return firstAvailableBranch(branches)
+  if (branches.includes("main")) return "main";
+  if (branches.includes("master")) return "master";
+  const remoteMain = branches.find((branch) => branch.endsWith("/main"));
+  if (remoteMain) return remoteMain;
+  const remoteMaster = branches.find((branch) => branch.endsWith("/master"));
+  if (remoteMaster) return remoteMaster;
+  return firstAvailableBranch(branches);
 }
 
 function firstDifferentBranch(branches: string[], current: string): string {
-  const found = branches.find((branch) => branch !== current)
-  return found ?? current
+  const found = branches.find((branch) => branch !== current);
+  return found ?? current;
 }
 
-const EMPTY_BRANCHES: string[] = []
-const EMPTY_BRANCH_FILES: FileItem[] = []
-const REVIEW_FILE_ROW_ESTIMATED_HEIGHT = 30
-const REVIEW_FILE_LIST_OVERSCAN = 10
+const EMPTY_BRANCHES: string[] = [];
+const EMPTY_BRANCH_FILES: FileItem[] = [];
+const REVIEW_FILE_ROW_ESTIMATED_HEIGHT = 30;
+const REVIEW_FILE_LIST_OVERSCAN = 10;
 
 type BranchSelectFieldProps = {
-  label: string
-  value: string
-  placeholder: string
-  options: string[]
-  onChange: (value: string) => void
-}
+  label: string;
+  value: string;
+  placeholder: string;
+  options: string[];
+  onChange: (value: string) => void;
+};
 
-function BranchSelectField({ label, value, placeholder, options, onChange }: BranchSelectFieldProps) {
+function BranchSelectField({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+}: BranchSelectFieldProps) {
   return (
     <div className="min-w-0">
       <div className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-[0.12em] uppercase">
@@ -84,66 +90,65 @@ function BranchSelectField({ label, value, placeholder, options, onChange }: Bra
         </SelectContent>
       </Select>
     </div>
-  )
+  );
 }
 
 type ReviewSelectionSyncProps = {
-  readyForDiff: boolean
-  branchFiles: FileItem[]
-  hasBranchFilesData: boolean
-}
+  readyForDiff: boolean;
+  branchFiles: FileItem[];
+  hasBranchFilesData: boolean;
+};
 
 function ReviewSelectionSync({
   readyForDiff,
   branchFiles,
   hasBranchFilesData,
 }: ReviewSelectionSyncProps) {
-  const dispatch = useAppDispatch()
-  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath)
+  const dispatch = useAppDispatch();
+  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
 
   useEffect(() => {
     if (!readyForDiff) {
-      if (reviewActivePath) dispatch(setReviewActivePath(''))
-      return
+      if (reviewActivePath) dispatch(setReviewActivePath(""));
+      return;
     }
 
-    if (!hasBranchFilesData) return
+    if (!hasBranchFilesData) return;
 
     if (branchFiles.length === 0) {
-      if (reviewActivePath) dispatch(setReviewActivePath(''))
-      return
+      if (reviewActivePath) dispatch(setReviewActivePath(""));
+      return;
     }
 
-    const existing = branchFiles.find((file) => file.path === reviewActivePath)
+    const existing = branchFiles.find((file) => file.path === reviewActivePath);
     if (!existing) {
-      dispatch(setReviewActivePath(branchFiles[0].path))
+      dispatch(setReviewActivePath(branchFiles[0].path));
     }
-  }, [
-    branchFiles,
-    dispatch,
-    hasBranchFilesData,
-    readyForDiff,
-    reviewActivePath,
-  ])
+  }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath]);
 
-  return null
+  return null;
 }
 
 type ReviewFileListProps = {
-  branchFiles: FileItem[]
-  activeRepo: string
-  reviewBaseRef: string
-  reviewHeadRef: string
-}
+  branchFiles: FileItem[];
+  activeRepo: string;
+  reviewBaseRef: string;
+  reviewHeadRef: string;
+};
 
-function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef }: ReviewFileListProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const comments = useAppSelector((state) => state.comments)
+function ReviewFileList({
+  branchFiles,
+  activeRepo,
+  reviewBaseRef,
+  reviewHeadRef,
+}: ReviewFileListProps) {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const comments = useAppSelector((state) => state.comments);
   const reviewCommentCounts = createCommentCountByPathForRepo(comments, activeRepo, {
-    kind: 'review',
+    kind: "review",
     baseRef: reviewBaseRef,
     headRef: reviewHeadRef,
-  })
+  });
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
@@ -151,23 +156,23 @@ function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef 
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => REVIEW_FILE_ROW_ESTIMATED_HEIGHT,
     overscan: REVIEW_FILE_LIST_OVERSCAN,
-  })
+  });
 
   useReviewKeyboardNav({
     scrollToIndex: (targetIndex) => {
-      rowVirtualizer.scrollToIndex(targetIndex, { align: 'auto' })
+      rowVirtualizer.scrollToIndex(targetIndex, { align: "auto" });
     },
-  })
+  });
 
-  const virtualRows = rowVirtualizer.getVirtualItems()
+  const virtualRows = rowVirtualizer.getVirtualItems();
 
   return (
     <div ref={scrollContainerRef} data-nav-region="review-files" className="h-full overflow-auto">
       <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
         {virtualRows.map((virtualRow) => {
-          const file = branchFiles[virtualRow.index]
-          if (!file) return null
-          const commentCount = reviewCommentCounts.get(file.path) ?? 0
+          const file = branchFiles[virtualRow.index];
+          if (!file) return null;
+          const commentCount = reviewCommentCounts.get(file.path) ?? 0;
 
           return (
             <div
@@ -177,22 +182,22 @@ function ReviewFileList({ branchFiles, activeRepo, reviewBaseRef, reviewHeadRef 
             >
               <ReviewFileRow file={file} commentCount={commentCount} navIndex={virtualRow.index} />
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 type ReviewFileRowProps = {
-  file: FileItem
-  commentCount: number
-  navIndex: number
-}
+  file: FileItem;
+  commentCount: number;
+  navIndex: number;
+};
 
 function ReviewFileRow({ file, commentCount, navIndex }: ReviewFileRowProps) {
-  const dispatch = useAppDispatch()
-  const isActive = useAppSelector((state) => state.sourceControl.reviewActivePath === file.path)
+  const dispatch = useAppDispatch();
+  const isActive = useAppSelector((state) => state.sourceControl.reviewActivePath === file.path);
 
   return (
     <FileListRow
@@ -202,19 +207,19 @@ function ReviewFileRow({ file, commentCount, navIndex }: ReviewFileRowProps) {
       isActive={isActive}
       navIndex={navIndex}
       onSelect={() => {
-        dispatch(setReviewActivePath(file.path))
+        dispatch(setReviewActivePath(file.path));
       }}
     />
-  )
+  );
 }
 
 type ReviewDiffPaneProps = {
-  activeRepo: string
-  reviewBaseRef: string
-  reviewHeadRef: string
-  readyForDiff: boolean
-  branchFiles: FileItem[]
-}
+  activeRepo: string;
+  reviewBaseRef: string;
+  reviewHeadRef: string;
+  readyForDiff: boolean;
+  branchFiles: FileItem[];
+};
 
 function ReviewDiffPane({
   activeRepo,
@@ -223,9 +228,9 @@ function ReviewDiffPane({
   readyForDiff,
   branchFiles,
 }: ReviewDiffPaneProps) {
-  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath)
-  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath)
-  const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath)
+  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
+  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
+  const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath);
   const previewSelection = useThrottledDiffSelection(
     reviewActivePath
       ? {
@@ -233,7 +238,7 @@ function ReviewDiffPane({
           previousPath: selectedReviewFile?.previousPath ?? undefined,
         }
       : null,
-  )
+  );
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
     readyForDiff && previewSelection
       ? {
@@ -244,15 +249,15 @@ function ReviewDiffPane({
           previousPath: previewSelection.previousPath,
         }
       : skipToken,
-  )
+  );
 
-  const reviewVersions = branchFileVersionsQuery.data
-  const oldFile = reviewVersions?.oldFile ?? null
-  const newFile = reviewVersions?.newFile ?? null
-  const loadingPatch = branchFileVersionsQuery.isFetching
-  const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, '')
-  const context = { kind: 'review' as const, baseRef: reviewBaseRef, headRef: reviewHeadRef }
-  const previewPath = previewSelection?.path ?? ''
+  const reviewVersions = branchFileVersionsQuery.data;
+  const oldFile = reviewVersions?.oldFile ?? null;
+  const newFile = reviewVersions?.newFile ?? null;
+  const loadingPatch = branchFileVersionsQuery.isFetching;
+  const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, "");
+  const context = { kind: "review" as const, baseRef: reviewBaseRef, headRef: reviewHeadRef };
+  const previewPath = previewSelection?.path ?? "";
 
   return (
     <section className="flex h-full min-h-0 flex-col">
@@ -276,58 +281,56 @@ function ReviewDiffPane({
         )}
       </div>
     </section>
-  )
+  );
 }
 
 export function ReviewScreen() {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef)
-  const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef)
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
+  const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
 
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo })
-  const { data: branches } = useGetBranchesQuery(activeRepo, { skip: !activeRepo })
-  const branchList = branches ?? EMPTY_BRANCHES
-  const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef)
+  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
+  const { data: branches } = useGetBranchesQuery(activeRepo, { skip: !activeRepo });
+  const branchList = branches ?? EMPTY_BRANCHES;
+  const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
 
   const branchFilesQuery = useGetBranchFilesQuery(
-    readyForDiff ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef } : skipToken,
-  )
-  const branchFiles = branchFilesQuery.data ?? EMPTY_BRANCH_FILES
+    readyForDiff
+      ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+      : skipToken,
+  );
+  const branchFiles = branchFilesQuery.data ?? EMPTY_BRANCH_FILES;
 
   useEffect(() => {
     if (!activeRepo) {
-      dispatch(clearReviewSelection())
-      return
+      dispatch(clearReviewSelection());
+      return;
     }
     if (branchList.length === 0) {
-      if (reviewBaseRef) dispatch(setReviewBaseRef(''))
-      if (reviewHeadRef) dispatch(setReviewHeadRef(''))
-      dispatch(clearReviewSelection())
-      return
+      if (reviewBaseRef) dispatch(setReviewBaseRef(""));
+      if (reviewHeadRef) dispatch(setReviewHeadRef(""));
+      dispatch(clearReviewSelection());
+      return;
     }
 
-    const hasBase = branchList.includes(reviewBaseRef)
-    const hasHead = branchList.includes(reviewHeadRef)
+    const hasBase = branchList.includes(reviewBaseRef);
+    const hasHead = branchList.includes(reviewHeadRef);
 
-    const nextBase = hasBase ? reviewBaseRef : preferredBaseBranch(branchList)
+    const nextBase = hasBase ? reviewBaseRef : preferredBaseBranch(branchList);
     if (nextBase !== reviewBaseRef) {
-      dispatch(setReviewBaseRef(nextBase))
+      dispatch(setReviewBaseRef(nextBase));
     }
 
-    const preferredHead = snapshot?.branch && branchList.includes(snapshot.branch) ? snapshot.branch : ''
-    const nextHead = hasHead ? reviewHeadRef : preferredHead || firstDifferentBranch(branchList, nextBase)
+    const preferredHead =
+      snapshot?.branch && branchList.includes(snapshot.branch) ? snapshot.branch : "";
+    const nextHead = hasHead
+      ? reviewHeadRef
+      : preferredHead || firstDifferentBranch(branchList, nextBase);
     if (nextHead !== reviewHeadRef) {
-      dispatch(setReviewHeadRef(nextHead))
+      dispatch(setReviewHeadRef(nextHead));
     }
-  }, [
-    activeRepo,
-    branchList,
-    dispatch,
-    reviewBaseRef,
-    reviewHeadRef,
-    snapshot?.branch,
-  ])
+  }, [activeRepo, branchList, dispatch, reviewBaseRef, reviewHeadRef, snapshot?.branch]);
 
   return (
     <ResizableSidebarLayout
@@ -349,8 +352,8 @@ export function ReviewScreen() {
                   placeholder="Base ref"
                   options={branchList}
                   onChange={(value) => {
-                    dispatch(setReviewBaseRef(value))
-                    dispatch(setReviewActivePath(''))
+                    dispatch(setReviewBaseRef(value));
+                    dispatch(setReviewActivePath(""));
                   }}
                 />
 
@@ -359,11 +362,11 @@ export function ReviewScreen() {
                   variant="outline"
                   className="mb-0.5"
                   onClick={() => {
-                    const nextBase = reviewHeadRef
-                    const nextHead = reviewBaseRef
-                    dispatch(setReviewBaseRef(nextBase))
-                    dispatch(setReviewHeadRef(nextHead))
-                    dispatch(setReviewActivePath(''))
+                    const nextBase = reviewHeadRef;
+                    const nextHead = reviewBaseRef;
+                    dispatch(setReviewBaseRef(nextBase));
+                    dispatch(setReviewHeadRef(nextHead));
+                    dispatch(setReviewActivePath(""));
                   }}
                   disabled={!reviewBaseRef || !reviewHeadRef}
                   title="Swap branches"
@@ -377,8 +380,8 @@ export function ReviewScreen() {
                   placeholder="Compare ref"
                   options={branchList}
                   onChange={(value) => {
-                    dispatch(setReviewHeadRef(value))
-                    dispatch(setReviewActivePath(''))
+                    dispatch(setReviewHeadRef(value));
+                    dispatch(setReviewActivePath(""));
                   }}
                 />
               </div>
@@ -393,9 +396,13 @@ export function ReviewScreen() {
 
           <div className="min-h-0 flex-1 overflow-hidden">
             {!reviewBaseRef || !reviewHeadRef ? (
-              <div className="text-muted-foreground p-3 text-xs">Select both branches to start review.</div>
+              <div className="text-muted-foreground p-3 text-xs">
+                Select both branches to start review.
+              </div>
             ) : branchFiles.length === 0 ? (
-              <div className="text-muted-foreground p-3 text-xs">No changed files in this comparison.</div>
+              <div className="text-muted-foreground p-3 text-xs">
+                No changed files in this comparison.
+              </div>
             ) : (
               <ReviewFileList
                 branchFiles={branchFiles}
@@ -417,5 +424,5 @@ export function ReviewScreen() {
         />
       }
     />
-  )
+  );
 }

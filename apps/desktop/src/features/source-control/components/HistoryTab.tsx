@@ -1,26 +1,26 @@
-import { skipToken } from '@reduxjs/toolkit/query'
+import { skipToken } from "@reduxjs/toolkit/query";
 
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 
-import { Kbd } from '@/components/ui/kbd'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { useGetCommitHistoryQuery } from '@/features/source-control/api'
-import { selectHistoryCommit } from '@/features/source-control/actions'
-import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
-import { setHistoryFilter } from '@/features/source-control/sourceControlSlice'
-import type { HistoryCommit } from '@/features/source-control/types'
+import { Kbd } from "@/components/ui/kbd";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useGetCommitHistoryQuery } from "@/features/source-control/api";
+import { selectHistoryCommit } from "@/features/source-control/actions";
+import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
+import { setHistoryFilter } from "@/features/source-control/sourceControlSlice";
+import type { HistoryCommit } from "@/features/source-control/types";
 
 export function HistoryTab() {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const historyFilter = useAppSelector((state) => state.sourceControl.historyFilter)
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const historyFilter = useAppSelector((state) => state.sourceControl.historyFilter);
   const { data: historyCommits = [], isFetching: loadingHistoryCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
-  )
+  );
 
-  const allHistoryCommits = historyCommits as HistoryCommit[]
-  const query = historyFilter.trim().toLowerCase()
+  const allHistoryCommits = historyCommits as HistoryCommit[];
+  const query = historyFilter.trim().toLowerCase();
   const filteredHistoryCommits = query
     ? allHistoryCommits.filter((commit) => {
         return (
@@ -28,9 +28,9 @@ export function HistoryTab() {
           commit.shortId.toLowerCase().includes(query) ||
           commit.commitId.toLowerCase().includes(query) ||
           commit.author.toLowerCase().includes(query)
-        )
+        );
       })
-    : allHistoryCommits
+    : allHistoryCommits;
 
   return (
     <ScrollArea data-nav-region="history-commits" className="min-h-0 flex-1 overflow-hidden">
@@ -58,7 +58,7 @@ export function HistoryTab() {
           </div>
         ) : filteredHistoryCommits.length === 0 ? (
           <div className="border-input bg-surface text-muted-foreground rounded-md border px-2 py-2 text-[11px]">
-            {historyCommits.length === 0 ? 'No commits found.' : 'No matches.'}
+            {historyCommits.length === 0 ? "No commits found." : "No matches."}
           </div>
         ) : (
           <div className="space-y-1.5 pb-2">
@@ -68,7 +68,7 @@ export function HistoryTab() {
                 commit={commit}
                 navIndex={index}
                 onSelect={(commitId) => {
-                  void dispatch(selectHistoryCommit(commitId))
+                  void dispatch(selectHistoryCommit(commitId));
                 }}
               />
             ))}
@@ -76,22 +76,22 @@ export function HistoryTab() {
         )}
       </div>
     </ScrollArea>
-  )
+  );
 }
 
 type HistoryCommitRowProps = {
-  commit: HistoryCommit
-  navIndex: number
-  onSelect: (commitId: string) => void
-}
+  commit: HistoryCommit;
+  navIndex: number;
+  onSelect: (commitId: string) => void;
+};
 
 function HistoryCommitRow({ commit, navIndex, onSelect }: HistoryCommitRowProps) {
   const isActive = useAppSelector(
     (state) => state.sourceControl.historyCommitId === commit.commitId,
-  )
+  );
   const stateClass = isActive
-    ? 'border-ring/30 bg-surface-active shadow-[inset_0_0_0_1px_rgba(120,132,160,0.3)]'
-    : 'border-input bg-surface hover:bg-accent/45'
+    ? "border-ring/30 bg-surface-active shadow-[inset_0_0_0_1px_rgba(120,132,160,0.3)]"
+    : "border-input bg-surface hover:bg-accent/45";
 
   return (
     <button
@@ -103,16 +103,16 @@ function HistoryCommitRow({ commit, navIndex, onSelect }: HistoryCommitRowProps)
     >
       <div className="flex min-w-0 items-center gap-1.5">
         <span className="text-foreground w-0 flex-1 truncate text-[13px] leading-5 font-semibold">
-          {commit.summary || '(no commit message)'}
+          {commit.summary || "(no commit message)"}
         </span>
       </div>
       <div className="text-muted-foreground mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px]">
         <span className="border-input bg-surface-alt text-foreground/90 max-w-[32%] shrink-0 truncate rounded-sm border px-1.5 py-0.5 font-semibold">
           {commit.shortId}
         </span>
-        <span className="min-w-0 flex-1 truncate">{commit.author || 'Unknown'}</span>
+        <span className="min-w-0 flex-1 truncate">{commit.author || "Unknown"}</span>
         <span className="shrink-0 truncate">{commit.relativeTime}</span>
       </div>
     </button>
-  )
+  );
 }

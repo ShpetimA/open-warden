@@ -1,19 +1,19 @@
-import { Minus, Plus, Trash2 } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { Minus, Plus, Trash2 } from "lucide-react";
+import type { MouseEvent } from "react";
 
-import { useAppSelector } from '@/app/hooks'
-import type { Bucket, BucketedFile } from '@/features/source-control/types'
-import { FileListRow } from './FileListRow'
+import { useAppSelector } from "@/app/hooks";
+import type { Bucket, BucketedFile } from "@/features/source-control/types";
+import { FileListRow } from "./FileListRow";
 
 type Props = {
-  file: BucketedFile
-  navIndex?: number
-  onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void
-  onStageFile: (path: string) => void
-  onUnstageFile: (path: string) => void
-  onDiscardFile: (bucket: Bucket, path: string) => void
-  commentCounts: Map<string, number>
-}
+  file: BucketedFile;
+  navIndex?: number;
+  onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void;
+  onStageFile: (path: string) => void;
+  onUnstageFile: (path: string) => void;
+  onDiscardFile: (bucket: Bucket, path: string) => void;
+  commentCounts: Map<string, number>;
+};
 
 export function FileRow({
   file,
@@ -28,22 +28,22 @@ export function FileRow({
     (state) =>
       state.sourceControl.activeBucket === file.bucket &&
       state.sourceControl.activePath === file.path,
-  )
+  );
   const staging = useAppSelector(
     (state) =>
       state.sourceControl.runningAction === `file:stage:${file.path}` ||
       state.sourceControl.runningAction === `file:unstage:${file.path}`,
-  )
+  );
   const discarding = useAppSelector(
     (state) => state.sourceControl.runningAction === `file:discard:${file.path}`,
-  )
-  const hasRunningAction = useAppSelector((state) => state.sourceControl.runningAction !== '')
+  );
+  const hasRunningAction = useAppSelector((state) => state.sourceControl.runningAction !== "");
   const isSelected = useAppSelector((state) =>
     state.sourceControl.selectedFiles.some(
       (selected) => selected.bucket === file.bucket && selected.path === file.path,
     ),
-  )
-  const commentCount = commentCounts.get(file.path) ?? 0
+  );
+  const commentCount = commentCounts.get(file.path) ?? 0;
 
   return (
     <FileListRow
@@ -55,7 +55,7 @@ export function FileRow({
       navIndex={navIndex}
       onSelect={(event) => onSelectFile(file.bucket, file.path, event)}
       actions={
-        file.bucket === 'staged' ? (
+        file.bucket === "staged" ? (
           <button
             type="button"
             className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
@@ -80,9 +80,9 @@ export function FileRow({
               type="button"
               className="text-muted-foreground hover:bg-destructive/20 hover:text-destructive p-1"
               onClick={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                onDiscardFile(file.bucket, file.path)
+                event.preventDefault();
+                event.stopPropagation();
+                onDiscardFile(file.bucket, file.path);
               }}
               disabled={staging || discarding || hasRunningAction}
               title="Discard"
@@ -93,5 +93,5 @@ export function FileRow({
         )
       }
     />
-  )
+  );
 }

@@ -1,25 +1,25 @@
-import { skipToken } from '@reduxjs/toolkit/query'
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { createCommentCountByPathForRepo } from '@/features/comments/selectors'
-import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from '@/features/source-control/api'
-import { selectHistoryFile } from '@/features/source-control/actions'
-import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
-import type { FileItem } from '@/features/source-control/types'
-import { FileListRow } from './FileListRow'
+import { skipToken } from "@reduxjs/toolkit/query";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
+import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from "@/features/source-control/api";
+import { selectHistoryFile } from "@/features/source-control/actions";
+import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import type { FileItem } from "@/features/source-control/types";
+import { FileListRow } from "./FileListRow";
 
 export function HistoryFilesPane() {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const comments = useAppSelector((state) => state.comments)
-  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo)
-  const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId)
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const comments = useAppSelector((state) => state.comments);
+  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo);
+  const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
   const { historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
     {
       selectFromResult: ({ data }) => ({ historyCommits: data ?? [] }),
     },
-  )
+  );
   const { historyFiles, loadingHistoryFiles } = useGetCommitFilesQuery(
     activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
     {
@@ -28,15 +28,15 @@ export function HistoryFilesPane() {
         loadingHistoryFiles: isFetching,
       }),
     },
-  )
+  );
 
-  const selectedCommit = historyCommits.find((commit) => commit?.commitId === historyCommitId)
-  const files = historyFiles as FileItem[]
+  const selectedCommit = historyCommits.find((commit) => commit?.commitId === historyCommitId);
+  const files = historyFiles as FileItem[];
 
   return (
     <aside
       onMouseDown={() => {
-        dispatch(setHistoryNavTarget('files'))
+        dispatch(setHistoryNavTarget("files"));
       }}
       className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r"
     >
@@ -46,8 +46,8 @@ export function HistoryFilesPane() {
         </div>
         <div className="text-muted-foreground mt-1 truncate text-xs">
           {selectedCommit
-            ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? '' : 's'}`
-            : 'No commit selected'}
+            ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? "" : "s"}`
+            : "No commit selected"}
         </div>
       </div>
 
@@ -74,19 +74,19 @@ export function HistoryFilesPane() {
         )}
       </ScrollArea>
     </aside>
-  )
+  );
 }
 
 type HistoryFileRowProps = {
-  file: FileItem
-  navIndex: number
-  commentCounts: Map<string, number>
-}
+  file: FileItem;
+  navIndex: number;
+  commentCounts: Map<string, number>;
+};
 
 function HistoryFileRow({ file, navIndex, commentCounts }: HistoryFileRowProps) {
-  const dispatch = useAppDispatch()
-  const commentCount = commentCounts.get(file.path) ?? 0
-  const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path)
+  const dispatch = useAppDispatch();
+  const commentCount = commentCounts.get(file.path) ?? 0;
+  const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path);
 
   return (
     <FileListRow
@@ -96,12 +96,14 @@ function HistoryFileRow({ file, navIndex, commentCounts }: HistoryFileRowProps) 
       isActive={isActive}
       navIndex={navIndex}
       onSelect={() => {
-        dispatch(setHistoryNavTarget('files'))
-        void dispatch(selectHistoryFile(file.path))
+        dispatch(setHistoryNavTarget("files"));
+        void dispatch(selectHistoryFile(file.path));
       }}
       secondaryLabel={
-        file.previousPath && file.previousPath !== file.path ? `from ${file.previousPath}` : undefined
+        file.previousPath && file.previousPath !== file.path
+          ? `from ${file.previousPath}`
+          : undefined
       }
     />
-  )
+  );
 }

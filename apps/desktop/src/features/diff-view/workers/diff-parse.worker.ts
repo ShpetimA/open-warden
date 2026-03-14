@@ -1,52 +1,52 @@
 /// <reference lib="webworker" />
 
-import { parseDiffFromFile } from '@pierre/diffs'
+import { parseDiffFromFile } from "@pierre/diffs";
 
 type DiffFile = {
-  name: string
-  contents: string
-  cacheKey?: string
-}
+  name: string;
+  contents: string;
+  cacheKey?: string;
+};
 
 type ParseRequestMessage = {
-  type: 'parse'
-  requestId: number
-  oldFile: DiffFile
-  newFile: DiffFile
-}
+  type: "parse";
+  requestId: number;
+  oldFile: DiffFile;
+  newFile: DiffFile;
+};
 
 type ParseResponseMessage =
   | {
-      type: 'parsed'
-      requestId: number
-      data: ReturnType<typeof parseDiffFromFile>
+      type: "parsed";
+      requestId: number;
+      data: ReturnType<typeof parseDiffFromFile>;
     }
   | {
-      type: 'error'
-      requestId: number
-      message: string
-    }
+      type: "error";
+      requestId: number;
+      message: string;
+    };
 
 self.onmessage = (event: MessageEvent<ParseRequestMessage>) => {
-  const message = event.data
-  if (message.type !== 'parse') return
+  const message = event.data;
+  if (message.type !== "parse") return;
 
   try {
-    const data = parseDiffFromFile(message.oldFile, message.newFile)
+    const data = parseDiffFromFile(message.oldFile, message.newFile);
     const response: ParseResponseMessage = {
-      type: 'parsed',
+      type: "parsed",
       requestId: message.requestId,
       data,
-    }
-    self.postMessage(response)
+    };
+    self.postMessage(response);
   } catch (error) {
     const response: ParseResponseMessage = {
-      type: 'error',
+      type: "error",
       requestId: message.requestId,
       message: error instanceof Error ? error.message : String(error),
-    }
-    self.postMessage(response)
+    };
+    self.postMessage(response);
   }
-}
+};
 
-export {}
+export {};

@@ -1,36 +1,36 @@
-import { useHotkey } from '@tanstack/react-hotkeys'
-import { useStore } from 'react-redux'
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { useStore } from "react-redux";
 
-import { useAppDispatch } from '@/app/hooks'
-import type { RootState } from '@/app/store'
-import { gitApi } from '@/features/source-control/api'
-import { selectHistoryCommit, selectHistoryFile } from '@/features/source-control/actions'
-import { HISTORY_FILTER_INPUT_ID } from '@/features/source-control/constants'
-import { setHistoryNavTarget } from '@/features/source-control/sourceControlSlice'
-import type { FileItem, HistoryCommit } from '@/features/source-control/types'
-import { isTypingTarget } from '@/features/source-control/utils'
+import { useAppDispatch } from "@/app/hooks";
+import type { RootState } from "@/app/store";
+import { gitApi } from "@/features/source-control/api";
+import { selectHistoryCommit, selectHistoryFile } from "@/features/source-control/actions";
+import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
+import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import type { FileItem, HistoryCommit } from "@/features/source-control/types";
+import { isTypingTarget } from "@/features/source-control/utils";
 import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
-} from '@/lib/keyboard-navigation'
+} from "@/lib/keyboard-navigation";
 
 export function useHistoryKeyboardNav() {
-  const dispatch = useAppDispatch()
-  const store = useStore<RootState>()
+  const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
 
   const getNavigationData = () => {
-    const state = store.getState()
+    const state = store.getState();
     const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } =
-      state.sourceControl
-    const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null
+      state.sourceControl;
+    const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null;
     const historyFilesArgs =
-      activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null
+      activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null;
     const historyCommits = historyCommitsArgs
       ? gitApi.endpoints.getCommitHistory.select(historyCommitsArgs)(state).data
-      : undefined
+      : undefined;
     const historyFiles = historyFilesArgs
       ? gitApi.endpoints.getCommitFiles.select(historyFilesArgs)(state).data
-      : undefined
+      : undefined;
 
     return {
       historyCommitId,
@@ -39,12 +39,12 @@ export function useHistoryKeyboardNav() {
       activePath,
       allHistoryCommits: (historyCommits ?? []) as HistoryCommit[],
       allHistoryFiles: (historyFiles ?? []) as FileItem[],
-    }
-  }
+    };
+  };
 
   const navigateHistory = (event: KeyboardEvent, nextKey: boolean) => {
-    if (isTypingTarget(event.target)) return
-    event.preventDefault()
+    if (isTypingTarget(event.target)) return;
+    event.preventDefault();
 
     const {
       historyCommitId,
@@ -53,23 +53,23 @@ export function useHistoryKeyboardNav() {
       activePath,
       allHistoryCommits,
       allHistoryFiles,
-    } = getNavigationData()
+    } = getNavigationData();
 
-    if (historyNavTarget === 'files') {
-      if (allHistoryFiles.length === 0) return
+    if (historyNavTarget === "files") {
+      if (allHistoryFiles.length === 0) return;
 
-      const activeIndex = allHistoryFiles.findIndex((file) => file.path === activePath)
+      const activeIndex = allHistoryFiles.findIndex((file) => file.path === activePath);
 
-      const targetIndex = getWrappedNavigationIndex(activeIndex, allHistoryFiles.length, nextKey)
+      const targetIndex = getWrappedNavigationIndex(activeIndex, allHistoryFiles.length, nextKey);
 
-      const targetFile = allHistoryFiles[targetIndex]
-      if (!targetFile) return
-      scrollKeyboardNavItemIntoView('history-files', targetIndex)
-      void dispatch(selectHistoryFile(targetFile.path))
-      return
+      const targetFile = allHistoryFiles[targetIndex];
+      if (!targetFile) return;
+      scrollKeyboardNavItemIntoView("history-files", targetIndex);
+      void dispatch(selectHistoryFile(targetFile.path));
+      return;
     }
 
-    const query = historyFilter.trim().toLowerCase()
+    const query = historyFilter.trim().toLowerCase();
     const filteredHistoryCommits = !query
       ? allHistoryCommits
       : allHistoryCommits.filter((commit) => {
@@ -78,99 +78,103 @@ export function useHistoryKeyboardNav() {
             commit.shortId.toLowerCase().includes(query) ||
             commit.commitId.toLowerCase().includes(query) ||
             commit.author.toLowerCase().includes(query)
-          )
-        })
+          );
+        });
 
-    if (filteredHistoryCommits.length === 0) return
+    if (filteredHistoryCommits.length === 0) return;
 
     const activeIndex = filteredHistoryCommits.findIndex(
       (commit) => commit.commitId === historyCommitId,
-    )
+    );
 
-    const targetIndex = getWrappedNavigationIndex(activeIndex, filteredHistoryCommits.length, nextKey)
+    const targetIndex = getWrappedNavigationIndex(
+      activeIndex,
+      filteredHistoryCommits.length,
+      nextKey,
+    );
 
-    const targetCommit = filteredHistoryCommits[targetIndex]
-    if (!targetCommit) return
-    scrollKeyboardNavItemIntoView('history-commits', targetIndex)
-    void dispatch(selectHistoryCommit(targetCommit.commitId))
-  }
+    const targetCommit = filteredHistoryCommits[targetIndex];
+    if (!targetCommit) return;
+    scrollKeyboardNavItemIntoView("history-commits", targetIndex);
+    void dispatch(selectHistoryCommit(targetCommit.commitId));
+  };
 
   const focusHistoryFilter = (event: KeyboardEvent) => {
-    if (isTypingTarget(event.target)) return
-    event.preventDefault()
-    dispatch(setHistoryNavTarget('commits'))
-    const filterInput = document.getElementById(HISTORY_FILTER_INPUT_ID)
+    if (isTypingTarget(event.target)) return;
+    event.preventDefault();
+    dispatch(setHistoryNavTarget("commits"));
+    const filterInput = document.getElementById(HISTORY_FILTER_INPUT_ID);
     if (filterInput instanceof HTMLInputElement) {
-      filterInput.focus()
-      filterInput.select()
+      filterInput.focus();
+      filterInput.select();
     }
-  }
+  };
 
   useHotkey(
-    'H',
+    "H",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      event.preventDefault()
-      dispatch(setHistoryNavTarget('commits'))
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      dispatch(setHistoryNavTarget("commits"));
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'L',
+    "L",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      event.preventDefault()
-      dispatch(setHistoryNavTarget('files'))
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      dispatch(setHistoryNavTarget("files"));
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    '/',
+    "/",
     (event) => {
-      focusHistoryFilter(event)
+      focusHistoryFilter(event);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    { key: '?' },
+    { key: "?" },
     (event) => {
-      focusHistoryFilter(event)
+      focusHistoryFilter(event);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'ArrowDown',
+    "ArrowDown",
     (event) => {
-      navigateHistory(event, true)
+      navigateHistory(event, true);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'J',
+    "J",
     (event) => {
-      navigateHistory(event, true)
+      navigateHistory(event, true);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'ArrowUp',
+    "ArrowUp",
     (event) => {
-      navigateHistory(event, false)
+      navigateHistory(event, false);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'K',
+    "K",
     (event) => {
-      navigateHistory(event, false)
+      navigateHistory(event, false);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 }

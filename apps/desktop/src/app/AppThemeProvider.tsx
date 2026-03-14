@@ -1,19 +1,19 @@
-import { useEffect } from 'react'
-import { ThemeProvider, useTheme } from 'next-themes'
+import { useEffect } from "react";
+import { ThemeProvider, useTheme } from "next-themes";
 
 type AppThemeProviderProps = {
-  children: React.ReactNode
-}
+  children: React.ReactNode;
+};
 
 function ThemeColorSchemeSync() {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme } = useTheme();
 
   useEffect(() => {
-    const colorScheme = resolvedTheme === 'dark' ? 'dark' : 'light'
-    document.documentElement.style.colorScheme = colorScheme
-  }, [resolvedTheme])
+    const colorScheme = resolvedTheme === "dark" ? "dark" : "light";
+    document.documentElement.style.colorScheme = colorScheme;
+  }, [resolvedTheme]);
 
-  return null
+  return null;
 }
 
 export function AppThemeProvider({ children }: AppThemeProviderProps) {
@@ -28,5 +28,5 @@ export function AppThemeProvider({ children }: AppThemeProviderProps) {
       <ThemeColorSchemeSync />
       {children}
     </ThemeProvider>
-  )
+  );
 }

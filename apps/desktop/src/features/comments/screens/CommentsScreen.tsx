@@ -1,15 +1,15 @@
-import { useHotkey } from '@tanstack/react-hotkeys'
-import { confirm } from '@tauri-apps/plugin-dialog'
-import { ArrowUpRight, Copy, MessageSquare, Trash2 } from 'lucide-react'
-import { useRef, useState, type RefObject } from 'react'
-import { useNavigate } from 'react-router'
-import { toast } from 'sonner'
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { ArrowUpRight, Copy, MessageSquare, Trash2 } from "lucide-react";
+import { useRef, useState, type RefObject } from "react";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
 
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { ResizableSidebarLayout } from '@/components/layout/ResizableSidebarLayout'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { desktop } from "@/platform/desktop";
 import {
   Empty,
   EmptyContent,
@@ -17,18 +17,18 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
+} from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { removeComment, removeCommentsByIds } from '@/features/comments/actions'
-import { compactComments } from '@/features/comments/selectors'
+} from "@/components/ui/select";
+import { removeComment, removeCommentsByIds } from "@/features/comments/actions";
+import { compactComments } from "@/features/comments/selectors";
 import {
   commentContextLabel,
   commentsForRepo,
@@ -44,75 +44,84 @@ import {
   type ContextFilter,
   type FileFilterOption,
   type ReviewPairOption,
-} from '@/features/comments/screens/commentsScreenModel'
-import { selectFile } from '@/features/source-control/actions'
-import { setReviewActivePath, setReviewBaseRef, setReviewHeadRef } from '@/features/source-control/sourceControlSlice'
-import type { CommentItem } from '@/features/source-control/types'
-import { formatRange, isTypingTarget, repoLabel } from '@/features/source-control/utils'
+} from "@/features/comments/screens/commentsScreenModel";
+import { selectFile } from "@/features/source-control/actions";
+import {
+  setReviewActivePath,
+  setReviewBaseRef,
+  setReviewHeadRef,
+} from "@/features/source-control/sourceControlSlice";
+import type { CommentItem } from "@/features/source-control/types";
+import { formatRange, isTypingTarget, repoLabel } from "@/features/source-control/utils";
 import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
-} from '@/lib/keyboard-navigation'
+} from "@/lib/keyboard-navigation";
 
 function nextFocusedCommentId(
   comments: CommentItem[],
   focusedCommentId: string | null,
   goForward: boolean,
 ): { id: string | null; index: number } {
-  if (comments.length === 0) return { id: null, index: -1 }
+  if (comments.length === 0) return { id: null, index: -1 };
 
   if (!focusedCommentId) {
-    const targetIndex = goForward ? 0 : comments.length - 1
-    return { id: comments[targetIndex]?.id ?? null, index: targetIndex }
+    const targetIndex = goForward ? 0 : comments.length - 1;
+    return { id: comments[targetIndex]?.id ?? null, index: targetIndex };
   }
 
-  const activeIndex = comments.findIndex((comment) => comment.id === focusedCommentId)
-  const targetIndex = getWrappedNavigationIndex(activeIndex, comments.length, goForward)
-  return { id: comments[targetIndex]?.id ?? null, index: targetIndex }
+  const activeIndex = comments.findIndex((comment) => comment.id === focusedCommentId);
+  const targetIndex = getWrappedNavigationIndex(activeIndex, comments.length, goForward);
+  return { id: comments[targetIndex]?.id ?? null, index: targetIndex };
 }
 
 async function confirmDeleteComments(count: number, scopeLabel: string): Promise<boolean> {
-  if (count <= 1) return true
+  if (count <= 1) return true;
 
-  const message = `Delete ${count} ${scopeLabel} comment${count === 1 ? '' : 's'}?`
+  const message = `Delete ${count} ${scopeLabel} comment${count === 1 ? "" : "s"}?`;
 
   try {
-    return await confirm(message, {
-      title: 'Delete Comments',
-      kind: 'warning',
-      okLabel: 'Delete',
-      cancelLabel: 'Cancel',
-    })
+    return await desktop.confirm(message, {
+      title: "Delete Comments",
+      kind: "warning",
+      okLabel: "Delete",
+      cancelLabel: "Cancel",
+    });
   } catch {
-    return window.confirm(message)
+    return window.confirm(message);
   }
 }
 
 function summaryLabel(count: number, singular: string, plural: string): string {
-  if (count === 1) return `1 ${singular}`
-  return `${count} ${plural}`
+  if (count === 1) return `1 ${singular}`;
+  return `${count} ${plural}`;
 }
 
 function copyPayloadForComments(comments: CommentItem[]): string {
-  return comments.map((comment) => `@${comment.filePath}#${formatRange(comment.startLine, comment.endLine)} - ${comment.text}`).join('\n')
+  return comments
+    .map(
+      (comment) =>
+        `@${comment.filePath}#${formatRange(comment.startLine, comment.endLine)} - ${comment.text}`,
+    )
+    .join("\n");
 }
 
 type CommentsSidebarFiltersProps = {
-  searchInputRef: RefObject<HTMLInputElement | null>
-  searchText: string
-  onSearchTextChange: (value: string) => void
-  contextFilter: ContextFilter
-  onContextFilterChange: (value: ContextFilter) => void
-  selectedPair: string | null
-  onSelectedPairChange: (value: string | null) => void
-  reviewPairs: ReviewPairOption[]
-  selectedFilePath: string | null
-  onSelectedFilePathChange: (value: string | null) => void
-  fileFilters: FileFilterOption[]
-  matchingCommentsCount: number
-  hasActiveFilters: boolean
-  onClearFilters: () => void
-}
+  searchInputRef: RefObject<HTMLInputElement | null>;
+  searchText: string;
+  onSearchTextChange: (value: string) => void;
+  contextFilter: ContextFilter;
+  onContextFilterChange: (value: ContextFilter) => void;
+  selectedPair: string | null;
+  onSelectedPairChange: (value: string | null) => void;
+  reviewPairs: ReviewPairOption[];
+  selectedFilePath: string | null;
+  onSelectedFilePathChange: (value: string | null) => void;
+  fileFilters: FileFilterOption[];
+  matchingCommentsCount: number;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
+};
 
 function CommentsSidebarFilters({
   searchInputRef,
@@ -131,18 +140,20 @@ function CommentsSidebarFilters({
   onClearFilters,
 }: CommentsSidebarFiltersProps) {
   const contextFilterButtons: Array<{ value: ContextFilter; label: string }> = [
-    { value: 'all', label: 'All' },
-    { value: 'changes', label: 'Changes' },
-    { value: 'review', label: 'Review' },
-  ]
+    { value: "all", label: "All" },
+    { value: "changes", label: "Changes" },
+    { value: "review", label: "Review" },
+  ];
 
   return (
     <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
       <div className="border-border border-b p-2.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">COMMENT FILTERS</div>
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            COMMENT FILTERS
+          </div>
           <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-            {summaryLabel(matchingCommentsCount, 'match', 'matches')}
+            {summaryLabel(matchingCommentsCount, "match", "matches")}
           </Badge>
         </div>
 
@@ -164,7 +175,7 @@ function CommentsSidebarFilters({
                 <Button
                   key={filterButton.value}
                   size="xs"
-                  variant={contextFilter === filterButton.value ? 'secondary' : 'outline'}
+                  variant={contextFilter === filterButton.value ? "secondary" : "outline"}
                   onClick={() => onContextFilterChange(filterButton.value)}
                   className="w-full"
                 >
@@ -174,14 +185,14 @@ function CommentsSidebarFilters({
             </div>
           </div>
 
-          {contextFilter === 'review' ? (
+          {contextFilter === "review" ? (
             <div className="space-y-1">
               <div className="text-muted-foreground text-[10px] font-semibold tracking-[0.12em] uppercase">
                 Review Pair
               </div>
               <Select
-                value={selectedPair ?? 'all'}
-                onValueChange={(value) => onSelectedPairChange(value === 'all' ? null : value)}
+                value={selectedPair ?? "all"}
+                onValueChange={(value) => onSelectedPairChange(value === "all" ? null : value)}
                 disabled={reviewPairs.length === 0}
               >
                 <SelectTrigger className="h-7 text-xs">
@@ -201,7 +212,7 @@ function CommentsSidebarFilters({
 
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground text-[11px]">
-              {summaryLabel(matchingCommentsCount, 'comment', 'comments')}
+              {summaryLabel(matchingCommentsCount, "comment", "comments")}
             </span>
             <Button size="xs" variant="ghost" onClick={onClearFilters} disabled={!hasActiveFilters}>
               Clear filters
@@ -212,7 +223,9 @@ function CommentsSidebarFilters({
 
       <div className="border-border min-h-0 flex-1 border-t">
         <div className="border-border flex items-center justify-between border-b px-2.5 py-2">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">FILES</div>
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            FILES
+          </div>
           <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
             {fileFilters.length}
           </Badge>
@@ -240,21 +253,21 @@ function CommentsSidebarFilters({
         </ScrollArea>
       </div>
     </aside>
-  )
+  );
 }
 
 type FileFilterButtonProps = {
-  pathLabel: string
-  count: number
-  isActive: boolean
-  onClick: () => void
-}
+  pathLabel: string;
+  count: number;
+  isActive: boolean;
+  onClick: () => void;
+};
 
 function FileFilterButton({ pathLabel, count, isActive, onClick }: FileFilterButtonProps) {
-  const { fileName, directoryPath } = splitFilePath(pathLabel)
+  const { fileName, directoryPath } = splitFilePath(pathLabel);
   const stateClass = isActive
-    ? 'border-ring/30 bg-surface-active'
-    : 'border-transparent hover:border-input hover:bg-accent/45'
+    ? "border-ring/30 bg-surface-active"
+    : "border-transparent hover:border-input hover:bg-accent/45";
 
   return (
     <button
@@ -273,20 +286,20 @@ function FileFilterButton({ pathLabel, count, isActive, onClick }: FileFilterBut
         <div className="text-muted-foreground mt-0.5 truncate text-[11px]">{directoryPath}</div>
       ) : null}
     </button>
-  )
+  );
 }
 
 type CommentGroupListProps = {
-  groups: CommentFileGroup[]
-  commentIndexById: Map<string, number>
-  selectedIdSet: Set<string>
-  focusedCommentId: string | null
-  onToggleSelected: (commentId: string) => void
-  onFocusComment: (commentId: string) => void
-  onOpenComment: (comment: CommentItem) => void
-  onCopyComment: (comment: CommentItem) => void
-  onDeleteComment: (comment: CommentItem) => void
-}
+  groups: CommentFileGroup[];
+  commentIndexById: Map<string, number>;
+  selectedIdSet: Set<string>;
+  focusedCommentId: string | null;
+  onToggleSelected: (commentId: string) => void;
+  onFocusComment: (commentId: string) => void;
+  onOpenComment: (comment: CommentItem) => void;
+  onCopyComment: (comment: CommentItem) => void;
+  onDeleteComment: (comment: CommentItem) => void;
+};
 
 function CommentGroupList({
   groups,
@@ -318,20 +331,20 @@ function CommentGroupList({
         ))}
       </div>
     </ScrollArea>
-  )
+  );
 }
 
 type CommentFileSectionProps = {
-  group: CommentFileGroup
-  commentIndexById: Map<string, number>
-  selectedIdSet: Set<string>
-  focusedCommentId: string | null
-  onToggleSelected: (commentId: string) => void
-  onFocusComment: (commentId: string) => void
-  onOpenComment: (comment: CommentItem) => void
-  onCopyComment: (comment: CommentItem) => void
-  onDeleteComment: (comment: CommentItem) => void
-}
+  group: CommentFileGroup;
+  commentIndexById: Map<string, number>;
+  selectedIdSet: Set<string>;
+  focusedCommentId: string | null;
+  onToggleSelected: (commentId: string) => void;
+  onFocusComment: (commentId: string) => void;
+  onOpenComment: (comment: CommentItem) => void;
+  onCopyComment: (comment: CommentItem) => void;
+  onDeleteComment: (comment: CommentItem) => void;
+};
 
 function CommentFileSection({
   group,
@@ -344,7 +357,7 @@ function CommentFileSection({
   onCopyComment,
   onDeleteComment,
 }: CommentFileSectionProps) {
-  const { fileName, directoryPath } = splitFilePath(group.path)
+  const { fileName, directoryPath } = splitFilePath(group.path);
 
   return (
     <section className="border-border bg-surface overflow-hidden rounded-md border">
@@ -358,11 +371,11 @@ function CommentFileSection({
 
         <div className="flex items-center gap-1">
           <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-            {summaryLabel(group.comments.length, 'comment', 'comments')}
+            {summaryLabel(group.comments.length, "comment", "comments")}
           </Badge>
           {group.reviewCount > 0 ? (
             <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-              {summaryLabel(group.reviewCount, 'review', 'reviews')}
+              {summaryLabel(group.reviewCount, "review", "reviews")}
             </Badge>
           ) : null}
         </div>
@@ -376,35 +389,35 @@ function CommentFileSection({
             navIndex={commentIndexById.get(comment.id) ?? -1}
             isSelected={selectedIdSet.has(comment.id)}
             isFocused={focusedCommentId === comment.id}
-              onToggleSelected={onToggleSelected}
-              onFocusComment={onFocusComment}
-              onOpenComment={onOpenComment}
-              onCopyComment={onCopyComment}
-              onDeleteComment={onDeleteComment}
-            />
-          ))}
+            onToggleSelected={onToggleSelected}
+            onFocusComment={onFocusComment}
+            onOpenComment={onOpenComment}
+            onCopyComment={onCopyComment}
+            onDeleteComment={onDeleteComment}
+          />
+        ))}
       </div>
     </section>
-  )
+  );
 }
 
 function commentRowClassName(isFocused: boolean, isSelected: boolean): string {
-  if (isFocused) return 'bg-surface-active'
-  if (isSelected) return 'bg-accent/45'
-  return 'hover:bg-accent/35'
+  if (isFocused) return "bg-surface-active";
+  if (isSelected) return "bg-accent/45";
+  return "hover:bg-accent/35";
 }
 
 type CommentListRowProps = {
-  comment: CommentItem
-  navIndex: number
-  isSelected: boolean
-  isFocused: boolean
-  onToggleSelected: (commentId: string) => void
-  onFocusComment: (commentId: string) => void
-  onOpenComment: (comment: CommentItem) => void
-  onCopyComment: (comment: CommentItem) => void
-  onDeleteComment: (comment: CommentItem) => void
-}
+  comment: CommentItem;
+  navIndex: number;
+  isSelected: boolean;
+  isFocused: boolean;
+  onToggleSelected: (commentId: string) => void;
+  onFocusComment: (commentId: string) => void;
+  onOpenComment: (comment: CommentItem) => void;
+  onCopyComment: (comment: CommentItem) => void;
+  onDeleteComment: (comment: CommentItem) => void;
+};
 
 function CommentListRow({
   comment,
@@ -437,12 +450,14 @@ function CommentListRow({
               {formatRange(comment.startLine, comment.endLine)}
             </Badge>
             <Badge
-              variant={isReviewComment(comment) ? 'secondary' : 'outline'}
+              variant={isReviewComment(comment) ? "secondary" : "outline"}
               className="px-1.5 py-0 text-[10px]"
             >
-              {isReviewComment(comment) ? 'Review' : 'Changes'}
+              {isReviewComment(comment) ? "Review" : "Changes"}
             </Badge>
-            <span className="text-muted-foreground truncate text-[11px]">{commentContextLabel(comment)}</span>
+            <span className="text-muted-foreground truncate text-[11px]">
+              {commentContextLabel(comment)}
+            </span>
           </div>
 
           <p className="text-foreground mt-1 whitespace-pre-wrap break-words">{comment.text}</p>
@@ -453,8 +468,8 @@ function CommentListRow({
             size="xs"
             variant="ghost"
             onClick={(event) => {
-              event.stopPropagation()
-              onOpenComment(comment)
+              event.stopPropagation();
+              onOpenComment(comment);
             }}
           >
             Open
@@ -465,8 +480,8 @@ function CommentListRow({
             size="icon-xs"
             variant="ghost"
             onClick={(event) => {
-              event.stopPropagation()
-              onCopyComment(comment)
+              event.stopPropagation();
+              onCopyComment(comment);
             }}
             title="Copy comment"
           >
@@ -477,8 +492,8 @@ function CommentListRow({
             size="icon-xs"
             variant="ghost"
             onClick={(event) => {
-              event.stopPropagation()
-              onDeleteComment(comment)
+              event.stopPropagation();
+              onDeleteComment(comment);
             }}
             title="Delete comment"
           >
@@ -487,20 +502,24 @@ function CommentListRow({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 type CommentsEmptyStateProps = {
-  hasComments: boolean
-  hasActiveFilters: boolean
-  onClearFilters: () => void
-}
+  hasComments: boolean;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
+};
 
-function CommentsEmptyState({ hasComments, hasActiveFilters, onClearFilters }: CommentsEmptyStateProps) {
-  const title = hasComments ? 'No comments match your filters' : 'No comments yet'
+function CommentsEmptyState({
+  hasComments,
+  hasActiveFilters,
+  onClearFilters,
+}: CommentsEmptyStateProps) {
+  const title = hasComments ? "No comments match your filters" : "No comments yet";
   const description = hasComments
-    ? 'Try broadening your search or clearing one of the active filters.'
-    : 'Add comments from Changes or Review and they will appear here.'
+    ? "Try broadening your search or clearing one of the active filters."
+    : "Add comments from Changes or Review and they will appear here.";
 
   return (
     <Empty className="border-0">
@@ -520,330 +539,334 @@ function CommentsEmptyState({ hasComments, hasActiveFilters, onClearFilters }: C
         </EmptyContent>
       ) : null}
     </Empty>
-  )
+  );
 }
 
 export function CommentsScreen() {
-  const dispatch = useAppDispatch()
-  const navigate = useNavigate()
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
 
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const comments = useAppSelector((state) => state.comments)
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const comments = useAppSelector((state) => state.comments);
 
-  const [searchText, setSearchText] = useState('')
-  const [contextFilter, setContextFilter] = useState<ContextFilter>('all')
-  const [selectedPair, setSelectedPair] = useState<string | null>(null)
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null)
+  const [searchText, setSearchText] = useState("");
+  const [contextFilter, setContextFilter] = useState<ContextFilter>("all");
+  const [selectedPair, setSelectedPair] = useState<string | null>(null);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
 
-  const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  const allComments = compactComments(comments)
-  const repoComments = commentsForRepo(allComments, activeRepo)
-  const reviewPairs = createReviewPairOptions(repoComments)
-  const reviewPairIsAvailable = selectedPair ? reviewPairs.some((pair) => pair.value === selectedPair) : false
+  const allComments = compactComments(comments);
+  const repoComments = commentsForRepo(allComments, activeRepo);
+  const reviewPairs = createReviewPairOptions(repoComments);
+  const reviewPairIsAvailable = selectedPair
+    ? reviewPairs.some((pair) => pair.value === selectedPair)
+    : false;
   const effectiveSelectedPair =
-    contextFilter === 'review' && reviewPairIsAvailable ? selectedPair : null
+    contextFilter === "review" && reviewPairIsAvailable ? selectedPair : null;
 
-  const scopedComments = filterCommentsByScope(repoComments, contextFilter, effectiveSelectedPair)
-  const searchedComments = filterCommentsBySearch(scopedComments, searchText)
-  const fileFilters = createFileFilterOptions(searchedComments)
+  const scopedComments = filterCommentsByScope(repoComments, contextFilter, effectiveSelectedPair);
+  const searchedComments = filterCommentsBySearch(scopedComments, searchText);
+  const fileFilters = createFileFilterOptions(searchedComments);
   const fileFilterIsAvailable = selectedFilePath
     ? fileFilters.some((fileFilter) => fileFilter.path === selectedFilePath)
-    : false
-  const effectiveSelectedFilePath = fileFilterIsAvailable ? selectedFilePath : null
+    : false;
+  const effectiveSelectedFilePath = fileFilterIsAvailable ? selectedFilePath : null;
 
-  const visibleComments = filterCommentsByFile(searchedComments, effectiveSelectedFilePath)
-  const groupedComments = groupCommentsByFile(visibleComments)
-  const commentIndexById = new Map(visibleComments.map((comment, index) => [comment.id, index]))
+  const visibleComments = filterCommentsByFile(searchedComments, effectiveSelectedFilePath);
+  const groupedComments = groupCommentsByFile(visibleComments);
+  const commentIndexById = new Map(visibleComments.map((comment, index) => [comment.id, index]));
 
-  const visibleIdSet = new Set(visibleComments.map((comment) => comment.id))
-  const visibleSelectedIds = selectedIds.filter((id) => visibleIdSet.has(id))
-  const selectedIdSet = new Set(visibleSelectedIds)
+  const visibleIdSet = new Set(visibleComments.map((comment) => comment.id));
+  const visibleSelectedIds = selectedIds.filter((id) => visibleIdSet.has(id));
+  const selectedIdSet = new Set(visibleSelectedIds);
   const allVisibleSelected =
-    visibleComments.length > 0 && visibleComments.every((comment) => selectedIdSet.has(comment.id))
+    visibleComments.length > 0 && visibleComments.every((comment) => selectedIdSet.has(comment.id));
 
   const hasActiveFilters =
     searchText.trim().length > 0 ||
-    contextFilter !== 'all' ||
+    contextFilter !== "all" ||
     effectiveSelectedPair !== null ||
-    effectiveSelectedFilePath !== null
+    effectiveSelectedFilePath !== null;
 
   const focusedIdExists = focusedCommentId
     ? visibleComments.some((comment) => comment.id === focusedCommentId)
-    : false
+    : false;
   const effectiveFocusedCommentId = focusedIdExists
     ? focusedCommentId
-    : (visibleComments[0]?.id ?? null)
+    : (visibleComments[0]?.id ?? null);
   const focusedComment = effectiveFocusedCommentId
-    ? visibleComments.find((comment) => comment.id === effectiveFocusedCommentId) ?? null
-    : null
+    ? (visibleComments.find((comment) => comment.id === effectiveFocusedCommentId) ?? null)
+    : null;
 
   const onToggleSelected = (commentId: string) => {
     if (selectedIdSet.has(commentId)) {
-      setSelectedIds(visibleSelectedIds.filter((id) => id !== commentId))
-      return
+      setSelectedIds(visibleSelectedIds.filter((id) => id !== commentId));
+      return;
     }
 
-    setSelectedIds([...visibleSelectedIds, commentId])
-  }
+    setSelectedIds([...visibleSelectedIds, commentId]);
+  };
 
   const onToggleAllVisible = () => {
-    if (visibleComments.length === 0) return
+    if (visibleComments.length === 0) return;
 
     if (allVisibleSelected) {
-      const visibleIdSet = new Set(visibleComments.map((comment) => comment.id))
-      setSelectedIds(visibleSelectedIds.filter((id) => !visibleIdSet.has(id)))
-      return
+      const visibleIdSet = new Set(visibleComments.map((comment) => comment.id));
+      setSelectedIds(visibleSelectedIds.filter((id) => !visibleIdSet.has(id)));
+      return;
     }
 
-    const nextIdSet = new Set(visibleSelectedIds)
+    const nextIdSet = new Set(visibleSelectedIds);
     for (const comment of visibleComments) {
-      nextIdSet.add(comment.id)
+      nextIdSet.add(comment.id);
     }
 
-    setSelectedIds(Array.from(nextIdSet))
-  }
+    setSelectedIds(Array.from(nextIdSet));
+  };
 
   const onOpenComment = (comment: CommentItem) => {
     if (isReviewComment(comment) && comment.baseRef && comment.headRef) {
-      dispatch(setReviewBaseRef(comment.baseRef))
-      dispatch(setReviewHeadRef(comment.headRef))
-      dispatch(setReviewActivePath(comment.filePath))
-      navigate('/review')
-      return
+      dispatch(setReviewBaseRef(comment.baseRef));
+      dispatch(setReviewHeadRef(comment.headRef));
+      dispatch(setReviewActivePath(comment.filePath));
+      navigate("/review");
+      return;
     }
 
-    void dispatch(selectFile(comment.bucket, comment.filePath))
-    navigate('/changes')
-  }
+    void dispatch(selectFile(comment.bucket, comment.filePath));
+    navigate("/changes");
+  };
 
   const onDeleteComment = (comment: CommentItem) => {
-    dispatch(removeComment(comment.id))
-    setSelectedIds((previousIds) => previousIds.filter((id) => id !== comment.id))
-  }
+    dispatch(removeComment(comment.id));
+    setSelectedIds((previousIds) => previousIds.filter((id) => id !== comment.id));
+  };
 
   const onCopyComments = async (targetComments: CommentItem[], label: string) => {
-    if (targetComments.length === 0) return
+    if (targetComments.length === 0) return;
 
     try {
-      await navigator.clipboard.writeText(copyPayloadForComments(targetComments))
-      toast.success(`Copied ${label}`)
+      await navigator.clipboard.writeText(copyPayloadForComments(targetComments));
+      toast.success(`Copied ${label}`);
     } catch {
-      toast.error('Unable to copy comments')
+      toast.error("Unable to copy comments");
     }
-  }
+  };
 
   const onCopyComment = (comment: CommentItem) => {
-    void onCopyComments([comment], 'comment')
-  }
+    void onCopyComments([comment], "comment");
+  };
 
   const onCopySelected = () => {
-    const selectedComments = visibleComments.filter((comment) => selectedIdSet.has(comment.id))
-    void onCopyComments(selectedComments, summaryLabel(selectedComments.length, 'comment', 'comments'))
-  }
+    const selectedComments = visibleComments.filter((comment) => selectedIdSet.has(comment.id));
+    void onCopyComments(
+      selectedComments,
+      summaryLabel(selectedComments.length, "comment", "comments"),
+    );
+  };
 
   const onCopyVisible = () => {
-    void onCopyComments(visibleComments, summaryLabel(visibleComments.length, 'comment', 'comments'))
-  }
+    void onCopyComments(
+      visibleComments,
+      summaryLabel(visibleComments.length, "comment", "comments"),
+    );
+  };
 
   const onDeleteSelected = async () => {
-    if (visibleSelectedIds.length === 0) return
+    if (visibleSelectedIds.length === 0) return;
 
-    const confirmed = await confirmDeleteComments(visibleSelectedIds.length, 'selected')
-    if (!confirmed) return
+    const confirmed = await confirmDeleteComments(visibleSelectedIds.length, "selected");
+    if (!confirmed) return;
 
-    dispatch(removeCommentsByIds(visibleSelectedIds))
-    setSelectedIds([])
-  }
+    dispatch(removeCommentsByIds(visibleSelectedIds));
+    setSelectedIds([]);
+  };
 
   const onDeleteVisible = async () => {
-    if (visibleComments.length === 0) return
+    if (visibleComments.length === 0) return;
 
-    const ids = visibleComments.map((comment) => comment.id)
-    const confirmed = await confirmDeleteComments(ids.length, 'visible')
-    if (!confirmed) return
+    const ids = visibleComments.map((comment) => comment.id);
+    const confirmed = await confirmDeleteComments(ids.length, "visible");
+    if (!confirmed) return;
 
-    dispatch(removeCommentsByIds(ids))
-    setSelectedIds([])
-  }
+    dispatch(removeCommentsByIds(ids));
+    setSelectedIds([]);
+  };
 
   const onClearSelection = () => {
-    setSelectedIds([])
-  }
+    setSelectedIds([]);
+  };
 
   const onClearFilters = () => {
-    setSearchText('')
-    setContextFilter('all')
-    setSelectedPair(null)
-    setSelectedFilePath(null)
-    setSelectedIds([])
-  }
+    setSearchText("");
+    setContextFilter("all");
+    setSelectedPair(null);
+    setSelectedFilePath(null);
+    setSelectedIds([]);
+  };
 
   const onSearchTextChange = (value: string) => {
-    setSearchText(value)
-    setSelectedIds([])
-  }
+    setSearchText(value);
+    setSelectedIds([]);
+  };
 
   const onContextFilterChange = (value: ContextFilter) => {
-    setContextFilter(value)
-    if (value !== 'review') {
-      setSelectedPair(null)
+    setContextFilter(value);
+    if (value !== "review") {
+      setSelectedPair(null);
     }
-    setSelectedIds([])
-  }
+    setSelectedIds([]);
+  };
 
   const onSelectedPairChange = (value: string | null) => {
-    setSelectedPair(value)
-    setSelectedIds([])
-  }
+    setSelectedPair(value);
+    setSelectedIds([]);
+  };
 
   const onSelectedFilePathChange = (value: string | null) => {
-    setSelectedFilePath(value)
-    setSelectedIds([])
-  }
+    setSelectedFilePath(value);
+    setSelectedIds([]);
+  };
 
   const focusSearchInput = (event: KeyboardEvent) => {
-    if (isTypingTarget(event.target)) return
+    if (isTypingTarget(event.target)) return;
 
-    event.preventDefault()
-    searchInputRef.current?.focus()
-    searchInputRef.current?.select()
-  }
+    event.preventDefault();
+    searchInputRef.current?.focus();
+    searchInputRef.current?.select();
+  };
 
   const onMoveFocus = (event: KeyboardEvent, goForward: boolean) => {
-    if (isTypingTarget(event.target)) return
+    if (isTypingTarget(event.target)) return;
 
-    event.preventDefault()
-    const nextFocus = nextFocusedCommentId(visibleComments, effectiveFocusedCommentId, goForward)
-    if (!nextFocus.id) return
-    scrollKeyboardNavItemIntoView('comments-list', nextFocus.index)
-    setFocusedCommentId(nextFocus.id)
-  }
+    event.preventDefault();
+    const nextFocus = nextFocusedCommentId(visibleComments, effectiveFocusedCommentId, goForward);
+    if (!nextFocus.id) return;
+    scrollKeyboardNavItemIntoView("comments-list", nextFocus.index);
+    setFocusedCommentId(nextFocus.id);
+  };
 
-  useHotkey('/', (event) => focusSearchInput(event), {
+  useHotkey("/", (event) => focusSearchInput(event), {
     ignoreInputs: false,
     preventDefault: false,
     stopPropagation: false,
-  })
+  });
+
+  useHotkey({ key: "?" }, (event) => focusSearchInput(event), {
+    ignoreInputs: false,
+    preventDefault: false,
+    stopPropagation: false,
+  });
 
   useHotkey(
-    { key: '?' },
-    (event) => focusSearchInput(event),
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  )
-
-  useHotkey(
-    'ArrowDown',
+    "ArrowDown",
     (event) => {
-      onMoveFocus(event, true)
+      onMoveFocus(event, true);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'J',
+    "J",
     (event) => {
-      onMoveFocus(event, true)
+      onMoveFocus(event, true);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'ArrowUp',
+    "ArrowUp",
     (event) => {
-      onMoveFocus(event, false)
+      onMoveFocus(event, false);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'K',
+    "K",
     (event) => {
-      onMoveFocus(event, false)
+      onMoveFocus(event, false);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'X',
+    "X",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      if (!effectiveFocusedCommentId) return
+      if (isTypingTarget(event.target)) return;
+      if (!effectiveFocusedCommentId) return;
 
-      event.preventDefault()
-      onToggleSelected(effectiveFocusedCommentId)
+      event.preventDefault();
+      onToggleSelected(effectiveFocusedCommentId);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'A',
+    "A",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      event.preventDefault()
-      onToggleAllVisible()
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      onToggleAllVisible();
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'Enter',
+    "Enter",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      if (!focusedComment) return
+      if (isTypingTarget(event.target)) return;
+      if (!focusedComment) return;
 
-      event.preventDefault()
-      onOpenComment(focusedComment)
+      event.preventDefault();
+      onOpenComment(focusedComment);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'Mod+C',
+    "Mod+C",
     (event) => {
-      if (isTypingTarget(event.target)) return
+      if (isTypingTarget(event.target)) return;
       if (visibleSelectedIds.length > 0) {
-        event.preventDefault()
-        onCopySelected()
-        return
+        event.preventDefault();
+        onCopySelected();
+        return;
       }
-      if (!focusedComment) return
+      if (!focusedComment) return;
 
-      event.preventDefault()
-      onCopyComment(focusedComment)
+      event.preventDefault();
+      onCopyComment(focusedComment);
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'Backspace',
+    "Backspace",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      if (visibleSelectedIds.length === 0) return
+      if (isTypingTarget(event.target)) return;
+      if (visibleSelectedIds.length === 0) return;
 
-      event.preventDefault()
-      void onDeleteSelected()
+      event.preventDefault();
+      void onDeleteSelected();
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   useHotkey(
-    'Delete',
+    "Delete",
     (event) => {
-      if (isTypingTarget(event.target)) return
-      if (visibleSelectedIds.length === 0) return
+      if (isTypingTarget(event.target)) return;
+      if (visibleSelectedIds.length === 0) return;
 
-      event.preventDefault()
-      void onDeleteSelected()
+      event.preventDefault();
+      void onDeleteSelected();
     },
     { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  )
+  );
 
   return (
     <ResizableSidebarLayout
@@ -873,35 +896,52 @@ export function CommentsScreen() {
         <section className="flex h-full min-h-0 flex-col">
           <header className="border-border bg-surface border-b px-3 py-2">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">COMMENTS</div>
+              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+                COMMENTS
+              </div>
               <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                {summaryLabel(repoComments.length, 'total', 'total')}
+                {summaryLabel(repoComments.length, "total", "total")}
               </Badge>
               <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                {summaryLabel(visibleComments.length, 'visible', 'visible')}
+                {summaryLabel(visibleComments.length, "visible", "visible")}
               </Badge>
               {visibleSelectedIds.length > 0 ? (
                 <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                  {summaryLabel(visibleSelectedIds.length, 'selected', 'selected')}
+                  {summaryLabel(visibleSelectedIds.length, "selected", "selected")}
                 </Badge>
               ) : null}
             </div>
 
             <div className="text-muted-foreground mt-1 truncate text-xs">
-              {activeRepo ? repoLabel(activeRepo) : 'All repositories'}
+              {activeRepo ? repoLabel(activeRepo) : "All repositories"}
             </div>
           </header>
 
           <div className="border-border bg-surface-toolbar flex flex-wrap items-center gap-2 border-b px-3 py-2">
-            <Button size="xs" variant="outline" onClick={onToggleAllVisible} disabled={visibleComments.length === 0}>
-              {allVisibleSelected ? 'Unselect Visible' : 'Select Visible'}
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onToggleAllVisible}
+              disabled={visibleComments.length === 0}
+            >
+              {allVisibleSelected ? "Unselect Visible" : "Select Visible"}
             </Button>
 
-            <Button size="xs" variant="outline" onClick={() => void onDeleteVisible()} disabled={visibleComments.length === 0}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => void onDeleteVisible()}
+              disabled={visibleComments.length === 0}
+            >
               Delete Visible ({visibleComments.length})
             </Button>
 
-            <Button size="xs" variant="outline" onClick={onCopyVisible} disabled={visibleComments.length === 0}>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onCopyVisible}
+              disabled={visibleComments.length === 0}
+            >
               Copy Visible ({visibleComments.length})
             </Button>
 
@@ -913,7 +953,7 @@ export function CommentsScreen() {
           {visibleSelectedIds.length > 0 ? (
             <div className="border-border bg-accent/20 flex flex-wrap items-center gap-2 border-b px-3 py-2">
               <span className="text-xs font-medium">
-                {summaryLabel(visibleSelectedIds.length, 'comment', 'comments')} selected
+                {summaryLabel(visibleSelectedIds.length, "comment", "comments")} selected
               </span>
 
               <Button size="xs" variant="destructive" onClick={() => void onDeleteSelected()}>
@@ -954,5 +994,5 @@ export function CommentsScreen() {
         </section>
       }
     />
-  )
+  );
 }

@@ -1,6 +1,6 @@
-import { createApi, fakeBaseQuery } from '@reduxjs/toolkit/query/react'
+import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
-import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from './types'
+import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from "./types";
 import {
   getBranches,
   getBranchFiles,
@@ -17,126 +17,126 @@ import {
   stageFile,
   unstageAll,
   unstageFile,
-} from './services/git'
+} from "./services/git";
 
-type ErrorResult = { message: string }
+type ErrorResult = { message: string };
 
-type CommitHistoryArgs = { repoPath: string; limit?: number }
-type BranchFilesArgs = { repoPath: string; baseRef: string; headRef: string }
-type CommitFilesArgs = { repoPath: string; commitId: string }
+type CommitHistoryArgs = { repoPath: string; limit?: number };
+type BranchFilesArgs = { repoPath: string; baseRef: string; headRef: string };
+type CommitFilesArgs = { repoPath: string; commitId: string };
 type CommitFileVersionsArgs = {
-  repoPath: string
-  commitId: string
-  relPath: string
-  previousPath?: string
-}
-type FileVersionsArgs = { repoPath: string; bucket: Bucket; relPath: string }
+  repoPath: string;
+  commitId: string;
+  relPath: string;
+  previousPath?: string;
+};
+type FileVersionsArgs = { repoPath: string; bucket: Bucket; relPath: string };
 type BranchFileVersionsArgs = {
-  repoPath: string
-  baseRef: string
-  headRef: string
-  relPath: string
-  previousPath?: string
-}
+  repoPath: string;
+  baseRef: string;
+  headRef: string;
+  relPath: string;
+  previousPath?: string;
+};
 
-type StageFileArgs = { repoPath: string; relPath: string }
-type UnstageFileArgs = { repoPath: string; relPath: string }
-type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket }
-type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> }
-type CommitStagedArgs = { repoPath: string; message: string }
+type StageFileArgs = { repoPath: string; relPath: string };
+type UnstageFileArgs = { repoPath: string; relPath: string };
+type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket };
+type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> };
+type CommitStagedArgs = { repoPath: string; message: string };
 
 function toErrorResult(error: unknown): ErrorResult {
-  return { message: error instanceof Error ? error.message : String(error) }
+  return { message: error instanceof Error ? error.message : String(error) };
 }
 
 export const gitApi = createApi({
-  reducerPath: 'gitApi',
+  reducerPath: "gitApi",
   baseQuery: fakeBaseQuery<ErrorResult>(),
   tagTypes: [
-    'Snapshot',
-    'HistoryCommits',
-    'HistoryFiles',
-    'Branches',
-    'BranchFiles',
-    'FileVersions',
+    "Snapshot",
+    "HistoryCommits",
+    "HistoryFiles",
+    "Branches",
+    "BranchFiles",
+    "FileVersions",
   ],
   endpoints: (builder) => ({
     getGitSnapshot: builder.query<GitSnapshot, string>({
       async queryFn(repoPath) {
         try {
-          return { data: await getGitSnapshot(repoPath) }
+          return { data: await getGitSnapshot(repoPath) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
-      providesTags: (_result, _error, repoPath) => [{ type: 'Snapshot', id: repoPath }],
+      providesTags: (_result, _error, repoPath) => [{ type: "Snapshot", id: repoPath }],
     }),
     getCommitHistory: builder.query<HistoryCommit[], CommitHistoryArgs>({
       async queryFn({ repoPath, limit }) {
         try {
-          return { data: await getCommitHistory(repoPath, limit) }
+          return { data: await getCommitHistory(repoPath, limit) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
-      providesTags: (_result, _error, { repoPath }) => [{ type: 'HistoryCommits', id: repoPath }],
+      providesTags: (_result, _error, { repoPath }) => [{ type: "HistoryCommits", id: repoPath }],
     }),
     getBranches: builder.query<string[], string>({
       async queryFn(repoPath) {
         try {
-          return { data: await getBranches(repoPath) }
+          return { data: await getBranches(repoPath) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
-      providesTags: (_result, _error, repoPath) => [{ type: 'Branches', id: repoPath }],
+      providesTags: (_result, _error, repoPath) => [{ type: "Branches", id: repoPath }],
     }),
     getBranchFiles: builder.query<FileItem[], BranchFilesArgs>({
       async queryFn({ repoPath, baseRef, headRef }) {
         try {
-          return { data: await getBranchFiles(repoPath, baseRef, headRef) }
+          return { data: await getBranchFiles(repoPath, baseRef, headRef) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       providesTags: (_result, _error, { repoPath, baseRef, headRef }) => [
-        { type: 'BranchFiles', id: `${repoPath}:${baseRef}:${headRef}` },
+        { type: "BranchFiles", id: `${repoPath}:${baseRef}:${headRef}` },
       ],
     }),
     getCommitFiles: builder.query<FileItem[], CommitFilesArgs>({
       async queryFn({ repoPath, commitId }) {
         try {
-          return { data: await getCommitFiles(repoPath, commitId) }
+          return { data: await getCommitFiles(repoPath, commitId) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       providesTags: (_result, _error, { repoPath, commitId }) => [
-        { type: 'HistoryFiles', id: `${repoPath}:${commitId}` },
+        { type: "HistoryFiles", id: `${repoPath}:${commitId}` },
       ],
     }),
     getCommitFileVersions: builder.query<FileVersions, CommitFileVersionsArgs>({
       async queryFn({ repoPath, commitId, relPath, previousPath }) {
         try {
-          return { data: await getCommitFileVersions(repoPath, commitId, relPath, previousPath) }
+          return { data: await getCommitFileVersions(repoPath, commitId, relPath, previousPath) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       providesTags: (_result, _error, { repoPath, commitId, relPath }) => [
-        { type: 'FileVersions', id: `history:${repoPath}:${commitId}:${relPath}` },
+        { type: "FileVersions", id: `history:${repoPath}:${commitId}:${relPath}` },
       ],
     }),
     getFileVersions: builder.query<FileVersions, FileVersionsArgs>({
       async queryFn({ repoPath, bucket, relPath }) {
         try {
-          return { data: await getFileVersions(repoPath, bucket, relPath) }
+          return { data: await getFileVersions(repoPath, bucket, relPath) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       providesTags: (_result, _error, { repoPath, relPath }) => [
-        { type: 'FileVersions', id: `${repoPath}:${relPath}` },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
       ],
     }),
     getBranchFileVersions: builder.query<FileVersions, BranchFileVersionsArgs>({
@@ -144,105 +144,105 @@ export const gitApi = createApi({
         try {
           return {
             data: await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
-          }
+          };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       providesTags: (_result, _error, { repoPath, baseRef, headRef, relPath }) => [
-        { type: 'FileVersions', id: `branch:${repoPath}:${baseRef}:${headRef}:${relPath}` },
+        { type: "FileVersions", id: `branch:${repoPath}:${baseRef}:${headRef}:${relPath}` },
       ],
     }),
     stageFile: builder.mutation<void, StageFileArgs>({
       async queryFn({ repoPath, relPath }) {
         try {
-          await stageFile(repoPath, relPath)
-          return { data: undefined }
+          await stageFile(repoPath, relPath);
+          return { data: undefined };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
-        { type: 'Snapshot', id: repoPath },
-        { type: 'FileVersions', id: `${repoPath}:${relPath}` },
+        { type: "Snapshot", id: repoPath },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
       ],
     }),
     unstageFile: builder.mutation<void, UnstageFileArgs>({
       async queryFn({ repoPath, relPath }) {
         try {
-          await unstageFile(repoPath, relPath)
-          return { data: undefined }
+          await unstageFile(repoPath, relPath);
+          return { data: undefined };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
-        { type: 'Snapshot', id: repoPath },
-        { type: 'FileVersions', id: `${repoPath}:${relPath}` },
+        { type: "Snapshot", id: repoPath },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
       ],
     }),
     discardFile: builder.mutation<void, DiscardFileArgs>({
       async queryFn({ repoPath, relPath, bucket }) {
         try {
-          await discardFile(repoPath, relPath, bucket)
-          return { data: undefined }
+          await discardFile(repoPath, relPath, bucket);
+          return { data: undefined };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
-        { type: 'Snapshot', id: repoPath },
-        { type: 'FileVersions', id: `${repoPath}:${relPath}` },
+        { type: "Snapshot", id: repoPath },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
       ],
     }),
     discardFiles: builder.mutation<void, DiscardFilesArgs>({
       async queryFn({ repoPath, files }) {
         try {
-          await discardFiles(repoPath, files)
-          return { data: undefined }
+          await discardFiles(repoPath, files);
+          return { data: undefined };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
-      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: "Snapshot", id: repoPath }],
     }),
     stageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
         try {
-          await stageAll(repoPath)
-          return { data: undefined }
+          await stageAll(repoPath);
+          return { data: undefined };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
-      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: "Snapshot", id: repoPath }],
     }),
     unstageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
         try {
-          await unstageAll(repoPath)
-          return { data: undefined }
+          await unstageAll(repoPath);
+          return { data: undefined };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
-      invalidatesTags: (_result, _error, { repoPath }) => [{ type: 'Snapshot', id: repoPath }],
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: "Snapshot", id: repoPath }],
     }),
     commitStaged: builder.mutation<string, CommitStagedArgs>({
       async queryFn({ repoPath, message }) {
         try {
-          return { data: await commitStaged(repoPath, message) }
+          return { data: await commitStaged(repoPath, message) };
         } catch (error) {
-          return { error: toErrorResult(error) }
+          return { error: toErrorResult(error) };
         }
       },
       invalidatesTags: (_result, _error, { repoPath }) => [
-        { type: 'Snapshot', id: repoPath },
-        { type: 'HistoryCommits', id: repoPath },
+        { type: "Snapshot", id: repoPath },
+        { type: "HistoryCommits", id: repoPath },
       ],
     }),
   }),
-})
+});
 
 export const {
   useGetGitSnapshotQuery,
@@ -253,4 +253,4 @@ export const {
   useGetCommitFileVersionsQuery,
   useGetFileVersionsQuery,
   useGetBranchFileVersionsQuery,
-} = gitApi
+} = gitApi;

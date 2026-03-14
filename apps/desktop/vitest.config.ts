@@ -1,29 +1,30 @@
-import path from 'node:path'
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import path from "node:path";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [
     react({
       babel: {
-        plugins: ['babel-plugin-react-compiler'],
+        plugins: ["babel-plugin-react-compiler"],
       },
     }),
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      "@": path.resolve(__dirname, "./src"),
     },
   },
   test: {
-    environment: 'jsdom',
+    environment: "jsdom",
+    environmentMatchGlobs: [["electron/**/*.test.ts", "node"]],
     globals: true,
-    setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "electron/**/*.test.ts"],
     coverage: {
-      reporter: ['text', 'lcov'],
-      include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.d.ts', 'src/main.tsx', 'src/bindings.ts'],
+      reporter: ["text", "lcov"],
+      include: ["src/**/*.{ts,tsx}", "electron/**/*.ts"],
+      exclude: ["src/**/*.d.ts", "src/main.tsx"],
     },
   },
-})
+});

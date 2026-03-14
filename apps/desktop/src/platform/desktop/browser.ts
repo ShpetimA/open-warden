@@ -1,0 +1,187 @@
+import type {
+  Bucket,
+  ConfirmOptions,
+  DesktopApi,
+  DiscardFileInput,
+  FileItem,
+  FileVersions,
+  GitSnapshot,
+  HistoryCommit,
+} from "./contracts";
+import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
+
+function unsupported(feature: string): never {
+  throw unsupportedInBrowser(feature);
+}
+
+async function unsupportedAsync<T>(feature: string): Promise<T> {
+  unsupported(feature);
+}
+
+function readBrowserDirectorySelectionError(): Error {
+  return unsupportedInBrowser("Repository selection");
+}
+
+export const browserDesktopApi: DesktopApi = {
+  async selectFolder() {
+    throw readBrowserDirectorySelectionError();
+  },
+  async confirm(message: string, _options?: ConfirmOptions) {
+    return window.confirm(message);
+  },
+  async checkAppExists(_appName: string) {
+    return false;
+  },
+  async openPath(_path: string, _appName?: string | null) {
+    unsupported("Opening local paths");
+  },
+  async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
+    return unsupportedAsync("Git snapshot loading");
+  },
+  async getCommitHistory(_repoPath: string, _limit?: number): Promise<HistoryCommit[]> {
+    return unsupportedAsync("Commit history loading");
+  },
+  async getBranches(_repoPath: string) {
+    return unsupportedAsync<string[]>("Branch listing");
+  },
+  async getBranchFiles(_repoPath: string, _baseRef: string, _headRef: string): Promise<FileItem[]> {
+    return unsupportedAsync("Branch file listing");
+  },
+  async getCommitFiles(_repoPath: string, _commitId: string): Promise<FileItem[]> {
+    return unsupportedAsync("Commit file listing");
+  },
+  async getCommitFileVersions(
+    _repoPath: string,
+    _commitId: string,
+    _relPath: string,
+    _previousPath?: string,
+  ): Promise<FileVersions> {
+    return unsupportedAsync("Commit file diff loading");
+  },
+  async getFileVersions(
+    _repoPath: string,
+    _relPath: string,
+    _bucket: Bucket,
+  ): Promise<FileVersions> {
+    return unsupportedAsync("Working tree diff loading");
+  },
+  async getBranchFileVersions(
+    _repoPath: string,
+    _baseRef: string,
+    _headRef: string,
+    _relPath: string,
+    _previousPath?: string,
+  ): Promise<FileVersions> {
+    return unsupportedAsync("Branch file diff loading");
+  },
+  async stageFile(_repoPath: string, _relPath: string) {
+    unsupported("Staging files");
+  },
+  async unstageFile(_repoPath: string, _relPath: string) {
+    unsupported("Unstaging files");
+  },
+  async stageAll(_repoPath: string) {
+    unsupported("Staging all files");
+  },
+  async unstageAll(_repoPath: string) {
+    unsupported("Unstaging all files");
+  },
+  async discardFile(_repoPath: string, _relPath: string, _bucket: Bucket) {
+    unsupported("Discarding file changes");
+  },
+  async discardFiles(_repoPath: string, _files: DiscardFileInput[]) {
+    unsupported("Discarding file changes");
+  },
+  async discardAll(_repoPath: string) {
+    unsupported("Discarding all changes");
+  },
+  async commitStaged(_repoPath: string, _message: string) {
+    return unsupportedAsync<string>("Creating commits");
+  },
+};
+
+function unavailable(): never {
+  throw desktopRuntimeUnavailable();
+}
+
+async function unavailableAsync<T>(): Promise<T> {
+  unavailable();
+}
+
+export const unavailableDesktopApi: DesktopApi = {
+  async selectFolder() {
+    unavailable();
+  },
+  async confirm(_message: string, _options?: ConfirmOptions) {
+    return unavailableAsync<boolean>();
+  },
+  async checkAppExists(_appName: string) {
+    return unavailableAsync<boolean>();
+  },
+  async openPath(_path: string, _appName?: string | null) {
+    unavailable();
+  },
+  async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
+    return unavailableAsync();
+  },
+  async getCommitHistory(_repoPath: string, _limit?: number): Promise<HistoryCommit[]> {
+    return unavailableAsync();
+  },
+  async getBranches(_repoPath: string) {
+    return unavailableAsync<string[]>();
+  },
+  async getBranchFiles(_repoPath: string, _baseRef: string, _headRef: string): Promise<FileItem[]> {
+    return unavailableAsync();
+  },
+  async getCommitFiles(_repoPath: string, _commitId: string): Promise<FileItem[]> {
+    return unavailableAsync();
+  },
+  async getCommitFileVersions(
+    _repoPath: string,
+    _commitId: string,
+    _relPath: string,
+    _previousPath?: string,
+  ): Promise<FileVersions> {
+    return unavailableAsync();
+  },
+  async getFileVersions(
+    _repoPath: string,
+    _relPath: string,
+    _bucket: Bucket,
+  ): Promise<FileVersions> {
+    return unavailableAsync();
+  },
+  async getBranchFileVersions(
+    _repoPath: string,
+    _baseRef: string,
+    _headRef: string,
+    _relPath: string,
+    _previousPath?: string,
+  ): Promise<FileVersions> {
+    return unavailableAsync();
+  },
+  async stageFile(_repoPath: string, _relPath: string) {
+    unavailable();
+  },
+  async unstageFile(_repoPath: string, _relPath: string) {
+    unavailable();
+  },
+  async stageAll(_repoPath: string) {
+    unavailable();
+  },
+  async unstageAll(_repoPath: string) {
+    unavailable();
+  },
+  async discardFile(_repoPath: string, _relPath: string, _bucket: Bucket) {
+    unavailable();
+  },
+  async discardFiles(_repoPath: string, _files: DiscardFileInput[]) {
+    unavailable();
+  },
+  async discardAll(_repoPath: string) {
+    unavailable();
+  },
+  async commitStaged(_repoPath: string, _message: string) {
+    return unavailableAsync<string>();
+  },
+};

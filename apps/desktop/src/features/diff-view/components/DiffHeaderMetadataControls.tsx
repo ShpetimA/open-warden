@@ -1,34 +1,34 @@
-import { Columns2, Copy, Files, FoldVertical, Rows3, UnfoldVertical } from 'lucide-react'
-import { useHotkey } from '@tanstack/react-hotkeys'
-import { toast } from 'sonner'
+import { Columns2, Copy, Files, FoldVertical, Rows3, UnfoldVertical } from "lucide-react";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { toast } from "sonner";
 
-import { useAppDispatch, useAppSelector } from '@/app/hooks'
-import { Button } from '@/components/ui/button'
-import { Kbd, KbdGroup } from '@/components/ui/kbd'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { copyComments, fileComments } from '@/features/comments/actions'
-import { compactComments } from '@/features/comments/selectors'
-import { OpenInExternalEditor } from '@/features/source-control/components/OpenInExternalEditor'
-import { setDiffStyleValue } from '@/features/source-control/actions'
-import type { CommentContext, CommentItem } from '@/features/source-control/types'
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { copyComments, fileComments } from "@/features/comments/actions";
+import { compactComments } from "@/features/comments/selectors";
+import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
+import { setDiffStyleValue } from "@/features/source-control/actions";
+import type { CommentContext, CommentItem } from "@/features/source-control/types";
 
 type Props = {
-  activePath: string
-  canComment: boolean
-  commentContext: CommentContext
-  expandUnchanged: boolean
-  onToggleExpandUnchanged: () => void
-  showCopyTip?: boolean
-  onDismissCopyTip?: () => void
-}
+  activePath: string;
+  canComment: boolean;
+  commentContext: CommentContext;
+  expandUnchanged: boolean;
+  onToggleExpandUnchanged: () => void;
+  showCopyTip?: boolean;
+  onDismissCopyTip?: () => void;
+};
 
 function inContext(comment: CommentItem, context: CommentContext): boolean {
-  const kind = comment.contextKind ?? 'changes'
-  if (kind !== context.kind) return false
-  if (context.kind === 'review') {
-    return comment.baseRef === context.baseRef && comment.headRef === context.headRef
+  const kind = comment.contextKind ?? "changes";
+  if (kind !== context.kind) return false;
+  if (context.kind === "review") {
+    return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
   }
-  return true
+  return true;
 }
 
 export function DiffHeaderMetadataControls({
@@ -40,54 +40,54 @@ export function DiffHeaderMetadataControls({
   showCopyTip,
   onDismissCopyTip,
 }: Props) {
-  const dispatch = useAppDispatch()
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo)
-  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle)
-  const comments = useAppSelector((state) => state.comments)
+  const dispatch = useAppDispatch();
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
+  const comments = useAppSelector((state) => state.comments);
   const expandUnchangedLabel = expandUnchanged
-    ? 'Collapse unchanged sections'
-    : 'Expand unchanged sections'
+    ? "Collapse unchanged sections"
+    : "Expand unchanged sections";
 
-  const allComments = compactComments(comments)
+  const allComments = compactComments(comments);
   const currentRepoComments = activeRepo
     ? allComments.filter((comment) => comment.repoPath === activeRepo)
-    : []
+    : [];
   const currentContextComments = currentRepoComments.filter((comment) =>
     inContext(comment, commentContext),
-  )
+  );
   const currentFileComments = canComment
     ? fileComments(allComments, activeRepo, activePath, commentContext)
-    : []
+    : [];
 
   const onCopyFileComments = async () => {
-    const copied = await dispatch(copyComments('file', { context: commentContext, activePath }))
-    if (copied) toast.success('Copied file comments')
-  }
+    const copied = await dispatch(copyComments("file", { context: commentContext, activePath }));
+    if (copied) toast.success("Copied file comments");
+  };
 
   const onCopyAllComments = async () => {
-    const copied = await dispatch(copyComments('all', { context: commentContext }))
-    if (copied) toast.success('Copied comments')
-  }
+    const copied = await dispatch(copyComments("all", { context: commentContext }));
+    if (copied) toast.success("Copied comments");
+  };
 
   useHotkey(
-    'Mod+C',
+    "Mod+C",
     () => {
-      void onCopyFileComments()
+      void onCopyFileComments();
     },
     {
       enabled: canComment && !!activePath && currentFileComments.length > 0,
     },
-  )
+  );
 
   useHotkey(
-    'Mod+Alt+C',
+    "Mod+Alt+C",
     () => {
-      void onCopyAllComments()
+      void onCopyAllComments();
     },
     {
       enabled: canComment && currentContextComments.length > 0,
     },
-  )
+  );
 
   return (
     <TooltipProvider>
@@ -96,8 +96,8 @@ export function DiffHeaderMetadataControls({
           <TooltipTrigger asChild>
             <Button
               size="icon-xs"
-              variant={diffStyle === 'split' ? 'secondary' : 'ghost'}
-              onClick={() => dispatch(setDiffStyleValue('split'))}
+              variant={diffStyle === "split" ? "secondary" : "ghost"}
+              onClick={() => dispatch(setDiffStyleValue("split"))}
               aria-label="Split diff"
             >
               <Columns2 />
@@ -110,8 +110,8 @@ export function DiffHeaderMetadataControls({
           <TooltipTrigger asChild>
             <Button
               size="icon-xs"
-              variant={diffStyle === 'unified' ? 'secondary' : 'ghost'}
-              onClick={() => dispatch(setDiffStyleValue('unified'))}
+              variant={diffStyle === "unified" ? "secondary" : "ghost"}
+              onClick={() => dispatch(setDiffStyleValue("unified"))}
               aria-label="Unified diff"
             >
               <Rows3 />
@@ -124,7 +124,7 @@ export function DiffHeaderMetadataControls({
           <TooltipTrigger asChild>
             <Button
               size="icon-xs"
-              variant={expandUnchanged ? 'secondary' : 'ghost'}
+              variant={expandUnchanged ? "secondary" : "ghost"}
               onClick={onToggleExpandUnchanged}
               aria-label={expandUnchangedLabel}
             >
@@ -150,7 +150,7 @@ export function DiffHeaderMetadataControls({
                   size="icon-xs"
                   variant="ghost"
                   onClick={() => {
-                    void onCopyFileComments()
+                    void onCopyFileComments();
                   }}
                   disabled={!activePath || currentFileComments.length === 0}
                   aria-label="Copy file comments"
@@ -164,7 +164,7 @@ export function DiffHeaderMetadataControls({
             <Tooltip
               open={showCopyTip ? true : undefined}
               onOpenChange={(open) => {
-                if (showCopyTip && !open) onDismissCopyTip?.()
+                if (showCopyTip && !open) onDismissCopyTip?.();
               }}
             >
               <TooltipTrigger asChild>
@@ -172,8 +172,8 @@ export function DiffHeaderMetadataControls({
                   size="icon-xs"
                   variant="ghost"
                   onClick={() => {
-                    if (showCopyTip) onDismissCopyTip?.()
-                    void onCopyAllComments()
+                    if (showCopyTip) onDismissCopyTip?.();
+                    void onCopyAllComments();
                   }}
                   disabled={currentContextComments.length === 0}
                   aria-label="Copy all comments"
@@ -181,10 +181,7 @@ export function DiffHeaderMetadataControls({
                   <Files />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent
-                side="bottom"
-                onClick={() => onDismissCopyTip?.()}
-              >
+              <TooltipContent side="bottom" onClick={() => onDismissCopyTip?.()}>
                 {showCopyTip ? (
                   <span className="flex items-center gap-1.5">
                     Press
@@ -196,7 +193,7 @@ export function DiffHeaderMetadataControls({
                     to copy all comments
                   </span>
                 ) : (
-                  'Copy all comments'
+                  "Copy all comments"
                 )}
               </TooltipContent>
             </Tooltip>
@@ -204,5 +201,5 @@ export function DiffHeaderMetadataControls({
         ) : null}
       </div>
     </TooltipProvider>
-  )
+  );
 }

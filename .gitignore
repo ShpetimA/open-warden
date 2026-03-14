@@ -3,6 +3,8 @@ node_modules/
 dist/
 apps/*/node_modules/
 apps/*/dist/
+apps/desktop/.vite/
+apps/desktop/out/
 apps/*/src-tauri/target/
 .turbo/
 coverage/

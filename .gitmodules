@@ -1,0 +1,3 @@
+[submodule "t3code"]
+	path = t3code
+	url = https://github.com/pingdotgg/t3code.git

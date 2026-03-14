@@ -1,0 +1,43 @@
+import type { DesktopApi } from "../src/platform/desktop/contracts";
+import {
+  commitStaged,
+  discardAll,
+  discardFile,
+  discardFiles,
+  getBranchFileVersions,
+  getBranchFiles,
+  getBranches,
+  getCommitFileVersions,
+  getCommitFiles,
+  getCommitHistory,
+  getFileVersions,
+  getGitSnapshot,
+  stageAll,
+  stageFile,
+  unstageAll,
+  unstageFile,
+} from "./git";
+import { checkAppExists, confirm, openPath, selectFolder } from "./system";
+
+export const desktopApi: DesktopApi = {
+  selectFolder,
+  confirm,
+  checkAppExists,
+  openPath,
+  getGitSnapshot,
+  getCommitHistory,
+  getBranches,
+  getBranchFiles,
+  getCommitFiles,
+  getCommitFileVersions,
+  getFileVersions,
+  getBranchFileVersions,
+  stageFile,
+  unstageFile,
+  stageAll,
+  unstageAll,
+  discardFile,
+  discardFiles,
+  discardAll,
+  commitStaged,
+};

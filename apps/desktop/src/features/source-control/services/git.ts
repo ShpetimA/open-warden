@@ -1,41 +1,30 @@
-import { commands, type ApiError, type Result as CommandResult } from '@/bindings'
+import { desktop } from "@/platform/desktop";
 
-import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from '../types'
+import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from "../types";
 
 type DiscardFileRequest = {
-  relPath: string
-  bucket: Bucket
-}
-
-function toErrorMessage(error: ApiError): string {
-  return error.details ? `${error.message}: ${error.details}` : error.message
-}
-
-function unwrapResult<T>(result: CommandResult<T, ApiError>): T {
-  if (result.status === 'error') {
-    throw new Error(toErrorMessage(result.error))
-  }
-  return result.data
-}
+  relPath: string;
+  bucket: Bucket;
+};
 
 export async function getGitSnapshot(repoPath: string) {
-  return unwrapResult<GitSnapshot>(await commands.getGitSnapshot(repoPath))
+  return desktop.getGitSnapshot(repoPath) as Promise<GitSnapshot>;
 }
 
 export async function getCommitHistory(repoPath: string, limit?: number) {
-  return unwrapResult<HistoryCommit[]>(await commands.getCommitHistory(repoPath, limit ?? null))
+  return desktop.getCommitHistory(repoPath, limit) as Promise<HistoryCommit[]>;
 }
 
 export async function getBranches(repoPath: string) {
-  return unwrapResult<string[]>(await commands.getBranches(repoPath))
+  return desktop.getBranches(repoPath);
 }
 
 export async function getBranchFiles(repoPath: string, baseRef: string, headRef: string) {
-  return unwrapResult<FileItem[]>(await commands.getBranchFiles(repoPath, baseRef, headRef))
+  return desktop.getBranchFiles(repoPath, baseRef, headRef) as Promise<FileItem[]>;
 }
 
 export async function getCommitFiles(repoPath: string, commitId: string) {
-  return unwrapResult<FileItem[]>(await commands.getCommitFiles(repoPath, commitId))
+  return desktop.getCommitFiles(repoPath, commitId) as Promise<FileItem[]>;
 }
 
 export async function getCommitFileVersions(
@@ -44,13 +33,16 @@ export async function getCommitFileVersions(
   relPath: string,
   previousPath?: string,
 ) {
-  return unwrapResult<FileVersions>(
-    await commands.getCommitFileVersions(repoPath, commitId, relPath, previousPath ?? null),
-  )
+  return desktop.getCommitFileVersions(
+    repoPath,
+    commitId,
+    relPath,
+    previousPath,
+  ) as Promise<FileVersions>;
 }
 
 export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
-  return unwrapResult<FileVersions>(await commands.getFileVersions(repoPath, relPath, bucket))
+  return desktop.getFileVersions(repoPath, relPath, bucket) as Promise<FileVersions>;
 }
 
 export async function getBranchFileVersions(
@@ -60,35 +52,39 @@ export async function getBranchFileVersions(
   relPath: string,
   previousPath?: string,
 ) {
-  return unwrapResult<FileVersions>(
-    await commands.getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath ?? null),
-  )
+  return desktop.getBranchFileVersions(
+    repoPath,
+    baseRef,
+    headRef,
+    relPath,
+    previousPath,
+  ) as Promise<FileVersions>;
 }
 
 export async function stageFile(repoPath: string, relPath: string) {
-  unwrapResult(await commands.stageFile(repoPath, relPath))
+  await desktop.stageFile(repoPath, relPath);
 }
 
 export async function unstageFile(repoPath: string, relPath: string) {
-  unwrapResult(await commands.unstageFile(repoPath, relPath))
+  await desktop.unstageFile(repoPath, relPath);
 }
 
 export async function discardFile(repoPath: string, relPath: string, bucket: Bucket) {
-  unwrapResult(await commands.discardFile(repoPath, relPath, bucket))
+  await desktop.discardFile(repoPath, relPath, bucket);
 }
 
 export async function discardFiles(repoPath: string, files: DiscardFileRequest[]) {
-  unwrapResult(await commands.discardFiles(repoPath, files))
+  await desktop.discardFiles(repoPath, files);
 }
 
 export async function stageAll(repoPath: string) {
-  unwrapResult(await commands.stageAll(repoPath))
+  await desktop.stageAll(repoPath);
 }
 
 export async function unstageAll(repoPath: string) {
-  unwrapResult(await commands.unstageAll(repoPath))
+  await desktop.unstageAll(repoPath);
 }
 
 export async function commitStaged(repoPath: string, message: string) {
-  return unwrapResult<string>(await commands.commitStaged(repoPath, message))
+  return desktop.commitStaged(repoPath, message);
 }

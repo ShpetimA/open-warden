@@ -1,32 +1,32 @@
-import type { MouseEvent, ReactNode } from 'react'
+import type { MouseEvent, ReactNode } from "react";
 
-import type { FileStatus } from '@/features/source-control/types'
-import { statusBadge } from '@/features/source-control/utils'
+import type { FileStatus } from "@/features/source-control/types";
+import { statusBadge } from "@/features/source-control/utils";
 
 type FileListRowProps = {
-  path: string
-  status: FileStatus
-  commentCount?: number
-  isActive?: boolean
-  isSelected?: boolean
-  navIndex?: number
-  onSelect: (event: MouseEvent<HTMLButtonElement>) => void
-  actions?: ReactNode
-  secondaryLabel?: string
-}
+  path: string;
+  status: FileStatus;
+  commentCount?: number;
+  isActive?: boolean;
+  isSelected?: boolean;
+  navIndex?: number;
+  onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
+  actions?: ReactNode;
+  secondaryLabel?: string;
+};
 
 function splitPath(path: string) {
-  const normalizedPath = path.replace(/\\/g, '/')
-  const pathParts = normalizedPath.split('/').filter(Boolean)
-  const fileName = pathParts[pathParts.length - 1] ?? path
-  const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
-  return { fileName, directoryPath }
+  const normalizedPath = path.replace(/\\/g, "/");
+  const pathParts = normalizedPath.split("/").filter(Boolean);
+  const fileName = pathParts[pathParts.length - 1] ?? path;
+  const directoryPath = pathParts.length > 1 ? pathParts.slice(0, -1).join("/") : "";
+  return { fileName, directoryPath };
 }
 
 function rowStateClass(isActive: boolean, isSelected: boolean) {
-  if (isActive) return 'bg-surface-active'
-  if (isSelected) return 'bg-accent/50'
-  return 'hover:bg-accent/60'
+  if (isActive) return "bg-surface-active";
+  if (isSelected) return "bg-accent/50";
+  return "hover:bg-accent/60";
 }
 
 export function FileListRow({
@@ -40,8 +40,8 @@ export function FileListRow({
   actions,
   secondaryLabel,
 }: FileListRowProps) {
-  const { fileName, directoryPath } = splitPath(path)
-  const stateClass = rowStateClass(isActive, isSelected)
+  const { fileName, directoryPath } = splitPath(path);
+  const stateClass = rowStateClass(isActive, isSelected);
 
   return (
     <div
@@ -70,7 +70,9 @@ export function FileListRow({
         </div>
 
         {secondaryLabel ? (
-          <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">{secondaryLabel}</div>
+          <div className="text-muted-foreground mt-0.5 truncate pl-5 text-[11px]">
+            {secondaryLabel}
+          </div>
         ) : null}
       </button>
 
@@ -80,5 +82,5 @@ export function FileListRow({
         </div>
       ) : null}
     </div>
-  )
+  );
 }

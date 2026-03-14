@@ -1,6 +1,6 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -162,27 +162,35 @@
 }
 
 @layer components {
+  .app-drag-region {
+    -webkit-app-region: drag;
+  }
+
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
   .command-palette-modal {
     @apply border-border bg-surface-elevated rounded-2xl;
   }
 
-  .command-palette-modal [data-slot='command-input-wrapper'] {
+  .command-palette-modal [data-slot="command-input-wrapper"] {
     @apply border-border bg-surface-toolbar h-14 border-b px-4;
   }
 
-  .command-palette-modal [data-slot='command-input'] {
+  .command-palette-modal [data-slot="command-input"] {
     @apply text-base;
   }
 
-  .command-palette-modal [data-slot='command-group'] {
+  .command-palette-modal [data-slot="command-group"] {
     @apply px-2 py-2;
   }
 
-  .command-palette-modal [data-slot='command-group'] [cmdk-group-heading] {
+  .command-palette-modal [data-slot="command-group"] [cmdk-group-heading] {
     @apply text-muted-foreground px-2 pb-2 text-[11px] font-semibold tracking-[0.12em];
   }
 
-  .command-palette-modal [data-slot='command-item'] {
+  .command-palette-modal [data-slot="command-item"] {
     @apply rounded-md px-3 py-2.5;
   }
 }

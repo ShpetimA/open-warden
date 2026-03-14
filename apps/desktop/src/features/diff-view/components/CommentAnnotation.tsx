@@ -1,37 +1,37 @@
-import { Check, Pencil, Trash2, X } from 'lucide-react'
-import { useState } from 'react'
+import { Check, Pencil, Trash2, X } from "lucide-react";
+import { useState } from "react";
 
-import { useAppDispatch } from '@/app/hooks'
-import { Input } from '@/components/ui/input'
-import { removeComment, updateComment } from '@/features/comments/actions'
-import type { CommentItem } from '@/features/source-control/types'
+import { useAppDispatch } from "@/app/hooks";
+import { Input } from "@/components/ui/input";
+import { removeComment, updateComment } from "@/features/comments/actions";
+import type { CommentItem } from "@/features/source-control/types";
 
 type Props = {
-  comment: CommentItem
-  onBeforeMutate?: () => void
-}
+  comment: CommentItem;
+  onBeforeMutate?: () => void;
+};
 
 export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
-  const dispatch = useAppDispatch()
-  const [isEditing, setIsEditing] = useState(false)
-  const [editingText, setEditingText] = useState(comment.text)
+  const dispatch = useAppDispatch();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingText, setEditingText] = useState(comment.text);
 
   const onStartEdit = () => {
-    setEditingText(comment.text)
-    setIsEditing(true)
-  }
+    setEditingText(comment.text);
+    setIsEditing(true);
+  };
 
   const onCancelEdit = () => {
-    setEditingText(comment.text)
-    setIsEditing(false)
-  }
+    setEditingText(comment.text);
+    setIsEditing(false);
+  };
 
   const onSaveEdit = () => {
-    if (!editingText.trim()) return
-    onBeforeMutate?.()
-    dispatch(updateComment(comment.id, editingText))
-    setIsEditing(false)
-  }
+    if (!editingText.trim()) return;
+    onBeforeMutate?.();
+    dispatch(updateComment(comment.id, editingText));
+    setIsEditing(false);
+  };
 
   if (isEditing) {
     return (
@@ -41,13 +41,13 @@ export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
           onChange={(event) => setEditingText(event.target.value)}
           onMouseDown={(event) => event.stopPropagation()}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault()
-              onSaveEdit()
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              onSaveEdit();
             }
-            if (event.key === 'Escape') {
-              event.preventDefault()
-              onCancelEdit()
+            if (event.key === "Escape") {
+              event.preventDefault();
+              onCancelEdit();
             }
           }}
           className="border-input bg-input h-6 min-w-0 flex-1 px-1 text-[10px]"
@@ -72,7 +72,7 @@ export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
           <X className="h-3 w-3" />
         </button>
       </div>
-    )
+    );
   }
 
   return (
@@ -92,13 +92,13 @@ export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
         className="text-muted-foreground hover:text-foreground"
         onMouseDown={(event) => event.stopPropagation()}
         onClick={() => {
-          onBeforeMutate?.()
-          dispatch(removeComment(comment.id))
+          onBeforeMutate?.();
+          dispatch(removeComment(comment.id));
         }}
         title="Remove"
       >
         <Trash2 className="h-3 w-3" />
       </button>
     </div>
-  )
+  );
 }

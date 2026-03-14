@@ -1,0 +1,11 @@
+t3code
+coverage
+dist
+dist-electron
+node_modules
+out
+.turbo
+.vite
+playwright-report
+test-results
+*.tsbuildinfo
