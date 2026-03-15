@@ -1,6 +1,10 @@
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { MouseEvent } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Accordion,
+  AccordionItem,
+} from "@/components/ui/accordion";
 import { confirmDiscard } from "@/features/comments/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
@@ -15,7 +19,6 @@ import {
   unstageFileAction,
 } from "@/features/source-control/actions";
 import {
-  setActiveBucket,
   setCollapseStaged,
   setCollapseUnstaged,
 } from "@/features/source-control/sourceControlSlice";
@@ -37,13 +40,13 @@ function ChangesFileList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
-  const { snapshot, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
+  const { snapshot, isLoadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
-    selectFromResult: ({ data, isFetching }) => ({
+    selectFromResult: ({ data, isLoading }) => ({
       snapshot: data,
-      loadingSnapshot: isFetching,
+      isLoadingSnapshot: isLoading,
     }),
   });
 
@@ -63,15 +66,6 @@ function ChangesFileList() {
     ...(collapseStaged ? [] : stagedRows),
     ...(collapseUnstaged ? [] : changedFiles),
   ];
-
-  const onToggle = (key: "staged" | "unstaged") => {
-    if (key === "staged") {
-      dispatch(setCollapseStaged(!collapseStaged));
-    } else {
-      dispatch(setCollapseUnstaged(!collapseUnstaged));
-    }
-    dispatch(setActiveBucket(key));
-  };
 
   const onStageAll = () => {
     void dispatch(stageAllAction());
@@ -111,49 +105,71 @@ function ChangesFileList() {
     void dispatch(selectFile(bucket, relPath));
   };
 
+  const openSections = [];
+  if (!collapseStaged) openSections.push("staged");
+  if (!collapseUnstaged) openSections.push("unstaged");
+
+  const handleAccordionChange = (value: string[]) => {
+    const isStagedOpen = value.includes("staged");
+    const isUnstagedOpen = value.includes("unstaged");
+
+    if (isStagedOpen !== !collapseStaged) {
+      dispatch(setCollapseStaged(!isStagedOpen));
+    }
+    if (isUnstagedOpen !== !collapseUnstaged) {
+      dispatch(setCollapseUnstaged(!isUnstagedOpen));
+    }
+  };
+
   return (
     <ScrollArea
       data-nav-region="changes-files"
       className="bg-surface-toolbar min-h-0 h-full flex-1 overflow-hidden"
     >
       <div>
-        {loadingSnapshot ? (
+        {isLoadingSnapshot ? (
           <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
         ) : null}
-        <FileSection
-          sectionKey="staged"
-          title="STAGED CHANGES"
-          rows={stagedRows}
-          startIndex={0}
-          collapsed={collapseStaged}
-          unstagedCount={unstagedFiles.length}
-          untrackedCount={untrackedFiles.length}
-          onToggle={onToggle}
-          onSelectFile={onSelectFile}
-          onStageFile={onStageFile}
-          onUnstageFile={onUnstageFile}
-          onDiscardFile={onDiscardFile}
-          onStageAll={onStageAll}
-          onUnstageAll={onUnstageAll}
-          onDiscardChangesGroup={onDiscardChangesGroup}
-        />
-        <FileSection
-          sectionKey="unstaged"
-          title="CHANGES"
-          rows={changedFiles}
-          startIndex={collapseStaged ? 0 : stagedRows.length}
-          collapsed={collapseUnstaged}
-          unstagedCount={unstagedFiles.length}
-          untrackedCount={untrackedFiles.length}
-          onToggle={onToggle}
-          onSelectFile={onSelectFile}
-          onStageFile={onStageFile}
-          onUnstageFile={onUnstageFile}
-          onDiscardFile={onDiscardFile}
-          onStageAll={onStageAll}
-          onUnstageAll={onUnstageAll}
-          onDiscardChangesGroup={onDiscardChangesGroup}
-        />
+        <Accordion
+          type="multiple"
+          value={openSections}
+          onValueChange={handleAccordionChange}
+        >
+          <AccordionItem value="staged" className="border-border rounded-none border-t border-b">
+            <FileSection
+              sectionKey="staged"
+              title="STAGED CHANGES"
+              rows={stagedRows}
+              startIndex={0}
+              unstagedCount={unstagedFiles.length}
+              untrackedCount={untrackedFiles.length}
+              onSelectFile={onSelectFile}
+              onStageFile={onStageFile}
+              onUnstageFile={onUnstageFile}
+              onDiscardFile={onDiscardFile}
+              onStageAll={onStageAll}
+              onUnstageAll={onUnstageAll}
+              onDiscardChangesGroup={onDiscardChangesGroup}
+            />
+          </AccordionItem>
+          <AccordionItem value="unstaged" className="border-border rounded-none border-t-0 border-b">
+            <FileSection
+              sectionKey="unstaged"
+              title="CHANGES"
+              rows={changedFiles}
+              startIndex={collapseStaged ? 0 : stagedRows.length}
+              unstagedCount={unstagedFiles.length}
+              untrackedCount={untrackedFiles.length}
+              onSelectFile={onSelectFile}
+              onStageFile={onStageFile}
+              onUnstageFile={onUnstageFile}
+              onDiscardFile={onDiscardFile}
+              onStageAll={onStageAll}
+              onUnstageAll={onUnstageAll}
+              onDiscardChangesGroup={onDiscardChangesGroup}
+            />
+          </AccordionItem>
+        </Accordion>
       </div>
     </ScrollArea>
   );
