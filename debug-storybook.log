@@ -1,0 +1,13 @@
+[12:58:36.912] [INFO] [36mInitializing Storybook[39m
+[12:58:37.216] [DEBUG] Getting package.json info for /Users/timi/proj/open-warden/package.json...
+[12:58:37.216] [DEBUG] Getting CLI versions from NPM for storybook...
+[12:58:37.216] [DEBUG] Executing command: pnpm info storybook version
+[12:58:38.189] [INFO] Adding Storybook version 10.2.19 to your project
+[12:58:38.191] [ERROR] Unable to initialize Storybook in this directory.
+
+Storybook couldn't detect a supported framework or configuration for your project. Make sure you're inside a framework project (e.g., React, Vue, Svelte, Angular, Next.js) and that its dependencies are installed.
+
+Tips:
+- Run init in an empty directory or create a new framework app first.
+- If this directory contains unrelated files, try a new directory for Storybook.
+[12:58:38.192] [INFO] Storybook collects completely anonymous usage telemetry. We use it to shape Storybook's roadmap and prioritize features. You can learn more, including how to opt out, at https://storybook.js.org/telemetry
