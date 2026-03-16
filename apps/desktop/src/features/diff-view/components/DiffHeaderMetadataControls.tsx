@@ -1,16 +1,15 @@
-import { Columns2, Copy, Files, FoldVertical, Repeat, Rows3, UnfoldVertical } from "lucide-react";
+import { Columns2, Copy, FoldVertical, Rows3, UnfoldVertical } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
-import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { copyComments, copyLastCommentsPayload, fileComments } from "@/features/comments/actions";
+import { copyComments, fileComments } from "@/features/comments/actions";
 import { compactComments } from "@/features/comments/selectors";
 import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import { setDiffStyleValue } from "@/features/source-control/actions";
-import type { CommentContext, CommentItem } from "@/features/source-control/types";
+import type { CommentContext } from "@/features/source-control/types";
 
 type Props = {
   activePath: string;
@@ -18,18 +17,7 @@ type Props = {
   commentContext: CommentContext;
   expandUnchanged: boolean;
   onToggleExpandUnchanged: () => void;
-  showCopyTip?: boolean;
-  onDismissCopyTip?: () => void;
 };
-
-function inContext(comment: CommentItem, context: CommentContext): boolean {
-  const kind = comment.contextKind ?? "changes";
-  if (kind !== context.kind) return false;
-  if (context.kind === "review") {
-    return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
-  }
-  return true;
-}
 
 function copyAndClearMessage(count: number): string {
   return `Copied ${count} comment${count === 1 ? "" : "s"} and cleared them`;
@@ -41,27 +29,16 @@ export function DiffHeaderMetadataControls({
   commentContext,
   expandUnchanged,
   onToggleExpandUnchanged,
-  showCopyTip,
-  onDismissCopyTip,
 }: Props) {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const comments = useAppSelector((state) => state.comments);
-  const hasLastCopiedPayload = useAppSelector(
-    (state) => state.commentsClipboard.lastCopiedPayload.length > 0,
-  );
   const expandUnchangedLabel = expandUnchanged
     ? "Collapse unchanged sections"
     : "Expand unchanged sections";
 
   const allComments = compactComments(comments);
-  const currentRepoComments = activeRepo
-    ? allComments.filter((comment) => comment.repoPath === activeRepo)
-    : [];
-  const currentContextComments = currentRepoComments.filter((comment) =>
-    inContext(comment, commentContext),
-  );
   const currentFileComments = canComment
     ? fileComments(allComments, activeRepo, activePath, commentContext)
     : [];
@@ -71,16 +48,6 @@ export function DiffHeaderMetadataControls({
     if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
   };
 
-  const onCopyAllComments = async () => {
-    const result = await dispatch(copyComments("all", { context: commentContext }));
-    if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
-  };
-
-  const onCopyLastComments = async () => {
-    const result = await dispatch(copyLastCommentsPayload());
-    if (result.ok) toast.success("Copied last comments payload");
-  };
-
   useHotkey(
     "Mod+C",
     () => {
@@ -88,16 +55,6 @@ export function DiffHeaderMetadataControls({
     },
     {
       enabled: canComment && !!activePath && currentFileComments.length > 0,
-    },
-  );
-
-  useHotkey(
-    "Mod+Alt+C",
-    () => {
-      void onCopyAllComments();
-    },
-    {
-      enabled: canComment && currentContextComments.length > 0,
     },
   );
 
@@ -155,79 +112,22 @@ export function DiffHeaderMetadataControls({
         />
 
         {canComment ? (
-          <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={() => {
-                    void onCopyFileComments();
-                  }}
-                  disabled={!activePath || currentFileComments.length === 0}
-                  aria-label="Copy file comments"
-                >
-                  <Copy />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Copy file comments</TooltipContent>
-            </Tooltip>
-
-            {hasLastCopiedPayload ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => {
-                      void onCopyLastComments();
-                    }}
-                    aria-label="Copy last comments payload"
-                  >
-                    <Repeat />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">Copy last comments</TooltipContent>
-              </Tooltip>
-            ) : null}
-
-            <Tooltip
-              open={showCopyTip ? true : undefined}
-              onOpenChange={(open) => {
-                if (showCopyTip && !open) onDismissCopyTip?.();
-              }}
-            >
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  onClick={() => {
-                    if (showCopyTip) onDismissCopyTip?.();
-                    void onCopyAllComments();
-                  }}
-                  disabled={currentContextComments.length === 0}
-                  aria-label="Copy all comments"
-                >
-                  <Files />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" onClick={() => onDismissCopyTip?.()}>
-                {showCopyTip ? (
-                  <span className="flex items-center gap-1.5">
-                    Press
-                    <KbdGroup>
-                      <Kbd>⌘</Kbd>
-                      <Kbd>⌥</Kbd>
-                      <Kbd>C</Kbd>
-                    </KbdGroup>
-                    to copy all comments
-                  </span>
-                ) : (
-                  "Copy all comments"
-                )}
-              </TooltipContent>
-            </Tooltip>
-          </>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => {
+                  void onCopyFileComments();
+                }}
+                disabled={!activePath || currentFileComments.length === 0}
+                aria-label="Copy file comments"
+              >
+                <Copy />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Copy file comments</TooltipContent>
+          </Tooltip>
         ) : null}
       </div>
     </TooltipProvider>

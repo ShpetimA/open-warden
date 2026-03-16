@@ -134,11 +134,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     if (!canComment || !activeRepo) return 0;
     return state.comments.filter((c) => c.repoPath === activeRepo).length;
   });
-  const {
-    showTip: showCopyTip,
-    dismissTip: dismissCopyTip,
-    showFirstCommentTip,
-  } = useFirstCommentTip();
+  const { showFirstCommentTip } = useFirstCommentTip();
   const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType);
   const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
     activePath,
@@ -286,8 +282,6 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
                 canComment={canComment}
                 commentContext={commentContext}
                 expandUnchanged={expandUnchanged}
-                showCopyTip={showCopyTip}
-                onDismissCopyTip={dismissCopyTip}
                 onToggleExpandUnchanged={() => {
                   setExpandUnchanged((current) => !current);
                 }}

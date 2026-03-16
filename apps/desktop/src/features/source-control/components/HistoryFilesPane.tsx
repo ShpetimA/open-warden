@@ -1,6 +1,14 @@
 import { skipToken } from "@reduxjs/toolkit/query";
+import { FileText } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty";
 import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
 import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from "@/features/source-control/api";
 import { selectHistoryFile } from "@/features/source-control/actions";
@@ -53,13 +61,25 @@ export function HistoryFilesPane() {
 
       <ScrollArea data-nav-region="history-files" className="min-h-0 flex-1 overflow-hidden">
         {loadingHistoryFiles ? (
-          <div className="border-input bg-surface m-2 border px-2 py-2 text-[11px] text-muted-foreground">
-            Loading files...
-          </div>
+          <Empty className="h-auto border-0 p-4">
+            <EmptyHeader>
+              <EmptyDescription>Loading files...</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : files.length === 0 ? (
-          <div className="border-input bg-surface m-2 border px-2 py-2 text-[11px] text-muted-foreground">
-            No changed files in this commit.
-          </div>
+          <Empty className="h-auto border-0 p-4">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <FileText className="h-5 w-5" />
+              </EmptyMedia>
+              <EmptyTitle>No files</EmptyTitle>
+              <EmptyDescription>
+                {historyCommitId
+                  ? "No changed files in this commit."
+                  : "Select a commit to view files."}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div>
             {files.map((file, index) => (

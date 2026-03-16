@@ -1,6 +1,6 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRightLeft } from "lucide-react";
+import { ArrowRightLeft, GitCompare } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
@@ -12,6 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty";
 import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
@@ -396,13 +403,29 @@ export function ReviewScreen() {
 
           <div className="min-h-0 flex-1 overflow-hidden">
             {!reviewBaseRef || !reviewHeadRef ? (
-              <div className="text-muted-foreground p-3 text-xs">
-                Select both branches to start review.
-              </div>
+              <Empty className="h-auto border-0 p-4">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <GitCompare className="h-5 w-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>Select branches</EmptyTitle>
+                  <EmptyDescription>
+                    Select both base and compare branches to start review.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : branchFiles.length === 0 ? (
-              <div className="text-muted-foreground p-3 text-xs">
-                No changed files in this comparison.
-              </div>
+              <Empty className="h-auto border-0 p-4">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <GitCompare className="h-5 w-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>No changes</EmptyTitle>
+                  <EmptyDescription>
+                    No changed files between the selected branches.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <ReviewFileList
                 branchFiles={branchFiles}

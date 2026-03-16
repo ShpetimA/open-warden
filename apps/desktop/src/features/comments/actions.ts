@@ -1,6 +1,9 @@
 import type { AppThunk } from "@/app/store";
 import { desktop } from "@/platform/desktop";
-import { setLastCopiedPayload } from "@/features/comments/commentsClipboardSlice";
+import {
+  setLastCopiedPayload,
+  clearLastCopiedPayload,
+} from "@/features/comments/commentsClipboardSlice";
 import {
   addComment as addCommentAction,
   removeComment as removeCommentAction,
@@ -68,6 +71,7 @@ export const addComment =
     };
 
     dispatch(addCommentAction(next));
+    dispatch(clearLastCopiedPayload());
   };
 
 export const removeComment =

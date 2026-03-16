@@ -32,29 +32,12 @@ export function DiffWorkspaceHeader({
   const comments = useAppSelector((state) => state.comments);
 
   const allComments = compactComments(comments);
-  const currentRepoComments = activeRepo
-    ? allComments.filter((comment) => comment.repoPath === activeRepo)
-    : [];
-  const currentContextComments =
-    commentContext.kind === "review"
-      ? currentRepoComments.filter(
-          (comment) =>
-            comment.contextKind === "review" &&
-            comment.baseRef === commentContext.baseRef &&
-            comment.headRef === commentContext.headRef,
-        )
-      : currentRepoComments.filter((comment) => (comment.contextKind ?? "changes") === "changes");
   const currentFileComments = canComment
     ? fileComments(allComments, activeRepo, activePath, commentContext)
     : [];
 
   const onCopyFileComments = async () => {
     const result = await dispatch(copyComments("file", { context: commentContext, activePath }));
-    if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
-  };
-
-  const onCopyAllComments = async () => {
-    const result = await dispatch(copyComments("all", { context: commentContext }));
     if (result.ok) toast.success(copyAndClearMessage(result.clearedCount));
   };
 
@@ -65,16 +48,6 @@ export function DiffWorkspaceHeader({
     },
     {
       enabled: showDiffActions && canComment && !!activePath && currentFileComments.length > 0,
-    },
-  );
-
-  useHotkey(
-    "Mod+Alt+C",
-    () => {
-      void onCopyAllComments();
-    },
-    {
-      enabled: showDiffActions && canComment && currentContextComments.length > 0,
     },
   );
 
@@ -98,28 +71,16 @@ export function DiffWorkspaceHeader({
           </Button>
 
           {canComment ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  void onCopyFileComments();
-                }}
-                disabled={!activePath || currentFileComments.length === 0}
-              >
-                Copy Comments (File)
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  void onCopyAllComments();
-                }}
-                disabled={currentContextComments.length === 0}
-              >
-                Copy Comments (All)
-              </Button>
-            </>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void onCopyFileComments();
+              }}
+              disabled={!activePath || currentFileComments.length === 0}
+            >
+              Copy Comments (File)
+            </Button>
           ) : null}
         </>
       ) : null}
