@@ -110,7 +110,7 @@ function HeaderCommentActions({ activeFeature }: HeaderCommentActionsProps) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="border-input bg-surface-alt text-muted-foreground hover:text-foreground relative inline-flex h-8 w-8 items-center justify-center rounded-md border"
+            className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
             onClick={() => void (isRecopyMode ? onCopyLastComments() : onCopyAllComments())}
             aria-label={tooltipText}
           >
@@ -157,7 +157,7 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
               <button
                 key={sidebar.panelId}
                 type="button"
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-sm transition-colors ${
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] ${
                   isCollapsed
                     ? "text-muted-foreground hover:bg-accent hover:text-foreground"
                     : "text-foreground"
@@ -185,7 +185,7 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
               <button
                 key={item.key}
                 type="button"
-                className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm ${
+                className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.97] ${
                   isActive
                     ? "bg-surface-active text-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -209,7 +209,7 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
 
         <button
           type="button"
-          className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border"
+          className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
           onClick={onOpenCommandPalette}
           title="Open Command Palette (⌘K)"
           aria-label="Open command palette"
