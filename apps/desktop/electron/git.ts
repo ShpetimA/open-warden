@@ -364,7 +364,7 @@ async function readCommitParent(repoPath: string, commitId: string) {
 export async function getGitSnapshot(repoPath: string): Promise<GitSnapshot> {
   const [repoRoot, statusOutput] = await Promise.all([
     resolveRepoRoot(repoPath),
-    runGit(repoPath, ["status", "--porcelain=v1", "-z", "-b"]),
+    runGit(repoPath, ["status", "--porcelain=v1", "-z", "-b", "-uall"]),
   ]);
   const parsed = parseStatusOutput(statusOutput);
 
