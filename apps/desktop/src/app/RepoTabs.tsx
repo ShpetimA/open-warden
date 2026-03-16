@@ -44,14 +44,14 @@ export function RepoTabs({ repos, activeRepo, onSelectRepo, onCloseRepo, onAddRe
             >
               <button
                 type="button"
-                className="flex h-full max-w-56 min-w-0 items-center truncate pr-1 text-sm font-medium"
+                className="flex h-full max-w-56 min-w-0 items-center truncate pr-1 text-sm font-medium transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.98]"
                 onClick={() => onSelectRepo(repoPath)}
               >
                 {repoLabel(repoPath)}
               </button>
               <button
                 type="button"
-                className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm transition-colors ${closeClass}`}
+                className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] ${closeClass}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   onCloseRepo(repoPath);
@@ -67,7 +67,7 @@ export function RepoTabs({ repos, activeRepo, onSelectRepo, onCloseRepo, onAddRe
 
         <button
           type="button"
-          className="border-border/70 text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors"
+          className="border-border/70 text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
           onClick={onAddRepo}
           title="Add repository"
           aria-label="Add repository"
