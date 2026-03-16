@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { Outlet, useLocation } from "react-router";
 
 import { AppHeader } from "@/app/AppHeader";
@@ -36,7 +35,6 @@ export function AppShell() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const stateError = useAppSelector((state) => state.sourceControl.error);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const activeFeature = featureKeyFromPath(location.pathname);
   const showPrimarySidebar = featureHasPrimarySidebar(activeFeature);
   const sidebarFeature = activeFeature === "history" ? "history" : "changes";
@@ -53,27 +51,15 @@ export function AppShell() {
   return (
     <SidebarPanelRegistryProvider>
       <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-        <div
-          className="grid h-full"
-          style={{ gridTemplateRows: headerCollapsed ? "0px 1fr 34px" : "56px 1fr 34px" }}
-        >
-          <div className="overflow-hidden">
-            <AppHeader
-              activeFeature={activeFeature}
-              onOpenCommandPalette={() => {
-                setCommandPaletteOpen(true);
-              }}
-            />
-          </div>
+        <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
+          <AppHeader
+            activeFeature={activeFeature}
+            onOpenCommandPalette={() => {
+              setCommandPaletteOpen(true);
+            }}
+          />
 
           <div className="relative min-h-0">
-            <HeaderEdgeToggle
-              collapsed={headerCollapsed}
-              onToggle={() => {
-                setHeaderCollapsed((value) => !value);
-              }}
-            />
-
             {showPrimarySidebar ? (
               <ResizableSidebarLayout
                 panelId="primary"
@@ -96,29 +82,6 @@ export function AppShell() {
         <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       </div>
     </SidebarPanelRegistryProvider>
-  );
-}
-
-type HeaderEdgeToggleProps = {
-  collapsed: boolean;
-  onToggle: () => void;
-};
-
-function HeaderEdgeToggle({ collapsed, onToggle }: HeaderEdgeToggleProps) {
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-40">
-      <div className="flex h-6 w-full justify-center">
-        <button
-          type="button"
-          className="border-input bg-surface-alt text-muted-foreground hover:text-foreground pointer-events-auto inline-flex h-6 w-14 items-center justify-center rounded-b-md rounded-t-none border-t-0 opacity-0 shadow-sm transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100"
-          onClick={onToggle}
-          title={collapsed ? "Expand header" : "Collapse header"}
-          aria-label={collapsed ? "Expand header" : "Collapse header"}
-        >
-          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-        </button>
-      </div>
-    </div>
   );
 }
 
