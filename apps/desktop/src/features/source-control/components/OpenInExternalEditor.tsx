@@ -12,12 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { desktop } from "@/platform/desktop";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -259,10 +254,16 @@ export function OpenInExternalEditor({
                     void openPathInApp(current.id);
                   }}
                 >
-                  {opening ? <Spinner className="size-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
+                  {opening ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  )}
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">Open {noun} in {current.label}</TooltipContent>
+              <TooltipContent side="bottom">
+                Open {noun} in {current.label}
+              </TooltipContent>
             </Tooltip>
 
             <div className="bg-border/70 h-full w-px" />
