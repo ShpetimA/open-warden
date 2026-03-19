@@ -1,10 +1,7 @@
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { MouseEvent } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Accordion,
-  AccordionItem,
-} from "@/components/ui/accordion";
+import { Accordion, AccordionItem } from "@/components/ui/accordion";
 import { confirmDiscard } from "@/features/comments/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
@@ -130,11 +127,7 @@ function ChangesFileList() {
         {isLoadingSnapshot ? (
           <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
         ) : null}
-        <Accordion
-          type="multiple"
-          value={openSections}
-          onValueChange={handleAccordionChange}
-        >
+        <Accordion type="multiple" value={openSections} onValueChange={handleAccordionChange}>
           <AccordionItem value="staged" className="border-border rounded-none border-t border-b">
             <FileSection
               sectionKey="staged"
@@ -152,7 +145,10 @@ function ChangesFileList() {
               onDiscardChangesGroup={onDiscardChangesGroup}
             />
           </AccordionItem>
-          <AccordionItem value="unstaged" className="border-border rounded-none border-t-0 border-b">
+          <AccordionItem
+            value="unstaged"
+            className="border-border rounded-none border-t-0 border-b"
+          >
             <FileSection
               sectionKey="unstaged"
               title="CHANGES"

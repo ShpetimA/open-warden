@@ -1,4 +1,4 @@
-import { ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
+import { Minus, Plus, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { useAppSelector } from "@/app/hooks";
@@ -46,9 +46,7 @@ export function FileSection({
 
   return (
     <>
-      <AccordionTrigger
-        className="text-foreground/80 border-border group flex items-center gap-2 rounded-none border-b px-3 py-2 text-[11px] font-semibold tracking-[0.14em] hover:no-underline"
-      >
+      <AccordionTrigger className="text-foreground/80 border-border group flex items-center gap-2 rounded-none border-b px-3 py-2 text-[11px] font-semibold tracking-[0.14em] hover:no-underline">
         <span className="min-w-0 truncate font-medium">{title}</span>
         {isChanges ? (
           <>

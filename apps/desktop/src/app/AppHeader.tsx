@@ -14,12 +14,7 @@ import { ThemeSwitcher } from "@/app/ThemeSwitcher";
 import { FEATURE_NAV_ITEMS, FEATURE_SIDEBARS, type FeatureKey } from "@/app/featureNavigation";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { useSidebarPanelRegistry } from "@/components/layout/SidebarPanelRegistry";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DesktopUpdateButton } from "@/features/desktop-update/DesktopUpdateButton";
 import { copyComments, copyLastCommentsPayload } from "@/features/comments/actions";
 import { compactComments } from "@/features/comments/selectors";
@@ -68,7 +63,9 @@ function HeaderCommentActions({ activeFeature }: HeaderCommentActionsProps) {
         const kind = comment.contextKind ?? "changes";
         if (kind !== commentContext.kind) return false;
         if (commentContext.kind === "review") {
-          return comment.baseRef === commentContext.baseRef && comment.headRef === commentContext.headRef;
+          return (
+            comment.baseRef === commentContext.baseRef && comment.headRef === commentContext.headRef
+          );
         }
         return true;
       })
@@ -100,9 +97,7 @@ function HeaderCommentActions({ activeFeature }: HeaderCommentActionsProps) {
   if (!shouldShowButton) return null;
 
   const isRecopyMode = !hasComments && hasLastCopiedPayload;
-  const tooltipText = isRecopyMode
-    ? "Copy last comments payload"
-    : "Copy all comments (⌘⌥C)";
+  const tooltipText = isRecopyMode ? "Copy last comments payload" : "Copy all comments (⌘⌥C)";
 
   return (
     <TooltipProvider>
