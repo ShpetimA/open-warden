@@ -9,8 +9,12 @@ import type {
   FileVersions,
   GitSnapshot,
   HistoryCommit,
+  WorkspaceSession,
 } from "./contracts";
 import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
+import { createWorkspaceSession } from "./workspaceSession";
+
+const WORKSPACE_SESSION_STORAGE_KEY = "open-warden.workspace-session";
 
 function createDisabledUpdateState(reason: string): DesktopUpdateState {
   return {
@@ -48,9 +52,45 @@ function readBrowserDirectorySelectionError(): Error {
   return unsupportedInBrowser("Repository selection");
 }
 
+function readStoredWorkspaceSession(): WorkspaceSession {
+  if (typeof window === "undefined") {
+    return createWorkspaceSession();
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(WORKSPACE_SESSION_STORAGE_KEY);
+    if (!storedValue) {
+      return createWorkspaceSession();
+    }
+
+    return createWorkspaceSession(JSON.parse(storedValue));
+  } catch {
+    return createWorkspaceSession();
+  }
+}
+
+function writeStoredWorkspaceSession(session: WorkspaceSession): WorkspaceSession {
+  const normalizedSession = createWorkspaceSession(session);
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(
+      WORKSPACE_SESSION_STORAGE_KEY,
+      JSON.stringify(normalizedSession),
+    );
+  }
+
+  return normalizedSession;
+}
+
 export const browserDesktopApi: DesktopBridge = {
   async selectFolder() {
     throw readBrowserDirectorySelectionError();
+  },
+  async loadWorkspaceSession() {
+    return readStoredWorkspaceSession();
+  },
+  async saveWorkspaceSession(session: WorkspaceSession) {
+    return writeStoredWorkspaceSession(session);
   },
   async confirm(message: string, _options?: ConfirmOptions) {
     return window.confirm(message);
@@ -158,6 +198,12 @@ async function unavailableAsync<T>(): Promise<T> {
 export const unavailableDesktopApi: DesktopBridge = {
   async selectFolder() {
     unavailable();
+  },
+  async loadWorkspaceSession() {
+    return createWorkspaceSession();
+  },
+  async saveWorkspaceSession(session: WorkspaceSession) {
+    return createWorkspaceSession(session);
   },
   async confirm(_message: string, _options?: ConfirmOptions) {
     return unavailableAsync<boolean>();

@@ -62,8 +62,16 @@ export type ConfirmOptions = {
   cancelLabel?: string;
 };
 
+export type WorkspaceSession = {
+  openRepos: string[];
+  activeRepo: string;
+  recentRepos: string[];
+};
+
 export type DesktopApi = {
   selectFolder(): Promise<string | null>;
+  loadWorkspaceSession(): Promise<WorkspaceSession>;
+  saveWorkspaceSession(session: WorkspaceSession): Promise<WorkspaceSession>;
   confirm(message: string, options?: ConfirmOptions): Promise<boolean>;
   checkAppExists(appName: string): Promise<boolean>;
   openPath(path: string, appName?: string | null): Promise<void>;

@@ -1,14 +1,20 @@
-import type { AppThunk } from "@/app/store";
+import type { AppThunk, RootState } from "@/app/store";
 import { desktop } from "@/platform/desktop";
+import {
+  addRecentRepo,
+  buildWorkspaceSession,
+  createWorkspaceSession,
+  normalizeRepoPaths,
+} from "@/platform/desktop/workspaceSession";
 import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import {
-  addRepo,
   clearDiffSelection,
   clearError,
   clearHistorySelection,
   clearReviewSelection,
+  hydrateWorkspaceSession as hydrateWorkspaceSessionState,
   removeRepo,
   setActiveBucket,
   setActivePath,
@@ -19,6 +25,8 @@ import {
   setHistoryCommitId,
   setHistoryNavTarget,
   setLastCommitId,
+  setRecentRepos,
+  setRepos,
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
@@ -59,6 +67,92 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
   });
 }
 
+const resetRepoScopedState =
+  (): AppThunk =>
+  (dispatch) => {
+    dispatch(clearError());
+    dispatch(clearHistorySelection());
+    dispatch(clearDiffSelection());
+    dispatch(clearReviewSelection());
+    dispatch(setActiveBucket("unstaged"));
+    dispatch(setSelectedFiles([]));
+    dispatch(setSelectionAnchor(null));
+  };
+
+async function persistWorkspaceSession(getState: () => RootState) {
+  const { sourceControl } = getState();
+  await desktop.saveWorkspaceSession(buildWorkspaceSession(sourceControl));
+}
+
+async function resolveRepoPath(repoPath: string): Promise<string | null> {
+  try {
+    const snapshot = await desktop.getGitSnapshot(repoPath);
+    return snapshot.repoRoot.trim() || repoPath;
+  } catch {
+    return null;
+  }
+}
+
+async function restoreRepoPaths(repoPaths: string[]): Promise<string[]> {
+  const normalizedPaths = normalizeRepoPaths(repoPaths);
+  const resolvedPaths = await Promise.all(normalizedPaths.map((repoPath) => resolveRepoPath(repoPath)));
+
+  return normalizeRepoPaths(resolvedPaths);
+}
+
+export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dispatch) => {
+  try {
+    const storedSession = await desktop.loadWorkspaceSession();
+    const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
+    const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
+    const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
+    const workspaceSession = createWorkspaceSession({
+      openRepos: restoredOpenRepos,
+      activeRepo: restoredActiveRepo ?? undefined,
+      recentRepos: restoredRecentRepos,
+    });
+
+    dispatch(hydrateWorkspaceSessionState(workspaceSession));
+
+    if (!workspaceSession.activeRepo) {
+      dispatch(resetRepoScopedState());
+    }
+
+    await desktop.saveWorkspaceSession(workspaceSession);
+  } catch (error) {
+    dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
+    dispatch(setError(error instanceof Error ? error.message : String(error)));
+  }
+};
+
+export const openRepo =
+  (repoPath: string): AppThunk<Promise<void>> =>
+  async (dispatch, getState) => {
+    const resolvedRepoPath = await resolveRepoPath(repoPath);
+
+    if (!resolvedRepoPath) {
+      dispatch(setError(`Could not open repository: ${repoPath}`));
+      return;
+    }
+
+    const { activeRepo, repos, recentRepos } = getState().sourceControl;
+    const nextRepos = normalizeRepoPaths([...repos, resolvedRepoPath]);
+    const nextRecentRepos = addRecentRepo(recentRepos, resolvedRepoPath);
+
+    if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
+      dispatch(setRecentRepos(nextRecentRepos));
+      dispatch(clearError());
+      await persistWorkspaceSession(getState);
+      return;
+    }
+
+    dispatch(setRepos(nextRepos));
+    dispatch(setActiveRepo(resolvedRepoPath));
+    dispatch(setRecentRepos(nextRecentRepos));
+    dispatch(resetRepoScopedState());
+    await persistWorkspaceSession(getState);
+  };
+
 export const selectFolder = (): AppThunk => async (dispatch) => {
   let selected: string | null;
 
@@ -71,30 +165,13 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
 
   if (!selected) return;
 
-  dispatch(addRepo(selected));
-  dispatch(setActiveRepo(selected));
-  dispatch(clearError());
-  dispatch(clearHistorySelection());
-  dispatch(clearDiffSelection());
-  dispatch(clearReviewSelection());
-  dispatch(setActiveBucket("unstaged"));
-  dispatch(setSelectedFiles([]));
-  dispatch(setSelectionAnchor(null));
+  await dispatch(openRepo(selected));
 };
 
 export const selectRepo =
   (repo: string): AppThunk =>
-  async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
-    if (repo === activeRepo) return;
-    dispatch(setActiveRepo(repo));
-    dispatch(clearError());
-    dispatch(clearHistorySelection());
-    dispatch(clearDiffSelection());
-    dispatch(clearReviewSelection());
-    dispatch(setActiveBucket("unstaged"));
-    dispatch(setSelectedFiles([]));
-    dispatch(setSelectionAnchor(null));
+  async (dispatch) => {
+    await dispatch(openRepo(repo));
   };
 
 export const closeRepo =
@@ -106,14 +183,10 @@ export const closeRepo =
     dispatch(removeCommentsForRepo(repo));
 
     if (closingActiveRepo) {
-      dispatch(clearError());
-      dispatch(clearHistorySelection());
-      dispatch(clearDiffSelection());
-      dispatch(clearReviewSelection());
-      dispatch(setActiveBucket("unstaged"));
-      dispatch(setSelectedFiles([]));
-      dispatch(setSelectionAnchor(null));
+      dispatch(resetRepoScopedState());
     }
+
+    await persistWorkspaceSession(getState);
   };
 
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {

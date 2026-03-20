@@ -1,10 +1,13 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
+import type { WorkspaceSession } from "@/platform/desktop";
+
 import type { Bucket, DiffStyle, HistoryNavTarget, RunningAction, SelectedFile } from "./types";
 
 type SourceControlState = {
   repos: string[];
   activeRepo: string;
+  recentRepos: string[];
   historyFilter: string;
   historyCommitId: string;
   historyNavTarget: HistoryNavTarget;
@@ -27,6 +30,7 @@ type SourceControlState = {
 const initialState: SourceControlState = {
   repos: [],
   activeRepo: "",
+  recentRepos: [],
   historyFilter: "",
   historyCommitId: "",
   historyNavTarget: "commits",
@@ -50,6 +54,11 @@ const sourceControlSlice = createSlice({
   name: "sourceControl",
   initialState,
   reducers: {
+    hydrateWorkspaceSession(state, action: PayloadAction<WorkspaceSession>) {
+      state.repos = action.payload.openRepos;
+      state.activeRepo = action.payload.activeRepo;
+      state.recentRepos = action.payload.recentRepos;
+    },
     setRepos(state, action: PayloadAction<string[]>) {
       state.repos = action.payload;
     },
@@ -68,6 +77,9 @@ const sourceControlSlice = createSlice({
       if (state.activeRepo !== action.payload) {
         state.activeRepo = action.payload;
       }
+    },
+    setRecentRepos(state, action: PayloadAction<string[]>) {
+      state.recentRepos = action.payload;
     },
     setHistoryFilter(state, action: PayloadAction<string>) {
       if (state.historyFilter !== action.payload) {
@@ -197,6 +209,7 @@ export const {
   clearError,
   clearHistorySelection,
   clearReviewSelection,
+  hydrateWorkspaceSession,
   removeRepo,
   setActiveBucket,
   setActivePath,
@@ -210,6 +223,7 @@ export const {
   setHistoryFilter,
   setHistoryNavTarget,
   setLastCommitId,
+  setRecentRepos,
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,

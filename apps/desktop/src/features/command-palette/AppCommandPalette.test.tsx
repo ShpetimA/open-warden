@@ -38,6 +38,7 @@ vi.mock("@/app/hooks", () => ({
       sourceControl: {
         activeRepo: "/tmp/repo",
         repos: ["/tmp/repo"],
+        recentRepos: ["/tmp/repo", "/tmp/recent"],
         runningAction: "",
         activeBucket: "unstaged",
         activePath: "",

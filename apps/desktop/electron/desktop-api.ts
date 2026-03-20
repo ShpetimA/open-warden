@@ -18,9 +18,12 @@ import {
   unstageFile,
 } from "./git";
 import { checkAppExists, confirm, openPath, selectFolder } from "./system";
+import { loadWorkspaceSession, saveWorkspaceSession } from "./workspaceSession";
 
 export const desktopApi: DesktopApi = {
   selectFolder,
+  loadWorkspaceSession,
+  saveWorkspaceSession,
   confirm,
   checkAppExists,
   openPath,

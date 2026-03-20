@@ -34,6 +34,8 @@ function resolveDesktopApi(): DesktopBridge {
 
 export const desktop: DesktopBridge = {
   selectFolder: () => resolveDesktopApi().selectFolder(),
+  loadWorkspaceSession: () => resolveDesktopApi().loadWorkspaceSession(),
+  saveWorkspaceSession: (session) => resolveDesktopApi().saveWorkspaceSession(session),
   confirm: (message, options) => resolveDesktopApi().confirm(message, options),
   checkAppExists: (appName) => resolveDesktopApi().checkAppExists(appName),
   openPath: (targetPath, appName) => resolveDesktopApi().openPath(targetPath, appName),
@@ -83,4 +85,5 @@ export type {
   FileVersions,
   GitSnapshot,
   HistoryCommit,
+  WorkspaceSession,
 } from "./contracts";
