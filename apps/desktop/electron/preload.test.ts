@@ -26,6 +26,11 @@ describe("electron preload bridge", () => {
   });
 
   test("exposes the desktop API through window.openWarden", async () => {
+    invoke.mockResolvedValueOnce({
+      openRepos: ["/tmp/repo"],
+      activeRepo: "/tmp/repo",
+      recentRepos: ["/tmp/repo"],
+    });
     invoke.mockResolvedValueOnce(["main"]);
 
     await import("./preload");
@@ -45,6 +50,10 @@ describe("electron preload bridge", () => {
     expect(desktopBridge).toBeTypeOf("object");
     expect(openWarden).toBeTypeOf("object");
     expect(openWarden).toBe(desktopBridge);
+
+    const workspaceSession = await desktopBridge.loadWorkspaceSession();
+    expect(workspaceSession.activeRepo).toBe("/tmp/repo");
+    expect(invoke).toHaveBeenCalledWith("desktop:invoke", "loadWorkspaceSession");
 
     const branches = await desktopBridge.getBranches("/tmp/repo");
     expect(branches).toEqual(["main"]);

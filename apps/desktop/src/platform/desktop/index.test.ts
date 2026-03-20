@@ -16,6 +16,16 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
   const selectFolder = vi.fn().mockResolvedValue("/tmp/repo");
   window.desktopBridge = {
     selectFolder,
+    loadWorkspaceSession: vi.fn().mockResolvedValue({
+      openRepos: [],
+      activeRepo: "",
+      recentRepos: [],
+    }),
+    saveWorkspaceSession: vi.fn().mockResolvedValue({
+      openRepos: [],
+      activeRepo: "",
+      recentRepos: [],
+    }),
     confirm: vi.fn(),
     checkAppExists: vi.fn(),
     openPath: vi.fn(),

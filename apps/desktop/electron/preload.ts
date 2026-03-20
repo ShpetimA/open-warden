@@ -21,6 +21,8 @@ function invoke<K extends DesktopMethod>(
 
 const desktopBridge: DesktopBridge = {
   selectFolder: () => invoke("selectFolder"),
+  loadWorkspaceSession: () => invoke("loadWorkspaceSession"),
+  saveWorkspaceSession: (session) => invoke("saveWorkspaceSession", session),
   confirm: (message, options) => invoke("confirm", message, options),
   checkAppExists: (appName) => invoke("checkAppExists", appName),
   openPath: (targetPath, appName) => invoke("openPath", targetPath, appName),
