@@ -347,8 +347,7 @@ export function ReviewScreen() {
       dispatch(setReviewBaseRef(nextBase));
     }
 
-    const preferredHead =
-      activeBranch && branchList.includes(activeBranch) ? activeBranch : "";
+    const preferredHead = activeBranch && branchList.includes(activeBranch) ? activeBranch : "";
     const nextHead = hasHead
       ? reviewHeadRef
       : preferredHead || firstDifferentBranch(branchList, nextBase);

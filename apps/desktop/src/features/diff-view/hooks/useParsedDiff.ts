@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import {
-  getDiffRenderGate,
-} from "@/features/diff-view/services/diffRenderLimits";
+import { getDiffRenderGate } from "@/features/diff-view/services/diffRenderLimits";
 import {
   getCachedParsedDiff,
   getParsedDiffRequest,

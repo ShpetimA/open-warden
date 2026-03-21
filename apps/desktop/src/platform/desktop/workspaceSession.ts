@@ -54,7 +54,9 @@ export function addRecentRepo(recentRepos: string[], repoPath: string): string[]
   return mergeRecentRepos(recentRepos, [], repoPath);
 }
 
-export function createWorkspaceSession(session?: Partial<WorkspaceSession> | null): WorkspaceSession {
+export function createWorkspaceSession(
+  session?: Partial<WorkspaceSession> | null,
+): WorkspaceSession {
   const openRepos = normalizeRepoPaths(session?.openRepos);
   const activeRepo = resolveActiveRepo(session?.activeRepo, openRepos);
   const recentRepos = mergeRecentRepos(

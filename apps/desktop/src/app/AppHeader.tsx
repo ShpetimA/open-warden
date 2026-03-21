@@ -85,7 +85,9 @@ type HeaderCommentActionsProps = {
 
 function HeaderCommentActions({ activeFeature }: HeaderCommentActionsProps) {
   const dispatch = useAppDispatch();
-  const commentContext = useAppSelector((state) => selectHeaderCommentContext(state, activeFeature));
+  const commentContext = useAppSelector((state) =>
+    selectHeaderCommentContext(state, activeFeature),
+  );
   const commentCount = useAppSelector((state) => selectHeaderCommentCount(state, activeFeature));
   const hasLastCopiedPayload = useAppSelector(
     (state) => state.commentsClipboard.lastCopiedPayload.length > 0,
@@ -282,10 +284,7 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
         <HeaderFeatureNav activeFeature={activeFeature} />
       </div>
 
-      <HeaderActions
-        activeFeature={activeFeature}
-        onOpenCommandPalette={onOpenCommandPalette}
-      />
+      <HeaderActions activeFeature={activeFeature} onOpenCommandPalette={onOpenCommandPalette} />
     </header>
   );
 }

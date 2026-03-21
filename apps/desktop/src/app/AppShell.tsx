@@ -51,7 +51,9 @@ function EmptyRepoState({ recentRepos, onOpenPicker, onOpenRepo }: EmptyRepoStat
               </div>
               <div>
                 <div className="text-sm font-medium">Open project</div>
-                <div className="text-muted-foreground text-xs">Browse recent or choose a folder</div>
+                <div className="text-muted-foreground text-xs">
+                  Browse recent or choose a folder
+                </div>
               </div>
             </div>
             <ArrowUpRight className="text-muted-foreground h-4 w-4 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />

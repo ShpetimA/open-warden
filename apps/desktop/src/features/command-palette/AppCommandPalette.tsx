@@ -274,16 +274,18 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
         await dispatch(selectFolder());
       },
     },
-    ...recentRepos.filter((repoPath) => !repos.includes(repoPath)).map((repoPath) => ({
-      id: `repo:recent:${repoPath}`,
-      label: `Open Recent: ${repoPath.split("/").filter(Boolean).pop() ?? repoPath}`,
-      subtitle: repoPath,
-      keywords: ["repo", "recent", "project", "reopen"],
-      disabled: repoPath === activeRepo,
-      onSelect: async () => {
-        await dispatch(openRepo(repoPath));
-      },
-    })),
+    ...recentRepos
+      .filter((repoPath) => !repos.includes(repoPath))
+      .map((repoPath) => ({
+        id: `repo:recent:${repoPath}`,
+        label: `Open Recent: ${repoPath.split("/").filter(Boolean).pop() ?? repoPath}`,
+        subtitle: repoPath,
+        keywords: ["repo", "recent", "project", "reopen"],
+        disabled: repoPath === activeRepo,
+        onSelect: async () => {
+          await dispatch(openRepo(repoPath));
+        },
+      })),
     ...repos.map((repoPath) => ({
       id: `repo:switch:${repoPath}`,
       label: `Switch Repo: ${repoPath.split("/").filter(Boolean).pop() ?? repoPath}`,

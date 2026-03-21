@@ -64,8 +64,12 @@ function compactDirectoryNode<TFile>(
   return compactedNode;
 }
 
-function toTreeNodes<TFile>(directory: MutableDirectoryNode<TFile>): SourceControlTreeNode<TFile>[] {
-  const subdirectories: SourceControlTreeDirectoryNode<TFile>[] = [...directory.directories.values()]
+function toTreeNodes<TFile>(
+  directory: MutableDirectoryNode<TFile>,
+): SourceControlTreeNode<TFile>[] {
+  const subdirectories: SourceControlTreeDirectoryNode<TFile>[] = [
+    ...directory.directories.values(),
+  ]
     .sort(compareByName)
     .map<SourceControlTreeDirectoryNode<TFile>>((subdirectory) => ({
       kind: "directory",

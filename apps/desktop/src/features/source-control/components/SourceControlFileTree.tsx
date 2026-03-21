@@ -29,7 +29,10 @@ export function SourceControlFileTree<TFile extends { path: string }>({
   renderFile,
 }: SourceControlFileTreeProps<TFile>) {
   const treeNodes = useMemo(() => buildSourceControlFileTree(files), [files]);
-  const directoryPathsKey = useMemo(() => collectDirectoryPaths(treeNodes).join("\u0000"), [treeNodes]);
+  const directoryPathsKey = useMemo(
+    () => collectDirectoryPaths(treeNodes).join("\u0000"),
+    [treeNodes],
+  );
   const [expandedDirectories, setExpandedDirectories] = useState<Record<string, boolean>>(() =>
     buildDirectoryExpansionState(directoryPathsKey ? directoryPathsKey.split("\u0000") : [], true),
   );

@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, FolderOpen, Plus, X } from "lucide-react";
 
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { repoLabel, repoParentPath } from "@/features/source-control/utils";
 
 type Props = {
