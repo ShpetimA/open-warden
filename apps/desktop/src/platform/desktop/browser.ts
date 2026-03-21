@@ -1,10 +1,12 @@
 import type {
   Bucket,
+  CloseLspDocumentInput,
   ConfirmOptions,
   DesktopBridge,
   DesktopUpdateActionResult,
   DesktopUpdateState,
   DiscardFileInput,
+  SyncLspDocumentInput,
   FileItem,
   FileVersions,
   GitSnapshot,
@@ -161,6 +163,8 @@ export const browserDesktopApi: DesktopBridge = {
   async commitStaged(_repoPath: string, _message: string) {
     return unsupportedAsync<string>("Creating commits");
   },
+  async syncLspDocument(_input: SyncLspDocumentInput) {},
+  async closeLspDocument(_input: CloseLspDocumentInput) {},
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are only available in desktop builds.");
   },
@@ -180,6 +184,9 @@ export const browserDesktopApi: DesktopBridge = {
     );
   },
   onUpdateState() {
+    return () => {};
+  },
+  onLspDiagnostics() {
     return () => {};
   },
 };
@@ -274,6 +281,8 @@ export const unavailableDesktopApi: DesktopBridge = {
   async commitStaged(_repoPath: string, _message: string) {
     return unavailableAsync<string>();
   },
+  async syncLspDocument(_input: SyncLspDocumentInput) {},
+  async closeLspDocument(_input: CloseLspDocumentInput) {},
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are unavailable right now.");
   },
@@ -287,6 +296,9 @@ export const unavailableDesktopApi: DesktopBridge = {
     return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
   },
   onUpdateState() {
+    return () => {};
+  },
+  onLspDiagnostics() {
     return () => {};
   },
 };

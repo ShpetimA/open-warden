@@ -2,9 +2,10 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
-import { desktopApi } from "./desktop-api";
+import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
   DESKTOP_INVOKE_CHANNEL,
+  LSP_DIAGNOSTICS_CHANNEL,
   UPDATE_CHECK_CHANNEL,
   UPDATE_DOWNLOAD_CHANNEL,
   UPDATE_GET_STATE_CHANNEL,
@@ -17,6 +18,16 @@ type DesktopMethod = keyof typeof desktopApi;
 let mainWindow: BrowserWindow | null = null;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
+});
+
+configureDesktopApi({
+  onDiagnostics(event) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    mainWindow.webContents.send(LSP_DIAGNOSTICS_CHANNEL, event);
+  },
 });
 
 function resolveRendererUrl() {
@@ -98,6 +109,7 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   updateManager.dispose();
+  void disposeDesktopApi();
 });
 
 app.on("window-all-closed", () => {

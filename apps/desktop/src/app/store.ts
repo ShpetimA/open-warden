@@ -3,6 +3,7 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 
 import { commentsClipboardReducer } from "@/features/comments/commentsClipboardSlice";
 import { desktopUpdateReducer } from "@/features/desktop-update/desktopUpdateSlice";
+import { lspReducer } from "@/features/lsp/lspSlice";
 import { commentsReducer } from "@/features/comments/commentsSlice";
 import { gitApi } from "@/features/source-control/api";
 import { sourceControlReducer } from "@/features/source-control/sourceControlSlice";
@@ -10,6 +11,7 @@ import { sourceControlReducer } from "@/features/source-control/sourceControlSli
 export const store = configureStore({
   reducer: {
     desktopUpdate: desktopUpdateReducer,
+    lsp: lspReducer,
     sourceControl: sourceControlReducer,
     comments: commentsReducer,
     commentsClipboard: commentsClipboardReducer,

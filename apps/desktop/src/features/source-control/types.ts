@@ -6,6 +6,7 @@ import type {
   FileVersions as ContractFileVersions,
   GitSnapshot as ContractGitSnapshot,
   HistoryCommit as ContractHistoryCommit,
+  LspDiagnostic as ContractLspDiagnostic,
 } from "@/platform/desktop";
 
 export type Bucket = ContractBucket;
@@ -28,6 +29,8 @@ export type SelectedFile = {
 };
 
 export type HistoryCommit = ContractHistoryCommit;
+
+export type LspDiagnostic = ContractLspDiagnostic;
 
 export type SelectionRange = {
   start: number;
@@ -64,7 +67,12 @@ export type ComposerAnnotation = {
   endLine: number;
 };
 
-export type DiffAnnotationItem = CommentItem | ComposerAnnotation;
+export type DiagnosticAnnotation = {
+  type: "diagnostic";
+  diagnostic: LspDiagnostic;
+};
+
+export type DiffAnnotationItem = CommentItem | ComposerAnnotation | DiagnosticAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;
 

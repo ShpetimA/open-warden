@@ -68,6 +68,38 @@ export type WorkspaceSession = {
   recentRepos: string[];
 };
 
+export type SyncLspDocumentInput = {
+  repoPath: string;
+  relPath: string;
+  text: string;
+};
+
+export type CloseLspDocumentInput = {
+  repoPath: string;
+  relPath: string;
+};
+
+export type LspDiagnosticSeverity = "error" | "warning" | "information" | "hint";
+
+export type LspDiagnostic = {
+  message: string;
+  severity: LspDiagnosticSeverity;
+  source: string | null;
+  code: string | null;
+  startLine: number;
+  startCharacter: number;
+  endLine: number;
+  endCharacter: number;
+};
+
+export type LspDiagnosticsEvent = {
+  repoPath: string;
+  relPath: string;
+  languageId: string | null;
+  diagnostics: LspDiagnostic[];
+  reason: string | null;
+};
+
 export type DesktopApi = {
   selectFolder(): Promise<string | null>;
   loadWorkspaceSession(): Promise<WorkspaceSession>;
@@ -102,6 +134,8 @@ export type DesktopApi = {
   discardFiles(repoPath: string, files: DiscardFileInput[]): Promise<void>;
   discardAll(repoPath: string): Promise<void>;
   commitStaged(repoPath: string, message: string): Promise<string>;
+  syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
+  closeLspDocument(input: CloseLspDocumentInput): Promise<void>;
 };
 
 export type DesktopUpdateStatus =
@@ -144,4 +178,8 @@ export type DesktopUpdateApi = {
   onUpdateState(listener: (state: DesktopUpdateState) => void): () => void;
 };
 
-export type DesktopBridge = DesktopApi & DesktopUpdateApi;
+export type DesktopLspApi = {
+  onLspDiagnostics(listener: (event: LspDiagnosticsEvent) => void): () => void;
+};
+
+export type DesktopBridge = DesktopApi & DesktopUpdateApi & DesktopLspApi;

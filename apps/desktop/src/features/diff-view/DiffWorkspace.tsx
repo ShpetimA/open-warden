@@ -25,6 +25,7 @@ import type {
 } from "@/features/source-control/types";
 import { CommentAnnotation } from "@/features/diff-view/components/CommentAnnotation";
 import { CommentComposer } from "@/features/diff-view/components/CommentComposer";
+import { DiagnosticAnnotation } from "@/features/diff-view/components/DiagnosticAnnotation";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
 import {
   DEFAULT_DARK_THEME,
@@ -44,6 +45,7 @@ type Props = {
   activePath: string;
   commentContext: CommentContext;
   canComment: boolean;
+  diagnosticAnnotations?: DiffLineAnnotation<DiffAnnotationItem>[];
 };
 
 const STICKY_HEADER_CSS = `
@@ -110,7 +112,14 @@ function useCurrentFileComments(
   });
 }
 
-export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, canComment }: Props) {
+export function DiffWorkspace({
+  oldFile,
+  newFile,
+  activePath,
+  commentContext,
+  canComment,
+  diagnosticAnnotations = [],
+}: Props) {
   const { resolvedTheme } = useTheme();
   const workerPool = useWorkerPool();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -165,7 +174,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
     setSelectedRange(range);
   };
 
-  const renderCommentAnnotation = (annotation: { metadata?: DiffAnnotationItem }) => {
+  const renderAnnotation = (annotation: { metadata?: DiffAnnotationItem }) => {
     const data = annotation.metadata;
     if (!data) return null;
 
@@ -181,6 +190,10 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
         />
       );
+    }
+
+    if (data.type === "diagnostic") {
+      return <DiagnosticAnnotation diagnostic={data.diagnostic} />;
     }
 
     return <CommentAnnotation comment={data} />;
@@ -208,9 +221,10 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
   const selectedRangeLabel = selectedRange
     ? formatRange(selectedRange.start, selectedRange.end)
     : "";
+  const baseAnnotations = [...diagnosticAnnotations, ...currentAnnotations];
   const annotationsWithComposer: DiffLineAnnotation<DiffAnnotationItem>[] = selectedRange
     ? [
-        ...currentAnnotations,
+        ...baseAnnotations,
         {
           lineNumber: selectedRange.end,
           metadata: {
@@ -223,7 +237,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
           side: selectedRange.side ?? "deletions",
         },
       ]
-    : currentAnnotations;
+    : baseAnnotations;
   const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? "expanded" : "collapsed"}`;
 
   const renderLargeDiffWarning = () => {
@@ -275,7 +289,7 @@ export function DiffWorkspace({ oldFile, newFile, activePath, commentContext, ca
             fileDiff={currentFileDiff}
             selectedLines={selectedRange}
             lineAnnotations={annotationsWithComposer}
-            renderAnnotation={renderCommentAnnotation}
+            renderAnnotation={renderAnnotation}
             renderHeaderMetadata={() => (
               <DiffHeaderMetadataControls
                 activePath={activePath}

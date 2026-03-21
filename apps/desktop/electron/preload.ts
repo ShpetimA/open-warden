@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopApi, DesktopBridge } from "../src/platform/desktop/contracts";
 import {
   DESKTOP_INVOKE_CHANNEL,
+  LSP_DIAGNOSTICS_CHANNEL,
   UPDATE_CHECK_CHANNEL,
   UPDATE_DOWNLOAD_CHANNEL,
   UPDATE_GET_STATE_CHANNEL,
@@ -46,6 +47,8 @@ const desktopBridge: DesktopBridge = {
   discardFiles: (repoPath, files) => invoke("discardFiles", repoPath, files),
   discardAll: (repoPath) => invoke("discardAll", repoPath),
   commitStaged: (repoPath, message) => invoke("commitStaged", repoPath, message),
+  syncLspDocument: (input) => invoke("syncLspDocument", input),
+  closeLspDocument: (input) => invoke("closeLspDocument", input),
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
   checkForUpdates: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
@@ -62,6 +65,20 @@ const desktopBridge: DesktopBridge = {
     ipcRenderer.on(UPDATE_STATE_CHANNEL, wrappedListener);
     return () => {
       ipcRenderer.removeListener(UPDATE_STATE_CHANNEL, wrappedListener);
+    };
+  },
+  onLspDiagnostics: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, event: unknown) => {
+      if (typeof event !== "object" || event === null) {
+        return;
+      }
+
+      listener(event as Parameters<typeof listener>[0]);
+    };
+
+    ipcRenderer.on(LSP_DIAGNOSTICS_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(LSP_DIAGNOSTICS_CHANNEL, wrappedListener);
     };
   },
 };

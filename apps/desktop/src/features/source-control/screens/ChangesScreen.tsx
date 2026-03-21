@@ -2,6 +2,9 @@ import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppSelector } from "@/app/hooks";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
+import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
+import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
+import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
 import { useGetFileVersionsQuery } from "@/features/source-control/api";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { usePrefetchChangesDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
@@ -61,6 +64,11 @@ export function ChangesScreen() {
   const newFile = fileVersions?.newFile ?? null;
   const errorMessage = errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? "";
+  const lspText = !loadingPatch && newFile ? newFile.contents : null;
+
+  useCurrentLspDocument(activeRepo, previewPath, lspText);
+
+  const diagnosticAnnotations = useDiffDiagnostics(activeRepo, previewPath);
 
   return (
     <div className="grid h-full min-h-0 min-w-0">
@@ -75,13 +83,17 @@ export function ChangesScreen() {
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
-            <DiffWorkspace
-              oldFile={oldFile}
-              newFile={newFile}
-              activePath={previewPath}
-              commentContext={{ kind: "changes" }}
-              canComment
-            />
+            <>
+              <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
+              <DiffWorkspace
+                oldFile={oldFile}
+                newFile={newFile}
+                activePath={previewPath}
+                commentContext={{ kind: "changes" }}
+                canComment
+                diagnosticAnnotations={diagnosticAnnotations}
+              />
+            </>
           )}
         </div>
       </section>

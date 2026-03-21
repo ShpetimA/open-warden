@@ -60,11 +60,14 @@ export const desktop: DesktopBridge = {
   discardFiles: (repoPath, files) => resolveDesktopApi().discardFiles(repoPath, files),
   discardAll: (repoPath) => resolveDesktopApi().discardAll(repoPath),
   commitStaged: (repoPath, message) => resolveDesktopApi().commitStaged(repoPath, message),
+  syncLspDocument: (input) => resolveDesktopApi().syncLspDocument(input),
+  closeLspDocument: (input) => resolveDesktopApi().closeLspDocument(input),
   getUpdateState: () => resolveDesktopApi().getUpdateState(),
   checkForUpdates: () => resolveDesktopApi().checkForUpdates(),
   downloadUpdate: () => resolveDesktopApi().downloadUpdate(),
   installUpdate: () => resolveDesktopApi().installUpdate(),
   onUpdateState: (listener) => resolveDesktopApi().onUpdateState(listener),
+  onLspDiagnostics: (listener) => resolveDesktopApi().onLspDiagnostics(listener),
 };
 
 export type {
@@ -85,5 +88,11 @@ export type {
   FileVersions,
   GitSnapshot,
   HistoryCommit,
+  LspDiagnostic,
+  LspDiagnosticSeverity,
+  LspDiagnosticsEvent,
+  DesktopLspApi,
+  SyncLspDocumentInput,
+  CloseLspDocumentInput,
   WorkspaceSession,
 } from "./contracts";

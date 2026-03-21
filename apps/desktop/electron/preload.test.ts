@@ -64,5 +64,11 @@ describe("electron preload bridge", () => {
 
     unsubscribe();
     expect(removeListener).toHaveBeenCalledWith("desktop:update-state", expect.any(Function));
+
+    const unsubscribeLsp = desktopBridge.onLspDiagnostics(() => {});
+    expect(on).toHaveBeenCalledWith("desktop:lsp-diagnostics", expect.any(Function));
+
+    unsubscribeLsp();
+    expect(removeListener).toHaveBeenCalledWith("desktop:lsp-diagnostics", expect.any(Function));
   });
 });

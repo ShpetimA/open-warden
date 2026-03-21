@@ -6,12 +6,14 @@ import "./index.css";
 import App from "./App.tsx";
 import { store } from "./app/store";
 import { DesktopUpdateBootstrap } from "./features/desktop-update/DesktopUpdateBootstrap";
+import { LspDiagnosticsBootstrap } from "./features/lsp/LspDiagnosticsBootstrap";
 import { WorkspaceSessionBootstrap } from "./features/source-control/WorkspaceSessionBootstrap";
 import { workerFactory } from "./lib/diffs-worker";
 
 createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
     <DesktopUpdateBootstrap />
+    <LspDiagnosticsBootstrap />
     <PacerProvider
       defaultOptions={{
         asyncQueuer: {
