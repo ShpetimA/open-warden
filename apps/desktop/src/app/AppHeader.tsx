@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ThemeSwitcher } from "@/app/ThemeSwitcher";
 import { FEATURE_NAV_ITEMS, FEATURE_SIDEBARS, type FeatureKey } from "@/app/featureNavigation";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { useSidebarToggleHotkeys } from "@/app/useSidebarToggleHotkeys";
 import { useSidebarPanelRegistry } from "@/components/layout/SidebarPanelRegistry";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DesktopUpdateButton } from "@/features/desktop-update/DesktopUpdateButton";
@@ -27,6 +28,20 @@ type AppHeaderProps = {
 
 function copyAndClearMessage(count: number): string {
   return `Copied ${count} comment${count === 1 ? "" : "s"} and cleared them`;
+}
+
+function sidebarLabel(panelId: string) {
+  if (panelId === "history-files") return "files pane";
+  return "sidebar";
+}
+
+function sidebarTooltipLabel(panelId: string) {
+  if (panelId === "history-files") return "Toggle files pane";
+  return "Toggle sidebar";
+}
+
+function sidebarShortcut(icon: "left" | "right") {
+  return icon === "left" ? "⌘S" : "⌘⇧S";
 }
 
 function useCommentContext(activeFeature: FeatureKey): CommentContext | null {
@@ -131,43 +146,60 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
   const navigate = useNavigate();
   const { panels, toggle } = useSidebarPanelRegistry();
   const sidebars = FEATURE_SIDEBARS[activeFeature];
+  useSidebarToggleHotkeys({ activeFeature, toggle });
 
   return (
     <header className="app-drag-region border-border bg-surface-toolbar grid h-14 select-none grid-cols-[1fr_auto_1fr] items-center gap-3 border-b pl-22 pr-3">
       <div className="min-w-0">
-        <div className="app-no-drag bg-surface-alt border-input inline-flex items-center gap-0.5 rounded-md border p-0.5">
-          {sidebars.map((sidebar) => {
-            const entry = panels.get(sidebar.panelId);
-            const isCollapsed = entry?.collapsed ?? true;
-            const Icon =
-              sidebar.icon === "left"
-                ? isCollapsed
-                  ? PanelLeftInactive
-                  : PanelLeftOpen
-                : isCollapsed
-                  ? PanelRightInactive
-                  : PanelRightOpen;
+        <TooltipProvider>
+          <div className="app-no-drag bg-surface-alt border-input inline-flex items-center gap-0.5 rounded-md border p-0.5">
+            {sidebars.map((sidebar) => {
+              const entry = panels.get(sidebar.panelId);
+              const isCollapsed = entry?.collapsed ?? true;
+              const label = sidebarLabel(sidebar.panelId);
+              const tooltipLabel = sidebarTooltipLabel(sidebar.panelId);
+              const shortcut = sidebarShortcut(sidebar.icon);
+              const actionLabel = `${isCollapsed ? "Show" : "Hide"} ${label} (${shortcut})`;
+              const Icon =
+                sidebar.icon === "left"
+                  ? isCollapsed
+                    ? PanelLeftInactive
+                    : PanelLeftOpen
+                  : isCollapsed
+                    ? PanelRightInactive
+                    : PanelRightOpen;
 
-            return (
-              <button
-                key={sidebar.panelId}
-                type="button"
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] ${
-                  isCollapsed
-                    ? "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    : "text-foreground"
-                }`}
-                onClick={() => {
-                  toggle(sidebar.panelId);
-                }}
-                title={isCollapsed ? "Show sidebar" : "Hide sidebar"}
-                aria-label={isCollapsed ? "Show sidebar" : "Hide sidebar"}
-              >
-                <Icon className="h-3.5 w-3.5" />
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <Tooltip key={sidebar.panelId}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className={`inline-flex h-7 w-7 items-center justify-center rounded-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] ${
+                        isCollapsed
+                          ? "text-muted-foreground hover:bg-accent hover:text-foreground"
+                          : "text-foreground"
+                      }`}
+                      onClick={() => {
+                        toggle(sidebar.panelId);
+                      }}
+                      aria-label={actionLabel}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="px-2.5 py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span>{tooltipLabel}</span>
+                      <span className="border-input bg-surface-alt text-muted-foreground rounded-md border px-1.5 py-0.5 text-[11px] font-medium leading-none">
+                        {shortcut}
+                      </span>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </TooltipProvider>
       </div>
 
       <div className="min-w-0 justify-self-center">
