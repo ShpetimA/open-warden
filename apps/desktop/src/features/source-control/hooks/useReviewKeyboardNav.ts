@@ -1,4 +1,3 @@
-import { useHotkey } from "@tanstack/react-hotkeys";
 import { useStore } from "react-redux";
 
 import { useAppDispatch } from "@/app/hooks";
@@ -11,20 +10,11 @@ import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
+import { getVisibleFilePaths, useVerticalNavigationHotkeys } from "./keyboardNavigation";
 
 export function useReviewKeyboardNav() {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
-
-  const getVisibleReviewFilePaths = () =>
-    Array.from(
-      document.querySelectorAll<HTMLElement>(
-        '[data-nav-region="review-files"] [data-tree-file-row="true"]',
-      ),
-    )
-      .sort((a, b) => Number(a.dataset.navIndex) - Number(b.dataset.navIndex))
-      .map((element) => element.dataset.filePath ?? "")
-      .filter((pathValue) => pathValue.length > 0);
 
   const getNavigationData = () => {
     const state = store.getState();
@@ -52,7 +42,7 @@ export function useReviewKeyboardNav() {
     event.preventDefault();
 
     const { reviewActivePath, allReviewFiles } = getNavigationData();
-    const visibleFilePaths = getVisibleReviewFilePaths();
+    const visibleFilePaths = getVisibleFilePaths("review-files");
     const filePaths =
       visibleFilePaths.length > 0 ? visibleFilePaths : allReviewFiles.map((file) => file.path);
     if (filePaths.length === 0) return;
@@ -67,35 +57,8 @@ export function useReviewKeyboardNav() {
     dispatch(setReviewActivePath(targetPath));
   };
 
-  useHotkey(
-    "ArrowDown",
-    (event) => {
-      navigateReview(event, true);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "J",
-    (event) => {
-      navigateReview(event, true);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "ArrowUp",
-    (event) => {
-      navigateReview(event, false);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "K",
-    (event) => {
-      navigateReview(event, false);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
+  useVerticalNavigationHotkeys({
+    onNext: (event) => navigateReview(event, true),
+    onPrevious: (event) => navigateReview(event, false),
+  });
 }

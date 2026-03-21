@@ -13,20 +13,16 @@ import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
+import {
+  focusInputById,
+  getVisibleFilePaths,
+  SOURCE_CONTROL_HOTKEY_OPTIONS,
+  useVerticalNavigationHotkeys,
+} from "./keyboardNavigation";
 
 export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
-
-  const getVisibleHistoryFilePaths = () =>
-    Array.from(
-      document.querySelectorAll<HTMLElement>(
-        '[data-nav-region="history-files"] [data-tree-file-row="true"]',
-      ),
-    )
-      .sort((a, b) => Number(a.dataset.navIndex) - Number(b.dataset.navIndex))
-      .map((element) => element.dataset.filePath ?? "")
-      .filter((pathValue) => pathValue.length > 0);
 
   const getNavigationData = () => {
     const state = store.getState();
@@ -66,7 +62,7 @@ export function useHistoryKeyboardNav() {
     } = getNavigationData();
 
     if (historyNavTarget === "files") {
-      const visibleFilePaths = getVisibleHistoryFilePaths();
+      const visibleFilePaths = getVisibleFilePaths("history-files");
       const filePaths =
         visibleFilePaths.length > 0 ? visibleFilePaths : allHistoryFiles.map((file) => file.path);
       if (filePaths.length === 0) return;
@@ -116,11 +112,7 @@ export function useHistoryKeyboardNav() {
     if (isTypingTarget(event.target)) return;
     event.preventDefault();
     dispatch(setHistoryNavTarget("commits"));
-    const filterInput = document.getElementById(HISTORY_FILTER_INPUT_ID);
-    if (filterInput instanceof HTMLInputElement) {
-      filterInput.focus();
-      filterInput.select();
-    }
+    focusInputById(HISTORY_FILTER_INPUT_ID);
   };
 
   useHotkey(
@@ -130,7 +122,7 @@ export function useHistoryKeyboardNav() {
       event.preventDefault();
       dispatch(setHistoryNavTarget("commits"));
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
   useHotkey(
@@ -140,7 +132,7 @@ export function useHistoryKeyboardNav() {
       event.preventDefault();
       dispatch(setHistoryNavTarget("files"));
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
   useHotkey(
@@ -148,7 +140,7 @@ export function useHistoryKeyboardNav() {
     (event) => {
       focusHistoryFilter(event);
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
   useHotkey(
@@ -156,38 +148,11 @@ export function useHistoryKeyboardNav() {
     (event) => {
       focusHistoryFilter(event);
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
-  useHotkey(
-    "ArrowDown",
-    (event) => {
-      navigateHistory(event, true);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "J",
-    (event) => {
-      navigateHistory(event, true);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "ArrowUp",
-    (event) => {
-      navigateHistory(event, false);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "K",
-    (event) => {
-      navigateHistory(event, false);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
+  useVerticalNavigationHotkeys({
+    onNext: (event) => navigateHistory(event, true),
+    onPrevious: (event) => navigateHistory(event, false),
+  });
 }
