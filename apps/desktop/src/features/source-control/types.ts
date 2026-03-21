@@ -16,6 +16,8 @@ export type HistoryNavTarget = "commits" | "files";
 
 export type DiffStyle = "split" | "unified";
 
+export type FileBrowserMode = "tree" | "list";
+
 export type FileItem = ContractFileItem;
 
 export type BucketedFile = FileItem & { bucket: Bucket };

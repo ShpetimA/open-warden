@@ -7,15 +7,24 @@ import { gitApi } from "@/features/source-control/api";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
 import type { FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
-import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
+import {
+  getWrappedNavigationIndex,
+  scrollKeyboardNavItemIntoView,
+} from "@/lib/keyboard-navigation";
 
-type ReviewKeyboardNavOptions = {
-  scrollToIndex?: (targetIndex: number) => void;
-};
-
-export function useReviewKeyboardNav(options: ReviewKeyboardNavOptions = {}) {
+export function useReviewKeyboardNav() {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
+
+  const getVisibleReviewFilePaths = () =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-nav-region="review-files"] [data-tree-file-row="true"]',
+      ),
+    )
+      .sort((a, b) => Number(a.dataset.navIndex) - Number(b.dataset.navIndex))
+      .map((element) => element.dataset.filePath ?? "")
+      .filter((pathValue) => pathValue.length > 0);
 
   const getNavigationData = () => {
     const state = store.getState();
@@ -43,16 +52,19 @@ export function useReviewKeyboardNav(options: ReviewKeyboardNavOptions = {}) {
     event.preventDefault();
 
     const { reviewActivePath, allReviewFiles } = getNavigationData();
-    if (allReviewFiles.length === 0) return;
+    const visibleFilePaths = getVisibleReviewFilePaths();
+    const filePaths =
+      visibleFilePaths.length > 0 ? visibleFilePaths : allReviewFiles.map((file) => file.path);
+    if (filePaths.length === 0) return;
 
-    const activeIndex = allReviewFiles.findIndex((file) => file.path === reviewActivePath);
+    const activeIndex = filePaths.findIndex((pathValue) => pathValue === reviewActivePath);
 
-    const targetIndex = getWrappedNavigationIndex(activeIndex, allReviewFiles.length, nextKey);
+    const targetIndex = getWrappedNavigationIndex(activeIndex, filePaths.length, nextKey);
 
-    const targetFile = allReviewFiles[targetIndex];
-    if (!targetFile) return;
-    options.scrollToIndex?.(targetIndex);
-    dispatch(setReviewActivePath(targetFile.path));
+    const targetPath = filePaths[targetIndex];
+    if (!targetPath) return;
+    scrollKeyboardNavItemIntoView("review-files", targetIndex);
+    dispatch(setReviewActivePath(targetPath));
   };
 
   useHotkey(

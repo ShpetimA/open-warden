@@ -20,6 +20,20 @@ export function useChangesKeyboardNav() {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
 
+  const getVisibleChangeRowsFromDom = (): BucketedFile[] =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-nav-region="changes-files"] [data-tree-file-row="true"]',
+      ),
+    )
+      .sort((a, b) => Number(a.dataset.navIndex) - Number(b.dataset.navIndex))
+      .flatMap((element) => {
+        const path = element.dataset.filePath;
+        const bucket = element.dataset.bucket;
+        if (!path || !bucket) return [];
+        return [{ path, bucket } as BucketedFile];
+      });
+
   const getNavigationData = () => {
     const state = store.getState();
     const {
@@ -61,9 +75,16 @@ export function useChangesKeyboardNav() {
       ...unstaged.map((file) => ({ ...file, bucket: "unstaged" as const })),
       ...untracked.map((file) => ({ ...file, bucket: "untracked" as const })),
     ];
-    const visibleChangeRows: BucketedFile[] = [];
-    if (!collapseStaged) visibleChangeRows.push(...stagedRows);
-    if (!collapseUnstaged) visibleChangeRows.push(...changedRows);
+    const visibleChangeRowsFromDom = getVisibleChangeRowsFromDom();
+    const visibleChangeRows: BucketedFile[] =
+      visibleChangeRowsFromDom.length > 0
+        ? visibleChangeRowsFromDom
+        : (() => {
+            const fallbackRows: BucketedFile[] = [];
+            if (!collapseStaged) fallbackRows.push(...stagedRows);
+            if (!collapseUnstaged) fallbackRows.push(...changedRows);
+            return fallbackRows;
+          })();
 
     if (visibleChangeRows.length === 0) return;
 

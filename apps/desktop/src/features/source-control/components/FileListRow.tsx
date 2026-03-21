@@ -10,6 +10,10 @@ type FileListRowProps = {
   isActive?: boolean;
   isSelected?: boolean;
   navIndex?: number;
+  depth?: number;
+  label?: string;
+  showDirectoryPath?: boolean;
+  dataBucket?: string;
   onSelect: (event: MouseEvent<HTMLButtonElement>) => void;
   actions?: ReactNode;
   secondaryLabel?: string;
@@ -36,17 +40,26 @@ export function FileListRow({
   isActive = false,
   isSelected = false,
   navIndex,
+  depth = 0,
+  label,
+  showDirectoryPath = label === undefined,
+  dataBucket,
   onSelect,
   actions,
   secondaryLabel,
 }: FileListRowProps) {
   const { fileName, directoryPath } = splitPath(path);
+  const primaryLabel = label ?? fileName;
   const stateClass = rowStateClass(isActive, isSelected);
 
   return (
     <div
       data-nav-index={navIndex}
-      className={`border-input group flex min-w-0 items-center gap-2 overflow-hidden border-b px-2 py-1 text-xs last:border-b-0 ${stateClass}`}
+      data-file-path={path}
+      data-bucket={dataBucket}
+      data-tree-file-row="true"
+      className={`border-input group flex min-w-0 items-center gap-2 overflow-hidden border-b py-1 pr-2 text-xs last:border-b-0 ${stateClass}`}
+      style={{ paddingLeft: `${8 + depth * 14}px` }}
     >
       <button
         type="button"
@@ -56,13 +69,13 @@ export function FileListRow({
       >
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <span className="text-warning w-3 text-center text-[10px]">{statusBadge(status)}</span>
-          <span className="text-foreground shrink-0 font-medium">{fileName}</span>
+          <span className="text-foreground shrink-0 font-medium">{primaryLabel}</span>
           {commentCount > 0 ? (
             <span className="border-input bg-surface-alt text-foreground inline-flex h-4 min-w-4 items-center justify-center border px-1 text-[10px]">
               {commentCount}
             </span>
           ) : null}
-          {directoryPath ? (
+          {showDirectoryPath && directoryPath ? (
             <span className="text-muted-foreground block min-w-0 flex-1 truncate whitespace-nowrap">
               {` ${directoryPath}`}
             </span>

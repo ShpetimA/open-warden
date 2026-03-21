@@ -6,6 +6,7 @@ import { AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
 import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import { FileRow } from "./FileRow";
+import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
 
 type Props = {
   sectionKey: "staged" | "unstaged";
@@ -41,6 +42,7 @@ export function FileSection({
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
   const comments = useAppSelector((state) => state.comments);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
   const commentCounts = createCommentCountByPathForRepo(comments, activeRepo, { kind: "changes" });
   const isChanges = sectionKey === "unstaged";
 
@@ -106,18 +108,26 @@ export function FileSection({
 
       <AccordionContent className="pb-0">
         {rows.length > 0 ? (
-          rows.map((file, index) => (
-            <FileRow
-              key={`${file.bucket}-${file.path}`}
-              file={file}
-              navIndex={startIndex + index}
-              onSelectFile={onSelectFile}
-              onStageFile={onStageFile}
-              onUnstageFile={onUnstageFile}
-              onDiscardFile={onDiscardFile}
-              commentCounts={commentCounts}
-            />
-          ))
+          <SourceControlFileBrowser
+            files={rows}
+            mode={fileBrowserMode}
+            className="space-y-0.5 py-0.5"
+            renderFile={({ depth, file, mode, name, navIndex }) => (
+              <FileRow
+                key={`${file.bucket}-${file.path}`}
+                file={file}
+                depth={mode === "tree" ? depth : 0}
+                label={mode === "tree" ? name : undefined}
+                navIndex={startIndex + navIndex}
+                showDirectoryPath={mode !== "tree"}
+                onSelectFile={onSelectFile}
+                onStageFile={onStageFile}
+                onUnstageFile={onUnstageFile}
+                onDiscardFile={onDiscardFile}
+                commentCounts={commentCounts}
+              />
+            )}
+          />
         ) : (
           <div className="text-muted-foreground px-3 py-2 text-xs">No files.</div>
         )}

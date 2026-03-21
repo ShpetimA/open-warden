@@ -2,7 +2,14 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type { WorkspaceSession } from "@/platform/desktop";
 
-import type { Bucket, DiffStyle, HistoryNavTarget, RunningAction, SelectedFile } from "./types";
+import type {
+  Bucket,
+  DiffStyle,
+  FileBrowserMode,
+  HistoryNavTarget,
+  RunningAction,
+  SelectedFile,
+} from "./types";
 
 type SourceControlState = {
   repos: string[];
@@ -11,6 +18,7 @@ type SourceControlState = {
   historyFilter: string;
   historyCommitId: string;
   historyNavTarget: HistoryNavTarget;
+  fileBrowserMode: FileBrowserMode;
   collapseStaged: boolean;
   collapseUnstaged: boolean;
   activeBucket: Bucket;
@@ -34,6 +42,7 @@ const initialState: SourceControlState = {
   historyFilter: "",
   historyCommitId: "",
   historyNavTarget: "commits",
+  fileBrowserMode: "tree",
   collapseStaged: false,
   collapseUnstaged: false,
   activeBucket: "unstaged",
@@ -94,6 +103,11 @@ const sourceControlSlice = createSlice({
     setHistoryNavTarget(state, action: PayloadAction<HistoryNavTarget>) {
       if (state.historyNavTarget !== action.payload) {
         state.historyNavTarget = action.payload;
+      }
+    },
+    setFileBrowserMode(state, action: PayloadAction<FileBrowserMode>) {
+      if (state.fileBrowserMode !== action.payload) {
+        state.fileBrowserMode = action.payload;
       }
     },
     setCollapseStaged(state, action: PayloadAction<boolean>) {
@@ -235,6 +249,7 @@ export const {
   setCollapseStaged,
   setCollapseUnstaged,
   setDiffStyle,
+  setFileBrowserMode,
   setError,
   setHistoryCommitId,
   setHistoryFilter,
