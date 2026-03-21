@@ -76,7 +76,9 @@ function buildFlatRows<TFile extends { path: string }>(files: ReadonlyArray<TFil
     name: leafName(file.path),
   }));
 
-  rows.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: "base" }));
+  rows.sort((a, b) =>
+    a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: "base" }),
+  );
   return rows;
 }
 

@@ -65,11 +65,9 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
   });
 }
 
-const resetRepoScopedState =
-  (): AppThunk =>
-  (dispatch) => {
-    dispatch(resetRepoViewState());
-  };
+const resetRepoScopedState = (): AppThunk => (dispatch) => {
+  dispatch(resetRepoViewState());
+};
 
 async function persistWorkspaceSession(getState: () => RootState) {
   const { sourceControl } = getState();
@@ -87,7 +85,9 @@ async function resolveRepoPath(repoPath: string): Promise<string | null> {
 
 async function restoreRepoPaths(repoPaths: string[]): Promise<string[]> {
   const normalizedPaths = normalizeRepoPaths(repoPaths);
-  const resolvedPaths = await Promise.all(normalizedPaths.map((repoPath) => resolveRepoPath(repoPath)));
+  const resolvedPaths = await Promise.all(
+    normalizedPaths.map((repoPath) => resolveRepoPath(repoPath)),
+  );
 
   return normalizeRepoPaths(resolvedPaths);
 }

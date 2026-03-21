@@ -11,10 +11,7 @@ function sidebarPanelIdForIcon(activeFeature: FeatureKey, icon: "left" | "right"
   return FEATURE_SIDEBARS[activeFeature].find((sidebar) => sidebar.icon === icon)?.panelId ?? null;
 }
 
-export function useSidebarToggleHotkeys({
-  activeFeature,
-  toggle,
-}: UseSidebarToggleHotkeysOptions) {
+export function useSidebarToggleHotkeys({ activeFeature, toggle }: UseSidebarToggleHotkeysOptions) {
   const leftSidebarPanelId = sidebarPanelIdForIcon(activeFeature, "left");
   const rightSidebarPanelId = sidebarPanelIdForIcon(activeFeature, "right");
 

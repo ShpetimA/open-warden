@@ -73,10 +73,7 @@ function writeStoredWorkspaceSession(session: WorkspaceSession): WorkspaceSessio
   const normalizedSession = createWorkspaceSession(session);
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(
-      WORKSPACE_SESSION_STORAGE_KEY,
-      JSON.stringify(normalizedSession),
-    );
+    window.localStorage.setItem(WORKSPACE_SESSION_STORAGE_KEY, JSON.stringify(normalizedSession));
   }
 
   return normalizedSession;

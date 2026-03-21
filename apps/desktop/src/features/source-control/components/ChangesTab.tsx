@@ -122,58 +122,55 @@ function ChangesFileList() {
 
   return (
     <div className="bg-surface-toolbar flex min-h-0 h-full flex-1 flex-col overflow-hidden">
-      <ScrollArea
-        data-nav-region="changes-files"
-        className="min-h-0 h-full flex-1 overflow-hidden"
-      >
+      <ScrollArea data-nav-region="changes-files" className="min-h-0 h-full flex-1 overflow-hidden">
         <div className="px-3 py-1.5">
           <div className="flex items-center gap-2">
             <SourceControlFileViewToggle className="ml-auto" />
           </div>
         </div>
         <div>
-        {isLoadingSnapshot ? (
-          <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
-        ) : null}
-        <Accordion type="multiple" value={openSections} onValueChange={handleAccordionChange}>
-          <AccordionItem value="staged" className="border-border rounded-none border-t border-b">
-            <FileSection
-              sectionKey="staged"
-              title="STAGED CHANGES"
-              rows={stagedRows}
-              startIndex={0}
-              unstagedCount={unstagedFiles.length}
-              untrackedCount={untrackedFiles.length}
-              onSelectFile={onSelectFile}
-              onStageFile={onStageFile}
-              onUnstageFile={onUnstageFile}
-              onDiscardFile={onDiscardFile}
-              onStageAll={onStageAll}
-              onUnstageAll={onUnstageAll}
-              onDiscardChangesGroup={onDiscardChangesGroup}
-            />
-          </AccordionItem>
-          <AccordionItem
-            value="unstaged"
-            className="border-border rounded-none border-t-0 border-b"
-          >
-            <FileSection
-              sectionKey="unstaged"
-              title="CHANGES"
-              rows={changedFiles}
-              startIndex={collapseStaged ? 0 : stagedRows.length}
-              unstagedCount={unstagedFiles.length}
-              untrackedCount={untrackedFiles.length}
-              onSelectFile={onSelectFile}
-              onStageFile={onStageFile}
-              onUnstageFile={onUnstageFile}
-              onDiscardFile={onDiscardFile}
-              onStageAll={onStageAll}
-              onUnstageAll={onUnstageAll}
-              onDiscardChangesGroup={onDiscardChangesGroup}
-            />
-          </AccordionItem>
-        </Accordion>
+          {isLoadingSnapshot ? (
+            <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
+          ) : null}
+          <Accordion type="multiple" value={openSections} onValueChange={handleAccordionChange}>
+            <AccordionItem value="staged" className="border-border rounded-none border-t border-b">
+              <FileSection
+                sectionKey="staged"
+                title="STAGED CHANGES"
+                rows={stagedRows}
+                startIndex={0}
+                unstagedCount={unstagedFiles.length}
+                untrackedCount={untrackedFiles.length}
+                onSelectFile={onSelectFile}
+                onStageFile={onStageFile}
+                onUnstageFile={onUnstageFile}
+                onDiscardFile={onDiscardFile}
+                onStageAll={onStageAll}
+                onUnstageAll={onUnstageAll}
+                onDiscardChangesGroup={onDiscardChangesGroup}
+              />
+            </AccordionItem>
+            <AccordionItem
+              value="unstaged"
+              className="border-border rounded-none border-t-0 border-b"
+            >
+              <FileSection
+                sectionKey="unstaged"
+                title="CHANGES"
+                rows={changedFiles}
+                startIndex={collapseStaged ? 0 : stagedRows.length}
+                unstagedCount={unstagedFiles.length}
+                untrackedCount={untrackedFiles.length}
+                onSelectFile={onSelectFile}
+                onStageFile={onStageFile}
+                onUnstageFile={onUnstageFile}
+                onDiscardFile={onDiscardFile}
+                onStageAll={onStageAll}
+                onUnstageAll={onUnstageAll}
+                onDiscardChangesGroup={onDiscardChangesGroup}
+              />
+            </AccordionItem>
+          </Accordion>
         </div>
       </ScrollArea>
     </div>
