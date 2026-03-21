@@ -3,7 +3,6 @@ import type { MouseEvent } from "react";
 
 import { useAppSelector } from "@/app/hooks";
 import { AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
-import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import { FileRow } from "./FileRow";
 import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
@@ -40,10 +39,8 @@ export function FileSection({
   onDiscardChangesGroup,
 }: Props) {
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
-  const comments = useAppSelector((state) => state.comments);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
-  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo, { kind: "changes" });
   const isChanges = sectionKey === "unstaged";
 
   return (
@@ -124,7 +121,7 @@ export function FileSection({
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}
                 onDiscardFile={onDiscardFile}
-                commentCounts={commentCounts}
+                activeRepo={activeRepo}
               />
             )}
           />

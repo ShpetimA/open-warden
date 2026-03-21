@@ -15,24 +15,15 @@ import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
+import {
+  getVisibleBucketedFiles,
+  SOURCE_CONTROL_HOTKEY_OPTIONS,
+  useVerticalNavigationHotkeys,
+} from "./keyboardNavigation";
 
 export function useChangesKeyboardNav() {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
-
-  const getVisibleChangeRowsFromDom = (): BucketedFile[] =>
-    Array.from(
-      document.querySelectorAll<HTMLElement>(
-        '[data-nav-region="changes-files"] [data-tree-file-row="true"]',
-      ),
-    )
-      .sort((a, b) => Number(a.dataset.navIndex) - Number(b.dataset.navIndex))
-      .flatMap((element) => {
-        const path = element.dataset.filePath;
-        const bucket = element.dataset.bucket;
-        if (!path || !bucket) return [];
-        return [{ path, bucket } as BucketedFile];
-      });
 
   const getNavigationData = () => {
     const state = store.getState();
@@ -75,7 +66,7 @@ export function useChangesKeyboardNav() {
       ...unstaged.map((file) => ({ ...file, bucket: "unstaged" as const })),
       ...untracked.map((file) => ({ ...file, bucket: "untracked" as const })),
     ];
-    const visibleChangeRowsFromDom = getVisibleChangeRowsFromDom();
+    const visibleChangeRowsFromDom = getVisibleBucketedFiles("changes-files");
     const visibleChangeRows: BucketedFile[] =
       visibleChangeRowsFromDom.length > 0
         ? visibleChangeRowsFromDom
@@ -123,77 +114,12 @@ export function useChangesKeyboardNav() {
     void dispatch(stageOrUnstageSelectionAction());
   };
 
-  useHotkey(
-    "ArrowDown",
-    (event) => {
-      if (event.shiftKey) return;
-      navigateChanges(event, true, false);
-    },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  );
-  useHotkey(
-    "J",
-    (event) => {
-      if (event.shiftKey) return;
-      navigateChanges(event, true, false);
-    },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  );
-  useHotkey("Shift+ArrowDown", (event) => navigateChanges(event, true, true), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
+  useVerticalNavigationHotkeys({
+    onNext: (event) => navigateChanges(event, true, false),
+    onPrevious: (event) => navigateChanges(event, false, false),
+    onExtendNext: (event) => navigateChanges(event, true, true),
+    onExtendPrevious: (event) => navigateChanges(event, false, true),
   });
-  useHotkey("Shift+J", (event) => navigateChanges(event, true, true), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
-  useHotkey(
-    "ArrowUp",
-    (event) => {
-      if (event.shiftKey) return;
-      navigateChanges(event, false, false);
-    },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  );
-  useHotkey(
-    "K",
-    (event) => {
-      if (event.shiftKey) return;
-      navigateChanges(event, false, false);
-    },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  );
-  useHotkey("Shift+ArrowUp", (event) => navigateChanges(event, false, true), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
-  useHotkey("Shift+K", (event) => navigateChanges(event, false, true), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
-  useHotkey("Mod+Enter", stageOrUnstageSelection, {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
+
+  useHotkey("Mod+Enter", stageOrUnstageSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
 }

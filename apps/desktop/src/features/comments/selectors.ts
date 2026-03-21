@@ -28,23 +28,48 @@ export function createCommentCountByPathForRepo(
   const counts = new Map<string, number>();
   if (!repoPath) return counts;
 
-  const matchesContext = (comment: CommentItem): boolean => {
-    if (!context) return true;
-    const kind = comment.contextKind ?? "changes";
-    if (kind !== context.kind) return false;
-    if (context.kind === "review") {
-      return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
-    }
-    return true;
-  };
-
   for (const comment of comments) {
     if (!comment || comment.repoPath !== repoPath) continue;
-    if (!matchesContext(comment)) continue;
+    if (!commentMatchesContext(comment, context)) continue;
     counts.set(comment.filePath, (counts.get(comment.filePath) ?? 0) + 1);
   }
 
   return counts;
+}
+
+export function countCommentsForRepoContext(
+  comments: Array<CommentItem | undefined>,
+  repoPath: string,
+  context?: CommentContext,
+): number {
+  if (!repoPath) return 0;
+
+  let count = 0;
+  for (const comment of comments) {
+    if (!comment || comment.repoPath !== repoPath) continue;
+    if (!commentMatchesContext(comment, context)) continue;
+    count += 1;
+  }
+
+  return count;
+}
+
+export function countCommentsForPathInRepoContext(
+  comments: Array<CommentItem | undefined>,
+  repoPath: string,
+  filePath: string,
+  context?: CommentContext,
+): number {
+  if (!repoPath || !filePath) return 0;
+
+  let count = 0;
+  for (const comment of comments) {
+    if (!comment || comment.repoPath !== repoPath || comment.filePath !== filePath) continue;
+    if (!commentMatchesContext(comment, context)) continue;
+    count += 1;
+  }
+
+  return count;
 }
 
 export function countCommentsForFile(
@@ -68,4 +93,14 @@ export function getCommentCountForFile(
   filePath: string,
 ): number {
   return counts.get(fileKey(repoPath, filePath)) ?? 0;
+}
+
+function commentMatchesContext(comment: CommentItem, context?: CommentContext): boolean {
+  if (!context) return true;
+  const kind = comment.contextKind ?? "changes";
+  if (kind !== context.kind) return false;
+  if (context.kind === "review") {
+    return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
+  }
+  return true;
 }

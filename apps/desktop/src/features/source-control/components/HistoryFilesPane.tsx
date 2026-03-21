@@ -9,7 +9,7 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "@/components/ui/empty";
-import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
+import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from "@/features/source-control/api";
 import { selectHistoryFile } from "@/features/source-control/actions";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
@@ -21,8 +21,6 @@ import { SourceControlFileViewToggle } from "./SourceControlFileViewToggle";
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const comments = useAppSelector((state) => state.comments);
-  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
   const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
   const { historyCommits } = useGetCommitHistoryQuery(
@@ -99,7 +97,7 @@ export function HistoryFilesPane() {
                 label={mode === "tree" ? name : undefined}
                 navIndex={navIndex}
                 showDirectoryPath={mode !== "tree"}
-                commentCounts={commentCounts}
+                activeRepo={activeRepo}
               />
             )}
           />
@@ -115,7 +113,7 @@ type HistoryFileRowProps = {
   label?: string;
   navIndex: number;
   showDirectoryPath: boolean;
-  commentCounts: Map<string, number>;
+  activeRepo: string;
 };
 
 function HistoryFileRow({
@@ -124,10 +122,12 @@ function HistoryFileRow({
   label,
   navIndex,
   showDirectoryPath,
-  commentCounts,
+  activeRepo,
 }: HistoryFileRowProps) {
   const dispatch = useAppDispatch();
-  const commentCount = commentCounts.get(file.path) ?? 0;
+  const commentCount = useAppSelector((state) =>
+    countCommentsForPathInRepoContext(state.comments, activeRepo, file.path),
+  );
   const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path);
 
   return (
