@@ -15,6 +15,8 @@ import { selectHistoryFile } from "@/features/source-control/actions";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
 import type { FileItem } from "@/features/source-control/types";
 import { FileListRow } from "./FileListRow";
+import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
+import { SourceControlFileViewToggle } from "./SourceControlFileViewToggle";
 
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
@@ -22,6 +24,7 @@ export function HistoryFilesPane() {
   const comments = useAppSelector((state) => state.comments);
   const commentCounts = createCommentCountByPathForRepo(comments, activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
   const { historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
     {
@@ -49,8 +52,11 @@ export function HistoryFilesPane() {
       className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r"
     >
       <div className="border-border border-b px-3 py-2">
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-          COMMIT FILES
+        <div className="flex items-center gap-2">
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            COMMIT FILES
+          </div>
+          <SourceControlFileViewToggle className="ml-auto" />
         </div>
         <div className="text-muted-foreground mt-1 truncate text-xs">
           {selectedCommit
@@ -81,16 +87,22 @@ export function HistoryFilesPane() {
             </EmptyHeader>
           </Empty>
         ) : (
-          <div>
-            {files.map((file, index) => (
+          <SourceControlFileBrowser
+            files={files}
+            mode={fileBrowserMode}
+            className="space-y-0.5 p-0.5"
+            renderFile={({ depth, file, mode, name, navIndex }) => (
               <HistoryFileRow
                 key={`${file.path}:${file.status}`}
                 file={file}
-                navIndex={index}
+                depth={mode === "tree" ? depth : 0}
+                label={mode === "tree" ? name : undefined}
+                navIndex={navIndex}
+                showDirectoryPath={mode !== "tree"}
                 commentCounts={commentCounts}
               />
-            ))}
-          </div>
+            )}
+          />
         )}
       </ScrollArea>
     </aside>
@@ -99,11 +111,21 @@ export function HistoryFilesPane() {
 
 type HistoryFileRowProps = {
   file: FileItem;
+  depth: number;
+  label?: string;
   navIndex: number;
+  showDirectoryPath: boolean;
   commentCounts: Map<string, number>;
 };
 
-function HistoryFileRow({ file, navIndex, commentCounts }: HistoryFileRowProps) {
+function HistoryFileRow({
+  file,
+  depth,
+  label,
+  navIndex,
+  showDirectoryPath,
+  commentCounts,
+}: HistoryFileRowProps) {
   const dispatch = useAppDispatch();
   const commentCount = commentCounts.get(file.path) ?? 0;
   const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path);
@@ -115,6 +137,9 @@ function HistoryFileRow({ file, navIndex, commentCounts }: HistoryFileRowProps) 
       commentCount={commentCount}
       isActive={isActive}
       navIndex={navIndex}
+      depth={depth}
+      label={label}
+      showDirectoryPath={showDirectoryPath}
       onSelect={() => {
         dispatch(setHistoryNavTarget("files"));
         void dispatch(selectHistoryFile(file.path));

@@ -18,6 +18,16 @@ export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
 
+  const getVisibleHistoryFilePaths = () =>
+    Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[data-nav-region="history-files"] [data-tree-file-row="true"]',
+      ),
+    )
+      .sort((a, b) => Number(a.dataset.navIndex) - Number(b.dataset.navIndex))
+      .map((element) => element.dataset.filePath ?? "")
+      .filter((pathValue) => pathValue.length > 0);
+
   const getNavigationData = () => {
     const state = store.getState();
     const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } =
@@ -56,16 +66,19 @@ export function useHistoryKeyboardNav() {
     } = getNavigationData();
 
     if (historyNavTarget === "files") {
-      if (allHistoryFiles.length === 0) return;
+      const visibleFilePaths = getVisibleHistoryFilePaths();
+      const filePaths =
+        visibleFilePaths.length > 0 ? visibleFilePaths : allHistoryFiles.map((file) => file.path);
+      if (filePaths.length === 0) return;
 
-      const activeIndex = allHistoryFiles.findIndex((file) => file.path === activePath);
+      const activeIndex = filePaths.findIndex((pathValue) => pathValue === activePath);
 
-      const targetIndex = getWrappedNavigationIndex(activeIndex, allHistoryFiles.length, nextKey);
+      const targetIndex = getWrappedNavigationIndex(activeIndex, filePaths.length, nextKey);
 
-      const targetFile = allHistoryFiles[targetIndex];
-      if (!targetFile) return;
+      const targetPath = filePaths[targetIndex];
+      if (!targetPath) return;
       scrollKeyboardNavItemIntoView("history-files", targetIndex);
-      void dispatch(selectHistoryFile(targetFile.path));
+      void dispatch(selectHistoryFile(targetPath));
       return;
     }
 

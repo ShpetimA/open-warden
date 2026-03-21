@@ -8,6 +8,9 @@ import { FileListRow } from "./FileListRow";
 type Props = {
   file: BucketedFile;
   navIndex?: number;
+  depth?: number;
+  label?: string;
+  showDirectoryPath?: boolean;
   onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
@@ -18,6 +21,9 @@ type Props = {
 export function FileRow({
   file,
   navIndex,
+  depth,
+  label,
+  showDirectoryPath,
   onSelectFile,
   onStageFile,
   onUnstageFile,
@@ -53,6 +59,10 @@ export function FileRow({
       isActive={isActive}
       isSelected={isSelected}
       navIndex={navIndex}
+      depth={depth}
+      label={label}
+      showDirectoryPath={showDirectoryPath}
+      dataBucket={file.bucket}
       onSelect={(event) => onSelectFile(file.bucket, file.path, event)}
       actions={
         file.bucket === "staged" ? (

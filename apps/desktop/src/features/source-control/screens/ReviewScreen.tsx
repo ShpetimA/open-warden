@@ -1,7 +1,6 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowRightLeft, GitCompare } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
@@ -37,6 +36,8 @@ import {
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
 import { FileListRow } from "@/features/source-control/components/FileListRow";
+import { SourceControlFileBrowser } from "@/features/source-control/components/SourceControlFileBrowser";
+import { SourceControlFileViewToggle } from "@/features/source-control/components/SourceControlFileViewToggle";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { FileItem } from "@/features/source-control/types";
 
@@ -61,8 +62,6 @@ function firstDifferentBranch(branches: string[], current: string): string {
 
 const EMPTY_BRANCHES: string[] = [];
 const EMPTY_BRANCH_FILES: FileItem[] = [];
-const REVIEW_FILE_ROW_ESTIMATED_HEIGHT = 30;
-const REVIEW_FILE_LIST_OVERSCAN = 10;
 
 type BranchSelectFieldProps = {
   label: string;
@@ -149,49 +148,34 @@ function ReviewFileList({
   reviewBaseRef,
   reviewHeadRef,
 }: ReviewFileListProps) {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const comments = useAppSelector((state) => state.comments);
+  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
   const reviewCommentCounts = createCommentCountByPathForRepo(comments, activeRepo, {
     kind: "review",
     baseRef: reviewBaseRef,
     headRef: reviewHeadRef,
   });
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const rowVirtualizer = useVirtualizer({
-    count: branchFiles.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => REVIEW_FILE_ROW_ESTIMATED_HEIGHT,
-    overscan: REVIEW_FILE_LIST_OVERSCAN,
-  });
-
-  useReviewKeyboardNav({
-    scrollToIndex: (targetIndex) => {
-      rowVirtualizer.scrollToIndex(targetIndex, { align: "auto" });
-    },
-  });
-
-  const virtualRows = rowVirtualizer.getVirtualItems();
+  useReviewKeyboardNav();
 
   return (
-    <div ref={scrollContainerRef} data-nav-region="review-files" className="h-full overflow-auto">
-      <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
-        {virtualRows.map((virtualRow) => {
-          const file = branchFiles[virtualRow.index];
-          if (!file) return null;
-          const commentCount = reviewCommentCounts.get(file.path) ?? 0;
-
-          return (
-            <div
-              key={file.path}
-              className="absolute inset-x-0 top-0"
-              style={{ transform: `translateY(${virtualRow.start}px)` }}
-            >
-              <ReviewFileRow file={file} commentCount={commentCount} navIndex={virtualRow.index} />
-            </div>
-          );
-        })}
-      </div>
+    <div data-nav-region="review-files" className="h-full overflow-auto">
+      <SourceControlFileBrowser
+        files={branchFiles}
+        mode={fileBrowserMode}
+        className="space-y-0.5 p-0.5"
+        renderFile={({ depth, file, mode, name, navIndex }) => (
+          <ReviewFileRow
+            key={file.path}
+            file={file}
+            commentCount={reviewCommentCounts.get(file.path) ?? 0}
+            depth={mode === "tree" ? depth : 0}
+            label={mode === "tree" ? name : undefined}
+            navIndex={navIndex}
+            showDirectoryPath={mode !== "tree"}
+          />
+        )}
+      />
     </div>
   );
 }
@@ -199,10 +183,20 @@ function ReviewFileList({
 type ReviewFileRowProps = {
   file: FileItem;
   commentCount: number;
+  depth: number;
+  label?: string;
   navIndex: number;
+  showDirectoryPath: boolean;
 };
 
-function ReviewFileRow({ file, commentCount, navIndex }: ReviewFileRowProps) {
+function ReviewFileRow({
+  file,
+  commentCount,
+  depth,
+  label,
+  navIndex,
+  showDirectoryPath,
+}: ReviewFileRowProps) {
   const dispatch = useAppDispatch();
   const isActive = useAppSelector((state) => state.sourceControl.reviewActivePath === file.path);
 
@@ -213,6 +207,9 @@ function ReviewFileRow({ file, commentCount, navIndex }: ReviewFileRowProps) {
       commentCount={commentCount}
       isActive={isActive}
       navIndex={navIndex}
+      depth={depth}
+      label={label}
+      showDirectoryPath={showDirectoryPath}
       onSelect={() => {
         dispatch(setReviewActivePath(file.path));
       }}
@@ -350,8 +347,11 @@ export function ReviewScreen() {
       sidebar={
         <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
           <div className="border-border border-b p-2.5">
-            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-              BRANCH REVIEW
+            <div className="flex items-center gap-2">
+              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+                BRANCH REVIEW
+              </div>
+              <SourceControlFileViewToggle className="ml-auto" />
             </div>
             <div className="border-input bg-surface mt-2 rounded-md border p-2">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-1.5">
