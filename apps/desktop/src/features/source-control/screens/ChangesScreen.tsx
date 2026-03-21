@@ -20,7 +20,8 @@ export function ChangesScreen() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
+  const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
+  const snapshot = activeRepo ? snapshotData : undefined;
 
   const visibleRows: BucketedFile[] = [
     ...(collapseStaged

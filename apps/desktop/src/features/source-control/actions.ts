@@ -10,12 +10,10 @@ import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import {
-  clearDiffSelection,
   clearError,
-  clearHistorySelection,
-  clearReviewSelection,
   hydrateWorkspaceSession as hydrateWorkspaceSessionState,
   removeRepo,
+  resetRepoViewState,
   setActiveBucket,
   setActivePath,
   setActiveRepo,
@@ -70,13 +68,7 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
 const resetRepoScopedState =
   (): AppThunk =>
   (dispatch) => {
-    dispatch(clearError());
-    dispatch(clearHistorySelection());
-    dispatch(clearDiffSelection());
-    dispatch(clearReviewSelection());
-    dispatch(setActiveBucket("unstaged"));
-    dispatch(setSelectedFiles([]));
-    dispatch(setSelectionAnchor(null));
+    dispatch(resetRepoViewState());
   };
 
 async function persistWorkspaceSession(getState: () => RootState) {
@@ -175,7 +167,7 @@ export const selectRepo =
   };
 
 export const closeRepo =
-  (repo: string): AppThunk =>
+  (repo: string): AppThunk<Promise<{ closedActiveRepo: boolean; nextActiveRepo: string }>> =>
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     const closingActiveRepo = repo === activeRepo;
@@ -187,6 +179,11 @@ export const closeRepo =
     }
 
     await persistWorkspaceSession(getState);
+
+    return {
+      closedActiveRepo: closingActiveRepo,
+      nextActiveRepo: getState().sourceControl.activeRepo,
+    };
   };
 
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {

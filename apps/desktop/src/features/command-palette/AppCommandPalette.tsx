@@ -301,7 +301,10 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       keywords: ["repo", "close"],
       onSelect: async () => {
         if (!activeRepo) return;
-        await dispatch(closeRepo(activeRepo));
+        const result = await dispatch(closeRepo(activeRepo));
+        if (result.closedActiveRepo && location.pathname !== "/changes") {
+          navigate("/changes", { replace: true });
+        }
       },
     },
     {

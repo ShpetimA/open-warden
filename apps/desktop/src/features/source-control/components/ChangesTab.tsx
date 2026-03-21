@@ -37,7 +37,7 @@ function ChangesFileList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
-  const { snapshot, isLoadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
+  const { snapshot: snapshotData, isLoadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
@@ -46,6 +46,7 @@ function ChangesFileList() {
       isLoadingSnapshot: isLoading,
     }),
   });
+  const snapshot = activeRepo ? snapshotData : undefined;
 
   const unstagedFiles = snapshot?.unstaged ?? [];
   const stagedFiles = snapshot?.staged ?? [];
