@@ -146,6 +146,22 @@ const sourceControlSlice = createSlice({
         state.error = "";
       }
     },
+    resetRepoViewState(state) {
+      state.historyFilter = "";
+      state.historyCommitId = "";
+      state.historyNavTarget = "commits";
+      state.activeBucket = "unstaged";
+      state.activePath = "";
+      state.commitMessage = "";
+      state.lastCommitId = "";
+      state.runningAction = "";
+      state.error = "";
+      state.selectedFiles = [];
+      state.selectionAnchor = null;
+      state.reviewBaseRef = "";
+      state.reviewHeadRef = "";
+      state.reviewActivePath = "";
+    },
     clearDiffSelection(state) {
       if (state.activePath !== "") {
         state.activePath = "";
@@ -211,6 +227,7 @@ export const {
   clearReviewSelection,
   hydrateWorkspaceSession,
   removeRepo,
+  resetRepoViewState,
   setActiveBucket,
   setActivePath,
   setActiveRepo,

@@ -4,10 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commentsReducer } from "@/features/comments/commentsSlice";
 import { desktop } from "@/platform/desktop";
 
-import { openRepo, restoreWorkspaceSession } from "./actions";
+import { closeRepo, openRepo, restoreWorkspaceSession } from "./actions";
 import {
   hydrateWorkspaceSession,
   setActivePath,
+  setCommitMessage,
+  setHistoryFilter,
+  setReviewBaseRef,
+  setReviewHeadRef,
   setSelectedFiles,
   sourceControlReducer,
 } from "./sourceControlSlice";
@@ -131,5 +135,33 @@ describe("source control workspace actions", () => {
       { bucket: "unstaged", path: "src/file.ts" },
     ]);
     expect(store.getState().sourceControl.recentRepos).toEqual(["/repo/a", "/repo/b"]);
+  });
+
+  it("resets repo-scoped tab state when closing the active repo", async () => {
+    const store = createTestStore();
+
+    store.dispatch(
+      hydrateWorkspaceSession({
+        openRepos: ["/repo/a", "/repo/b"],
+        activeRepo: "/repo/b",
+        recentRepos: ["/repo/b", "/repo/a"],
+      }),
+    );
+    store.dispatch(setActivePath("src/file.ts"));
+    store.dispatch(setSelectedFiles([{ bucket: "unstaged", path: "src/file.ts" }]));
+    store.dispatch(setHistoryFilter("needle"));
+    store.dispatch(setCommitMessage("wip"));
+    store.dispatch(setReviewBaseRef("main"));
+    store.dispatch(setReviewHeadRef("feature"));
+
+    await store.dispatch(closeRepo("/repo/b"));
+
+    expect(store.getState().sourceControl.activeRepo).toBe("/repo/a");
+    expect(store.getState().sourceControl.activePath).toBe("");
+    expect(store.getState().sourceControl.selectedFiles).toEqual([]);
+    expect(store.getState().sourceControl.historyFilter).toBe("");
+    expect(store.getState().sourceControl.commitMessage).toBe("");
+    expect(store.getState().sourceControl.reviewBaseRef).toBe("");
+    expect(store.getState().sourceControl.reviewHeadRef).toBe("");
   });
 });

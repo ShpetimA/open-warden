@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, useLocation } from "react-router";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { ArrowUpRight, FolderOpen } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
@@ -138,13 +138,14 @@ export function AppShell() {
   const activeFeature = featureKeyFromPath(location.pathname);
   const showPrimarySidebar = featureHasPrimarySidebar(activeFeature);
   const sidebarFeature = activeFeature === "history" ? "history" : "changes";
-  const { snapshotError, activeBranch } = useGetGitSnapshotQuery(activeRepo, {
+  const { snapshotError, activeBranch: activeBranchData } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     selectFromResult: ({ error, data }) => ({
       snapshotError: error,
       activeBranch: data?.branch ?? "",
     }),
   });
+  const activeBranch = activeRepo ? activeBranchData : "";
   const errorMessage = errorMessageFrom(snapshotError, stateError);
 
   useHotkey(
@@ -201,6 +202,7 @@ export function AppShell() {
           </div>
 
           <RepoTabsContainer
+            currentPath={location.pathname}
             onShowRecentProjects={() => {
               setRecentProjectsPickerOpen(true);
             }}
@@ -226,10 +228,12 @@ export function AppShell() {
 }
 
 type RepoTabsContainerProps = {
+  currentPath: string;
   onShowRecentProjects: () => void;
 };
 
-function RepoTabsContainer({ onShowRecentProjects }: RepoTabsContainerProps) {
+function RepoTabsContainer({ currentPath, onShowRecentProjects }: RepoTabsContainerProps) {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const repos = useAppSelector((state) => state.sourceControl.repos);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -244,7 +248,11 @@ function RepoTabsContainer({ onShowRecentProjects }: RepoTabsContainerProps) {
         void dispatch(selectRepo(repo));
       }}
       onCloseRepo={(repo) => {
-        void dispatch(closeRepo(repo));
+        void dispatch(closeRepo(repo)).then((result) => {
+          if (result.closedActiveRepo && currentPath !== "/changes") {
+            navigate("/changes", { replace: true });
+          }
+        });
       }}
       onOpenRecentRepo={(repo) => {
         void dispatch(openRepo(repo));

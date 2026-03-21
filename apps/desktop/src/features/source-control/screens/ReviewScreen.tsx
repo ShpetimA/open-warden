@@ -297,8 +297,10 @@ export function ReviewScreen() {
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
 
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
-  const { data: branches } = useGetBranchesQuery(activeRepo, { skip: !activeRepo });
+  const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
+  const { data: branchesData } = useGetBranchesQuery(activeRepo, { skip: !activeRepo });
+  const snapshot = activeRepo ? snapshotData : undefined;
+  const branches = activeRepo ? branchesData : undefined;
   const branchList = branches ?? EMPTY_BRANCHES;
   const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
 
