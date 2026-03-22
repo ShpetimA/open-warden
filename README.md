@@ -15,6 +15,7 @@ xattr -dr com.apple.quarantine "/Applications/OpenWarden.app"
 ```
 
 Then try launching `OpenWarden.app` again.
+
 https://github.com/user-attachments/assets/6866ec19-b518-4d1b-a3ef-6ebeee587e22
 
 ## What it does
