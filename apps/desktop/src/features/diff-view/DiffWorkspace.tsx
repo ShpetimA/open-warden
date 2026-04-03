@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileDiff as PierreFileDiff, Virtualizer, useWorkerPool } from "@pierre/diffs/react";
+import { FileDiff as PierreFileDiff, useWorkerPool } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -278,10 +278,9 @@ export function DiffWorkspace({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
-      <Virtualizer
+      <div
         key={diffViewportKey}
-        className="h-full min-w-0 overflow-y-auto overflow-x-hidden"
-        contentClassName="relative min-h-full min-w-0"
+        className="relative h-full min-w-0 overflow-y-auto overflow-x-hidden"
       >
         {currentFileDiff ? (
           <PierreFileDiff
@@ -312,7 +311,7 @@ export function DiffWorkspace({
         ) : (
           <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
         )}
-      </Virtualizer>
+      </div>
     </div>
   );
 }

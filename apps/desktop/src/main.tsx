@@ -6,6 +6,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { store } from "./app/store";
 import { DesktopUpdateBootstrap } from "./features/desktop-update/DesktopUpdateBootstrap";
+import { DEFAULT_DARK_THEME, DEFAULT_LIGHT_THEME } from "./features/diff-view/diffRenderConfig";
 import { LspDiagnosticsBootstrap } from "./features/lsp/LspDiagnosticsBootstrap";
 import { WorkspaceSessionBootstrap } from "./features/source-control/WorkspaceSessionBootstrap";
 import { workerFactory } from "./lib/diffs-worker";
@@ -32,7 +33,12 @@ createRoot(document.getElementById("root")!).render(
           poolSize: 4,
           totalASTLRUCacheSize: 200,
         }}
-        highlighterOptions={{}}
+        highlighterOptions={{
+          theme: {
+            dark: DEFAULT_DARK_THEME,
+            light: DEFAULT_LIGHT_THEME,
+          },
+        }}
       >
         <WorkspaceSessionBootstrap>
           <App />
