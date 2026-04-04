@@ -62,6 +62,7 @@ export const desktop: DesktopBridge = {
   commitStaged: (repoPath, message) => resolveDesktopApi().commitStaged(repoPath, message),
   syncLspDocument: (input) => resolveDesktopApi().syncLspDocument(input),
   closeLspDocument: (input) => resolveDesktopApi().closeLspDocument(input),
+  getLspHover: (input) => resolveDesktopApi().getLspHover(input),
   getUpdateState: () => resolveDesktopApi().getUpdateState(),
   checkForUpdates: () => resolveDesktopApi().checkForUpdates(),
   downloadUpdate: () => resolveDesktopApi().downloadUpdate(),
@@ -94,5 +95,7 @@ export type {
   DesktopLspApi,
   SyncLspDocumentInput,
   CloseLspDocumentInput,
+  GetLspHoverInput,
+  LspHoverResult,
   WorkspaceSession,
 } from "./contracts";

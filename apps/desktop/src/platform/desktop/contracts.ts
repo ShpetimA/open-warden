@@ -79,6 +79,13 @@ export type CloseLspDocumentInput = {
   relPath: string;
 };
 
+export type GetLspHoverInput = {
+  repoPath: string;
+  relPath: string;
+  line: number;
+  character: number;
+};
+
 export type LspDiagnosticSeverity = "error" | "warning" | "information" | "hint";
 
 export type LspDiagnostic = {
@@ -98,6 +105,10 @@ export type LspDiagnosticsEvent = {
   languageId: string | null;
   diagnostics: LspDiagnostic[];
   reason: string | null;
+};
+
+export type LspHoverResult = {
+  text: string;
 };
 
 export type DesktopApi = {
@@ -136,6 +147,7 @@ export type DesktopApi = {
   commitStaged(repoPath: string, message: string): Promise<string>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;
+  getLspHover(input: GetLspHoverInput): Promise<LspHoverResult | null>;
 };
 
 export type DesktopUpdateStatus =

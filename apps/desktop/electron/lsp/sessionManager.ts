@@ -4,9 +4,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type {
   CloseLspDocumentInput,
+  GetLspHoverInput,
   LspDiagnostic,
   LspDiagnosticSeverity,
   LspDiagnosticsEvent,
+  LspHoverResult,
   SyncLspDocumentInput,
 } from "../../src/platform/desktop/contracts";
 
@@ -52,6 +54,12 @@ type DiagnosticsNotification = {
     };
   }>;
 };
+
+type MarkedString = string | { language?: string; value?: string };
+
+type HoverResponse = {
+  contents?: string | { kind?: string; value?: string } | MarkedString[];
+} | null;
 
 function toSessionKey(repoPath: string, languageId: string) {
   return `${repoPath}::${languageId}`;
@@ -108,6 +116,66 @@ function normalizeDiagnostics(
       endCharacter,
     };
   });
+}
+
+function normalizeLineEndings(value: string) {
+  return value.replace(/\r\n?/g, "\n");
+}
+
+function stripMarkdownFormatting(value: string) {
+  return normalizeLineEndings(value)
+    .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .trim();
+}
+
+function normalizeMarkedString(value: MarkedString): string | null {
+  if (typeof value === "string") {
+    const nextValue = normalizeLineEndings(value).trim();
+    return nextValue.length > 0 ? nextValue : null;
+  }
+
+  const nextValue = typeof value.value === "string" ? normalizeLineEndings(value.value).trim() : "";
+  return nextValue.length > 0 ? nextValue : null;
+}
+
+export function normalizeLspHoverResponse(result: HoverResponse): LspHoverResult | null {
+  const contents = result?.contents;
+  if (!contents) {
+    return null;
+  }
+
+  if (typeof contents === "string") {
+    const text = normalizeLineEndings(contents).trim();
+    return text.length > 0 ? { text } : null;
+  }
+
+  if (Array.isArray(contents)) {
+    const text = contents
+      .map(normalizeMarkedString)
+      .filter((value): value is string => Boolean(value))
+      .join("\n\n")
+      .trim();
+    return text.length > 0 ? { text } : null;
+  }
+
+  if (typeof contents.value !== "string") {
+    return null;
+  }
+
+  const rawValue = contents.value.trim();
+  if (rawValue.length === 0) {
+    return null;
+  }
+
+  const text =
+    contents.kind === "markdown" ? stripMarkdownFormatting(rawValue) : normalizeLineEndings(rawValue);
+  return text.length > 0 ? { text } : null;
 }
 
 class LspSession {
@@ -300,6 +368,27 @@ class LspSession {
     });
   }
 
+  async getHover(line: number, character: number, relPath: string): Promise<LspHoverResult | null> {
+    await this.initialized;
+
+    const uri = toDocumentUri(this.repoPath, relPath);
+    if (!this.openDocuments.has(uri)) {
+      return null;
+    }
+
+    const response = (await this.sendRequest("textDocument/hover", {
+      textDocument: {
+        uri,
+      },
+      position: {
+        line: Math.max(line - 1, 0),
+        character: Math.max(character, 0),
+      },
+    })) as HoverResponse;
+
+    return normalizeLspHoverResponse(response);
+  }
+
   dispose() {
     if (this.closed) {
       return;
@@ -462,6 +551,30 @@ export class LspSessionManager {
       await session.closeDocument(relPath);
     } catch {
       return;
+    }
+  }
+
+  async getHover({
+    repoPath,
+    relPath,
+    line,
+    character,
+  }: GetLspHoverInput): Promise<LspHoverResult | null> {
+    const languageId = languageIdForPath(relPath);
+    if (!languageId) {
+      return null;
+    }
+
+    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
+    if (!sessionPromise) {
+      return null;
+    }
+
+    try {
+      const session = await sessionPromise;
+      return await session.getHover(line, character, relPath);
+    } catch {
+      return null;
     }
   }
 

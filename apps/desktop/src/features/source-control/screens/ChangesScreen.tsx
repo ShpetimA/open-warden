@@ -65,6 +65,10 @@ export function ChangesScreen() {
   const errorMessage = errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? "";
   const lspText = !loadingPatch && newFile ? newFile.contents : null;
+  const lspHoverDocument =
+    activeRepo && previewPath && lspText !== null
+      ? { repoPath: activeRepo, relPath: previewPath }
+      : undefined;
 
   useCurrentLspDocument(activeRepo, previewPath, lspText);
 
@@ -92,6 +96,7 @@ export function ChangesScreen() {
                 commentContext={{ kind: "changes" }}
                 canComment
                 diagnosticAnnotations={diagnosticAnnotations}
+                lspHoverDocument={lspHoverDocument}
               />
             </>
           )}

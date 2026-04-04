@@ -27,8 +27,8 @@ importers:
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.1(react@19.2.4))
       '@pierre/diffs':
-        specifier: 1.1.0-beta.16
-        version: 1.1.0-beta.16(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: 1.1.10
+        version: 1.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@reduxjs/toolkit':
         specifier: ^2.9.0
         version: 2.11.2(react-redux@9.2.0(@types/react@19.2.13)(react@19.2.4)(redux@5.0.1))(react@19.2.4)
@@ -101,6 +101,9 @@ importers:
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
+      typescript-language-server:
+        specifier: ^5.1.3
+        version: 5.1.3
       vaul:
         specifier: ^1.1.2
         version: 1.1.2(@types/react-dom@19.2.3(@types/react@19.2.13))(@types/react@19.2.13)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -159,9 +162,6 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
-      typescript-language-server:
-        specifier: ^5.1.3
-        version: 5.1.3
       vite:
         specifier: ^7.2.4
         version: 7.3.1(@types/node@24.10.11)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)
@@ -1022,11 +1022,15 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@pierre/diffs@1.1.0-beta.16':
-    resolution: {integrity: sha512-McjTuEPuacSIcXdoI2O9W6VSHIOs9ApEHnEUwONKZnKqIo2GGv1vNg9Pr8tgBOL7lgBWNEHX5ROJ5z1X74sENQ==}
+  '@pierre/diffs@1.1.10':
+    resolution: {integrity: sha512-C7L4SMblyZa7cdDOLGN8q0Tfm2rDbYnBcTUz6zqGq45pHO4xP2Oq7d+euQwsRfB8AC5yRXkSei4rKZQenSVkqw==}
     peerDependencies:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
+
+  '@pierre/theme@0.0.22':
+    resolution: {integrity: sha512-ePUIdQRNGjrveELTU7fY89Xa7YGHHEy5Po5jQy/18lm32eRn96+tnYJEtFooGdffrx55KBUtOXfvVy/7LDFFhA==}
+    engines: {vscode: ^1.0.0}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -5903,8 +5907,9 @@ snapshots:
   '@oxlint/binding-win32-x64-msvc@1.55.0':
     optional: true
 
-  '@pierre/diffs@1.1.0-beta.16(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@pierre/diffs@1.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
+      '@pierre/theme': 0.0.22
       '@shikijs/transformers': 3.22.0
       diff: 8.0.3
       hast-util-to-html: 9.0.5
@@ -5912,6 +5917,8 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       shiki: 3.22.0
+
+  '@pierre/theme@0.0.22': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

@@ -45,13 +45,30 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     discardFiles: vi.fn(),
     discardAll: vi.fn(),
     commitStaged: vi.fn(),
+    syncLspDocument: vi.fn(),
+    closeLspDocument: vi.fn(),
+    getLspHover: vi.fn(),
     getUpdateState: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
     installUpdate: vi.fn(),
     onUpdateState: vi.fn(() => () => {}),
+    onLspDiagnostics: vi.fn(() => () => {}),
   };
 
   await expect(desktop.selectFolder()).resolves.toEqual("/tmp/repo");
   expect(selectFolder).toHaveBeenCalledTimes(1);
+
+  await desktop.getLspHover({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    line: 5,
+    character: 9,
+  });
+  expect(window.desktopBridge.getLspHover).toHaveBeenCalledWith({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    line: 5,
+    character: 9,
+  });
 });

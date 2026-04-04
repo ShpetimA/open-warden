@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { FileDiff as PierreFileDiff, useWorkerPool } from "@pierre/diffs/react";
+import { useState } from "react";
+import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -28,14 +28,17 @@ import { CommentComposer } from "@/features/diff-view/components/CommentComposer
 import { DiagnosticAnnotation } from "@/features/diff-view/components/DiagnosticAnnotation";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
 import {
-  DEFAULT_DARK_THEME,
-  DEFAULT_LIGHT_THEME,
   getDiffTheme,
   getDiffThemeCacheSalt,
   getDiffThemeType,
 } from "@/features/diff-view/diffRenderConfig";
 import { useParsedDiff } from "@/features/diff-view/hooks/useParsedDiff";
 import { MAX_DIFF_LINE_LENGTH } from "@/features/diff-view/services/diffRenderLimits";
+import {
+  DiffLspHoverPopover,
+  type LspHoverDocument,
+  useDiffLspHover,
+} from "@/features/diff-view/useDiffLspHover";
 import { formatRange } from "@/features/source-control/utils";
 import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
 
@@ -46,6 +49,7 @@ type Props = {
   commentContext: CommentContext;
   canComment: boolean;
   diagnosticAnnotations?: DiffLineAnnotation<DiffAnnotationItem>[];
+  lspHoverDocument?: LspHoverDocument;
 };
 
 const STICKY_HEADER_CSS = `
@@ -84,15 +88,6 @@ function getDiffIdentity(
   ].join(":");
 }
 
-function areThemeValuesEqual(
-  currentTheme: string | { dark: string; light: string } | undefined,
-  nextTheme: { dark: string; light: string },
-): boolean {
-  if (!currentTheme) return false;
-  if (typeof currentTheme === "string") return false;
-  return currentTheme.dark === nextTheme.dark && currentTheme.light === nextTheme.light;
-}
-
 type FileCommentsResult = {
   comments: CommentItem[];
   annotations: ReturnType<typeof toLineAnnotations>;
@@ -119,9 +114,9 @@ export function DiffWorkspace({
   commentContext,
   canComment,
   diagnosticAnnotations = [],
+  lspHoverDocument,
 }: Props) {
   const { resolvedTheme } = useTheme();
-  const workerPool = useWorkerPool();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const diffThemeType = getDiffThemeType(resolvedTheme);
@@ -131,6 +126,10 @@ export function DiffWorkspace({
   const [expandUnchanged, setExpandUnchanged] = useState(false);
   const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
+  const { hoverState, onTokenEnter, onTokenLeave, onPopoverEnter, onPopoverLeave } = useDiffLspHover({
+    document: lspHoverDocument,
+    resetKey: activeDiffIdentity,
+  });
 
   const diffTheme = getDiffTheme();
   const { annotations: currentAnnotations } = useCurrentFileComments(
@@ -152,19 +151,6 @@ export function DiffWorkspace({
     cacheSalt: diffThemeCacheSalt,
     allowLargeDiff: forceShowLargeDiff,
   });
-
-  useEffect(() => {
-    if (!workerPool) return;
-
-    const nextTheme = { dark: DEFAULT_DARK_THEME, light: DEFAULT_LIGHT_THEME };
-    const currentOptions = workerPool.getDiffRenderOptions();
-    if (areThemeValuesEqual(currentOptions.theme, nextTheme)) return;
-
-    void workerPool.setRenderOptions({
-      ...currentOptions,
-      theme: nextTheme,
-    });
-  }, [workerPool]);
 
   const applySelectionRange = (range: SelectionRange | null) => {
     setSelectedRange(range);
@@ -210,6 +196,8 @@ export function DiffWorkspace({
     expansionLineCount: 20,
     hunkSeparators: "line-info-basic" as const,
     enableLineSelection: canComment,
+    onTokenEnter: onTokenEnter,
+    onTokenLeave: onTokenLeave,
     onLineSelected: canComment ? applySelectionRange : undefined,
     onLineSelectionEnd: canComment ? onLineSelectionEnd : undefined,
   };
@@ -278,6 +266,11 @@ export function DiffWorkspace({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col">
+      <DiffLspHoverPopover
+        hoverState={hoverState}
+        onPopoverEnter={onPopoverEnter}
+        onPopoverLeave={onPopoverLeave}
+      />
       <div
         key={diffViewportKey}
         className="relative h-full min-w-0 overflow-y-auto overflow-x-hidden"

@@ -49,6 +49,7 @@ const desktopBridge: DesktopBridge = {
   commitStaged: (repoPath, message) => invoke("commitStaged", repoPath, message),
   syncLspDocument: (input) => invoke("syncLspDocument", input),
   closeLspDocument: (input) => invoke("closeLspDocument", input),
+  getLspHover: (input) => invoke("getLspHover", input),
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
   checkForUpdates: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),
   downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),

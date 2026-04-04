@@ -50,6 +50,7 @@ export const desktopApi: DesktopApi = {
   commitStaged,
   syncLspDocument: (input) => lspSessionManager.syncDocument(input),
   closeLspDocument: (input) => lspSessionManager.closeDocument(input),
+  getLspHover: (input) => lspSessionManager.getHover(input),
 };
 
 export function configureDesktopApi(options: {
