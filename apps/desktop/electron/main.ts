@@ -2,8 +2,10 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
+import { watchAppSettings } from "./appSettings";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
+  APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
   LSP_DIAGNOSTICS_CHANNEL,
   UPDATE_CHECK_CHANNEL,
@@ -16,6 +18,7 @@ import { createUpdateManager } from "./updateManager";
 
 type DesktopMethod = keyof typeof desktopApi;
 let mainWindow: BrowserWindow | null = null;
+let disposeAppSettingsWatcher: (() => void) | null = null;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
@@ -99,6 +102,20 @@ ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => updateManager.installUpdate()
 app.whenReady().then(() => {
   createMainWindow();
   updateManager.initialize();
+  void watchAppSettings({
+    onChange(settings) {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+
+      mainWindow.webContents.send(APP_SETTINGS_CHANGED_CHANNEL, settings);
+    },
+    onError(error) {
+      console.error("Failed to reload app settings", error);
+    },
+  }).then((dispose) => {
+    disposeAppSettingsWatcher = dispose;
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -109,6 +126,8 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   updateManager.dispose();
+  disposeAppSettingsWatcher?.();
+  disposeAppSettingsWatcher = null;
   void disposeDesktopApi();
 });
 

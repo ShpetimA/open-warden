@@ -106,12 +106,17 @@ function EmptyRepoState({ recentRepos, onOpenPicker, onOpenRepo }: EmptyRepoStat
 }
 
 function renderMainContent(
+  showOutlet: boolean,
   activeRepo: string,
   errorMessage: string,
   recentRepos: string[],
   onOpenPicker: () => void,
   onOpenRepo: (repo: string) => void,
 ) {
+  if (showOutlet) {
+    return <Outlet />;
+  }
+
   if (errorMessage) {
     return <div className="text-destructive p-3 text-sm">{errorMessage}</div>;
   }
@@ -137,8 +142,9 @@ export function AppShell() {
   const stateError = useAppSelector((state) => state.sourceControl.error);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [recentProjectsPickerOpen, setRecentProjectsPickerOpen] = useState(false);
-  const activeFeature = featureKeyFromPath(location.pathname);
-  const showPrimarySidebar = featureHasPrimarySidebar(activeFeature);
+  const isSettingsRoute = location.pathname.startsWith("/settings");
+  const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
+  const showPrimarySidebar = activeFeature ? featureHasPrimarySidebar(activeFeature) : false;
   const sidebarFeature = activeFeature === "history" ? "history" : "changes";
   const { snapshotError, activeBranch: activeBranchData } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
@@ -164,6 +170,7 @@ export function AppShell() {
   );
 
   const mainContent = renderMainContent(
+    isSettingsRoute,
     activeRepo,
     errorMessage,
     recentRepos,

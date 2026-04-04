@@ -26,6 +26,19 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
       activeRepo: "",
       recentRepos: [],
     }),
+    loadAppSettings: vi.fn().mockResolvedValue({
+      version: 1,
+      sourceControl: {
+        fileTreeRenderMode: "tree",
+      },
+    }),
+    saveAppSettings: vi.fn().mockResolvedValue({
+      version: 1,
+      sourceControl: {
+        fileTreeRenderMode: "tree",
+      },
+    }),
+    getAppSettingsPath: vi.fn().mockResolvedValue("/tmp/settings.json"),
     confirm: vi.fn(),
     checkAppExists: vi.fn(),
     openPath: vi.fn(),
@@ -58,6 +71,7 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     installUpdate: vi.fn(),
     onUpdateState: vi.fn(() => () => {}),
     onLspDiagnostics: vi.fn(() => () => {}),
+    onAppSettingsChanged: vi.fn(() => () => {}),
   };
 
   await expect(desktop.selectFolder()).resolves.toEqual("/tmp/repo");
@@ -117,4 +131,7 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
 
   await desktop.getRepoFiles("/tmp/repo");
   expect(window.desktopBridge.getRepoFiles).toHaveBeenCalledWith("/tmp/repo");
+
+  await desktop.getAppSettingsPath();
+  expect(window.desktopBridge.getAppSettingsPath).toHaveBeenCalledTimes(1);
 });

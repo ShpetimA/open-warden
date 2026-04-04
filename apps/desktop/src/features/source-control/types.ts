@@ -1,4 +1,5 @@
 import type {
+  AppSettings as ContractAppSettings,
   Bucket as ContractBucket,
   DiffFile as ContractDiffFile,
   FileItem as ContractFileItem,
@@ -19,7 +20,7 @@ export type HistoryNavTarget = "commits" | "files";
 
 export type DiffStyle = "split" | "unified";
 
-export type FileBrowserMode = "tree" | "list";
+export type FileBrowserMode = ContractAppSettings["sourceControl"]["fileTreeRenderMode"];
 
 export type FileItem = ContractFileItem;
 

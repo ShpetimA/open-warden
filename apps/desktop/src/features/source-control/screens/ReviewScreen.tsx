@@ -37,7 +37,6 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import { FileListRow } from "@/features/source-control/components/FileListRow";
 import { SourceControlFileBrowser } from "@/features/source-control/components/SourceControlFileBrowser";
-import { SourceControlFileViewToggle } from "@/features/source-control/components/SourceControlFileViewToggle";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { FileItem } from "@/features/source-control/types";
 
@@ -148,7 +147,9 @@ function ReviewFileList({
   reviewBaseRef,
   reviewHeadRef,
 }: ReviewFileListProps) {
-  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
 
   useReviewKeyboardNav();
 
@@ -366,11 +367,8 @@ export function ReviewScreen() {
       sidebar={
         <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
           <div className="border-border border-b p-2.5">
-            <div className="flex items-center gap-2">
-              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-                BRANCH REVIEW
-              </div>
-              <SourceControlFileViewToggle className="ml-auto" />
+            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+              BRANCH REVIEW
             </div>
             <div className="border-input bg-surface mt-2 rounded-md border p-2">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-1.5">

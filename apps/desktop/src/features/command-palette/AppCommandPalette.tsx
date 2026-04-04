@@ -267,6 +267,15 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       },
     })),
     {
+      id: "nav:settings",
+      label: "Open Settings",
+      subtitle: "/settings",
+      keywords: ["settings", "preferences", "config"],
+      onSelect: () => {
+        navigate("/settings");
+      },
+    },
+    {
       id: "repo:add",
       label: "Open Folder",
       keywords: ["repo", "folder", "open"],

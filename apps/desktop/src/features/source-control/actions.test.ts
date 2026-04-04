@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { commentsReducer } from "@/features/comments/commentsSlice";
+import { settingsReducer } from "@/features/settings/settingsSlice";
 import { desktop } from "@/platform/desktop";
 
 import { closeRepo, openRepo, restoreWorkspaceSession } from "./actions";
@@ -21,6 +22,9 @@ vi.mock("@/platform/desktop", () => ({
     selectFolder: vi.fn(),
     loadWorkspaceSession: vi.fn(),
     saveWorkspaceSession: vi.fn(),
+    loadAppSettings: vi.fn(),
+    saveAppSettings: vi.fn(),
+    getAppSettingsPath: vi.fn(),
     confirm: vi.fn(),
     checkAppExists: vi.fn(),
     openPath: vi.fn(),
@@ -46,12 +50,15 @@ vi.mock("@/platform/desktop", () => ({
     downloadUpdate: vi.fn(),
     installUpdate: vi.fn(),
     onUpdateState: vi.fn(() => () => {}),
+    onLspDiagnostics: vi.fn(() => () => {}),
+    onAppSettingsChanged: vi.fn(() => () => {}),
   },
 }));
 
 function createTestStore() {
   return configureStore({
     reducer: {
+      settings: settingsReducer,
       sourceControl: sourceControlReducer,
       comments: commentsReducer,
     },

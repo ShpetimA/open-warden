@@ -36,6 +36,9 @@ export const desktop: DesktopBridge = {
   selectFolder: () => resolveDesktopApi().selectFolder(),
   loadWorkspaceSession: () => resolveDesktopApi().loadWorkspaceSession(),
   saveWorkspaceSession: (session) => resolveDesktopApi().saveWorkspaceSession(session),
+  loadAppSettings: () => resolveDesktopApi().loadAppSettings(),
+  saveAppSettings: (settings) => resolveDesktopApi().saveAppSettings(settings),
+  getAppSettingsPath: () => resolveDesktopApi().getAppSettingsPath(),
   confirm: (message, options) => resolveDesktopApi().confirm(message, options),
   checkAppExists: (appName) => resolveDesktopApi().checkAppExists(appName),
   openPath: (targetPath, appName) => resolveDesktopApi().openPath(targetPath, appName),
@@ -73,9 +76,11 @@ export const desktop: DesktopBridge = {
   installUpdate: () => resolveDesktopApi().installUpdate(),
   onUpdateState: (listener) => resolveDesktopApi().onUpdateState(listener),
   onLspDiagnostics: (listener) => resolveDesktopApi().onLspDiagnostics(listener),
+  onAppSettingsChanged: (listener) => resolveDesktopApi().onAppSettingsChanged(listener),
 };
 
 export type {
+  AppSettings,
   ApiError,
   Bucket,
   ConfirmOptions,
@@ -99,8 +104,10 @@ export type {
   LspDiagnosticSeverity,
   LspDiagnosticsEvent,
   DesktopLspApi,
+  DesktopSettingsApi,
   SyncLspDocumentInput,
   CloseLspDocumentInput,
+  FileTreeRenderMode,
   GetLspHoverInput,
   GetLspReferencesInput,
   LspLocation,

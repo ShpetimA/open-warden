@@ -7,7 +7,6 @@ import type {
   ChangesSidebarMode,
   DiffStyle,
   FileViewerTarget,
-  FileBrowserMode,
   HistoryNavTarget,
   RunningAction,
   SelectedFile,
@@ -21,7 +20,6 @@ type SourceControlState = {
   historyFilter: string;
   historyCommitId: string;
   historyNavTarget: HistoryNavTarget;
-  fileBrowserMode: FileBrowserMode;
   collapseStaged: boolean;
   collapseUnstaged: boolean;
   changesSidebarMode: ChangesSidebarMode;
@@ -49,7 +47,6 @@ const initialState: SourceControlState = {
   historyFilter: "",
   historyCommitId: "",
   historyNavTarget: "commits",
-  fileBrowserMode: "tree",
   collapseStaged: false,
   collapseUnstaged: false,
   changesSidebarMode: "changes",
@@ -114,11 +111,6 @@ const sourceControlSlice = createSlice({
     setHistoryNavTarget(state, action: PayloadAction<HistoryNavTarget>) {
       if (state.historyNavTarget !== action.payload) {
         state.historyNavTarget = action.payload;
-      }
-    },
-    setFileBrowserMode(state, action: PayloadAction<FileBrowserMode>) {
-      if (state.fileBrowserMode !== action.payload) {
-        state.fileBrowserMode = action.payload;
       }
     },
     setCollapseStaged(state, action: PayloadAction<boolean>) {
@@ -314,7 +306,6 @@ export const {
   setCollapseUnstaged,
   setChangesSidebarMode,
   setDiffStyle,
-  setFileBrowserMode,
   setError,
   setHistoryCommitId,
   setHistoryFilter,

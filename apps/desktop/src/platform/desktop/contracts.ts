@@ -72,6 +72,15 @@ export type WorkspaceSession = {
   recentRepos: string[];
 };
 
+export type FileTreeRenderMode = "tree" | "list";
+
+export type AppSettings = {
+  version: 1;
+  sourceControl: {
+    fileTreeRenderMode: FileTreeRenderMode;
+  };
+};
+
 export type SyncLspDocumentInput = {
   repoPath: string;
   relPath: string;
@@ -139,6 +148,9 @@ export type DesktopApi = {
   selectFolder(): Promise<string | null>;
   loadWorkspaceSession(): Promise<WorkspaceSession>;
   saveWorkspaceSession(session: WorkspaceSession): Promise<WorkspaceSession>;
+  loadAppSettings(): Promise<AppSettings>;
+  saveAppSettings(settings: AppSettings): Promise<AppSettings>;
+  getAppSettingsPath(): Promise<string>;
   confirm(message: string, options?: ConfirmOptions): Promise<boolean>;
   checkAppExists(appName: string): Promise<boolean>;
   openPath(path: string, appName?: string | null): Promise<void>;
@@ -222,4 +234,8 @@ export type DesktopLspApi = {
   onLspDiagnostics(listener: (event: LspDiagnosticsEvent) => void): () => void;
 };
 
-export type DesktopBridge = DesktopApi & DesktopUpdateApi & DesktopLspApi;
+export type DesktopSettingsApi = {
+  onAppSettingsChanged(listener: (settings: AppSettings) => void): () => void;
+};
+
+export type DesktopBridge = DesktopApi & DesktopUpdateApi & DesktopLspApi & DesktopSettingsApi;

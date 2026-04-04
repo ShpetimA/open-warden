@@ -1,6 +1,7 @@
 import { AppThemeProvider } from "@/app/AppThemeProvider";
 import { AppShell } from "@/app/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { SettingsScreen } from "@/features/settings/screens/SettingsScreen";
 import { ChangesScreen } from "@/features/source-control/screens/ChangesScreen";
 import { HistoryScreen } from "@/features/source-control/screens/HistoryScreen";
 import { ReviewScreen } from "@/features/source-control/screens/ReviewScreen";
@@ -26,6 +27,10 @@ const router = createHashRouter([
       {
         path: "review",
         element: <ReviewScreen />,
+      },
+      {
+        path: "settings",
+        element: <SettingsScreen />,
       },
       {
         path: "*",

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type { DesktopApi, DesktopBridge } from "../src/platform/desktop/contracts";
 import {
+  APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
   LSP_DIAGNOSTICS_CHANNEL,
   UPDATE_CHECK_CHANNEL,
@@ -24,6 +25,9 @@ const desktopBridge: DesktopBridge = {
   selectFolder: () => invoke("selectFolder"),
   loadWorkspaceSession: () => invoke("loadWorkspaceSession"),
   saveWorkspaceSession: (session) => invoke("saveWorkspaceSession", session),
+  loadAppSettings: () => invoke("loadAppSettings"),
+  saveAppSettings: (settings) => invoke("saveAppSettings", settings),
+  getAppSettingsPath: () => invoke("getAppSettingsPath"),
   confirm: (message, options) => invoke("confirm", message, options),
   checkAppExists: (appName) => invoke("checkAppExists", appName),
   openPath: (targetPath, appName) => invoke("openPath", targetPath, appName),
@@ -84,6 +88,20 @@ const desktopBridge: DesktopBridge = {
     ipcRenderer.on(LSP_DIAGNOSTICS_CHANNEL, wrappedListener);
     return () => {
       ipcRenderer.removeListener(LSP_DIAGNOSTICS_CHANNEL, wrappedListener);
+    };
+  },
+  onAppSettingsChanged: (listener) => {
+    const wrappedListener = (_event: Electron.IpcRendererEvent, settings: unknown) => {
+      if (typeof settings !== "object" || settings === null) {
+        return;
+      }
+
+      listener(settings as Parameters<typeof listener>[0]);
+    };
+
+    ipcRenderer.on(APP_SETTINGS_CHANGED_CHANNEL, wrappedListener);
+    return () => {
+      ipcRenderer.removeListener(APP_SETTINGS_CHANGED_CHANNEL, wrappedListener);
     };
   },
 };

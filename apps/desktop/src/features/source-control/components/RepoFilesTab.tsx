@@ -3,7 +3,6 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { openFileViewer, setRepoTreeActivePath } from "@/features/source-control/sourceControlSlice";
 import { useGetRepoFilesQuery } from "@/features/source-control/api";
 import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
-import { SourceControlFileViewToggle } from "./SourceControlFileViewToggle";
 import type { RepoFileItem } from "@/features/source-control/types";
 
 type RepoTreeFileRowProps = {
@@ -79,7 +78,9 @@ function RepoTreeFileRow({
 
 export function RepoFilesTab() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
   const { repoFiles, isLoadingRepoFiles } = useGetRepoFilesQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
@@ -94,12 +95,7 @@ export function RepoFilesTab() {
     <div className="bg-surface-toolbar flex min-h-0 h-full flex-1 flex-col overflow-hidden">
       <ScrollArea data-nav-region="repo-files" className="min-h-0 h-full flex-1 overflow-hidden">
         <div className="px-3 py-1.5">
-          <div className="flex items-center gap-2">
-            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-              FILES
-            </div>
-            <SourceControlFileViewToggle className="ml-auto" />
-          </div>
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">FILES</div>
         </div>
 
         {isLoadingRepoFiles ? (

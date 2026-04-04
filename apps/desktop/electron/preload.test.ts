@@ -31,6 +31,12 @@ describe("electron preload bridge", () => {
       activeRepo: "/tmp/repo",
       recentRepos: ["/tmp/repo"],
     });
+    invoke.mockResolvedValueOnce({
+      version: 1,
+      sourceControl: {
+        fileTreeRenderMode: "tree",
+      },
+    });
     invoke.mockResolvedValueOnce(["main"]);
 
     await import("./preload");
@@ -54,6 +60,10 @@ describe("electron preload bridge", () => {
     const workspaceSession = await desktopBridge.loadWorkspaceSession();
     expect(workspaceSession.activeRepo).toBe("/tmp/repo");
     expect(invoke).toHaveBeenCalledWith("desktop:invoke", "loadWorkspaceSession");
+
+    const appSettings = await desktopBridge.loadAppSettings();
+    expect(appSettings.sourceControl.fileTreeRenderMode).toBe("tree");
+    expect(invoke).toHaveBeenCalledWith("desktop:invoke", "loadAppSettings");
 
     const branches = await desktopBridge.getBranches("/tmp/repo");
     expect(branches).toEqual(["main"]);
@@ -125,5 +135,14 @@ describe("electron preload bridge", () => {
 
     unsubscribeLsp();
     expect(removeListener).toHaveBeenCalledWith("desktop:lsp-diagnostics", expect.any(Function));
+
+    const unsubscribeSettings = desktopBridge.onAppSettingsChanged(() => {});
+    expect(on).toHaveBeenCalledWith("desktop:app-settings-changed", expect.any(Function));
+
+    unsubscribeSettings();
+    expect(removeListener).toHaveBeenCalledWith(
+      "desktop:app-settings-changed",
+      expect.any(Function),
+    );
   });
 });

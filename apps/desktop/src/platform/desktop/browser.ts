@@ -1,4 +1,5 @@
 import type {
+  AppSettings,
   Bucket,
   CloseLspDocumentInput,
   ConfirmOptions,
@@ -20,9 +21,11 @@ import type {
   WorkspaceSession,
 } from "./contracts";
 import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
+import { createAppSettings } from "./appSettings";
 import { createWorkspaceSession } from "./workspaceSession";
 
 const WORKSPACE_SESSION_STORAGE_KEY = "open-warden.workspace-session";
+const APP_SETTINGS_STORAGE_KEY = "open-warden.app-settings";
 
 function createDisabledUpdateState(reason: string): DesktopUpdateState {
   return {
@@ -87,6 +90,33 @@ function writeStoredWorkspaceSession(session: WorkspaceSession): WorkspaceSessio
   return normalizedSession;
 }
 
+function readStoredAppSettings(): AppSettings {
+  if (typeof window === "undefined") {
+    return createAppSettings();
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(APP_SETTINGS_STORAGE_KEY);
+    if (!storedValue) {
+      return createAppSettings();
+    }
+
+    return createAppSettings(JSON.parse(storedValue));
+  } catch {
+    return createAppSettings();
+  }
+}
+
+function writeStoredAppSettings(settings: AppSettings): AppSettings {
+  const normalizedSettings = createAppSettings(settings);
+
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(normalizedSettings));
+  }
+
+  return normalizedSettings;
+}
+
 export const browserDesktopApi: DesktopBridge = {
   async selectFolder() {
     throw readBrowserDirectorySelectionError();
@@ -96,6 +126,15 @@ export const browserDesktopApi: DesktopBridge = {
   },
   async saveWorkspaceSession(session: WorkspaceSession) {
     return writeStoredWorkspaceSession(session);
+  },
+  async loadAppSettings() {
+    return readStoredAppSettings();
+  },
+  async saveAppSettings(settings: AppSettings) {
+    return writeStoredAppSettings(settings);
+  },
+  async getAppSettingsPath() {
+    return APP_SETTINGS_STORAGE_KEY;
   },
   async confirm(message: string, _options?: ConfirmOptions) {
     return window.confirm(message);
@@ -210,6 +249,24 @@ export const browserDesktopApi: DesktopBridge = {
   onLspDiagnostics() {
     return () => {};
   },
+  onAppSettingsChanged(listener) {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== APP_SETTINGS_STORAGE_KEY) {
+        return;
+      }
+
+      try {
+        listener(createAppSettings(event.newValue ? JSON.parse(event.newValue) : undefined));
+      } catch {
+        listener(createAppSettings());
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  },
 };
 
 function unavailable(): never {
@@ -229,6 +286,15 @@ export const unavailableDesktopApi: DesktopBridge = {
   },
   async saveWorkspaceSession(session: WorkspaceSession) {
     return createWorkspaceSession(session);
+  },
+  async loadAppSettings() {
+    return createAppSettings();
+  },
+  async saveAppSettings(settings: AppSettings) {
+    return createAppSettings(settings);
+  },
+  async getAppSettingsPath() {
+    return unavailableAsync<string>();
   },
   async confirm(_message: string, _options?: ConfirmOptions) {
     return unavailableAsync<boolean>();
@@ -335,6 +401,9 @@ export const unavailableDesktopApi: DesktopBridge = {
     return () => {};
   },
   onLspDiagnostics() {
+    return () => {};
+  },
+  onAppSettingsChanged() {
     return () => {};
   },
 };

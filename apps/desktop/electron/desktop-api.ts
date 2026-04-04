@@ -1,4 +1,5 @@
 import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
+import { getAppSettingsPath, loadAppSettings, saveAppSettings } from "./appSettings";
 import {
   commitStaged,
   discardAll,
@@ -31,6 +32,9 @@ export const desktopApi: DesktopApi = {
   selectFolder,
   loadWorkspaceSession,
   saveWorkspaceSession,
+  loadAppSettings,
+  saveAppSettings,
+  getAppSettingsPath,
   confirm,
   checkAppExists,
   openPath,

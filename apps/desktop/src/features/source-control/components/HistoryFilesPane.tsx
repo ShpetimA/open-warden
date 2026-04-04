@@ -16,13 +16,14 @@ import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlic
 import type { FileItem } from "@/features/source-control/types";
 import { FileListRow } from "./FileListRow";
 import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
-import { SourceControlFileViewToggle } from "./SourceControlFileViewToggle";
 
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
-  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
   const { historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
     {
@@ -50,11 +51,8 @@ export function HistoryFilesPane() {
       className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r"
     >
       <div className="border-border border-b px-3 py-2">
-        <div className="flex items-center gap-2">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-            COMMIT FILES
-          </div>
-          <SourceControlFileViewToggle className="ml-auto" />
+        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+          COMMIT FILES
         </div>
         <div className="text-muted-foreground mt-1 truncate text-xs">
           {selectedCommit

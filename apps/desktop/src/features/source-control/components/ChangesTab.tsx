@@ -22,7 +22,6 @@ import {
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import { CommitBox } from "./CommitBox";
 import { FileSection } from "./FileSection";
-import { SourceControlFileViewToggle } from "./SourceControlFileViewToggle";
 
 export function ChangesTab() {
   return (
@@ -123,11 +122,6 @@ function ChangesFileList() {
   return (
     <div className="bg-surface-toolbar flex min-h-0 h-full flex-1 flex-col overflow-hidden">
       <ScrollArea data-nav-region="changes-files" className="min-h-0 h-full flex-1 overflow-hidden">
-        <div className="px-3 py-1.5">
-          <div className="flex items-center gap-2">
-            <SourceControlFileViewToggle className="ml-auto" />
-          </div>
-        </div>
         <div>
           {isLoadingSnapshot ? (
             <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
