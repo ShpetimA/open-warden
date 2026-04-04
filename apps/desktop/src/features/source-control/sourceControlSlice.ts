@@ -4,7 +4,9 @@ import type { WorkspaceSession } from "@/platform/desktop";
 
 import type {
   Bucket,
+  ChangesSidebarMode,
   DiffStyle,
+  FileViewerTarget,
   FileBrowserMode,
   HistoryNavTarget,
   RunningAction,
@@ -21,8 +23,10 @@ type SourceControlState = {
   fileBrowserMode: FileBrowserMode;
   collapseStaged: boolean;
   collapseUnstaged: boolean;
+  changesSidebarMode: ChangesSidebarMode;
   activeBucket: Bucket;
   activePath: string;
+  repoTreeActivePath: string;
   diffStyle: DiffStyle;
   commitMessage: string;
   lastCommitId: string;
@@ -33,6 +37,7 @@ type SourceControlState = {
   reviewBaseRef: string;
   reviewHeadRef: string;
   reviewActivePath: string;
+  fileViewerTarget: FileViewerTarget | null;
 };
 
 const initialState: SourceControlState = {
@@ -45,8 +50,10 @@ const initialState: SourceControlState = {
   fileBrowserMode: "tree",
   collapseStaged: false,
   collapseUnstaged: false,
+  changesSidebarMode: "changes",
   activeBucket: "unstaged",
   activePath: "",
+  repoTreeActivePath: "",
   diffStyle: "split",
   commitMessage: "",
   lastCommitId: "",
@@ -57,6 +64,7 @@ const initialState: SourceControlState = {
   reviewBaseRef: "",
   reviewHeadRef: "",
   reviewActivePath: "",
+  fileViewerTarget: null,
 };
 
 const sourceControlSlice = createSlice({
@@ -120,6 +128,11 @@ const sourceControlSlice = createSlice({
         state.collapseUnstaged = action.payload;
       }
     },
+    setChangesSidebarMode(state, action: PayloadAction<ChangesSidebarMode>) {
+      if (state.changesSidebarMode !== action.payload) {
+        state.changesSidebarMode = action.payload;
+      }
+    },
     setActiveBucket(state, action: PayloadAction<Bucket>) {
       if (state.activeBucket !== action.payload) {
         state.activeBucket = action.payload;
@@ -165,7 +178,9 @@ const sourceControlSlice = createSlice({
       state.historyCommitId = "";
       state.historyNavTarget = "commits";
       state.activeBucket = "unstaged";
+      state.changesSidebarMode = "changes";
       state.activePath = "";
+      state.repoTreeActivePath = "";
       state.commitMessage = "";
       state.lastCommitId = "";
       state.runningAction = "";
@@ -175,6 +190,7 @@ const sourceControlSlice = createSlice({
       state.reviewBaseRef = "";
       state.reviewHeadRef = "";
       state.reviewActivePath = "";
+      state.fileViewerTarget = null;
     },
     clearDiffSelection(state) {
       if (state.activePath !== "") {
@@ -207,6 +223,11 @@ const sourceControlSlice = createSlice({
     setSelectedFiles(state, action: PayloadAction<SelectedFile[]>) {
       state.selectedFiles = action.payload;
     },
+    setRepoTreeActivePath(state, action: PayloadAction<string>) {
+      if (state.repoTreeActivePath !== action.payload) {
+        state.repoTreeActivePath = action.payload;
+      }
+    },
     setSelectionAnchor(state, action: PayloadAction<SelectedFile | null>) {
       state.selectionAnchor = action.payload;
     },
@@ -230,6 +251,14 @@ const sourceControlSlice = createSlice({
         state.reviewActivePath = "";
       }
     },
+    openFileViewer(state, action: PayloadAction<FileViewerTarget>) {
+      state.fileViewerTarget = action.payload;
+    },
+    closeFileViewer(state) {
+      if (state.fileViewerTarget !== null) {
+        state.fileViewerTarget = null;
+      }
+    },
   },
 });
 
@@ -237,6 +266,7 @@ export const {
   addRepo,
   clearDiffSelection,
   clearError,
+  closeFileViewer,
   clearHistorySelection,
   clearReviewSelection,
   hydrateWorkspaceSession,
@@ -248,6 +278,7 @@ export const {
   setCommitMessage,
   setCollapseStaged,
   setCollapseUnstaged,
+  setChangesSidebarMode,
   setDiffStyle,
   setFileBrowserMode,
   setError,
@@ -256,6 +287,7 @@ export const {
   setHistoryNavTarget,
   setLastCommitId,
   setRecentRepos,
+  setRepoTreeActivePath,
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
@@ -263,6 +295,7 @@ export const {
   setReviewActivePath,
   setReviewBaseRef,
   setReviewHeadRef,
+  openFileViewer,
 } = sourceControlSlice.actions;
 
 export const sourceControlReducer = sourceControlSlice.reducer;

@@ -29,6 +29,10 @@ export type FileItem = {
   status: FileStatus;
 };
 
+export type RepoFileItem = {
+  path: string;
+};
+
 export type FileVersions = {
   oldFile: DiffFile | null;
   newFile: DiffFile | null;
@@ -86,6 +90,12 @@ export type GetLspHoverInput = {
   character: number;
 };
 
+export type GetRepoFileInput = {
+  repoPath: string;
+  relPath: string;
+  revision?: string | null;
+};
+
 export type LspDiagnosticSeverity = "error" | "warning" | "information" | "hint";
 
 export type LspDiagnostic = {
@@ -119,6 +129,7 @@ export type DesktopApi = {
   checkAppExists(appName: string): Promise<boolean>;
   openPath(path: string, appName?: string | null): Promise<void>;
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
+  getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;
   getBranches(repoPath: string): Promise<string[]>;
   getBranchFiles(repoPath: string, baseRef: string, headRef: string): Promise<FileItem[]>;
@@ -145,6 +156,7 @@ export type DesktopApi = {
   discardFiles(repoPath: string, files: DiscardFileInput[]): Promise<void>;
   discardAll(repoPath: string): Promise<void>;
   commitStaged(repoPath: string, message: string): Promise<string>;
+  getRepoFile(input: GetRepoFileInput): Promise<DiffFile | null>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;
   getLspHover(input: GetLspHoverInput): Promise<LspHoverResult | null>;

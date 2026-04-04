@@ -49,6 +49,7 @@ type Props = {
   commentContext: CommentContext;
   canComment: boolean;
   diagnosticAnnotations?: DiffLineAnnotation<DiffAnnotationItem>[];
+  fileViewerRevision?: string | null;
   lspHoverDocument?: LspHoverDocument;
 };
 
@@ -114,6 +115,7 @@ export function DiffWorkspace({
   commentContext,
   canComment,
   diagnosticAnnotations = [],
+  fileViewerRevision,
   lspHoverDocument,
 }: Props) {
   const { resolvedTheme } = useTheme();
@@ -288,6 +290,7 @@ export function DiffWorkspace({
                 canComment={canComment}
                 commentContext={commentContext}
                 expandUnchanged={expandUnchanged}
+                fileViewerRevision={fileViewerRevision}
                 onToggleExpandUnchanged={() => {
                   setExpandUnchanged((current) => !current);
                 }}

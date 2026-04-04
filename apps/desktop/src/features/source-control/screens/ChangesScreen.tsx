@@ -6,6 +6,7 @@ import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
 import { useGetFileVersionsQuery } from "@/features/source-control/api";
+import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { usePrefetchChangesDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
@@ -21,6 +22,8 @@ export function ChangesScreen() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
+  const changesSidebarMode = useAppSelector((state) => state.sourceControl.changesSidebarMode);
+  const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
   const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
@@ -73,12 +76,19 @@ export function ChangesScreen() {
   useCurrentLspDocument(activeRepo, previewPath, lspText);
 
   const diagnosticAnnotations = useDiffDiagnostics(activeRepo, previewPath);
+  const showingFilesView = changesSidebarMode === "files";
 
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <section className="flex h-full min-h-0 min-w-0 flex-col">
         <div className="min-h-0 min-w-0 flex-1">
-          {errorMessage ? (
+          {showingFilesView ? (
+            fileViewerTarget ? (
+              <GeneralFileViewer />
+            ) : (
+              <div className="text-muted-foreground p-3 text-sm">Select a file from the tree.</div>
+            )
+          ) : errorMessage ? (
             <div className="text-destructive p-3 text-sm">{errorMessage}</div>
           ) : loadingPatch ? (
             <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
@@ -96,6 +106,7 @@ export function ChangesScreen() {
                 commentContext={{ kind: "changes" }}
                 canComment
                 diagnosticAnnotations={diagnosticAnnotations}
+                fileViewerRevision={null}
                 lspHoverDocument={lspHoverDocument}
               />
             </>

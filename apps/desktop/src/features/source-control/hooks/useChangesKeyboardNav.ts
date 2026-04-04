@@ -12,11 +12,16 @@ import {
 import type { BucketedFile } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
+  openFileViewer,
+  setRepoTreeActivePath,
+} from "@/features/source-control/sourceControlSlice";
+import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
 import {
   getVisibleBucketedFiles,
+  getVisibleFilePaths,
   SOURCE_CONTROL_HOTKEY_OPTIONS,
   useVerticalNavigationHotkeys,
 } from "./keyboardNavigation";
@@ -31,20 +36,29 @@ export function useChangesKeyboardNav() {
       activeBucket,
       activePath,
       activeRepo,
+      changesSidebarMode,
       collapseStaged,
       collapseUnstaged,
+      repoTreeActivePath,
       runningAction,
     } = state.sourceControl;
     const snapshot = activeRepo
       ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
       : undefined;
+    const repoFiles = activeRepo
+      ? gitApi.endpoints.getRepoFiles.select(activeRepo)(state).data
+      : undefined;
 
     return {
       activeBucket,
       activePath,
+      activeRepo,
       collapseStaged,
       collapseUnstaged,
+      changesSidebarMode,
+      repoTreeActivePath,
       runningAction,
+      repoFiles,
       snapshot,
     };
   };
@@ -53,8 +67,53 @@ export function useChangesKeyboardNav() {
     if (isTypingTarget(event.target)) return;
     event.preventDefault();
 
-    const { activeBucket, activePath, collapseStaged, collapseUnstaged, snapshot } =
+    const {
+      activeBucket,
+      activePath,
+      activeRepo,
+      changesSidebarMode,
+      collapseStaged,
+      collapseUnstaged,
+      repoFiles,
+      repoTreeActivePath,
+      snapshot,
+    } =
       getNavigationData();
+
+    if (changesSidebarMode === "files") {
+      if (!activeRepo) {
+        return;
+      }
+
+      const visibleFilePathsFromDom = getVisibleFilePaths("repo-files");
+      const visibleFilePaths =
+        visibleFilePathsFromDom.length > 0
+          ? visibleFilePathsFromDom
+          : (repoFiles ?? []).map((file: { path: string }) => file.path);
+
+      if (visibleFilePaths.length === 0) {
+        return;
+      }
+
+      const activeIndex = visibleFilePaths.findIndex((path) => path === repoTreeActivePath);
+      const targetIndex = getWrappedNavigationIndex(activeIndex, visibleFilePaths.length, nextKey);
+      const targetPath = visibleFilePaths[targetIndex];
+
+      if (!targetPath) {
+        return;
+      }
+
+      scrollKeyboardNavItemIntoView("repo-files", targetIndex);
+      dispatch(setRepoTreeActivePath(targetPath));
+      dispatch(
+        openFileViewer({
+          repoPath: activeRepo,
+          relPath: targetPath,
+        }),
+      );
+      return;
+    }
+
     const unstaged = snapshot?.unstaged ?? [];
     const staged = snapshot?.staged ?? [];
     const untracked = snapshot?.untracked ?? [];
@@ -108,7 +167,8 @@ export function useChangesKeyboardNav() {
 
   const stageOrUnstageSelection = (event: KeyboardEvent) => {
     if (isTypingTarget(event.target)) return;
-    const { runningAction } = getNavigationData();
+    const { changesSidebarMode, runningAction } = getNavigationData();
+    if (changesSidebarMode !== "changes") return;
     if (runningAction) return;
     event.preventDefault();
     void dispatch(stageOrUnstageSelectionAction());

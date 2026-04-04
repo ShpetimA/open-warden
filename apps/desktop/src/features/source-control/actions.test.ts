@@ -25,6 +25,7 @@ vi.mock("@/platform/desktop", () => ({
     checkAppExists: vi.fn(),
     openPath: vi.fn(),
     getGitSnapshot: vi.fn(),
+    getRepoFiles: vi.fn(),
     getCommitHistory: vi.fn(),
     getBranches: vi.fn(),
     getBranchFiles: vi.fn(),

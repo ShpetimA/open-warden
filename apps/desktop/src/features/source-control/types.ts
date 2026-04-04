@@ -7,6 +7,7 @@ import type {
   GitSnapshot as ContractGitSnapshot,
   HistoryCommit as ContractHistoryCommit,
   LspDiagnostic as ContractLspDiagnostic,
+  RepoFileItem as ContractRepoFileItem,
 } from "@/platform/desktop";
 
 export type Bucket = ContractBucket;
@@ -21,12 +22,24 @@ export type FileBrowserMode = "tree" | "list";
 
 export type FileItem = ContractFileItem;
 
+export type RepoFileItem = ContractRepoFileItem;
+
 export type BucketedFile = FileItem & { bucket: Bucket };
 
 export type SelectedFile = {
   bucket: Bucket;
   path: string;
 };
+
+export type FileViewerTarget = {
+  repoPath: string;
+  relPath: string;
+  revision?: string | null;
+  line?: number | null;
+  column?: number | null;
+};
+
+export type ChangesSidebarMode = "changes" | "files";
 
 export type HistoryCommit = ContractHistoryCommit;
 

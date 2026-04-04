@@ -1,4 +1,4 @@
-import { Columns2, Copy, FoldVertical, Rows3, UnfoldVertical } from "lucide-react";
+import { BookOpenText, Columns2, Copy, FoldVertical, Rows3, UnfoldVertical } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ import { copyComments, fileComments } from "@/features/comments/actions";
 import { compactComments } from "@/features/comments/selectors";
 import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import { setDiffStyleValue } from "@/features/source-control/actions";
+import { openFileViewer } from "@/features/source-control/sourceControlSlice";
 import type { CommentContext } from "@/features/source-control/types";
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
   canComment: boolean;
   commentContext: CommentContext;
   expandUnchanged: boolean;
+  fileViewerRevision?: string | null;
   onToggleExpandUnchanged: () => void;
 };
 
@@ -28,6 +30,7 @@ export function DiffHeaderMetadataControls({
   canComment,
   commentContext,
   expandUnchanged,
+  fileViewerRevision,
   onToggleExpandUnchanged,
 }: Props) {
   const dispatch = useAppDispatch();
@@ -110,6 +113,33 @@ export function DiffHeaderMetadataControls({
           compact
           disabled={!activePath}
         />
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => {
+                if (!activeRepo || !activePath) {
+                  return;
+                }
+
+                dispatch(
+                  openFileViewer({
+                    repoPath: activeRepo,
+                    relPath: activePath,
+                    revision: fileViewerRevision,
+                  }),
+                );
+              }}
+              disabled={!activeRepo || !activePath}
+              aria-label="Open file viewer"
+            >
+              <BookOpenText />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Open file viewer</TooltipContent>
+        </Tooltip>
 
         {canComment ? (
           <Tooltip>

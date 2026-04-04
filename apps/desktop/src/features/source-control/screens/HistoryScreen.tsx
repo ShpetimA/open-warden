@@ -79,6 +79,7 @@ export function HistoryScreen() {
                 activePath={previewPath}
                 commentContext={{ kind: "changes" }}
                 canComment={false}
+                fileViewerRevision={historyCommitId}
               />
             )}
           </div>

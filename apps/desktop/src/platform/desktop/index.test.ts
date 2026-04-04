@@ -30,6 +30,7 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     checkAppExists: vi.fn(),
     openPath: vi.fn(),
     getGitSnapshot: vi.fn(),
+    getRepoFiles: vi.fn(),
     getCommitHistory: vi.fn(),
     getBranches: vi.fn(),
     getBranchFiles: vi.fn(),
@@ -45,6 +46,7 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     discardFiles: vi.fn(),
     discardAll: vi.fn(),
     commitStaged: vi.fn(),
+    getRepoFile: vi.fn(),
     syncLspDocument: vi.fn(),
     closeLspDocument: vi.fn(),
     getLspHover: vi.fn(),
@@ -71,4 +73,18 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     line: 5,
     character: 9,
   });
+
+  await desktop.getRepoFile({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    revision: "HEAD",
+  });
+  expect(window.desktopBridge.getRepoFile).toHaveBeenCalledWith({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    revision: "HEAD",
+  });
+
+  await desktop.getRepoFiles("/tmp/repo");
+  expect(window.desktopBridge.getRepoFiles).toHaveBeenCalledWith("/tmp/repo");
 });

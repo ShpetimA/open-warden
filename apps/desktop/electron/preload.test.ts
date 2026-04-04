@@ -59,6 +59,9 @@ describe("electron preload bridge", () => {
     expect(branches).toEqual(["main"]);
     expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getBranches", "/tmp/repo");
 
+    await desktopBridge.getRepoFiles("/tmp/repo");
+    expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getRepoFiles", "/tmp/repo");
+
     await desktopBridge.getLspHover({
       repoPath: "/tmp/repo",
       relPath: "src/main.ts",
@@ -70,6 +73,17 @@ describe("electron preload bridge", () => {
       relPath: "src/main.ts",
       line: 3,
       character: 7,
+    });
+
+    await desktopBridge.getRepoFile({
+      repoPath: "/tmp/repo",
+      relPath: "src/main.ts",
+      revision: "HEAD",
+    });
+    expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getRepoFile", {
+      repoPath: "/tmp/repo",
+      relPath: "src/main.ts",
+      revision: "HEAD",
     });
 
     const unsubscribe = desktopBridge.onUpdateState(() => {});

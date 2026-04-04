@@ -7,12 +7,14 @@ import type {
   DesktopUpdateState,
   DiscardFileInput,
   GetLspHoverInput,
+  GetRepoFileInput,
   SyncLspDocumentInput,
   FileItem,
   FileVersions,
   GitSnapshot,
   HistoryCommit,
   LspHoverResult,
+  RepoFileItem,
   WorkspaceSession,
 } from "./contracts";
 import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
@@ -105,6 +107,9 @@ export const browserDesktopApi: DesktopBridge = {
   async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
     return unsupportedAsync("Git snapshot loading");
   },
+  async getRepoFiles(_repoPath: string): Promise<RepoFileItem[]> {
+    return unsupportedAsync("Repository file listing");
+  },
   async getCommitHistory(_repoPath: string, _limit?: number): Promise<HistoryCommit[]> {
     return unsupportedAsync("Commit history loading");
   },
@@ -164,6 +169,9 @@ export const browserDesktopApi: DesktopBridge = {
   },
   async commitStaged(_repoPath: string, _message: string) {
     return unsupportedAsync<string>("Creating commits");
+  },
+  async getRepoFile(_input: GetRepoFileInput) {
+    return null;
   },
   async syncLspDocument(_input: SyncLspDocumentInput) {},
   async closeLspDocument(_input: CloseLspDocumentInput) {},
@@ -226,6 +234,9 @@ export const unavailableDesktopApi: DesktopBridge = {
   async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
     return unavailableAsync();
   },
+  async getRepoFiles(_repoPath: string): Promise<RepoFileItem[]> {
+    return unavailableAsync();
+  },
   async getCommitHistory(_repoPath: string, _limit?: number): Promise<HistoryCommit[]> {
     return unavailableAsync();
   },
@@ -285,6 +296,9 @@ export const unavailableDesktopApi: DesktopBridge = {
   },
   async commitStaged(_repoPath: string, _message: string) {
     return unavailableAsync<string>();
+  },
+  async getRepoFile(_input: GetRepoFileInput) {
+    return unavailableAsync<null>();
   },
   async syncLspDocument(_input: SyncLspDocumentInput) {},
   async closeLspDocument(_input: CloseLspDocumentInput) {},

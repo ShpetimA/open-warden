@@ -288,6 +288,7 @@ function ReviewDiffPane({
             activePath={previewPath}
             commentContext={context}
             canComment
+            fileViewerRevision={reviewHeadRef}
           />
         )}
       </div>
