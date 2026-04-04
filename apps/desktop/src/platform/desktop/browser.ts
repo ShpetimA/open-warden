@@ -7,6 +7,7 @@ import type {
   DesktopUpdateState,
   DiscardFileInput,
   GetLspHoverInput,
+  GetLspReferencesInput,
   GetRepoFileInput,
   SyncLspDocumentInput,
   FileItem,
@@ -14,6 +15,7 @@ import type {
   GitSnapshot,
   HistoryCommit,
   LspHoverResult,
+  LspLocation,
   RepoFileItem,
   WorkspaceSession,
 } from "./contracts";
@@ -178,6 +180,12 @@ export const browserDesktopApi: DesktopBridge = {
   async getLspHover(_input: GetLspHoverInput): Promise<LspHoverResult | null> {
     return null;
   },
+  async getLspDefinition(_input: GetLspHoverInput): Promise<LspLocation[]> {
+    return [];
+  },
+  async getLspReferences(_input: GetLspReferencesInput): Promise<LspLocation[]> {
+    return [];
+  },
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are only available in desktop builds.");
   },
@@ -304,6 +312,12 @@ export const unavailableDesktopApi: DesktopBridge = {
   async closeLspDocument(_input: CloseLspDocumentInput) {},
   async getLspHover(_input: GetLspHoverInput): Promise<LspHoverResult | null> {
     return null;
+  },
+  async getLspDefinition(_input: GetLspHoverInput): Promise<LspLocation[]> {
+    return unavailableAsync();
+  },
+  async getLspReferences(_input: GetLspReferencesInput): Promise<LspLocation[]> {
+    return unavailableAsync();
   },
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are unavailable right now.");

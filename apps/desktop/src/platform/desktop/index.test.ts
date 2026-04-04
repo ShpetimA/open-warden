@@ -50,6 +50,8 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     syncLspDocument: vi.fn(),
     closeLspDocument: vi.fn(),
     getLspHover: vi.fn(),
+    getLspDefinition: vi.fn(),
+    getLspReferences: vi.fn(),
     getUpdateState: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),
@@ -83,6 +85,34 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     repoPath: "/tmp/repo",
     relPath: "src/app.ts",
     revision: "HEAD",
+  });
+
+  await desktop.getLspDefinition({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    line: 5,
+    character: 9,
+  });
+  expect(window.desktopBridge.getLspDefinition).toHaveBeenCalledWith({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    line: 5,
+    character: 9,
+  });
+
+  await desktop.getLspReferences({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    line: 5,
+    character: 9,
+    includeDeclaration: false,
+  });
+  expect(window.desktopBridge.getLspReferences).toHaveBeenCalledWith({
+    repoPath: "/tmp/repo",
+    relPath: "src/app.ts",
+    line: 5,
+    character: 9,
+    includeDeclaration: false,
   });
 
   await desktop.getRepoFiles("/tmp/repo");

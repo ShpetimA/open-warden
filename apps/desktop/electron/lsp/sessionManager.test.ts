@@ -4,7 +4,11 @@ vi.mock("./serverCatalog", () => ({
   serverConfigForLanguage: () => null,
 }));
 
-import { LspSessionManager, normalizeLspHoverResponse } from "./sessionManager";
+import {
+  LspSessionManager,
+  normalizeLspHoverResponse,
+  normalizeLspLocationResponse,
+} from "./sessionManager";
 
 describe("normalizeLspHoverResponse", () => {
   it("returns plain string hover text", () => {
@@ -41,6 +45,64 @@ describe("normalizeLspHoverResponse", () => {
   });
 });
 
+describe("normalizeLspLocationResponse", () => {
+  it("normalizes location responses inside the repo", () => {
+    expect(
+      normalizeLspLocationResponse("/tmp/repo", {
+        uri: "file:///tmp/repo/src/example.ts",
+        range: {
+          start: { line: 4, character: 2 },
+          end: { line: 4, character: 8 },
+        },
+      }),
+    ).toEqual([
+      {
+        repoPath: "/tmp/repo",
+        relPath: "src/example.ts",
+        uri: "file:///tmp/repo/src/example.ts",
+        line: 5,
+        character: 2,
+        endLine: 5,
+        endCharacter: 8,
+      },
+    ]);
+  });
+
+  it("normalizes location links using target selection ranges", () => {
+    expect(
+      normalizeLspLocationResponse("/tmp/repo", {
+        targetUri: "file:///tmp/repo/src/example.ts",
+        targetSelectionRange: {
+          start: { line: 1, character: 4 },
+          end: { line: 1, character: 10 },
+        },
+      }),
+    ).toEqual([
+      {
+        repoPath: "/tmp/repo",
+        relPath: "src/example.ts",
+        uri: "file:///tmp/repo/src/example.ts",
+        line: 2,
+        character: 4,
+        endLine: 2,
+        endCharacter: 10,
+      },
+    ]);
+  });
+
+  it("drops locations outside the repo root", () => {
+    expect(
+      normalizeLspLocationResponse("/tmp/repo", {
+        uri: "file:///tmp/other/src/example.ts",
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 1 },
+        },
+      }),
+    ).toEqual([]);
+  });
+});
+
 describe("LspSessionManager.getHover", () => {
   it("returns null for unsupported languages", async () => {
     const manager = new LspSessionManager({ onDiagnostics: () => {} });
@@ -66,5 +128,33 @@ describe("LspSessionManager.getHover", () => {
         character: 4,
       }),
     ).resolves.toBeNull();
+  });
+});
+
+describe("LspSessionManager navigation", () => {
+  it("returns no definitions for unsupported languages", async () => {
+    const manager = new LspSessionManager({ onDiagnostics: () => {} });
+
+    await expect(
+      manager.getDefinition({
+        repoPath: "/tmp/repo",
+        relPath: "README.md",
+        line: 1,
+        character: 0,
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it("returns no references when the document has not been synced", async () => {
+    const manager = new LspSessionManager({ onDiagnostics: () => {} });
+
+    await expect(
+      manager.getReferences({
+        repoPath: "/tmp/repo",
+        relPath: "src/example.ts",
+        line: 3,
+        character: 4,
+      }),
+    ).resolves.toEqual([]);
   });
 });

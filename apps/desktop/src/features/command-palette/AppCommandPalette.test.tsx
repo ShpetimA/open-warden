@@ -52,6 +52,7 @@ vi.mock("@/app/hooks", () => ({
         reviewHeadRef: "feature",
         reviewActivePath: "src/large-file.ts",
         fileViewerTarget: null,
+        symbolPeek: null,
       },
       comments: [],
     }),

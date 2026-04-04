@@ -114,32 +114,34 @@ export function DiffHeaderMetadataControls({
           disabled={!activePath}
         />
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={() => {
-                if (!activeRepo || !activePath) {
-                  return;
-                }
+        {commentContext.kind === "changes" ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => {
+                  if (!activeRepo || !activePath) {
+                    return;
+                  }
 
-                dispatch(
-                  openFileViewer({
-                    repoPath: activeRepo,
-                    relPath: activePath,
-                    revision: fileViewerRevision,
-                  }),
-                );
-              }}
-              disabled={!activeRepo || !activePath}
-              aria-label="Open file viewer"
-            >
-              <BookOpenText />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Open file viewer</TooltipContent>
-        </Tooltip>
+                  dispatch(
+                    openFileViewer({
+                      repoPath: activeRepo,
+                      relPath: activePath,
+                      revision: fileViewerRevision,
+                    }),
+                  );
+                }}
+                disabled={!activeRepo || !activePath}
+                aria-label="Open file viewer"
+              >
+                <BookOpenText />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Open file viewer</TooltipContent>
+          </Tooltip>
+        ) : null}
 
         {canComment ? (
           <Tooltip>

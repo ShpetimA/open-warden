@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -39,6 +39,8 @@ import {
   type LspHoverDocument,
   useDiffLspHover,
 } from "@/features/diff-view/useDiffLspHover";
+import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
+import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { formatRange } from "@/features/source-control/utils";
 import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
 
@@ -123,6 +125,7 @@ export function DiffWorkspace({
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const diffThemeType = getDiffThemeType(resolvedTheme);
   const activeDiffIdentity = getDiffIdentity(activePath, oldFile, newFile);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null);
   const [expandUnchanged, setExpandUnchanged] = useState(false);
@@ -132,6 +135,7 @@ export function DiffWorkspace({
     document: lspHoverDocument,
     resetKey: activeDiffIdentity,
   });
+  const { onTokenClick } = useLspTokenNavigation(lspHoverDocument);
 
   const diffTheme = getDiffTheme();
   const { annotations: currentAnnotations } = useCurrentFileComments(
@@ -198,6 +202,7 @@ export function DiffWorkspace({
     expansionLineCount: 20,
     hunkSeparators: "line-info-basic" as const,
     enableLineSelection: canComment,
+    onTokenClick,
     onTokenEnter: onTokenEnter,
     onTokenLeave: onTokenLeave,
     onLineSelected: canComment ? applySelectionRange : undefined,
@@ -274,6 +279,7 @@ export function DiffWorkspace({
         onPopoverLeave={onPopoverLeave}
       />
       <div
+        ref={viewportRef}
         key={diffViewportKey}
         className="relative h-full min-w-0 overflow-y-auto overflow-x-hidden"
       >
@@ -307,6 +313,7 @@ export function DiffWorkspace({
         ) : (
           <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
         )}
+        <LspSymbolPeek document={lspHoverDocument} containerRef={viewportRef} />
       </div>
     </div>
   );

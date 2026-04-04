@@ -75,6 +75,34 @@ describe("electron preload bridge", () => {
       character: 7,
     });
 
+    await desktopBridge.getLspDefinition({
+      repoPath: "/tmp/repo",
+      relPath: "src/main.ts",
+      line: 3,
+      character: 7,
+    });
+    expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getLspDefinition", {
+      repoPath: "/tmp/repo",
+      relPath: "src/main.ts",
+      line: 3,
+      character: 7,
+    });
+
+    await desktopBridge.getLspReferences({
+      repoPath: "/tmp/repo",
+      relPath: "src/main.ts",
+      line: 3,
+      character: 7,
+      includeDeclaration: false,
+    });
+    expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getLspReferences", {
+      repoPath: "/tmp/repo",
+      relPath: "src/main.ts",
+      line: 3,
+      character: 7,
+      includeDeclaration: false,
+    });
+
     await desktopBridge.getRepoFile({
       repoPath: "/tmp/repo",
       relPath: "src/main.ts",

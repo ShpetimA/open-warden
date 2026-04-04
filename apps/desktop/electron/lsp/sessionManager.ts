@@ -5,10 +5,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type {
   CloseLspDocumentInput,
   GetLspHoverInput,
+  GetLspReferencesInput,
   LspDiagnostic,
   LspDiagnosticSeverity,
   LspDiagnosticsEvent,
   LspHoverResult,
+  LspLocation,
   SyncLspDocumentInput,
 } from "../../src/platform/desktop/contracts";
 
@@ -60,6 +62,40 @@ type MarkedString = string | { language?: string; value?: string };
 type HoverResponse = {
   contents?: string | { kind?: string; value?: string } | MarkedString[];
 } | null;
+
+type LspRange = {
+  start?: {
+    line?: number;
+    character?: number;
+  };
+  end?: {
+    line?: number;
+    character?: number;
+  };
+};
+
+type LocationResponse =
+  | {
+      uri?: string;
+      range?: LspRange;
+    }
+  | {
+      targetUri?: string;
+      targetSelectionRange?: LspRange;
+      targetRange?: LspRange;
+    }
+  | null;
+
+type BasicLocation = {
+  uri?: string;
+  range?: LspRange;
+};
+
+type LocationLink = {
+  targetUri?: string;
+  targetSelectionRange?: LspRange;
+  targetRange?: LspRange;
+};
 
 function toSessionKey(repoPath: string, languageId: string) {
   return `${repoPath}::${languageId}`;
@@ -176,6 +212,73 @@ export function normalizeLspHoverResponse(result: HoverResponse): LspHoverResult
   const text =
     contents.kind === "markdown" ? stripMarkdownFormatting(rawValue) : normalizeLineEndings(rawValue);
   return text.length > 0 ? { text } : null;
+}
+
+function normalizeLocationRange(range: LspRange | undefined) {
+  if (!range?.start) {
+    return null;
+  }
+
+  return {
+    line: (range.start.line ?? 0) + 1,
+    character: range.start.character ?? 0,
+    endLine: (range.end?.line ?? range.start.line ?? 0) + 1,
+    endCharacter: range.end?.character ?? range.start.character ?? 0,
+  };
+}
+
+export function normalizeLspLocationResponse(
+  repoPath: string,
+  result: LocationResponse | LocationResponse[],
+): LspLocation[] {
+  const values = Array.isArray(result) ? result : result ? [result] : [];
+
+  return values.flatMap((value) => {
+    if (!value || typeof value !== "object") {
+      return [];
+    }
+
+    const location = value as BasicLocation | LocationLink;
+    const isLocationLink =
+      "targetUri" in location ||
+      "targetSelectionRange" in location ||
+      "targetRange" in location;
+    const uri = isLocationLink ? location.targetUri : (location as BasicLocation).uri;
+    const range = isLocationLink
+      ? location.targetSelectionRange ?? location.targetRange
+      : (location as BasicLocation).range;
+
+    if (!uri) {
+      return [];
+    }
+
+    const documentPath = toDocumentPath(uri);
+    if (!documentPath) {
+      return [];
+    }
+
+    const relPath = path.relative(repoPath, documentPath);
+    if (!relPath || relPath.startsWith("..") || path.isAbsolute(relPath)) {
+      return [];
+    }
+
+    const normalizedRange = normalizeLocationRange(range);
+    if (!normalizedRange) {
+      return [];
+    }
+
+    return [
+      {
+        repoPath,
+        relPath,
+        uri,
+        line: normalizedRange.line,
+        character: normalizedRange.character,
+        endLine: normalizedRange.endLine,
+        endCharacter: normalizedRange.endCharacter,
+      },
+    ];
+  });
 }
 
 class LspSession {
@@ -389,6 +492,56 @@ class LspSession {
     return normalizeLspHoverResponse(response);
   }
 
+  async getDefinition(line: number, character: number, relPath: string): Promise<LspLocation[]> {
+    await this.initialized;
+
+    const uri = toDocumentUri(this.repoPath, relPath);
+    if (!this.openDocuments.has(uri)) {
+      return [];
+    }
+
+    const response = (await this.sendRequest("textDocument/definition", {
+      textDocument: {
+        uri,
+      },
+      position: {
+        line: Math.max(line - 1, 0),
+        character: Math.max(character, 0),
+      },
+    })) as LocationResponse | LocationResponse[];
+
+    return normalizeLspLocationResponse(this.repoPath, response);
+  }
+
+  async getReferences(
+    line: number,
+    character: number,
+    relPath: string,
+    includeDeclaration: boolean,
+  ): Promise<LspLocation[]> {
+    await this.initialized;
+
+    const uri = toDocumentUri(this.repoPath, relPath);
+    if (!this.openDocuments.has(uri)) {
+      return [];
+    }
+
+    const response = (await this.sendRequest("textDocument/references", {
+      textDocument: {
+        uri,
+      },
+      position: {
+        line: Math.max(line - 1, 0),
+        character: Math.max(character, 0),
+      },
+      context: {
+        includeDeclaration,
+      },
+    })) as LocationResponse | LocationResponse[];
+
+    return normalizeLspLocationResponse(this.repoPath, response);
+  }
+
   dispose() {
     if (this.closed) {
       return;
@@ -575,6 +728,55 @@ export class LspSessionManager {
       return await session.getHover(line, character, relPath);
     } catch {
       return null;
+    }
+  }
+
+  async getDefinition({
+    repoPath,
+    relPath,
+    line,
+    character,
+  }: GetLspHoverInput): Promise<LspLocation[]> {
+    const languageId = languageIdForPath(relPath);
+    if (!languageId) {
+      return [];
+    }
+
+    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
+    if (!sessionPromise) {
+      return [];
+    }
+
+    try {
+      const session = await sessionPromise;
+      return await session.getDefinition(line, character, relPath);
+    } catch {
+      return [];
+    }
+  }
+
+  async getReferences({
+    repoPath,
+    relPath,
+    line,
+    character,
+    includeDeclaration = false,
+  }: GetLspReferencesInput): Promise<LspLocation[]> {
+    const languageId = languageIdForPath(relPath);
+    if (!languageId) {
+      return [];
+    }
+
+    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
+    if (!sessionPromise) {
+      return [];
+    }
+
+    try {
+      const session = await sessionPromise;
+      return await session.getReferences(line, character, relPath, includeDeclaration);
+    } catch {
+      return [];
     }
   }
 

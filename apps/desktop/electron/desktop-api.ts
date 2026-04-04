@@ -55,6 +55,8 @@ export const desktopApi: DesktopApi = {
   syncLspDocument: (input) => lspSessionManager.syncDocument(input),
   closeLspDocument: (input) => lspSessionManager.closeDocument(input),
   getLspHover: (input) => lspSessionManager.getHover(input),
+  getLspDefinition: (input) => lspSessionManager.getDefinition(input),
+  getLspReferences: (input) => lspSessionManager.getReferences(input),
 };
 
 export function configureDesktopApi(options: {

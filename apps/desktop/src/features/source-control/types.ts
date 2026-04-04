@@ -7,6 +7,7 @@ import type {
   GitSnapshot as ContractGitSnapshot,
   HistoryCommit as ContractHistoryCommit,
   LspDiagnostic as ContractLspDiagnostic,
+  LspLocation as ContractLspLocation,
   RepoFileItem as ContractRepoFileItem,
 } from "@/platform/desktop";
 
@@ -24,6 +25,8 @@ export type FileItem = ContractFileItem;
 
 export type RepoFileItem = ContractRepoFileItem;
 
+export type LspLocation = ContractLspLocation;
+
 export type BucketedFile = FileItem & { bucket: Bucket };
 
 export type SelectedFile = {
@@ -37,6 +40,28 @@ export type FileViewerTarget = {
   revision?: string | null;
   line?: number | null;
   column?: number | null;
+  focusKey?: number | null;
+};
+
+export type SymbolPeekKind = "definitions" | "references";
+
+export type SymbolPeekSourceDocument = {
+  repoPath: string;
+  relPath: string;
+};
+
+export type SymbolPeekAnchor = {
+  lineNumber: number;
+  lineIndex: string | null;
+};
+
+export type SymbolPeekState = {
+  kind: SymbolPeekKind;
+  locations: LspLocation[];
+  activeIndex: number;
+  query: string;
+  sourceDocument: SymbolPeekSourceDocument;
+  anchor: SymbolPeekAnchor;
 };
 
 export type ChangesSidebarMode = "changes" | "files";

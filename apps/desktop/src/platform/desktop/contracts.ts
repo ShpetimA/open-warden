@@ -90,6 +90,10 @@ export type GetLspHoverInput = {
   character: number;
 };
 
+export type GetLspReferencesInput = GetLspHoverInput & {
+  includeDeclaration?: boolean;
+};
+
 export type GetRepoFileInput = {
   repoPath: string;
   relPath: string;
@@ -119,6 +123,16 @@ export type LspDiagnosticsEvent = {
 
 export type LspHoverResult = {
   text: string;
+};
+
+export type LspLocation = {
+  repoPath: string;
+  relPath: string;
+  uri: string;
+  line: number;
+  character: number;
+  endLine: number;
+  endCharacter: number;
 };
 
 export type DesktopApi = {
@@ -160,6 +174,8 @@ export type DesktopApi = {
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;
   getLspHover(input: GetLspHoverInput): Promise<LspHoverResult | null>;
+  getLspDefinition(input: GetLspHoverInput): Promise<LspLocation[]>;
+  getLspReferences(input: GetLspReferencesInput): Promise<LspLocation[]>;
 };
 
 export type DesktopUpdateStatus =

@@ -1,14 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile } from "@pierre/diffs/react";
 import { useTheme } from "next-themes";
 
 import { useAppSelector } from "@/app/hooks";
 import {
+  DIFF_LINE_FOCUS_CSS,
+  useDiffLineFocus,
+} from "@/features/source-control/diffLineFocus";
+import {
   getDiffTheme,
   getDiffThemeType,
 } from "@/features/diff-view/diffRenderConfig";
 import { useGetRepoFileQuery } from "@/features/source-control/api";
+import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
+import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
+import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { repoLabel } from "@/features/source-control/utils";
 
@@ -32,6 +39,7 @@ pre[data-file-type='single'] {
   overflow: hidden;
   min-width: 0;
 }
+${DIFF_LINE_FOCUS_CSS}
 `;
 
 function formatViewerSubtitle(repoPath: string, revision?: string | null) {
@@ -64,26 +72,19 @@ export function GeneralFileViewer() {
   const file = repoFileQuery.data;
   const errorMessage = errorMessageFrom(repoFileQuery.error, "");
   const selectedLine = target?.line && target.line > 0 ? target.line : null;
+  const focusKey = target?.focusKey ?? null;
+  const lspText = file?.contents ?? null;
+  const { onTokenClick } = useLspTokenNavigation(
+    target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined,
+  );
 
-  useEffect(() => {
-    if (!selectedLine || !file) {
-      return;
-    }
-
-    const frameId = requestAnimationFrame(() => {
-      const lineNode = viewerRef.current?.querySelector<HTMLElement>(
-        `[data-line="${selectedLine}"]`,
-      );
-      lineNode?.scrollIntoView({
-        block: "center",
-        inline: "nearest",
-      });
-    });
-
-    return () => {
-      cancelAnimationFrame(frameId);
-    };
-  }, [file, selectedLine]);
+  useCurrentLspDocument(target?.repoPath ?? "", target?.relPath ?? "", lspText);
+  useDiffLineFocus({
+    containerRef: viewerRef,
+    lineNumber: file ? selectedLine : null,
+    focusKey,
+    enabled: Boolean(file),
+  });
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
@@ -94,7 +95,7 @@ export function GeneralFileViewer() {
         </div>
       </div>
 
-      <div ref={viewerRef} className="min-h-0 flex-1 overflow-auto">
+      <div ref={viewerRef} className="relative min-h-0 flex-1 overflow-auto">
         {errorMessage ? (
           <div className="text-destructive p-4 text-sm">{errorMessage}</div>
         ) : repoFileQuery.isFetching ? (
@@ -114,9 +115,14 @@ export function GeneralFileViewer() {
               unsafeCSS: FILE_VIEWER_CSS,
               disableLineNumbers: false,
               disableFileHeader: false,
+              onTokenClick,
             }}
           />
         )}
+        <LspSymbolPeek
+          document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
+          containerRef={viewerRef}
+        />
       </div>
     </section>
   );

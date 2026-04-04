@@ -65,6 +65,8 @@ export const desktop: DesktopBridge = {
   syncLspDocument: (input) => resolveDesktopApi().syncLspDocument(input),
   closeLspDocument: (input) => resolveDesktopApi().closeLspDocument(input),
   getLspHover: (input) => resolveDesktopApi().getLspHover(input),
+  getLspDefinition: (input) => resolveDesktopApi().getLspDefinition(input),
+  getLspReferences: (input) => resolveDesktopApi().getLspReferences(input),
   getUpdateState: () => resolveDesktopApi().getUpdateState(),
   checkForUpdates: () => resolveDesktopApi().checkForUpdates(),
   downloadUpdate: () => resolveDesktopApi().downloadUpdate(),
@@ -100,6 +102,8 @@ export type {
   SyncLspDocumentInput,
   CloseLspDocumentInput,
   GetLspHoverInput,
+  GetLspReferencesInput,
+  LspLocation,
   LspHoverResult,
   WorkspaceSession,
 } from "./contracts";
