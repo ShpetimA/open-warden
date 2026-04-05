@@ -296,18 +296,20 @@ function ReviewDiffPane({
         ) : !oldFile && !newFile ? (
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
-          <DiffWorkspace
-            oldFile={oldFile}
-            newFile={newFile}
-            activePath={previewPath}
-            commentContext={context}
-            canComment
-            fileViewerRevision={reviewHeadRef}
-            lspJumpContextKind="review"
-            focusedLineNumber={focusedLineNumber}
-            focusedLineIndex={focusedLineIndex}
-            focusedLineKey={focusedLineKey}
-          />
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <DiffWorkspace
+              oldFile={oldFile}
+              newFile={newFile}
+              activePath={previewPath}
+              commentContext={context}
+              canComment
+              fileViewerRevision={reviewHeadRef}
+              lspJumpContextKind="review"
+              focusedLineNumber={focusedLineNumber}
+              focusedLineIndex={focusedLineIndex}
+              focusedLineKey={focusedLineKey}
+            />
+          </div>
         )}
       </div>
     </section>

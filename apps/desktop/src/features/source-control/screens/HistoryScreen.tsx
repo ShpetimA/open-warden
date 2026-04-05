@@ -73,14 +73,16 @@ export function HistoryScreen() {
             ) : !oldFile && !newFile ? (
               <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
             ) : (
-              <DiffWorkspace
-                oldFile={oldFile}
-                newFile={newFile}
-                activePath={previewPath}
-                commentContext={{ kind: "changes" }}
-                canComment={false}
-                fileViewerRevision={historyCommitId}
-              />
+              <div className="flex h-full min-h-0 min-w-0 flex-col">
+                <DiffWorkspace
+                  oldFile={oldFile}
+                  newFile={newFile}
+                  activePath={previewPath}
+                  commentContext={{ kind: "changes" }}
+                  canComment={false}
+                  fileViewerRevision={historyCommitId}
+                />
+              </div>
             )}
           </div>
         </section>
