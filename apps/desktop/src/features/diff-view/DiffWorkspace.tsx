@@ -27,6 +27,7 @@ import { CommentAnnotation } from "@/features/diff-view/components/CommentAnnota
 import { CommentComposer } from "@/features/diff-view/components/CommentComposer";
 import { DiagnosticAnnotation } from "@/features/diff-view/components/DiagnosticAnnotation";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
+import { PullRequestInlineReviewThread } from "@/features/pull-requests/components/PullRequestInlineReviewThread";
 import {
   getDiffTheme,
   getDiffThemeCacheSalt,
@@ -41,8 +42,13 @@ import {
 } from "@/features/diff-view/useDiffLspHover";
 import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
+import {
+  DIFF_LINE_FOCUS_CSS,
+  useDiffLineFocus,
+} from "@/features/source-control/diffLineFocus";
 import { formatRange } from "@/features/source-control/utils";
 import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
+import type { LspLocation } from "@/features/source-control/types";
 
 type Props = {
   oldFile: DiffFile | null;
@@ -53,6 +59,10 @@ type Props = {
   diagnosticAnnotations?: DiffLineAnnotation<DiffAnnotationItem>[];
   fileViewerRevision?: string | null;
   lspHoverDocument?: LspHoverDocument;
+  focusedLineNumber?: number | null;
+  focusedLineKey?: number | string | null;
+  annotationItems?: DiffLineAnnotation<DiffAnnotationItem>[];
+  onOpenLspLocation?: (location: LspLocation) => void;
 };
 
 const STICKY_HEADER_CSS = `
@@ -75,6 +85,7 @@ pre[data-diff-type='single'] {
   overflow: hidden;
   min-width: 0;
 }
+${DIFF_LINE_FOCUS_CSS}
 `;
 
 function getDiffIdentity(
@@ -119,6 +130,10 @@ export function DiffWorkspace({
   diagnosticAnnotations = [],
   fileViewerRevision,
   lspHoverDocument,
+  focusedLineNumber = null,
+  focusedLineKey = null,
+  annotationItems = [],
+  onOpenLspLocation,
 }: Props) {
   const { resolvedTheme } = useTheme();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -135,7 +150,9 @@ export function DiffWorkspace({
     document: lspHoverDocument,
     resetKey: activeDiffIdentity,
   });
-  const { onTokenClick } = useLspTokenNavigation(lspHoverDocument);
+  const { onTokenClick } = useLspTokenNavigation(lspHoverDocument, {
+    onOpenLocation: onOpenLspLocation,
+  });
 
   const diffTheme = getDiffTheme();
   const { annotations: currentAnnotations } = useCurrentFileComments(
@@ -156,6 +173,12 @@ export function DiffWorkspace({
     newFile,
     cacheSalt: diffThemeCacheSalt,
     allowLargeDiff: forceShowLargeDiff,
+  });
+  useDiffLineFocus({
+    containerRef: viewportRef,
+    lineNumber: currentFileDiff ? focusedLineNumber : null,
+    focusKey: focusedLineKey,
+    enabled: Boolean(currentFileDiff),
   });
 
   const applySelectionRange = (range: SelectionRange | null) => {
@@ -188,6 +211,16 @@ export function DiffWorkspace({
       return <DiagnosticAnnotation diagnostic={data.diagnostic} />;
     }
 
+    if (data.type === "pull-request-thread") {
+      return (
+        <PullRequestInlineReviewThread
+          repoPath={data.repoPath}
+          pullRequestNumber={data.pullRequestNumber}
+          thread={data.thread}
+        />
+      );
+    }
+
     return <CommentAnnotation comment={data} />;
   };
 
@@ -216,7 +249,7 @@ export function DiffWorkspace({
   const selectedRangeLabel = selectedRange
     ? formatRange(selectedRange.start, selectedRange.end)
     : "";
-  const baseAnnotations = [...diagnosticAnnotations, ...currentAnnotations];
+  const baseAnnotations = [...diagnosticAnnotations, ...currentAnnotations, ...annotationItems];
   const annotationsWithComposer: DiffLineAnnotation<DiffAnnotationItem>[] = selectedRange
     ? [
         ...baseAnnotations,

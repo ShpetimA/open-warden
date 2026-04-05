@@ -1,6 +1,8 @@
 import { AppThemeProvider } from "@/app/AppThemeProvider";
 import { AppShell } from "@/app/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { PullRequestReviewScreen } from "@/features/pull-requests/screens/PullRequestReviewScreen";
+import { PullRequestsScreen } from "@/features/pull-requests/screens/PullRequestsScreen";
 import { SettingsScreen } from "@/features/settings/screens/SettingsScreen";
 import { ChangesScreen } from "@/features/source-control/screens/ChangesScreen";
 import { HistoryScreen } from "@/features/source-control/screens/HistoryScreen";
@@ -23,6 +25,14 @@ const router = createHashRouter([
       {
         path: "history",
         element: <HistoryScreen />,
+      },
+      {
+        path: "pull-requests",
+        element: <PullRequestsScreen />,
+      },
+      {
+        path: "pull-requests/:providerId/:owner/:repo/:pullRequestNumber",
+        element: <PullRequestReviewScreen />,
       },
       {
         path: "review",

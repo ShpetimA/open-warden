@@ -1,6 +1,19 @@
 import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
 import { getAppSettingsPath, loadAppSettings, saveAppSettings } from "./appSettings";
 import {
+  addPullRequestComment,
+  connectProvider,
+  disconnectProvider,
+  getPullRequestConversation,
+  listProviderConnections,
+  listPullRequests,
+  preparePullRequestWorkspace,
+  replyToPullRequestThread,
+  resolveHostedRepo,
+  resolvePullRequestWorkspace,
+  setPullRequestThreadResolved,
+} from "./hostedRepos";
+import {
   commitStaged,
   discardAll,
   discardFile,
@@ -38,6 +51,17 @@ export const desktopApi: DesktopApi = {
   confirm,
   checkAppExists,
   openPath,
+  listProviderConnections,
+  connectProvider,
+  disconnectProvider,
+  resolveHostedRepo,
+  resolvePullRequestWorkspace,
+  listPullRequests,
+  getPullRequestConversation,
+  addPullRequestComment,
+  replyToPullRequestThread,
+  setPullRequestThreadResolved,
+  preparePullRequestWorkspace,
   getGitSnapshot,
   getRepoFiles,
   getCommitHistory,

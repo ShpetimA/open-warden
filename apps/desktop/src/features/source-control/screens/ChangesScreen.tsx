@@ -14,8 +14,9 @@ import { useThrottledDiffSelection } from "@/features/source-control/hooks/useTh
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import type { BucketedFile } from "@/features/source-control/types";
+import { PullRequestReviewScreen } from "@/features/pull-requests/screens/PullRequestReviewScreen";
 
-export function ChangesScreen() {
+function LocalChangesScreen() {
   useChangesKeyboardNav();
   useChangesSync();
 
@@ -115,4 +116,14 @@ export function ChangesScreen() {
       </section>
     </div>
   );
+}
+
+export function ChangesScreen() {
+  const changesSidebarMode = useAppSelector((state) => state.sourceControl.changesSidebarMode);
+
+  if (changesSidebarMode === "pull-request") {
+    return <PullRequestReviewScreen />;
+  }
+
+  return <LocalChangesScreen />;
 }

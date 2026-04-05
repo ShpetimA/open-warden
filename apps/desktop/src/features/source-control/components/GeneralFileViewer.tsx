@@ -18,6 +18,11 @@ import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { repoLabel } from "@/features/source-control/utils";
+import type { LspLocation } from "@/features/source-control/types";
+
+type GeneralFileViewerProps = {
+  onOpenLspLocation?: (location: LspLocation) => void;
+};
 
 const FILE_VIEWER_CSS = `
 :host {
@@ -50,7 +55,7 @@ function formatViewerSubtitle(repoPath: string, revision?: string | null) {
   return `${repoLabel(repoPath)} · Worktree`;
 }
 
-export function GeneralFileViewer() {
+export function GeneralFileViewer({ onOpenLspLocation }: GeneralFileViewerProps) {
   const { resolvedTheme } = useTheme();
   const target = useAppSelector((state) => state.sourceControl.fileViewerTarget);
   const viewerRef = useRef<HTMLDivElement | null>(null);
@@ -76,6 +81,7 @@ export function GeneralFileViewer() {
   const lspText = file?.contents ?? null;
   const { onTokenClick } = useLspTokenNavigation(
     target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined,
+    { onOpenLocation: onOpenLspLocation },
   );
 
   useCurrentLspDocument(target?.repoPath ?? "", target?.relPath ?? "", lspText);

@@ -7,6 +7,7 @@ import {
   normalizeRepoPaths,
 } from "@/platform/desktop/workspaceSession";
 import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
+import { clearCurrentPullRequestReview } from "@/features/pull-requests/pullRequestsSlice";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import {
@@ -67,6 +68,7 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
 
 const resetRepoScopedState = (): AppThunk => (dispatch) => {
   dispatch(resetRepoViewState());
+  dispatch(clearCurrentPullRequestReview());
 };
 
 async function persistWorkspaceSession(getState: () => RootState) {

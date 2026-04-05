@@ -1,7 +1,9 @@
 import type {
+  AddPullRequestCommentInput,
   AppSettings,
   Bucket,
   CloseLspDocumentInput,
+  ConnectProviderInput,
   ConfirmOptions,
   DesktopBridge,
   DesktopUpdateActionResult,
@@ -10,14 +12,26 @@ import type {
   GetLspHoverInput,
   GetLspReferencesInput,
   GetRepoFileInput,
+  GitProviderId,
   SyncLspDocumentInput,
   FileItem,
   FileVersions,
   GitSnapshot,
+  HostedRepoRef,
   HistoryCommit,
   LspHoverResult,
   LspLocation,
+  PullRequestConversation,
+  PullRequestIssueComment,
+  PullRequestLocatorInput,
+  PullRequestReviewThread,
+  PreparedPullRequestWorkspace,
+  PreparePullRequestWorkspaceInput,
+  ProviderConnection,
+  PullRequestSummary,
+  ReplyToPullRequestThreadInput,
   RepoFileItem,
+  SetPullRequestThreadResolvedInput,
   WorkspaceSession,
 } from "./contracts";
 import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
@@ -144,6 +158,51 @@ export const browserDesktopApi: DesktopBridge = {
   },
   async openPath(_path: string, _appName?: string | null) {
     unsupported("Opening local paths");
+  },
+  async listProviderConnections(): Promise<ProviderConnection[]> {
+    return [];
+  },
+  async connectProvider(_input: ConnectProviderInput): Promise<ProviderConnection> {
+    return unsupportedAsync("Provider connections");
+  },
+  async disconnectProvider(_providerId: GitProviderId) {
+    unsupported("Provider connections");
+  },
+  async resolveHostedRepo(_repoPath: string): Promise<HostedRepoRef | null> {
+    return unsupportedAsync("Hosted repository detection");
+  },
+  async resolvePullRequestWorkspace(
+    _repoPath: string,
+  ): Promise<PreparedPullRequestWorkspace | null> {
+    return null;
+  },
+  async listPullRequests(_repoPath: string): Promise<PullRequestSummary[]> {
+    return unsupportedAsync("Pull request listing");
+  },
+  async getPullRequestConversation(
+    _input: PullRequestLocatorInput,
+  ): Promise<PullRequestConversation> {
+    return unsupportedAsync("Pull request conversation");
+  },
+  async addPullRequestComment(
+    _input: AddPullRequestCommentInput,
+  ): Promise<PullRequestIssueComment> {
+    return unsupportedAsync("Pull request comments");
+  },
+  async replyToPullRequestThread(
+    _input: ReplyToPullRequestThreadInput,
+  ): Promise<PullRequestReviewThread> {
+    return unsupportedAsync("Pull request thread replies");
+  },
+  async setPullRequestThreadResolved(
+    _input: SetPullRequestThreadResolvedInput,
+  ): Promise<PullRequestReviewThread> {
+    return unsupportedAsync("Pull request thread resolution");
+  },
+  async preparePullRequestWorkspace(
+    _input: PreparePullRequestWorkspaceInput,
+  ): Promise<PreparedPullRequestWorkspace> {
+    return unsupportedAsync("Pull request review workspaces");
   },
   async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
     return unsupportedAsync("Git snapshot loading");
@@ -304,6 +363,51 @@ export const unavailableDesktopApi: DesktopBridge = {
   },
   async openPath(_path: string, _appName?: string | null) {
     unavailable();
+  },
+  async listProviderConnections(): Promise<ProviderConnection[]> {
+    return [];
+  },
+  async connectProvider(_input: ConnectProviderInput): Promise<ProviderConnection> {
+    return unavailableAsync();
+  },
+  async disconnectProvider(_providerId: GitProviderId) {
+    unavailable();
+  },
+  async resolveHostedRepo(_repoPath: string): Promise<HostedRepoRef | null> {
+    return unavailableAsync();
+  },
+  async resolvePullRequestWorkspace(
+    _repoPath: string,
+  ): Promise<PreparedPullRequestWorkspace | null> {
+    return null;
+  },
+  async listPullRequests(_repoPath: string): Promise<PullRequestSummary[]> {
+    return unavailableAsync();
+  },
+  async getPullRequestConversation(
+    _input: PullRequestLocatorInput,
+  ): Promise<PullRequestConversation> {
+    return unavailableAsync();
+  },
+  async addPullRequestComment(
+    _input: AddPullRequestCommentInput,
+  ): Promise<PullRequestIssueComment> {
+    return unavailableAsync();
+  },
+  async replyToPullRequestThread(
+    _input: ReplyToPullRequestThreadInput,
+  ): Promise<PullRequestReviewThread> {
+    return unavailableAsync();
+  },
+  async setPullRequestThreadResolved(
+    _input: SetPullRequestThreadResolvedInput,
+  ): Promise<PullRequestReviewThread> {
+    return unavailableAsync();
+  },
+  async preparePullRequestWorkspace(
+    _input: PreparePullRequestWorkspaceInput,
+  ): Promise<PreparedPullRequestWorkspace> {
+    return unavailableAsync();
   },
   async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
     return unavailableAsync();

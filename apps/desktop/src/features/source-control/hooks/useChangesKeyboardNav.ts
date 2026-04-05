@@ -80,6 +80,10 @@ export function useChangesKeyboardNav() {
     } =
       getNavigationData();
 
+    if (changesSidebarMode === "pull-request") {
+      return;
+    }
+
     if (changesSidebarMode === "files") {
       if (!activeRepo) {
         return;

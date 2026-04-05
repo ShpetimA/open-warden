@@ -7,10 +7,15 @@ import {
   openFileViewer,
   openSymbolPeek,
 } from "@/features/source-control/sourceControlSlice";
+import type { LspLocation } from "@/features/source-control/types";
 
 type LspTokenDocument = {
   repoPath: string;
   relPath: string;
+};
+
+type UseLspTokenNavigationOptions = {
+  onOpenLocation?: (location: LspLocation) => void;
 };
 
 type TokenPosition = Pick<TokenEventBase, "lineNumber" | "lineCharStart" | "tokenElement"> & {
@@ -35,7 +40,10 @@ function isReferencesClick(event: MouseEvent) {
   return event.altKey || ((event.metaKey || event.ctrlKey) && event.shiftKey);
 }
 
-export function useLspTokenNavigation(document?: LspTokenDocument) {
+export function useLspTokenNavigation(
+  document?: LspTokenDocument,
+  options?: UseLspTokenNavigationOptions,
+) {
   const dispatch = useAppDispatch();
 
   function createPeekPayload(
@@ -93,7 +101,11 @@ export function useLspTokenNavigation(document?: LspTokenDocument) {
           }
 
           if (locations.length === 1) {
-            dispatch(openFileViewer(createFocusedFileViewerTarget(locations[0])));
+            if (options?.onOpenLocation) {
+              options.onOpenLocation(locations[0]);
+            } else {
+              dispatch(openFileViewer(createFocusedFileViewerTarget(locations[0])));
+            }
             return;
           }
 
@@ -121,7 +133,11 @@ export function useLspTokenNavigation(document?: LspTokenDocument) {
         }
 
         if (locations.length === 1) {
-          dispatch(openFileViewer(createFocusedFileViewerTarget(locations[0])));
+          if (options?.onOpenLocation) {
+            options.onOpenLocation(locations[0]);
+          } else {
+            dispatch(openFileViewer(createFocusedFileViewerTarget(locations[0])));
+          }
           return;
         }
 

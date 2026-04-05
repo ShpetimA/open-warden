@@ -66,6 +66,161 @@ export type ConfirmOptions = {
   cancelLabel?: string;
 };
 
+export type GitProviderId = "github" | "gitlab" | "bitbucket";
+
+export type ProviderConnectionMethod = "pat";
+
+export type ProviderConnection = {
+  id: GitProviderId;
+  providerId: GitProviderId;
+  method: ProviderConnectionMethod;
+  login: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  scopes: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConnectProviderInput = {
+  providerId: GitProviderId;
+  method: ProviderConnectionMethod;
+  token: string;
+};
+
+export type HostedRepoRef = {
+  providerId: GitProviderId;
+  owner: string;
+  repo: string;
+  remoteName: string;
+  remoteUrl: string;
+  webUrl: string;
+};
+
+export type PullRequestState = "open" | "closed" | "merged";
+
+export type PullRequestSummary = {
+  id: string;
+  providerId: GitProviderId;
+  number: number;
+  title: string;
+  state: PullRequestState;
+  isDraft: boolean;
+  authorLogin: string;
+  authorDisplayName: string | null;
+  url: string;
+  baseRef: string;
+  headRef: string;
+  headOwner: string;
+  headRepo: string;
+  updatedAt: string;
+};
+
+export type PullRequestPerson = {
+  login: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+};
+
+export type PullRequestDetail = {
+  id: string;
+  providerId: GitProviderId;
+  number: number;
+  title: string;
+  body: string;
+  state: PullRequestState;
+  isDraft: boolean;
+  url: string;
+  author: PullRequestPerson | null;
+  baseRef: string;
+  headRef: string;
+  baseSha: string;
+  headSha: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PullRequestIssueComment = {
+  id: string;
+  databaseId: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  author: PullRequestPerson | null;
+  url: string | null;
+};
+
+export type PullRequestReviewComment = {
+  id: string;
+  databaseId: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  author: PullRequestPerson | null;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  url: string | null;
+};
+
+export type PullRequestReviewThread = {
+  id: string;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  diffSide: "LEFT" | "RIGHT";
+  isResolved: boolean;
+  isOutdated: boolean;
+  resolvedBy: PullRequestPerson | null;
+  comments: PullRequestReviewComment[];
+};
+
+export type PullRequestConversation = {
+  detail: PullRequestDetail;
+  issueComments: PullRequestIssueComment[];
+  reviewThreads: PullRequestReviewThread[];
+};
+
+export type PreparePullRequestWorkspaceInput = {
+  repoPath: string;
+  pullRequestNumber: number;
+};
+
+export type PullRequestLocatorInput = {
+  repoPath: string;
+  pullRequestNumber: number;
+};
+
+export type AddPullRequestCommentInput = PullRequestLocatorInput & {
+  body: string;
+};
+
+export type ReplyToPullRequestThreadInput = PullRequestLocatorInput & {
+  threadId: string;
+  body: string;
+};
+
+export type SetPullRequestThreadResolvedInput = PullRequestLocatorInput & {
+  threadId: string;
+  resolved: boolean;
+};
+
+export type PreparedPullRequestWorkspace = {
+  providerId: GitProviderId;
+  repoPath: string;
+  worktreePath: string;
+  owner: string;
+  repo: string;
+  pullRequestNumber: number;
+  title: string;
+  baseRef: string;
+  headRef: string;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  localBranch: string;
+  hostedRepo: HostedRepoRef;
+};
+
 export type WorkspaceSession = {
   openRepos: string[];
   activeRepo: string;
@@ -154,6 +309,23 @@ export type DesktopApi = {
   confirm(message: string, options?: ConfirmOptions): Promise<boolean>;
   checkAppExists(appName: string): Promise<boolean>;
   openPath(path: string, appName?: string | null): Promise<void>;
+  listProviderConnections(): Promise<ProviderConnection[]>;
+  connectProvider(input: ConnectProviderInput): Promise<ProviderConnection>;
+  disconnectProvider(providerId: GitProviderId): Promise<void>;
+  resolveHostedRepo(repoPath: string): Promise<HostedRepoRef | null>;
+  resolvePullRequestWorkspace(repoPath: string): Promise<PreparedPullRequestWorkspace | null>;
+  listPullRequests(repoPath: string): Promise<PullRequestSummary[]>;
+  getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
+  addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
+  replyToPullRequestThread(
+    input: ReplyToPullRequestThreadInput,
+  ): Promise<PullRequestReviewThread>;
+  setPullRequestThreadResolved(
+    input: SetPullRequestThreadResolvedInput,
+  ): Promise<PullRequestReviewThread>;
+  preparePullRequestWorkspace(
+    input: PreparePullRequestWorkspaceInput,
+  ): Promise<PreparedPullRequestWorkspace>;
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
   getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;

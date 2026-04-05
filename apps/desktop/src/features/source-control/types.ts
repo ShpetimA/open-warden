@@ -10,6 +10,7 @@ import type {
   LspDiagnostic as ContractLspDiagnostic,
   LspLocation as ContractLspLocation,
   RepoFileItem as ContractRepoFileItem,
+  PullRequestReviewThread,
 } from "@/platform/desktop";
 
 export type Bucket = ContractBucket;
@@ -65,7 +66,7 @@ export type SymbolPeekState = {
   anchor: SymbolPeekAnchor;
 };
 
-export type ChangesSidebarMode = "changes" | "files";
+export type ChangesSidebarMode = "changes" | "files" | "pull-request";
 
 export type HistoryCommit = ContractHistoryCommit;
 
@@ -111,7 +112,18 @@ export type DiagnosticAnnotation = {
   diagnostic: LspDiagnostic;
 };
 
-export type DiffAnnotationItem = CommentItem | ComposerAnnotation | DiagnosticAnnotation;
+export type PullRequestThreadAnnotation = {
+  type: "pull-request-thread";
+  thread: PullRequestReviewThread;
+  repoPath: string;
+  pullRequestNumber: number;
+};
+
+export type DiffAnnotationItem =
+  | CommentItem
+  | ComposerAnnotation
+  | DiagnosticAnnotation
+  | PullRequestThreadAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;
 

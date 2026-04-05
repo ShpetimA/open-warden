@@ -1,7 +1,7 @@
-import { GitBranch, GitPullRequestArrow, History } from "lucide-react";
+import { GitBranch, GitPullRequest, GitPullRequestArrow, History } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-export type FeatureKey = "changes" | "history" | "review";
+export type FeatureKey = "changes" | "history" | "review" | "pull-requests";
 
 export type FeatureNavItem = {
   key: FeatureKey;
@@ -12,11 +12,13 @@ export type FeatureNavItem = {
 
 export const FEATURE_NAV_ITEMS: FeatureNavItem[] = [
   { key: "changes", path: "/changes", label: "Changes", icon: GitPullRequestArrow },
+  { key: "pull-requests", path: "/pull-requests", label: "Pull Requests", icon: GitPullRequest },
   { key: "history", path: "/history", label: "History", icon: History },
   { key: "review", path: "/review", label: "Review", icon: GitBranch },
 ];
 
 export function featureKeyFromPath(pathname: string): FeatureKey {
+  if (pathname.startsWith("/pull-requests")) return "pull-requests";
   if (pathname.startsWith("/history")) return "history";
   if (pathname.startsWith("/review")) return "review";
   return "changes";
@@ -33,6 +35,7 @@ export type SidebarConfig = {
 
 export const FEATURE_SIDEBARS: Record<FeatureKey, SidebarConfig[]> = {
   changes: [{ panelId: "primary", icon: "left" }],
+  "pull-requests": [],
   history: [
     { panelId: "primary", icon: "left" },
     { panelId: "history-files", icon: "right" },
