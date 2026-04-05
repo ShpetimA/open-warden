@@ -229,11 +229,22 @@ export type WorkspaceSession = {
 
 export type FileTreeRenderMode = "tree" | "list";
 
+export type LspServerSettings = {
+  command: string;
+  args: string[];
+  extensions?: string[];
+};
+
+export type LspSettings = {
+  servers: Record<string, LspServerSettings>;
+};
+
 export type AppSettings = {
   version: 1;
   sourceControl: {
     fileTreeRenderMode: FileTreeRenderMode;
   };
+  lsp: LspSettings;
 };
 
 export type SyncLspDocumentInput = {

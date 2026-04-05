@@ -33,6 +33,15 @@ describe("electron app settings persistence", () => {
       sourceControl: {
         fileTreeRenderMode: "list",
       },
+      lsp: {
+        servers: {
+          typescript: {
+            command: "typescript-language-server",
+            args: ["--stdio"],
+            extensions: ["ts", "tsx"],
+          },
+        },
+      },
     });
 
     const rawFile = await readFile(path.join(userDataPath, "settings.json"), "utf8");
@@ -41,12 +50,30 @@ describe("electron app settings persistence", () => {
       sourceControl: {
         fileTreeRenderMode: "list",
       },
+      lsp: {
+        servers: {
+          typescript: {
+            command: "typescript-language-server",
+            args: ["--stdio"],
+            extensions: ["ts", "tsx"],
+          },
+        },
+      },
     });
 
     await expect(loadAppSettings()).resolves.toEqual({
       version: 1,
       sourceControl: {
         fileTreeRenderMode: "list",
+      },
+      lsp: {
+        servers: {
+          typescript: {
+            command: "typescript-language-server",
+            args: ["--stdio"],
+            extensions: ["ts", "tsx"],
+          },
+        },
       },
     });
   });
@@ -61,6 +88,9 @@ describe("electron app settings persistence", () => {
       version: 1,
       sourceControl: {
         fileTreeRenderMode: "tree",
+      },
+      lsp: {
+        servers: {},
       },
     });
   });

@@ -36,6 +36,9 @@ describe("electron preload bridge", () => {
       sourceControl: {
         fileTreeRenderMode: "tree",
       },
+      lsp: {
+        servers: {},
+      },
     });
     invoke.mockResolvedValueOnce(["main"]);
 

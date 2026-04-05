@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type {
+  AppSettings,
   CloseLspDocumentInput,
   GetLspHoverInput,
   GetLspReferencesInput,
@@ -13,13 +14,15 @@ import type {
   LspLocation,
   SyncLspDocumentInput,
 } from "../../src/platform/desktop/contracts";
+import { createAppSettings } from "../../src/platform/desktop/appSettings";
 
 import { languageIdForPath } from "./pathLanguage";
 import { JsonRpcProtocol } from "./protocol";
-import { serverConfigForLanguage } from "./serverCatalog";
+import { resolveServerConfigForLanguage } from "./serverCatalog";
 
 type SessionManagerOptions = {
   onDiagnostics(event: LspDiagnosticsEvent): void;
+  loadAppSettings?(): Promise<AppSettings>;
 };
 
 type PendingRequest = {
@@ -298,10 +301,16 @@ class LspSession {
   static async create(
     repoPath: string,
     languageId: string,
+    settings: AppSettings,
     onDiagnostics: SessionManagerOptions["onDiagnostics"],
     onExit: () => void,
   ) {
-    const session = new LspSession(repoPath, languageId, onDiagnostics, onExit);
+    const serverConfig = await resolveServerConfigForLanguage(languageId, settings);
+    if (!serverConfig) {
+      throw new Error(`No language server configured for ${languageId}.`);
+    }
+
+    const session = new LspSession(repoPath, languageId, serverConfig, onDiagnostics, onExit);
     await session.initialized;
     return session;
   }
@@ -309,14 +318,10 @@ class LspSession {
   private constructor(
     repoPath: string,
     languageId: string,
+    serverConfig: { command: string; args: string[] },
     onDiagnostics: SessionManagerOptions["onDiagnostics"],
     onExit: () => void,
   ) {
-    const serverConfig = serverConfigForLanguage(languageId);
-    if (!serverConfig) {
-      throw new Error(`No language server configured for ${languageId}.`);
-    }
-
     this.repoPath = repoPath;
     this.languageId = languageId;
     this.onDiagnostics = onDiagnostics;
@@ -660,20 +665,23 @@ class LspSession {
 export class LspSessionManager {
   private readonly sessions = new Map<string, Promise<LspSession>>();
   private readonly onDiagnostics: SessionManagerOptions["onDiagnostics"];
+  private readonly loadAppSettings: NonNullable<SessionManagerOptions["loadAppSettings"]>;
 
-  constructor({ onDiagnostics }: SessionManagerOptions) {
+  constructor({ onDiagnostics, loadAppSettings }: SessionManagerOptions) {
     this.onDiagnostics = onDiagnostics;
+    this.loadAppSettings = loadAppSettings ?? (async () => createAppSettings());
   }
 
   async syncDocument({ repoPath, relPath, text }: SyncLspDocumentInput) {
-    const languageId = languageIdForPath(relPath);
+    const settings = await this.loadNormalizedSettings();
+    const languageId = languageIdForPath(relPath, settings.lsp.servers);
     if (!languageId) {
       this.emitDiagnostics(repoPath, relPath, null, [], "Unsupported language.");
       return;
     }
 
     try {
-      const session = await this.getSession(repoPath, languageId);
+      const session = await this.getSession(repoPath, languageId, settings);
       await session.syncDocument(relPath, text);
     } catch (error) {
       this.emitDiagnostics(
@@ -687,7 +695,8 @@ export class LspSessionManager {
   }
 
   async closeDocument({ repoPath, relPath }: CloseLspDocumentInput) {
-    const languageId = languageIdForPath(relPath);
+    const settings = await this.loadNormalizedSettings();
+    const languageId = languageIdForPath(relPath, settings.lsp.servers);
     this.emitDiagnostics(repoPath, relPath, languageId, [], null);
 
     if (!languageId) {
@@ -713,7 +722,8 @@ export class LspSessionManager {
     line,
     character,
   }: GetLspHoverInput): Promise<LspHoverResult | null> {
-    const languageId = languageIdForPath(relPath);
+    const settings = await this.loadNormalizedSettings();
+    const languageId = languageIdForPath(relPath, settings.lsp.servers);
     if (!languageId) {
       return null;
     }
@@ -737,7 +747,8 @@ export class LspSessionManager {
     line,
     character,
   }: GetLspHoverInput): Promise<LspLocation[]> {
-    const languageId = languageIdForPath(relPath);
+    const settings = await this.loadNormalizedSettings();
+    const languageId = languageIdForPath(relPath, settings.lsp.servers);
     if (!languageId) {
       return [];
     }
@@ -762,7 +773,8 @@ export class LspSessionManager {
     character,
     includeDeclaration = false,
   }: GetLspReferencesInput): Promise<LspLocation[]> {
-    const languageId = languageIdForPath(relPath);
+    const settings = await this.loadNormalizedSettings();
+    const languageId = languageIdForPath(relPath, settings.lsp.servers);
     if (!languageId) {
       return [];
     }
@@ -794,22 +806,37 @@ export class LspSessionManager {
     }
   }
 
-  private getSession(repoPath: string, languageId: string) {
+  private getSession(repoPath: string, languageId: string, settings: AppSettings) {
     const key = toSessionKey(repoPath, languageId);
     const existing = this.sessions.get(key);
     if (existing) {
       return existing;
     }
 
-    const sessionPromise = LspSession.create(repoPath, languageId, this.onDiagnostics, () => {
-      this.sessions.delete(key);
-    }).catch((error) => {
+    const sessionPromise = LspSession.create(
+      repoPath,
+      languageId,
+      settings,
+      this.onDiagnostics,
+      () => {
+        this.sessions.delete(key);
+      },
+    ).catch((error) => {
       this.sessions.delete(key);
       throw error;
     });
 
     this.sessions.set(key, sessionPromise);
     return sessionPromise;
+  }
+
+  private async loadNormalizedSettings(): Promise<AppSettings> {
+    try {
+      const settings = await this.loadAppSettings();
+      return createAppSettings(settings);
+    } catch {
+      return createAppSettings();
+    }
   }
 
   private emitDiagnostics(

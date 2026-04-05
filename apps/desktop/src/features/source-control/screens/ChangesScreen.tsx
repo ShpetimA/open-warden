@@ -111,7 +111,7 @@ function LocalChangesScreen() {
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
-            <>
+            <div className="flex h-full min-h-0 min-w-0 flex-col">
               <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
               <DiffWorkspace
                 oldFile={oldFile}
@@ -127,7 +127,7 @@ function LocalChangesScreen() {
                 focusedLineIndex={focusedLineIndex}
                 focusedLineKey={focusedLineKey}
               />
-            </>
+            </div>
           )}
         </div>
       </section>

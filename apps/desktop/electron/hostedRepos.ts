@@ -707,16 +707,25 @@ async function ensurePreparedWorktree(
 async function writeManagedRepoState(
   preparedWorkspace: PreparedPullRequestWorkspace,
 ) {
+  const existingWorkspaces = await readManagedRepoWorkspaces(preparedWorkspace.hostedRepo);
+  const normalizedPreparedWorkspace = normalizePreparedWorkspace(preparedWorkspace);
+  const mergedWorkspaces = [
+    normalizedPreparedWorkspace,
+    ...existingWorkspaces.filter(
+      (workspace) => path.resolve(workspace.worktreePath) !== normalizedPreparedWorkspace.worktreePath,
+    ),
+  ];
   const statePath = managedRepoStatePath(preparedWorkspace.hostedRepo);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(
     statePath,
     JSON.stringify(
       {
-        ...preparedWorkspace,
-        lastPreparedPullRequestNumber: preparedWorkspace.pullRequestNumber,
-        lastPreparedWorktreePath: preparedWorkspace.worktreePath,
+        providerId: preparedWorkspace.hostedRepo.providerId,
+        owner: preparedWorkspace.hostedRepo.owner,
+        repo: preparedWorkspace.hostedRepo.repo,
         updatedAt: new Date().toISOString(),
+        workspaces: mergedWorkspaces,
       },
       null,
       2,
@@ -725,41 +734,119 @@ async function writeManagedRepoState(
   );
 }
 
-type ManagedPullRequestWorkspaceState = PreparedPullRequestWorkspace & {
-  lastPreparedPullRequestNumber: number;
-  lastPreparedWorktreePath: string;
+type ManagedPullRequestWorkspaceState = {
+  providerId: GitProviderId;
+  owner: string;
+  repo: string;
   updatedAt: string;
+  workspaces: PreparedPullRequestWorkspace[];
 };
 
-async function readManagedRepoState(hostedRepo: HostedRepoRef) {
+function normalizePreparedWorkspace(workspace: PreparedPullRequestWorkspace): PreparedPullRequestWorkspace {
+  const normalizedWorktreePath = path.resolve(workspace.worktreePath);
+  return {
+    ...workspace,
+    repoPath: normalizedWorktreePath,
+    worktreePath: normalizedWorktreePath,
+  };
+}
+
+function toPreparedWorkspace(
+  value: Partial<PreparedPullRequestWorkspace> | null | undefined,
+  hostedRepo: HostedRepoRef,
+): PreparedPullRequestWorkspace | null {
+  if (!value) {
+    return null;
+  }
+
+  if (
+    value.providerId !== hostedRepo.providerId ||
+    value.owner !== hostedRepo.owner ||
+    value.repo !== hostedRepo.repo ||
+    typeof value.pullRequestNumber !== "number" ||
+    typeof value.title !== "string" ||
+    typeof value.baseRef !== "string" ||
+    typeof value.headRef !== "string" ||
+    typeof value.compareBaseRef !== "string" ||
+    typeof value.compareHeadRef !== "string" ||
+    typeof value.localBranch !== "string" ||
+    typeof value.worktreePath !== "string"
+  ) {
+    return null;
+  }
+
+  const normalizedWorktreePath = path.resolve(value.worktreePath);
+  return {
+    providerId: value.providerId,
+    owner: value.owner,
+    repo: value.repo,
+    pullRequestNumber: value.pullRequestNumber,
+    title: value.title,
+    baseRef: value.baseRef,
+    headRef: value.headRef,
+    compareBaseRef: value.compareBaseRef,
+    compareHeadRef: value.compareHeadRef,
+    localBranch: value.localBranch,
+    worktreePath: normalizedWorktreePath,
+    repoPath: normalizedWorktreePath,
+    hostedRepo,
+  };
+}
+
+function dedupePreparedWorkspaces(workspaces: PreparedPullRequestWorkspace[]) {
+  const seen = new Set<string>();
+  const deduped: PreparedPullRequestWorkspace[] = [];
+  for (const workspace of workspaces) {
+    const key = path.resolve(workspace.worktreePath);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(normalizePreparedWorkspace(workspace));
+  }
+
+  return deduped;
+}
+
+async function readManagedRepoWorkspaces(hostedRepo: HostedRepoRef) {
   const statePath = managedRepoStatePath(hostedRepo);
   if (!(await pathExists(statePath))) {
-    return null;
+    return [] as PreparedPullRequestWorkspace[];
   }
 
   try {
     const raw = await fs.readFile(statePath, "utf8");
-    const parsed = JSON.parse(raw) as Partial<ManagedPullRequestWorkspaceState>;
+    const parsed = JSON.parse(raw) as Partial<ManagedPullRequestWorkspaceState> & {
+      workspaces?: Array<Partial<PreparedPullRequestWorkspace>>;
+    };
     if (
       parsed.providerId !== hostedRepo.providerId ||
       parsed.owner !== hostedRepo.owner ||
-      parsed.repo !== hostedRepo.repo ||
-      typeof parsed.lastPreparedPullRequestNumber !== "number" ||
-      typeof parsed.lastPreparedWorktreePath !== "string"
+      parsed.repo !== hostedRepo.repo
     ) {
-      return null;
+      return [] as PreparedPullRequestWorkspace[];
     }
 
-    const workspacePath = path.resolve(parsed.lastPreparedWorktreePath);
-    return {
-      ...parsed,
-      repoPath: workspacePath,
-      worktreePath: workspacePath,
-      hostedRepo,
-    } as PreparedPullRequestWorkspace;
+    const workspaces = (parsed.workspaces ?? [])
+      .map((workspace) => toPreparedWorkspace(workspace, hostedRepo))
+      .filter((workspace): workspace is PreparedPullRequestWorkspace => workspace !== null);
+
+    return dedupePreparedWorkspaces(workspaces);
   } catch {
-    return null;
+    return [] as PreparedPullRequestWorkspace[];
   }
+}
+
+async function readManagedRepoState(hostedRepo: HostedRepoRef, worktreePath: string) {
+  const resolvedWorktreePath = path.resolve(worktreePath);
+  const workspaces = await readManagedRepoWorkspaces(hostedRepo);
+  for (const workspace of workspaces) {
+    if (path.resolve(workspace.worktreePath) === resolvedWorktreePath) {
+      return workspace;
+    }
+  }
+
+  return null;
 }
 
 async function resolveGitHubPullRequestContext(input: PullRequestLocatorInput) {
@@ -924,12 +1011,8 @@ export async function resolvePullRequestWorkspace(
     return null;
   }
 
-  const state = await readManagedRepoState(hostedRepo);
+  const state = await readManagedRepoState(hostedRepo, repoPath);
   if (!state) {
-    return null;
-  }
-
-  if (path.resolve(repoPath) !== path.resolve(state.worktreePath)) {
     return null;
   }
 

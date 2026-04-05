@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./serverCatalog", () => ({
-  serverConfigForLanguage: () => null,
+  resolveServerConfigForLanguage: async () => null,
 }));
 
 import {

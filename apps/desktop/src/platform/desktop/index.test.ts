@@ -31,11 +31,17 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
       sourceControl: {
         fileTreeRenderMode: "tree",
       },
+      lsp: {
+        servers: {},
+      },
     }),
     saveAppSettings: vi.fn().mockResolvedValue({
       version: 1,
       sourceControl: {
         fileTreeRenderMode: "tree",
+      },
+      lsp: {
+        servers: {},
       },
     }),
     getAppSettingsPath: vi.fn().mockResolvedValue("/tmp/settings.json"),

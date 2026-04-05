@@ -407,7 +407,7 @@ export function DiffWorkspace({
   };
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <DiagnosticTokenPopover
         open={diagnosticPopover.state.open}
         anchorRect={diagnosticPopover.state.anchorRect}
@@ -423,7 +423,7 @@ export function DiffWorkspace({
       <div
         ref={viewportRef}
         key={diffViewportKey}
-        className="relative h-full min-w-0 overflow-y-auto overflow-x-hidden"
+        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
         {currentFileDiff ? (
           <PierreFileDiff

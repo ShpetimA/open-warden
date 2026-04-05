@@ -39,6 +39,7 @@ import { loadWorkspaceSession, saveWorkspaceSession } from "./workspaceSession";
 
 let lspSessionManager = new LspSessionManager({
   onDiagnostics: () => {},
+  loadAppSettings,
 });
 
 export const desktopApi: DesktopApi = {
@@ -93,6 +94,7 @@ export function configureDesktopApi(options: {
   void lspSessionManager.dispose();
   lspSessionManager = new LspSessionManager({
     onDiagnostics: options.onDiagnostics,
+    loadAppSettings,
   });
 }
 

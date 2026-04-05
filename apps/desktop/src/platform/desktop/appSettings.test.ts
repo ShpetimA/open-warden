@@ -22,6 +22,10 @@ describe("appSettings helpers", () => {
       sourceControl: {
         fileTreeRenderMode: "list",
       },
+      lsp: {
+        servers: {},
+      },
     });
   });
+
 });
