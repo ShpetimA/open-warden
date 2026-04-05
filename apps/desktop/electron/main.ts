@@ -22,6 +22,11 @@ let disposeAppSettingsWatcher: (() => void) | null = null;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
 
 configureDesktopApi({
   onDiagnostics(event) {
@@ -81,6 +86,22 @@ function createMainWindow() {
 
   return window;
 }
+
+app.on("second-instance", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+  }
+});
 
 ipcMain.removeHandler(DESKTOP_INVOKE_CHANNEL);
 ipcMain.handle(
