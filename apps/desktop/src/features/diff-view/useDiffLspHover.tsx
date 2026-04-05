@@ -155,7 +155,12 @@ export function useDiffLspHover({
       }
     };
 
-    const onViewportChange = () => {
+    const onViewportChange = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Node && popoverRef.current?.contains(target)) {
+        return;
+      }
+
       dismissHover();
     };
 

@@ -163,4 +163,50 @@ describe("useDiffLspHover", () => {
     expect(result.current.hoverState.open).toBe(false);
     expect(mocks.getLspHover).not.toHaveBeenCalled();
   });
+
+  it("keeps popover open when scrolling inside the popover", async () => {
+    mocks.getLspHover.mockResolvedValue({
+      text: "(alias) foo",
+    });
+    const { result } = renderHook(() =>
+      useDiffLspHover({
+        document: { repoPath: "/repo", relPath: "src/current.ts" },
+        resetKey: "current-diff",
+      }),
+    );
+    const popover = document.createElement("div");
+    const scrollContent = document.createElement("div");
+    popover.appendChild(scrollContent);
+    document.body.appendChild(popover);
+    result.current.popoverRef.current = popover;
+
+    act(() => {
+      result.current.onTokenClick(
+        {
+          lineNumber: 7,
+          lineCharStart: 3,
+          tokenElement: createTokenElement(),
+          side: "additions",
+        },
+        {
+          metaKey: true,
+          ctrlKey: false,
+          altKey: false,
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+        } as unknown as MouseEvent,
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.hoverState.loading).toBe(false);
+    });
+
+    act(() => {
+      scrollContent.dispatchEvent(new Event("scroll", { bubbles: false }));
+    });
+
+    expect(result.current.hoverState.open).toBe(true);
+  });
 });
