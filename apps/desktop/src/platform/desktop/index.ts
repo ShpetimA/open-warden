@@ -138,6 +138,7 @@ export type {
   PullRequestPerson,
   PullRequestReviewComment,
   PullRequestReviewThread,
+  ProviderAuthType,
   ProviderConnectionMethod,
   PullRequestSummary,
   PullRequestState,

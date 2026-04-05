@@ -10,26 +10,51 @@ import type {
   GitProviderId,
   HostedRepoRef,
   PullRequestConversation,
-  PullRequestDetail,
   PullRequestIssueComment,
   PullRequestLocatorInput,
-  PullRequestPerson,
-  PullRequestReviewComment,
   PullRequestReviewThread,
   PreparePullRequestWorkspaceInput,
   PreparedPullRequestWorkspace,
   ProviderConnection,
   PullRequestSummary,
-  PullRequestState,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
 } from "../src/platform/desktop/contracts";
+import {
+  bitbucketAuthorLogin,
+  bitbucketPullRequestPath,
+  bitbucketRequest,
+  bitbucketThreadRootDatabaseId,
+  createBitbucketGitAuthHeaders,
+  fetchBitbucketConversation,
+  fetchBitbucketPullRequest,
+  listBitbucketPullRequests,
+  pickBitbucketCloneUrl,
+  toBitbucketIssueComment,
+  type BitbucketCommentResponse,
+  type BitbucketUserResponse,
+} from "./bitbucket-repo";
+import {
+  fetchGitHubIssueComments,
+  fetchGitHubPullRequest,
+  fetchGitHubReviewThreads,
+  githubGraphqlRequest,
+  githubJsonRequest,
+  githubRequest,
+  toPullRequestDetail,
+  toPullRequestIssueComment,
+  toPullRequestSummary,
+  type GitHubIssueCommentResponse,
+  type GitHubPullRequestResponse,
+  type GitHubUserResponse,
+} from "./github-repo";
 import {
   deleteProviderConnection,
   getProviderConnection,
   listProviderConnections as listStoredProviderConnections,
   saveProviderConnection,
 } from "./providerConnections";
+import type { ProviderConnectionSecret } from "./providerConnections";
 
 const execFile = promisify(nodeExecFile);
 const MAX_BUFFER = 32 * 1024 * 1024;
@@ -39,118 +64,8 @@ const OPEN_WARDEN_REMOTE_PREFIX = "open-warden";
 type GitExecutionOptions = {
   cwd?: string;
   allowFailure?: boolean;
-  authToken?: string;
+  authHeader?: string;
 };
-
-type GitHubUserResponse = {
-  login: string;
-  name: string | null;
-  avatar_url: string | null;
-};
-
-type GitHubRepoSummary = {
-  clone_url: string;
-  html_url: string;
-  name: string;
-  owner: {
-    login: string;
-  };
-};
-
-type GitHubPullRequestResponse = {
-  id: number;
-  number: number;
-  title: string;
-  draft: boolean;
-  state: "open" | "closed";
-  merged_at: string | null;
-  html_url: string;
-  updated_at: string;
-  user: {
-    login: string;
-    name?: string | null;
-  } | null;
-  base: {
-    ref: string;
-    sha: string;
-    repo: GitHubRepoSummary;
-  };
-  head: {
-    ref: string;
-    sha: string;
-    repo: GitHubRepoSummary | null;
-  };
-  body?: string | null;
-  created_at: string;
-};
-
-type GitHubIssueCommentResponse = {
-  id: number;
-  body: string;
-  created_at: string;
-  updated_at: string;
-  html_url: string | null;
-  user: {
-    login: string;
-    avatar_url: string | null;
-  } | null;
-};
-
-type GitHubReviewThreadGraphResponse = {
-  data?: {
-    repository?: {
-      pullRequest?: {
-        reviewThreads?: {
-          nodes?: Array<{
-            id: string;
-            isResolved: boolean;
-            isOutdated: boolean;
-            path: string;
-            line: number | null;
-            startLine: number | null;
-            diffSide: "LEFT" | "RIGHT" | null;
-            resolvedBy: {
-              login: string;
-              avatarUrl: string | null;
-            } | null;
-              comments?: {
-                nodes?: Array<{
-                  id: string;
-                  databaseId: number;
-                  body: string;
-                  createdAt: string;
-                  updatedAt?: string | null;
-                  path: string;
-                  line: number | null;
-                  startLine: number | null;
-                  url?: string | null;
-                  author: {
-                    login: string;
-                    avatarUrl: string | null;
-                } | null;
-              }>;
-            };
-          }>;
-        };
-      };
-    };
-  };
-  errors?: Array<{ message: string }>;
-};
-
-type GitHubReviewThreadNode = NonNullable<
-  NonNullable<
-    NonNullable<
-      NonNullable<
-        NonNullable<GitHubReviewThreadGraphResponse["data"]>["repository"]
-      >["pullRequest"]
-    >["reviewThreads"]
-  >["nodes"]
->[number];
-
-type GitHubReviewThreadCommentNode = NonNullable<
-  NonNullable<GitHubReviewThreadNode["comments"]>["nodes"]
->[number];
 
 class GitCommandError extends Error {
   constructor(
@@ -184,9 +99,21 @@ function providerWebOrigin(providerId: GitProviderId) {
   }
 }
 
-function createGitHttpExtraHeader(token: string) {
-  const credentials = Buffer.from(`x-access-token:${token}`, "utf8").toString("base64");
-  return `AUTHORIZATION: basic ${credentials}`;
+function createGitBasicAuthHeader(username: string, password: string) {
+  const credentials = Buffer.from(`${username}:${password}`, "utf8").toString("base64");
+  return `Authorization: Basic ${credentials}`;
+}
+
+function createGitBearerAuthHeader(token: string) {
+  return `Authorization: Bearer ${token}`;
+}
+
+function createGitAuthHeaderFromConnection(connection: ProviderConnectionSecret) {
+  if (connection.providerId === "github") {
+    return createGitBasicAuthHeader("x-access-token", connection.token);
+  }
+
+  return createGitBearerAuthHeader(connection.token);
 }
 
 async function runGit(
@@ -203,6 +130,9 @@ async function runGit(
       env: {
         ...process.env,
         GIT_TERMINAL_PROMPT: "0",
+        GIT_ASKPASS: "echo",
+        SSH_ASKPASS: "echo",
+        GCM_INTERACTIVE: "never",
       },
     });
 
@@ -240,8 +170,8 @@ async function runGitInRepo(
 ) {
   ensureRepoPath(repoPath);
 
-  const nextArgs = options.authToken
-    ? ["-c", `http.extraheader=${createGitHttpExtraHeader(options.authToken)}`, ...args]
+  const nextArgs = options.authHeader
+    ? ["-c", `http.extraheader=${options.authHeader}`, ...args]
     : args;
 
   return runGit(nextArgs, {
@@ -369,111 +299,6 @@ async function getPreferredHostedRepo(repoPath: string): Promise<HostedRepoRef |
   return null;
 }
 
-async function githubRequest<T>(pathname: string, token: string) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `GitHub request failed with status ${response.status}`);
-  }
-
-  return {
-    data: (await response.json()) as T,
-    headers: response.headers,
-  };
-}
-
-function githubPermissionErrorHint(message: string) {
-  if (message.includes("Resource not accessible by personal access token")) {
-    return "Your GitHub token cannot create pull request comments. Reconnect with Issues: write or Pull requests: write permissions for this repository.";
-  }
-
-  return null;
-}
-
-function parseGitHubErrorMessage(text: string, status: number) {
-  try {
-    const payload = JSON.parse(text) as {
-      message?: unknown;
-      documentation_url?: unknown;
-      status?: unknown;
-    };
-    const message =
-      typeof payload.message === "string" && payload.message.trim()
-        ? payload.message
-        : `GitHub request failed with status ${status}`;
-    const hint = githubPermissionErrorHint(message);
-    return hint ? `${message}. ${hint}` : message;
-  } catch {
-    const fallback = text.trim() || `GitHub request failed with status ${status}`;
-    const hint = githubPermissionErrorHint(fallback);
-    return hint ? `${fallback}. ${hint}` : fallback;
-  }
-}
-
-async function githubJsonRequest<T>(
-  pathname: string,
-  token: string,
-  init?: {
-    method?: "GET" | "POST";
-    body?: unknown;
-  },
-) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
-    method: init?.method ?? "GET",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(parseGitHubErrorMessage(message, response.status));
-  }
-
-  return (await response.json()) as T;
-}
-
-async function githubGraphqlRequest<T>(token: string, query: string, variables: Record<string, unknown>) {
-  const response = await fetch("https://api.github.com/graphql", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw new Error(parseGitHubErrorMessage(message, response.status));
-  }
-
-  const payload = (await response.json()) as T & { errors?: Array<{ message: string }> };
-  if (Array.isArray(payload.errors) && payload.errors.length > 0) {
-    throw new Error(payload.errors[0]?.message ?? "GitHub GraphQL request failed.");
-  }
-
-  return payload;
-}
-
 function parseOAuthScopes(headerValue: string | null) {
   if (!headerValue) {
     return [];
@@ -485,116 +310,29 @@ function parseOAuthScopes(headerValue: string | null) {
     .filter(Boolean);
 }
 
-function mapGitHubPullRequestState(pullRequest: GitHubPullRequestResponse): PullRequestState {
-  if (pullRequest.merged_at) {
-    return "merged";
+function providerDisplayName(providerId: GitProviderId) {
+  if (providerId === "github") return "GitHub";
+  if (providerId === "gitlab") return "GitLab";
+  return "Bitbucket";
+}
+
+function missingConnectionMessage(providerId: GitProviderId) {
+  return `${providerDisplayName(providerId)} is not connected.`;
+}
+
+async function resolvePullRequestContext(input: PullRequestLocatorInput) {
+  const hostedRepo = await resolveHostedRepo(input.repoPath);
+  if (!hostedRepo) {
+    throw new Error("No supported hosted repository was found for the selected repo.");
   }
 
-  return pullRequest.state;
-}
-
-function toPullRequestSummary(
-  pullRequest: GitHubPullRequestResponse,
-  providerId: GitProviderId,
-): PullRequestSummary {
-  return {
-    id: `${providerId}:${pullRequest.number}`,
-    providerId,
-    number: pullRequest.number,
-    title: pullRequest.title,
-    state: mapGitHubPullRequestState(pullRequest),
-    isDraft: pullRequest.draft,
-    authorLogin: pullRequest.user?.login ?? "unknown",
-    authorDisplayName: pullRequest.user?.name ?? null,
-    url: pullRequest.html_url,
-    baseRef: pullRequest.base.ref,
-    headRef: pullRequest.head.ref,
-    headOwner: pullRequest.head.repo?.owner.login ?? pullRequest.base.repo.owner.login,
-    headRepo: pullRequest.head.repo?.name ?? pullRequest.base.repo.name,
-    updatedAt: pullRequest.updated_at,
-  };
-}
-
-function toPullRequestPerson(user: {
-  login: string;
-  avatar_url?: string | null;
-  avatarUrl?: string | null;
-  name?: string | null;
-} | null): PullRequestPerson | null {
-  if (!user) {
-    return null;
+  const connection = await getProviderConnection(hostedRepo.providerId);
+  if (!connection) {
+    throw new Error(missingConnectionMessage(hostedRepo.providerId));
   }
 
-  return {
-    login: user.login,
-    displayName: user.name ?? null,
-    avatarUrl: user.avatar_url ?? user.avatarUrl ?? null,
-  };
+  return { hostedRepo, connection };
 }
-
-function toPullRequestDetail(
-  pullRequest: GitHubPullRequestResponse,
-  providerId: GitProviderId,
-): PullRequestDetail {
-  return {
-    id: `${providerId}:${String(pullRequest.number)}`,
-    providerId,
-    number: pullRequest.number,
-    title: pullRequest.title,
-    body: pullRequest.body ?? "",
-    state: mapGitHubPullRequestState(pullRequest),
-    isDraft: pullRequest.draft,
-    url: pullRequest.html_url,
-    author: toPullRequestPerson(pullRequest.user),
-    baseRef: pullRequest.base.ref,
-    headRef: pullRequest.head.ref,
-    baseSha: pullRequest.base.sha,
-    headSha: pullRequest.head.sha,
-    createdAt: pullRequest.created_at,
-    updatedAt: pullRequest.updated_at,
-  };
-}
-
-function toPullRequestIssueComment(
-  comment: GitHubIssueCommentResponse,
-): PullRequestIssueComment {
-  return {
-    id: `issue-comment:${String(comment.id)}`,
-    databaseId: comment.id,
-    body: comment.body ?? "",
-    createdAt: comment.created_at,
-    updatedAt: comment.updated_at,
-    author: toPullRequestPerson(comment.user),
-    url: comment.html_url,
-  };
-}
-
-function toPullRequestReviewThread(thread: GitHubReviewThreadNode): PullRequestReviewThread {
-  return {
-    id: thread.id,
-    path: thread.path,
-    line: thread.line ?? null,
-    startLine: thread.startLine ?? null,
-    diffSide: thread.diffSide ?? "RIGHT",
-    isResolved: thread.isResolved,
-    isOutdated: thread.isOutdated,
-    resolvedBy: toPullRequestPerson(thread.resolvedBy),
-      comments: (thread.comments?.nodes ?? []).map<PullRequestReviewComment>(
-        (comment: GitHubReviewThreadCommentNode) => ({
-          id: comment.id,
-          databaseId: comment.databaseId,
-          body: comment.body ?? "",
-          createdAt: comment.createdAt,
-          updatedAt: comment.updatedAt ?? comment.createdAt,
-          author: toPullRequestPerson(comment.author),
-          path: comment.path,
-          line: comment.line ?? null,
-          startLine: comment.startLine ?? null,
-          url: comment.url ?? null,
-        }),
-      ),
-    };
-  }
 
 function openWardenRootPath() {
   return path.join(os.homedir(), ".open-warden");
@@ -651,12 +389,56 @@ async function fetchRemoteBranch(
   remoteUrl: string,
   branchName: string,
   targetRef: string,
-  token: string,
+  authHeader: string,
 ) {
   await runGitInRepo(
     repoPath,
     ["fetch", "--force", remoteUrl, `+refs/heads/${branchName}:${targetRef}`],
-    { authToken: token },
+    { authHeader },
+  );
+}
+
+function isGitAuthFailure(error: unknown) {
+  if (!(error instanceof GitCommandError)) {
+    return false;
+  }
+
+  const stderr = error.stderr.toLowerCase();
+  return (
+    stderr.includes("authentication failed") ||
+    stderr.includes("could not read username") ||
+    stderr.includes("access denied") ||
+    stderr.includes("invalid username or password") ||
+    stderr.includes("forbidden")
+  );
+}
+
+async function fetchRemoteBranchWithFallbackAuth(
+  repoPath: string,
+  remoteUrl: string,
+  branchName: string,
+  targetRef: string,
+  authHeaders: string[],
+) {
+  let lastError: unknown = null;
+  for (const authHeader of authHeaders) {
+    try {
+      await fetchRemoteBranch(repoPath, remoteUrl, branchName, targetRef, authHeader);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isGitAuthFailure(error)) {
+        throw error;
+      }
+    }
+  }
+
+  const detail =
+    lastError instanceof Error && lastError.message.trim()
+      ? lastError.message.trim()
+      : "Bitbucket git authentication failed.";
+  throw new Error(
+    `${detail} Verify your Bitbucket credentials include repository read access, and reconnect using your Bitbucket username for app passwords.`,
   );
 }
 
@@ -850,115 +632,12 @@ async function readManagedRepoState(hostedRepo: HostedRepoRef, worktreePath: str
 }
 
 async function resolveGitHubPullRequestContext(input: PullRequestLocatorInput) {
-  const hostedRepo = await resolveHostedRepo(input.repoPath);
-  if (!hostedRepo) {
-    throw new Error("No supported hosted repository was found for the selected repo.");
-  }
-
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
   if (hostedRepo.providerId !== "github") {
-    throw new Error(`${hostedRepo.providerId} pull request review is not supported yet.`);
-  }
-
-  const connection = await getProviderConnection(hostedRepo.providerId);
-  if (!connection) {
-    throw new Error("GitHub is not connected.");
+    throw new Error(`Cannot use ${providerDisplayName(hostedRepo.providerId)} pull request data in GitHub flow.`);
   }
 
   return { hostedRepo, connection };
-}
-
-async function fetchGitHubPullRequest(
-  hostedRepo: HostedRepoRef,
-  token: string,
-  pullRequestNumber: number,
-) {
-  const { data } = await githubRequest<GitHubPullRequestResponse>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(pullRequestNumber)}`,
-    token,
-  );
-
-  return data;
-}
-
-async function fetchGitHubIssueComments(
-  hostedRepo: HostedRepoRef,
-  token: string,
-  pullRequestNumber: number,
-) {
-  const comments = await githubJsonRequest<GitHubIssueCommentResponse[]>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/issues/${String(pullRequestNumber)}/comments?per_page=100`,
-    token,
-  );
-
-  return comments.map(toPullRequestIssueComment).sort((left, right) =>
-    left.createdAt.localeCompare(right.createdAt),
-  );
-}
-
-async function fetchGitHubReviewThreads(
-  hostedRepo: HostedRepoRef,
-  token: string,
-  pullRequestNumber: number,
-) {
-  const query = `
-    query($owner: String!, $repo: String!, $number: Int!) {
-      repository(owner: $owner, name: $repo) {
-        pullRequest(number: $number) {
-          reviewThreads(first: 100) {
-            nodes {
-              id
-              isResolved
-              isOutdated
-              path
-              line
-              startLine
-              diffSide
-              resolvedBy {
-                login
-                avatarUrl
-              }
-              comments(first: 30) {
-                nodes {
-                  id
-                  databaseId
-                  body
-                  createdAt
-                  updatedAt
-                  path
-                  line
-                  startLine
-                  url
-                  author {
-                    login
-                    avatarUrl
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  `;
-
-  const payload = await githubGraphqlRequest<GitHubReviewThreadGraphResponse>(
-    token,
-    query,
-    {
-      owner: hostedRepo.owner,
-      repo: hostedRepo.repo,
-      number: pullRequestNumber,
-    },
-  );
-
-  const nodes = payload.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
-  return nodes
-    .map(toPullRequestReviewThread)
-    .sort((left, right) => {
-      const leftCreatedAt = left.comments[0]?.createdAt ?? "";
-      const rightCreatedAt = right.comments[0]?.createdAt ?? "";
-      return leftCreatedAt.localeCompare(rightCreatedAt);
-    });
 }
 
 async function readPullRequestReviewThread(
@@ -975,24 +654,104 @@ async function readPullRequestReviewThread(
   return { thread, hostedRepo, connection };
 }
 
-export async function listProviderConnections(): Promise<ProviderConnection[]> {
-  return listStoredProviderConnections();
-}
-
-export async function connectProvider(input: ConnectProviderInput): Promise<ProviderConnection> {
-  if (input.providerId !== "github") {
-    throw new Error(`${input.providerId} connections are not supported yet.`);
+function normalizeOptionalIdentifier(value: string | null | undefined) {
+  if (typeof value !== "string") {
+    return null;
   }
 
-  const { data, headers } = await githubRequest<GitHubUserResponse>("/user", input.token);
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function connectGitHubProvider(input: ConnectProviderInput): Promise<ProviderConnection> {
+  const token = input.token.trim();
+  if (!token) {
+    throw new Error("Token is required.");
+  }
+
+  const { data, headers } = await githubRequest<GitHubUserResponse>("/user", token);
 
   return saveProviderConnection({
     ...input,
+    token,
+    identifier: null,
+    authType: "bearer",
     login: data.login,
     displayName: data.name,
     avatarUrl: data.avatar_url,
     scopes: parseOAuthScopes(headers.get("x-oauth-scopes")),
   });
+}
+
+async function connectBitbucketProvider(input: ConnectProviderInput): Promise<ProviderConnection> {
+  const token = input.token.trim();
+  if (!token) {
+    throw new Error("Token or app password is required.");
+  }
+
+  const identifier = normalizeOptionalIdentifier(input.identifier);
+  const authAttempts: Array<{ authType: "basic" | "bearer"; identifier: string | null }> = [];
+  if (input.authType === "basic") {
+    if (!identifier) {
+      throw new Error("Bitbucket username/email is required for basic authentication.");
+    }
+    authAttempts.push({ authType: "basic", identifier });
+  } else if (input.authType === "bearer") {
+    authAttempts.push({ authType: "bearer", identifier: null });
+  } else {
+    if (identifier) {
+      authAttempts.push({ authType: "basic", identifier });
+    }
+    authAttempts.push({ authType: "bearer", identifier: null });
+  }
+
+  let lastError: unknown = null;
+  for (const attempt of authAttempts) {
+    try {
+      const { data, headers } = await bitbucketRequest<BitbucketUserResponse>("/user", {
+        token,
+        authType: attempt.authType,
+        identifier: attempt.identifier,
+      });
+      const login = bitbucketAuthorLogin(data) || "bitbucket-user";
+      const displayName = data.display_name ?? null;
+      const avatarUrl = data.links?.avatar?.href ?? null;
+      const persistedIdentifier =
+        attempt.authType === "basic" ? attempt.identifier ?? null : null;
+      return saveProviderConnection({
+        ...input,
+        token,
+        identifier: persistedIdentifier,
+        authType: attempt.authType,
+        login,
+        displayName,
+        avatarUrl,
+        scopes: parseOAuthScopes(headers.get("x-oauth-scopes")),
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to validate Bitbucket credentials.");
+}
+
+export async function listProviderConnections(): Promise<ProviderConnection[]> {
+  return listStoredProviderConnections();
+}
+
+export async function connectProvider(input: ConnectProviderInput): Promise<ProviderConnection> {
+  if (input.providerId === "github") {
+    return connectGitHubProvider(input);
+  }
+
+  if (input.providerId === "bitbucket") {
+    return connectBitbucketProvider(input);
+  }
+
+  throw new Error(`${providerDisplayName(input.providerId)} connections are not supported yet.`);
 }
 
 export async function disconnectProvider(providerId: GitProviderId): Promise<void> {
@@ -1025,61 +784,94 @@ export async function listPullRequests(repoPath: string): Promise<PullRequestSum
     return [];
   }
 
-  if (hostedRepo.providerId !== "github") {
-    throw new Error(`${hostedRepo.providerId} pull request listing is not supported yet.`);
-  }
-
   const connection = await getProviderConnection(hostedRepo.providerId);
   if (!connection) {
-    throw new Error("GitHub is not connected.");
+    throw new Error(missingConnectionMessage(hostedRepo.providerId));
   }
 
-  const { data } = await githubRequest<GitHubPullRequestResponse[]>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls?state=open&per_page=50`,
-    connection.token,
-  );
+  if (hostedRepo.providerId === "github") {
+    const { data } = await githubRequest<GitHubPullRequestResponse[]>(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls?state=open&per_page=50`,
+      connection.token,
+    );
 
-  return data
-    .map((pullRequest) => toPullRequestSummary(pullRequest, hostedRepo.providerId))
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return data
+      .map((pullRequest) => toPullRequestSummary(pullRequest, hostedRepo.providerId))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    return listBitbucketPullRequests(hostedRepo, connection);
+  }
+
+  throw new Error(`${providerDisplayName(hostedRepo.providerId)} pull request listing is not supported yet.`);
 }
 
 export async function getPullRequestConversation(
   input: PullRequestLocatorInput,
 ): Promise<PullRequestConversation> {
-  const { hostedRepo, connection } = await resolveGitHubPullRequestContext(input);
-  const [pullRequest, issueComments, reviewThreads] = await Promise.all([
-    fetchGitHubPullRequest(hostedRepo, connection.token, input.pullRequestNumber),
-    fetchGitHubIssueComments(hostedRepo, connection.token, input.pullRequestNumber),
-    fetchGitHubReviewThreads(hostedRepo, connection.token, input.pullRequestNumber),
-  ]);
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
 
-  return {
-    detail: toPullRequestDetail(pullRequest, hostedRepo.providerId),
-    issueComments,
-    reviewThreads,
-  };
+  if (hostedRepo.providerId === "github") {
+    const [pullRequest, issueComments, reviewThreads] = await Promise.all([
+      fetchGitHubPullRequest(hostedRepo, connection.token, input.pullRequestNumber),
+      fetchGitHubIssueComments(hostedRepo, connection.token, input.pullRequestNumber),
+      fetchGitHubReviewThreads(hostedRepo, connection.token, input.pullRequestNumber),
+    ]);
+
+    return {
+      detail: toPullRequestDetail(pullRequest, hostedRepo.providerId),
+      issueComments,
+      reviewThreads,
+    };
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    return fetchBitbucketConversation(hostedRepo, connection, input.pullRequestNumber);
+  }
+
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} pull request conversation is not supported yet.`,
+  );
 }
 
 export async function addPullRequestComment(
   input: AddPullRequestCommentInput,
 ): Promise<PullRequestIssueComment> {
-  const { hostedRepo, connection } = await resolveGitHubPullRequestContext(input);
   const trimmedBody = input.body.trim();
   if (!trimmedBody) {
     throw new Error("Comment body cannot be empty.");
   }
 
-  const response = await githubJsonRequest<GitHubIssueCommentResponse>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/issues/${String(input.pullRequestNumber)}/comments`,
-    connection.token,
-    {
-      method: "POST",
-      body: { body: trimmedBody },
-    },
-  );
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
 
-  return toPullRequestIssueComment(response);
+  if (hostedRepo.providerId === "github") {
+    const response = await githubJsonRequest<GitHubIssueCommentResponse>(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/issues/${String(input.pullRequestNumber)}/comments`,
+      connection.token,
+      {
+        method: "POST",
+        body: { body: trimmedBody },
+      },
+    );
+
+    return toPullRequestIssueComment(response);
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    const { data } = await bitbucketRequest<BitbucketCommentResponse>(
+      `${bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber)}/comments`,
+      connection,
+      {
+        method: "POST",
+        body: { content: { raw: trimmedBody } },
+      },
+    );
+
+    return toBitbucketIssueComment(data);
+  }
+
+  throw new Error(`${providerDisplayName(hostedRepo.providerId)} comments are not supported yet.`);
 }
 
 export async function replyToPullRequestThread(
@@ -1090,64 +882,162 @@ export async function replyToPullRequestThread(
     throw new Error("Reply body cannot be empty.");
   }
 
-  const { thread, hostedRepo, connection } = await readPullRequestReviewThread(input, input.threadId);
-  const replyTargetId = thread.comments[thread.comments.length - 1]?.databaseId;
-  if (!replyTargetId) {
-    throw new Error("The selected review thread does not contain a reply target.");
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+  if (hostedRepo.providerId === "github") {
+    const { thread } = await readPullRequestReviewThread(input, input.threadId);
+    const replyTargetId = thread.comments[thread.comments.length - 1]?.databaseId;
+    if (!replyTargetId) {
+      throw new Error("The selected review thread does not contain a reply target.");
+    }
+
+    await githubJsonRequest(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/comments/${String(replyTargetId)}/replies`,
+      connection.token,
+      {
+        method: "POST",
+        body: { body: trimmedBody },
+      },
+    );
+
+    const threads = await fetchGitHubReviewThreads(
+      hostedRepo,
+      connection.token,
+      input.pullRequestNumber,
+    );
+    const refreshedThread = threads.find((value) => value.id === input.threadId);
+    if (!refreshedThread) {
+      throw new Error("The updated review thread could not be loaded.");
+    }
+
+    return refreshedThread;
   }
 
-  await githubJsonRequest(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/comments/${String(replyTargetId)}/replies`,
-    connection.token,
-    {
-      method: "POST",
-      body: { body: trimmedBody },
-    },
-  );
+  if (hostedRepo.providerId === "bitbucket") {
+    const currentConversation = await fetchBitbucketConversation(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    const existingThread = currentConversation.reviewThreads.find(
+      (thread) => thread.id === input.threadId,
+    );
+    if (!existingThread) {
+      throw new Error("The selected review thread could not be found.");
+    }
 
-  const threads = await fetchGitHubReviewThreads(hostedRepo, connection.token, input.pullRequestNumber);
-  const refreshedThread = threads.find((value) => value.id === input.threadId);
-  if (!refreshedThread) {
-    throw new Error("The updated review thread could not be loaded.");
+    const rootId = bitbucketThreadRootDatabaseId(input.threadId);
+    const replyTargetId =
+      existingThread.comments[existingThread.comments.length - 1]?.databaseId ?? rootId;
+    if (!replyTargetId) {
+      throw new Error("The selected review thread does not contain a reply target.");
+    }
+
+    await bitbucketRequest<BitbucketCommentResponse>(
+      `${bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber)}/comments`,
+      connection,
+      {
+        method: "POST",
+        body: {
+          content: { raw: trimmedBody },
+          parent: { id: replyTargetId },
+        },
+      },
+    );
+
+    const refreshedConversation = await fetchBitbucketConversation(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    const refreshedThread = refreshedConversation.reviewThreads.find(
+      (thread) => thread.id === input.threadId,
+    );
+    if (!refreshedThread) {
+      throw new Error("The updated review thread could not be loaded.");
+    }
+
+    return refreshedThread;
   }
 
-  return refreshedThread;
+  throw new Error(`${providerDisplayName(hostedRepo.providerId)} thread replies are not supported yet.`);
 }
 
 export async function setPullRequestThreadResolved(
   input: SetPullRequestThreadResolvedInput,
 ): Promise<PullRequestReviewThread> {
-  const { hostedRepo, connection } = await resolveGitHubPullRequestContext(input);
-
-  await githubGraphqlRequest(
-    connection.token,
-    input.resolved
-      ? `
-        mutation($threadId: ID!) {
-          resolveReviewThread(input: { threadId: $threadId }) {
-            thread { id isResolved }
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+  if (hostedRepo.providerId === "github") {
+    await githubGraphqlRequest(
+      connection.token,
+      input.resolved
+        ? `
+          mutation($threadId: ID!) {
+            resolveReviewThread(input: { threadId: $threadId }) {
+              thread { id isResolved }
+            }
           }
-        }
-      `
-      : `
-        mutation($threadId: ID!) {
-          unresolveReviewThread(input: { threadId: $threadId }) {
-            thread { id isResolved }
+        `
+        : `
+          mutation($threadId: ID!) {
+            unresolveReviewThread(input: { threadId: $threadId }) {
+              thread { id isResolved }
+            }
           }
-        }
-      `,
-    {
-      threadId: input.threadId,
-    },
-  );
+        `,
+      {
+        threadId: input.threadId,
+      },
+    );
 
-  const threads = await fetchGitHubReviewThreads(hostedRepo, connection.token, input.pullRequestNumber);
-  const refreshedThread = threads.find((value) => value.id === input.threadId);
-  if (!refreshedThread) {
-    throw new Error("The updated review thread could not be loaded.");
+    const threads = await fetchGitHubReviewThreads(
+      hostedRepo,
+      connection.token,
+      input.pullRequestNumber,
+    );
+    const refreshedThread = threads.find((value) => value.id === input.threadId);
+    if (!refreshedThread) {
+      throw new Error("The updated review thread could not be loaded.");
+    }
+
+    return refreshedThread;
   }
 
-  return refreshedThread;
+  if (hostedRepo.providerId === "bitbucket") {
+    const rootCommentId = bitbucketThreadRootDatabaseId(input.threadId);
+    if (!rootCommentId) {
+      throw new Error("The selected Bitbucket thread could not be resolved.");
+    }
+
+    await bitbucketRequest<unknown>(
+      `${bitbucketPullRequestPath(
+        hostedRepo,
+        input.pullRequestNumber,
+      )}/comments/${String(rootCommentId)}/resolve`,
+      connection,
+      {
+        method: input.resolved ? "POST" : "DELETE",
+        responseType: "text",
+      },
+    );
+
+    const refreshedConversation = await fetchBitbucketConversation(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    const refreshedThread = refreshedConversation.reviewThreads.find(
+      (thread) => thread.id === input.threadId,
+    );
+    if (!refreshedThread) {
+      throw new Error("The updated review thread could not be loaded.");
+    }
+
+    return refreshedThread;
+  }
+
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} thread resolution is not supported yet.`,
+  );
 }
 
 export async function preparePullRequestWorkspace(
@@ -1158,68 +1048,132 @@ export async function preparePullRequestWorkspace(
     throw new Error("No supported hosted repository was found for the selected repo.");
   }
 
-  if (hostedRepo.providerId !== "github") {
-    throw new Error(`${hostedRepo.providerId} review workspaces are not supported yet.`);
-  }
-
   const connection = await getProviderConnection(hostedRepo.providerId);
   if (!connection) {
-    throw new Error("GitHub is not connected.");
+    throw new Error(missingConnectionMessage(hostedRepo.providerId));
   }
 
-  const { data: pullRequest } = await githubRequest<GitHubPullRequestResponse>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}`,
-    connection.token,
-  );
+  const authHeader = createGitAuthHeaderFromConnection(connection);
+  if (hostedRepo.providerId === "github") {
+    const { data: pullRequest } = await githubRequest<GitHubPullRequestResponse>(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}`,
+      connection.token,
+    );
 
-  const baseRepo = pullRequest.base.repo;
-  const headRepo = pullRequest.head.repo;
-  if (!headRepo) {
-    throw new Error("This pull request no longer has an accessible head repository.");
+    const baseRepo = pullRequest.base.repo;
+    const headRepo = pullRequest.head.repo;
+    if (!headRepo) {
+      throw new Error("This pull request no longer has an accessible head repository.");
+    }
+
+    const sourceRepoPath = await ensureManagedSourceRepo(hostedRepo, baseRepo.clone_url);
+    const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
+    const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
+    const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
+    const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
+    const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequest.number)}`;
+    const worktreePath = managedWorktreePath(hostedRepo, pullRequest.number);
+
+    await fetchRemoteBranch(
+      sourceRepoPath,
+      baseRepo.clone_url,
+      pullRequest.base.ref,
+      baseRefFull,
+      authHeader,
+    );
+    await fetchRemoteBranch(
+      sourceRepoPath,
+      headRepo.clone_url,
+      pullRequest.head.ref,
+      headRefFull,
+      authHeader,
+    );
+    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
+    const compareHeadRef = headRefShort;
+    await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+    const preparedWorkspace: PreparedPullRequestWorkspace = {
+      providerId: hostedRepo.providerId,
+      repoPath: worktreePath,
+      worktreePath,
+      owner: hostedRepo.owner,
+      repo: hostedRepo.repo,
+      pullRequestNumber: pullRequest.number,
+      title: pullRequest.title,
+      baseRef: pullRequest.base.ref,
+      headRef: pullRequest.head.ref,
+      compareBaseRef,
+      compareHeadRef,
+      localBranch,
+      hostedRepo,
+    };
+
+    await writeManagedRepoState(preparedWorkspace);
+    return preparedWorkspace;
   }
 
-  const sourceRepoPath = await ensureManagedSourceRepo(hostedRepo, baseRepo.clone_url);
-  const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
-  const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
-  const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
-  const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
-  const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequest.number)}`;
-  const worktreePath = managedWorktreePath(hostedRepo, pullRequest.number);
+  if (hostedRepo.providerId === "bitbucket") {
+    const pullRequest = await fetchBitbucketPullRequest(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    const pullRequestNumber = pullRequest.id;
+    const baseRef = pullRequest.destination?.branch?.name?.trim() ?? "";
+    const headRef = pullRequest.source?.branch?.name?.trim() ?? "";
+    if (!baseRef || !headRef) {
+      throw new Error("The Bitbucket pull request is missing source or destination branch data.");
+    }
 
-  await fetchRemoteBranch(
-    sourceRepoPath,
-    baseRepo.clone_url,
-    pullRequest.base.ref,
-    baseRefFull,
-    connection.token,
-  );
-  await fetchRemoteBranch(
-    sourceRepoPath,
-    headRepo.clone_url,
-    pullRequest.head.ref,
-    headRefFull,
-    connection.token,
-  );
-  const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
-  const compareHeadRef = headRefShort;
-  await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
-  const preparedWorkspace: PreparedPullRequestWorkspace = {
-    providerId: hostedRepo.providerId,
-    repoPath: worktreePath,
-    worktreePath,
-    owner: hostedRepo.owner,
-    repo: hostedRepo.repo,
-    pullRequestNumber: pullRequest.number,
-    title: pullRequest.title,
-    baseRef: pullRequest.base.ref,
-    headRef: pullRequest.head.ref,
-    compareBaseRef,
-    compareHeadRef,
-    localBranch,
-    hostedRepo,
-  };
+    const baseRepo = pullRequest.destination?.repository ?? null;
+    const headRepo = pullRequest.source?.repository ?? pullRequest.destination?.repository ?? null;
+    const baseCloneUrl = pickBitbucketCloneUrl(baseRepo, hostedRepo.owner, hostedRepo.repo);
+    const headCloneUrl = pickBitbucketCloneUrl(headRepo, hostedRepo.owner, hostedRepo.repo);
 
-  await writeManagedRepoState(preparedWorkspace);
+    const sourceRepoPath = await ensureManagedSourceRepo(hostedRepo, baseCloneUrl);
+    const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
+    const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
+    const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
+    const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
+    const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequestNumber)}`;
+    const worktreePath = managedWorktreePath(hostedRepo, pullRequestNumber);
+    const authHeaders = createBitbucketGitAuthHeaders(connection);
+    await fetchRemoteBranchWithFallbackAuth(
+      sourceRepoPath,
+      baseCloneUrl,
+      baseRef,
+      baseRefFull,
+      authHeaders,
+    );
+    await fetchRemoteBranchWithFallbackAuth(
+      sourceRepoPath,
+      headCloneUrl,
+      headRef,
+      headRefFull,
+      authHeaders,
+    );
 
-  return preparedWorkspace;
+    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
+    const compareHeadRef = headRefShort;
+    await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+    const preparedWorkspace: PreparedPullRequestWorkspace = {
+      providerId: hostedRepo.providerId,
+      repoPath: worktreePath,
+      worktreePath,
+      owner: hostedRepo.owner,
+      repo: hostedRepo.repo,
+      pullRequestNumber,
+      title: pullRequest.title ?? `Pull request #${String(pullRequestNumber)}`,
+      baseRef,
+      headRef,
+      compareBaseRef,
+      compareHeadRef,
+      localBranch,
+      hostedRepo,
+    };
+
+    await writeManagedRepoState(preparedWorkspace);
+    return preparedWorkspace;
+  }
+
+  throw new Error(`${providerDisplayName(hostedRepo.providerId)} review workspaces are not supported yet.`);
 }

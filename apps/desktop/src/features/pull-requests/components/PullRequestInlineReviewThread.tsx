@@ -31,7 +31,7 @@ import {
   setActiveConversationThreadId,
   setPullRequestReviewTab,
 } from "@/features/pull-requests/pullRequestsSlice";
-import type { PullRequestReviewThread } from "@/platform/desktop";
+import type { GitProviderId, PullRequestReviewThread } from "@/platform/desktop";
 
 type PullRequestInlineReviewThreadProps = {
   repoPath: string;
@@ -39,6 +39,12 @@ type PullRequestInlineReviewThreadProps = {
   thread: PullRequestReviewThread;
   onOpenFile?: () => void;
 };
+
+function providerTitle(providerId: GitProviderId) {
+  if (providerId === "github") return "GitHub";
+  if (providerId === "gitlab") return "GitLab";
+  return "Bitbucket";
+}
 
 export function PullRequestInlineReviewThread({
   repoPath,
@@ -48,6 +54,9 @@ export function PullRequestInlineReviewThread({
 }: PullRequestInlineReviewThreadProps) {
   const dispatch = useAppDispatch();
   const activeThreadId = useAppSelector((state) => state.pullRequests.activeConversationThreadId);
+  const currentProviderId = useAppSelector(
+    (state) => state.pullRequests.currentReview?.providerId ?? "github",
+  );
   const [replyDraft, setReplyDraft] = useState("");
   const [replyOpen, setReplyOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(thread.isResolved);
@@ -64,6 +73,8 @@ export function PullRequestInlineReviewThread({
   const replyPending = replyingToThread && pendingThreadId === thread.id;
   const compactButtonClass = "h-6 px-2 text-[11px] gap-1.5";
   const lineLabel = thread.line ?? thread.startLine ?? "Unknown";
+  const providerName = providerTitle(currentProviderId);
+  const canResolveThreads = currentProviderId === "github" || currentProviderId === "bitbucket";
 
   useEffect(() => {
     if (thread.isResolved) {
@@ -85,7 +96,7 @@ export function PullRequestInlineReviewThread({
       }).unwrap();
       setReplyDraft("");
       setReplyOpen(false);
-      toast.success("Reply posted to GitHub");
+      toast.success(`Reply posted to ${providerName}`);
     } catch (error) {
       toast.error(errorMessageFrom(error, "Failed to post reply"));
     } finally {
@@ -180,16 +191,18 @@ export function PullRequestInlineReviewThread({
               Conversation
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className={compactButtonClass}
-            disabled={resolutionPending}
-            onClick={toggleResolution}
-          >
-            <CheckCheck className="h-3 w-3" />
-            {thread.isResolved ? "Reopen" : "Resolve"}
-          </Button>
+          {canResolveThreads ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={compactButtonClass}
+              disabled={resolutionPending}
+              onClick={toggleResolution}
+            >
+              <CheckCheck className="h-3 w-3" />
+              {thread.isResolved ? "Reopen" : "Resolve"}
+            </Button>
+          ) : null}
         </div>
       </div>
 

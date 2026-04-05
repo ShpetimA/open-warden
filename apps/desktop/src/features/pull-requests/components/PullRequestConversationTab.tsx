@@ -29,12 +29,14 @@ import {
   toDisplayDate,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
 import type {
+  GitProviderId,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestReviewThread,
 } from "@/platform/desktop";
 
 type PullRequestConversationTabProps = {
+  providerId: GitProviderId;
   repoPath: string;
   pullRequestNumber: number;
   conversation: PullRequestConversation;
@@ -42,6 +44,12 @@ type PullRequestConversationTabProps = {
   onSelectThread: (threadId: string | null) => void;
   onJumpToThread: (thread: PullRequestReviewThread) => void;
 };
+
+function providerTitle(providerId: GitProviderId) {
+  if (providerId === "github") return "GitHub";
+  if (providerId === "gitlab") return "GitLab";
+  return "Bitbucket";
+}
 
 type ConversationEntry =
   | { kind: "description"; createdAt: string }
@@ -96,6 +104,7 @@ function EntryCard({
 }
 
 export function PullRequestConversationTab({
+  providerId,
   repoPath,
   pullRequestNumber,
   conversation,
@@ -114,6 +123,8 @@ export function PullRequestConversationTab({
   const [setPullRequestThreadResolved, { isLoading: updatingThreadResolution }] =
     useSetPullRequestThreadResolvedMutation();
   const compactButtonClass = "h-6 px-2 text-[11px] gap-1.5";
+  const providerName = providerTitle(providerId);
+  const canResolveThreads = providerId === "github" || providerId === "bitbucket";
 
   const entries = conversationEntries(conversation);
 
@@ -131,7 +142,7 @@ export function PullRequestConversationTab({
       }).unwrap();
       setTopLevelDraft("");
       setComposerOpen(false);
-      toast.success("Comment posted to GitHub");
+      toast.success(`Comment posted to ${providerName}`);
     } catch (error) {
       toast.error(errorMessageFrom(error, "Failed to post comment"));
     }
@@ -153,7 +164,7 @@ export function PullRequestConversationTab({
       }).unwrap();
       setReplyDraft("");
       setReplyThreadId(null);
-      toast.success("Reply posted to GitHub");
+      toast.success(`Reply posted to ${providerName}`);
     } catch (error) {
       toast.error(errorMessageFrom(error, "Failed to post reply"));
     } finally {
@@ -188,8 +199,8 @@ export function PullRequestConversationTab({
                 Review conversation
               </div>
               <div className="text-muted-foreground mt-1 text-[12px] leading-5">
-                GitHub comments and review threads for this pull request. Use quote or copy to
-                move context into your own replies.
+                {providerName} comments and review threads for this pull request. Use quote or copy
+                to move context into your own replies.
               </div>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
@@ -339,7 +350,7 @@ export function PullRequestConversationTab({
                         size="sm"
                         className={compactButtonClass}
                         onClick={() =>
-                          void copyToClipboard(entry.comment.body, "GitHub comment copied")
+                          void copyToClipboard(entry.comment.body, `${providerName} comment copied`)
                         }
                       >
                         <Copy className="h-3 w-3" />
@@ -419,18 +430,20 @@ export function PullRequestConversationTab({
                     <FileCode2 className="h-3 w-3" />
                     Open file
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={compactButtonClass}
-                    disabled={resolutionPending}
-                    onClick={() => {
-                      void toggleThreadResolution(thread);
-                    }}
-                  >
-                    <CheckCheck className="h-3 w-3" />
-                    {thread.isResolved ? "Reopen" : "Resolve"}
-                  </Button>
+                  {canResolveThreads ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={compactButtonClass}
+                      disabled={resolutionPending}
+                      onClick={() => {
+                        void toggleThreadResolution(thread);
+                      }}
+                    >
+                      <CheckCheck className="h-3 w-3" />
+                      {thread.isResolved ? "Reopen" : "Resolve"}
+                    </Button>
+                  ) : null}
                 </div>
               </div>
 

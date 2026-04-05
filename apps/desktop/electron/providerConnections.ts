@@ -4,6 +4,7 @@ import path from "node:path";
 import { app, safeStorage } from "electron";
 
 import type {
+  ProviderAuthType,
   ConnectProviderInput,
   GitProviderId,
   ProviderConnection,
@@ -21,10 +22,14 @@ type StoredProviderConnection = {
   createdAt: string;
   updatedAt: string;
   encryptedToken: string;
+  authType?: ProviderAuthType;
+  identifier?: string | null;
 };
 
 export type ProviderConnectionSecret = ProviderConnection & {
   token: string;
+  authType: ProviderAuthType;
+  identifier: string | null;
 };
 
 const PROVIDER_CONNECTIONS_FILE_NAME = "provider-connections.json";
@@ -118,9 +123,22 @@ export async function getProviderConnection(
     return null;
   }
 
+  const authType =
+    connection.authType === "basic" || connection.authType === "bearer"
+      ? connection.authType
+      : providerId === "github"
+        ? "bearer"
+        : "basic";
+  const identifier =
+    typeof connection.identifier === "string" && connection.identifier.trim()
+      ? connection.identifier.trim()
+      : null;
+
   return {
     ...stripSecret(connection),
     token: decryptToken(connection.encryptedToken),
+    authType,
+    identifier,
   };
 }
 
@@ -149,6 +167,16 @@ export async function saveProviderConnection(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     encryptedToken: encryptToken(input.token),
+    authType:
+      input.authType === "basic" || input.authType === "bearer"
+        ? input.authType
+        : existing?.authType ?? (input.providerId === "github" ? "bearer" : "basic"),
+    identifier:
+      input.identifier === null
+        ? null
+        : typeof input.identifier === "string" && input.identifier.trim()
+          ? input.identifier.trim()
+          : existing?.identifier ?? null,
   };
 
   const nextConnections = connections.filter((value) => value.providerId !== input.providerId);

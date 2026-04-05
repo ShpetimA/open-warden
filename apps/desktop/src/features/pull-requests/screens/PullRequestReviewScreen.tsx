@@ -449,6 +449,7 @@ export function PullRequestReviewScreen() {
             <div className="text-destructive p-6 text-sm">{conversationError}</div>
           ) : conversation ? (
             <PullRequestConversationTab
+              providerId={resolvedReview.providerId}
               repoPath={resolvedReview.repoPath}
               pullRequestNumber={resolvedReview.pullRequestNumber}
               conversation={conversation}

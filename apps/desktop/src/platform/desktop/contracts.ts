@@ -69,6 +69,7 @@ export type ConfirmOptions = {
 export type GitProviderId = "github" | "gitlab" | "bitbucket";
 
 export type ProviderConnectionMethod = "pat";
+export type ProviderAuthType = "basic" | "bearer";
 
 export type ProviderConnection = {
   id: GitProviderId;
@@ -86,6 +87,8 @@ export type ConnectProviderInput = {
   providerId: GitProviderId;
   method: ProviderConnectionMethod;
   token: string;
+  identifier?: string | null;
+  authType?: ProviderAuthType | "auto";
 };
 
 export type HostedRepoRef = {
