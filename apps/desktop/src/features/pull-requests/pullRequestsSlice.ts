@@ -22,6 +22,7 @@ export type PullRequestReviewSession = {
 export type PullRequestFileJumpTarget = {
   path: string;
   lineNumber: number | null;
+  lineIndex: string | null;
   focusKey: number;
   threadId: string | null;
 };

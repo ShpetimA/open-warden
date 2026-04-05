@@ -1,21 +1,24 @@
 import { toast } from "sonner";
 import type { DiffTokenEventBaseProps, TokenEventBase } from "@pierre/diffs";
 import { useAppDispatch } from "@/app/hooks";
-import { createFocusedFileViewerTarget } from "@/features/source-control/fileViewerNavigation";
 import { desktop } from "@/platform/desktop";
 import {
-  openFileViewer,
   openSymbolPeek,
 } from "@/features/source-control/sourceControlSlice";
-import type { LspLocation } from "@/features/source-control/types";
+import type { DiffReturnTarget } from "@/features/source-control/types";
 
 type LspTokenDocument = {
   repoPath: string;
   relPath: string;
 };
 
+type LspJumpSource = {
+  lineNumber: number;
+  lineIndex: string | null;
+};
+
 type UseLspTokenNavigationOptions = {
-  onOpenLocation?: (location: LspLocation) => void;
+  getReturnToDiffTarget?: (source: LspJumpSource) => DiffReturnTarget | null;
 };
 
 type TokenPosition = Pick<TokenEventBase, "lineNumber" | "lineCharStart" | "tokenElement"> & {
@@ -40,6 +43,11 @@ function isReferencesClick(event: MouseEvent) {
   return event.altKey || ((event.metaKey || event.ctrlKey) && event.shiftKey);
 }
 
+function getTokenLineIndex(tokenElement: HTMLElement) {
+  const lineElement = tokenElement.closest<HTMLElement>("[data-line]");
+  return lineElement?.getAttribute("data-line-index") ?? null;
+}
+
 export function useLspTokenNavigation(
   document?: LspTokenDocument,
   options?: UseLspTokenNavigationOptions,
@@ -49,10 +57,9 @@ export function useLspTokenNavigation(
   function createPeekPayload(
     kind: "definitions" | "references",
     locations: Awaited<ReturnType<typeof desktop.getLspDefinition>>,
-    props: TokenPosition,
+    source: LspJumpSource,
+    returnToDiff: DiffReturnTarget | null,
   ) {
-    const lineElement = props.tokenElement.closest<HTMLElement>("[data-line]");
-
     return {
       kind,
       locations,
@@ -60,9 +67,10 @@ export function useLspTokenNavigation(
       query: "",
       sourceDocument: document!,
       anchor: {
-        lineNumber: props.lineNumber,
-        lineIndex: lineElement?.getAttribute("data-line-index") ?? null,
+        lineNumber: source.lineNumber,
+        lineIndex: source.lineIndex,
       },
+      returnToDiff,
     } as const;
   }
 
@@ -86,6 +94,11 @@ export function useLspTokenNavigation(
     event.stopPropagation();
 
     const position = toLspPosition(props);
+    const source: LspJumpSource = {
+      lineNumber: props.lineNumber,
+      lineIndex: getTokenLineIndex(props.tokenElement),
+    };
+    const returnToDiff = options?.getReturnToDiffTarget?.(source) ?? null;
 
     if (referencesClick) {
       void desktop
@@ -100,17 +113,8 @@ export function useLspTokenNavigation(
             return;
           }
 
-          if (locations.length === 1) {
-            if (options?.onOpenLocation) {
-              options.onOpenLocation(locations[0]);
-            } else {
-              dispatch(openFileViewer(createFocusedFileViewerTarget(locations[0])));
-            }
-            return;
-          }
-
           dispatch(
-            openSymbolPeek(createPeekPayload("references", locations, props)),
+            openSymbolPeek(createPeekPayload("references", locations, source, returnToDiff)),
           );
         })
         .catch((error) => {
@@ -132,17 +136,8 @@ export function useLspTokenNavigation(
           return;
         }
 
-        if (locations.length === 1) {
-          if (options?.onOpenLocation) {
-            options.onOpenLocation(locations[0]);
-          } else {
-            dispatch(openFileViewer(createFocusedFileViewerTarget(locations[0])));
-          }
-          return;
-        }
-
         dispatch(
-          openSymbolPeek(createPeekPayload("definitions", locations, props)),
+          openSymbolPeek(createPeekPayload("definitions", locations, source, returnToDiff)),
         );
       })
       .catch((error) => {

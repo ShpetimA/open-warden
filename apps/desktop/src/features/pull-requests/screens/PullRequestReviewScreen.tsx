@@ -24,6 +24,7 @@ import {
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
 } from "@/features/source-control/api";
+import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
 import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import {
@@ -33,9 +34,10 @@ import {
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { DiffAnnotationItem, FileItem, LspLocation } from "@/features/source-control/types";
+import type { DiffAnnotationItem, FileItem } from "@/features/source-control/types";
 import {
   setActiveConversationThreadId,
+  setPullRequestFilesViewMode,
   setPullRequestFileJumpTarget,
   setPullRequestReviewTab,
   setCurrentPullRequestReview,
@@ -81,9 +83,9 @@ type PullRequestDiffPaneProps = {
   readyForDiff: boolean;
   branchFiles: FileItem[];
   focusedLineNumber: number | null;
+  focusedLineIndex: string | null;
   focusedLineKey: number | null;
   annotationItems: DiffLineAnnotation<DiffAnnotationItem>[];
-  onOpenLspLocation?: (location: LspLocation) => void;
 };
 
 function PullRequestDiffPane({
@@ -93,9 +95,9 @@ function PullRequestDiffPane({
   readyForDiff,
   branchFiles,
   focusedLineNumber,
+  focusedLineIndex,
   focusedLineKey,
   annotationItems,
-  onOpenLspLocation,
 }: PullRequestDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
   usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
@@ -132,7 +134,7 @@ function PullRequestDiffPane({
     activeRepo && previewPath && lspText !== null
       ? { repoPath: activeRepo, relPath: previewPath }
       : undefined;
-  const diagnosticAnnotations = useDiffDiagnostics(activeRepo, previewPath);
+  const lspDiagnostics = useDiffDiagnostics(activeRepo, previewPath);
 
   useCurrentLspDocument(activeRepo, previewPath, lspText);
 
@@ -156,13 +158,14 @@ function PullRequestDiffPane({
               activePath={previewPath}
               commentContext={{ kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }}
               canComment
-              diagnosticAnnotations={diagnosticAnnotations}
+              lspDiagnostics={lspDiagnostics}
               fileViewerRevision={reviewHeadRef}
               lspHoverDocument={lspHoverDocument}
+              lspJumpContextKind="pull-request"
               focusedLineNumber={focusedLineNumber}
+              focusedLineIndex={focusedLineIndex}
               focusedLineKey={focusedLineKey}
               annotationItems={annotationItems}
-              onOpenLspLocation={onOpenLspLocation}
             />
           </>
         )}
@@ -243,8 +246,10 @@ export function PullRequestReviewScreen() {
   const activeConversationThreadId = useAppSelector(
     (state) => state.pullRequests.activeConversationThreadId,
   );
+  const filesViewMode = useAppSelector((state) => state.pullRequests.filesViewMode);
   const fileJumpTarget = useAppSelector((state) => state.pullRequests.fileJumpTarget);
   const currentReview = useAppSelector((state) => state.pullRequests.currentReview);
+  const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
 
   const { data: pullRequestWorkspace } = useResolvePullRequestWorkspaceQuery(activeRepo || "", {
     skip: !activeRepo,
@@ -319,8 +324,15 @@ export function PullRequestReviewScreen() {
     : [];
   const focusedLineNumber =
     fileJumpTarget && fileJumpTarget.path === reviewActivePath ? fileJumpTarget.lineNumber : null;
+  const focusedLineIndex =
+    fileJumpTarget && fileJumpTarget.path === reviewActivePath ? fileJumpTarget.lineIndex : null;
   const focusedLineKey =
     fileJumpTarget && fileJumpTarget.path === reviewActivePath ? fileJumpTarget.focusKey : null;
+  const showingPullRequestFileViewer =
+    activeReviewTab === "files" &&
+    filesViewMode === "files" &&
+    fileViewerTarget?.returnToDiff?.kind === "pull-request" &&
+    fileViewerTarget.returnToDiff.repoPath === activeRepo;
 
   useEffect(() => {
     if (hasRouteParams && !matchesCurrentReview) {
@@ -376,18 +388,16 @@ export function PullRequestReviewScreen() {
     }
   }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath]);
 
-  const openPrFileLocation = (location: LspLocation) => {
-    dispatch(setReviewActivePath(location.relPath));
-    dispatch(
-      setPullRequestFileJumpTarget({
-        path: location.relPath,
-        lineNumber: location.line ?? null,
-        focusKey: Date.now(),
-        threadId: null,
-      }),
-    );
-    dispatch(setPullRequestReviewTab("files"));
-  };
+  useEffect(() => {
+    if (
+      activeReviewTab === "files" &&
+      fileViewerTarget?.returnToDiff?.kind === "pull-request" &&
+      fileViewerTarget.returnToDiff.repoPath === activeRepo &&
+      filesViewMode !== "files"
+    ) {
+      dispatch(setPullRequestFilesViewMode("files"));
+    }
+  }, [activeRepo, activeReviewTab, dispatch, fileViewerTarget, filesViewMode]);
 
   if (!resolvedReview) {
     return (
@@ -418,7 +428,9 @@ export function PullRequestReviewScreen() {
       </div>
 
       <div className="min-h-0 flex-1">
-        {activeReviewTab === "files" ? (
+        {showingPullRequestFileViewer ? (
+          <GeneralFileViewer />
+        ) : activeReviewTab === "files" ? (
           <PullRequestDiffPane
             activeRepo={activeRepo}
             reviewBaseRef={currentCompareBaseRef}
@@ -426,9 +438,9 @@ export function PullRequestReviewScreen() {
             readyForDiff={readyForDiff}
             branchFiles={branchFiles}
             focusedLineNumber={focusedLineNumber}
+            focusedLineIndex={focusedLineIndex}
             focusedLineKey={focusedLineKey}
             annotationItems={threadAnnotations}
-            onOpenLspLocation={openPrFileLocation}
           />
         ) : activeReviewTab === "conversation" ? (
           loadingConversation ? (
@@ -450,11 +462,13 @@ export function PullRequestReviewScreen() {
                   setPullRequestFileJumpTarget({
                     path: thread.path,
                     lineNumber: thread.line ?? thread.startLine ?? null,
+                    lineIndex: null,
                     focusKey: Date.now(),
                     threadId: thread.id,
                   }),
                 );
                 dispatch(setPullRequestReviewTab("files"));
+                dispatch(setPullRequestFilesViewMode("review"));
               }}
             />
           ) : (

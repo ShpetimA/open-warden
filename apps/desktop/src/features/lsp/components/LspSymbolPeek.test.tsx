@@ -238,6 +238,14 @@ describe("LspSymbolPeek", () => {
           lineNumber: 3,
           lineIndex: "2,9",
         },
+        returnToDiff: {
+          kind: "changes",
+          repoPath: "/repo",
+          path: "src/current.ts",
+          bucket: "unstaged",
+          lineNumber: 3,
+          lineIndex: "2,9",
+        },
       }),
     );
 
@@ -272,6 +280,14 @@ describe("LspSymbolPeek", () => {
         relPath: "src/b.ts",
         line: 2,
         column: 0,
+        returnToDiff: {
+          kind: "changes",
+          repoPath: "/repo",
+          path: "src/current.ts",
+          bucket: "unstaged",
+          lineNumber: 3,
+          lineIndex: "2,9",
+        },
       }),
     );
   });

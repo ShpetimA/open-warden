@@ -27,7 +27,7 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import type { LspLocation, SymbolPeekKind } from "@/features/source-control/types";
 
-const SYMBOL_PEEK_HEIGHT_REM = 15.625;
+const SYMBOL_PEEK_HEIGHT_REM = 32;
 const SYMBOL_PEEK_HEIGHT_PX = 250;
 const SYMBOL_PEEK_OFFSET_PX = 4;
 
@@ -251,8 +251,15 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
     if (!location) {
       return;
     }
+    const returnToDiff = symbolPeek?.returnToDiff ?? null;
 
-    dispatch(openFileViewer(createFocusedFileViewerTarget(location)));
+    dispatch(
+      openFileViewer(
+        createFocusedFileViewerTarget(location, {
+          returnToDiff,
+        }),
+      ),
+    );
   }
 
   useEffect(() => {

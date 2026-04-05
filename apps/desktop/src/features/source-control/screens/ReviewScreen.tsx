@@ -241,6 +241,7 @@ function ReviewDiffPane({
   branchFiles,
 }: ReviewDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
+  const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
   usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath);
   const previewSelection = useThrottledDiffSelection(
@@ -270,6 +271,18 @@ function ReviewDiffPane({
   const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, "");
   const context = { kind: "review" as const, baseRef: reviewBaseRef, headRef: reviewHeadRef };
   const previewPath = previewSelection?.path ?? "";
+  const focusedLineNumber =
+    diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineNumber
+      : null;
+  const focusedLineIndex =
+    diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineIndex
+      : null;
+  const focusedLineKey =
+    diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.focusKey
+      : null;
 
   return (
     <section className="flex h-full min-h-0 flex-col">
@@ -290,6 +303,10 @@ function ReviewDiffPane({
             commentContext={context}
             canComment
             fileViewerRevision={reviewHeadRef}
+            lspJumpContextKind="review"
+            focusedLineNumber={focusedLineNumber}
+            focusedLineIndex={focusedLineIndex}
+            focusedLineKey={focusedLineKey}
           />
         )}
       </div>

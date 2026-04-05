@@ -7,10 +7,17 @@ import {
   normalizeRepoPaths,
 } from "@/platform/desktop/workspaceSession";
 import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
-import { clearCurrentPullRequestReview } from "@/features/pull-requests/pullRequestsSlice";
+import {
+  clearCurrentPullRequestReview,
+  setPullRequestFilesViewMode,
+  setPullRequestFileJumpTarget,
+  setPullRequestReviewTab,
+} from "@/features/pull-requests/pullRequestsSlice";
+import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import {
+  closeFileViewer,
   clearError,
   hydrateWorkspaceSession as hydrateWorkspaceSessionState,
   removeRepo,
@@ -18,7 +25,9 @@ import {
   setActiveBucket,
   setActivePath,
   setActiveRepo,
+  setChangesSidebarMode,
   setCommitMessage,
+  setDiffFocusTarget,
   setDiffStyle,
   setError,
   setHistoryCommitId,
@@ -26,6 +35,9 @@ import {
   setLastCommitId,
   setRecentRepos,
   setRepos,
+  setReviewActivePath,
+  setReviewBaseRef,
+  setReviewHeadRef,
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
@@ -303,6 +315,64 @@ export const setDiffStyleValue =
   (dispatch) => {
     dispatch(setDiffStyle(value));
   };
+
+export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getState) => {
+  const returnToDiff = getState().sourceControl.fileViewerTarget?.returnToDiff;
+  if (!returnToDiff) {
+    return;
+  }
+
+  dispatch(closeFileViewer());
+
+  if (returnToDiff.kind === "changes") {
+    const selection = { bucket: returnToDiff.bucket, path: returnToDiff.path };
+    dispatch(setChangesSidebarMode("changes"));
+    dispatch(setActiveBucket(returnToDiff.bucket));
+    dispatch(setActivePath(returnToDiff.path));
+    dispatch(setSelectedFiles([selection]));
+    dispatch(setSelectionAnchor(selection));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "changes",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  if (returnToDiff.kind === "review") {
+    dispatch(setReviewBaseRef(returnToDiff.baseRef));
+    dispatch(setReviewHeadRef(returnToDiff.headRef));
+    dispatch(setReviewActivePath(returnToDiff.path));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "review",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  dispatch(setChangesSidebarMode("pull-request"));
+  dispatch(setPullRequestReviewTab("files"));
+  dispatch(setPullRequestFilesViewMode("review"));
+  dispatch(setReviewActivePath(returnToDiff.path));
+  dispatch(
+    setPullRequestFileJumpTarget({
+      path: returnToDiff.path,
+      lineNumber: returnToDiff.lineNumber,
+      lineIndex: returnToDiff.lineIndex,
+      focusKey: createFileViewerFocusKey(),
+      threadId: null,
+    }),
+  );
+};
 
 const runRepoAction =
   (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>

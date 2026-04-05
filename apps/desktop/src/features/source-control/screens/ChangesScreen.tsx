@@ -25,6 +25,7 @@ function LocalChangesScreen() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const changesSidebarMode = useAppSelector((state) => state.sourceControl.changesSidebarMode);
   const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
+  const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
   const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
@@ -76,7 +77,19 @@ function LocalChangesScreen() {
 
   useCurrentLspDocument(activeRepo, previewPath, lspText);
 
-  const diagnosticAnnotations = useDiffDiagnostics(activeRepo, previewPath);
+  const lspDiagnostics = useDiffDiagnostics(activeRepo, previewPath);
+  const focusedLineNumber =
+    diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineNumber
+      : null;
+  const focusedLineIndex =
+    diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineIndex
+      : null;
+  const focusedLineKey =
+    diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.focusKey
+      : null;
   const showingFilesView = changesSidebarMode === "files";
 
   return (
@@ -106,9 +119,13 @@ function LocalChangesScreen() {
                 activePath={previewPath}
                 commentContext={{ kind: "changes" }}
                 canComment
-                diagnosticAnnotations={diagnosticAnnotations}
+                lspDiagnostics={lspDiagnostics}
                 fileViewerRevision={null}
                 lspHoverDocument={lspHoverDocument}
+                lspJumpContextKind="changes"
+                focusedLineNumber={focusedLineNumber}
+                focusedLineIndex={focusedLineIndex}
+                focusedLineKey={focusedLineKey}
               />
             </>
           )}

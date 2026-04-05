@@ -5,6 +5,7 @@ import type { WorkspaceSession } from "@/platform/desktop";
 import type {
   Bucket,
   ChangesSidebarMode,
+  DiffFocusTarget,
   DiffStyle,
   FileViewerTarget,
   HistoryNavTarget,
@@ -36,6 +37,7 @@ type SourceControlState = {
   reviewBaseRef: string;
   reviewHeadRef: string;
   reviewActivePath: string;
+  diffFocusTarget: DiffFocusTarget | null;
   fileViewerTarget: FileViewerTarget | null;
   symbolPeek: SymbolPeekState | null;
 };
@@ -63,6 +65,7 @@ const initialState: SourceControlState = {
   reviewBaseRef: "",
   reviewHeadRef: "",
   reviewActivePath: "",
+  diffFocusTarget: null,
   fileViewerTarget: null,
   symbolPeek: null,
 };
@@ -185,6 +188,7 @@ const sourceControlSlice = createSlice({
       state.reviewBaseRef = "";
       state.reviewHeadRef = "";
       state.reviewActivePath = "";
+      state.diffFocusTarget = null;
       state.fileViewerTarget = null;
       state.symbolPeek = null;
     },
@@ -247,8 +251,17 @@ const sourceControlSlice = createSlice({
         state.reviewActivePath = "";
       }
     },
+    setDiffFocusTarget(state, action: PayloadAction<DiffFocusTarget | null>) {
+      state.diffFocusTarget = action.payload;
+    },
+    clearDiffFocusTarget(state) {
+      if (state.diffFocusTarget !== null) {
+        state.diffFocusTarget = null;
+      }
+    },
     openFileViewer(state, action: PayloadAction<FileViewerTarget>) {
-      state.changesSidebarMode = "files";
+      state.changesSidebarMode =
+        action.payload.returnToDiff?.kind === "pull-request" ? "pull-request" : "files";
       state.repoTreeActivePath = action.payload.relPath;
       state.fileViewerTarget = action.payload;
       state.symbolPeek = null;
@@ -290,6 +303,7 @@ const sourceControlSlice = createSlice({
 
 export const {
   addRepo,
+  clearDiffFocusTarget,
   clearDiffSelection,
   clearError,
   closeFileViewer,
@@ -320,6 +334,7 @@ export const {
   setReviewActivePath,
   setReviewBaseRef,
   setReviewHeadRef,
+  setDiffFocusTarget,
   openFileViewer,
   openSymbolPeek,
   closeSymbolPeek,

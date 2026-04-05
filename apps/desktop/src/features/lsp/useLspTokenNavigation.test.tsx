@@ -43,7 +43,7 @@ describe("useLspTokenNavigation", () => {
     return tokenElement;
   }
 
-  it("opens the file viewer for a single definition result", async () => {
+  it("opens symbol peek for a single definition result", async () => {
     mocks.getLspDefinition.mockResolvedValue([
       {
         repoPath: "/repo",
@@ -80,13 +80,27 @@ describe("useLspTokenNavigation", () => {
 
     expect(mocks.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "sourceControl/openFileViewer",
+        type: "sourceControl/openSymbolPeek",
         payload: expect.objectContaining({
-          repoPath: "/repo",
-          relPath: "src/one.ts",
-          line: 7,
-          column: 2,
-          focusKey: expect.any(Number),
+          kind: "definitions",
+          activeIndex: 0,
+          query: "",
+          locations: [
+            expect.objectContaining({
+              repoPath: "/repo",
+              relPath: "src/one.ts",
+              line: 7,
+              character: 2,
+            }),
+          ],
+          sourceDocument: {
+            repoPath: "/repo",
+            relPath: "src/current.ts",
+          },
+          anchor: {
+            lineNumber: 3,
+            lineIndex: "2",
+          },
         }),
       }),
     );
@@ -156,7 +170,7 @@ describe("useLspTokenNavigation", () => {
     );
   });
 
-  it("opens the file viewer for a single reference result", async () => {
+  it("opens symbol peek for a single reference result", async () => {
     mocks.getLspReferences.mockResolvedValue([
       {
         repoPath: "/repo",
@@ -193,11 +207,27 @@ describe("useLspTokenNavigation", () => {
 
     expect(mocks.dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
-        type: "sourceControl/openFileViewer",
+        type: "sourceControl/openSymbolPeek",
         payload: expect.objectContaining({
-          relPath: "src/ref.ts",
-          line: 11,
-          focusKey: expect.any(Number),
+          kind: "references",
+          activeIndex: 0,
+          query: "",
+          locations: [
+            expect.objectContaining({
+              repoPath: "/repo",
+              relPath: "src/ref.ts",
+              line: 11,
+              character: 0,
+            }),
+          ],
+          sourceDocument: {
+            repoPath: "/repo",
+            relPath: "src/current.ts",
+          },
+          anchor: {
+            lineNumber: 3,
+            lineIndex: "2",
+          },
         }),
       }),
     );
@@ -261,6 +291,71 @@ describe("useLspTokenNavigation", () => {
           anchor: {
             lineNumber: 3,
             lineIndex: "2,9",
+          },
+        }),
+      }),
+    );
+  });
+
+  it("stores diff return target metadata on symbol peek payloads", async () => {
+    mocks.getLspDefinition.mockResolvedValue([
+      {
+        repoPath: "/repo",
+        relPath: "src/one.ts",
+        uri: "file:///repo/src/one.ts",
+        line: 7,
+        character: 2,
+        endLine: 7,
+        endCharacter: 9,
+      },
+    ]);
+
+    const { result } = renderHook(() =>
+      useLspTokenNavigation(
+        { repoPath: "/repo", relPath: "src/current.ts" },
+        {
+          getReturnToDiffTarget: (source) => ({
+            kind: "changes",
+            repoPath: "/repo",
+            path: "src/current.ts",
+            bucket: "unstaged",
+            lineNumber: source.lineNumber,
+            lineIndex: source.lineIndex,
+          }),
+        },
+      ),
+    );
+
+    result.current.onTokenClick(
+      {
+        lineNumber: 9,
+        lineCharStart: 1,
+        tokenElement: createTokenElement("8,0"),
+      },
+      {
+        metaKey: true,
+        ctrlKey: false,
+        shiftKey: false,
+        altKey: false,
+        preventDefault: vi.fn(),
+        stopPropagation: vi.fn(),
+      } as unknown as MouseEvent,
+    );
+
+    await Promise.resolve();
+
+    expect(mocks.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "sourceControl/openSymbolPeek",
+        payload: expect.objectContaining({
+          kind: "definitions",
+          returnToDiff: {
+            kind: "changes",
+            repoPath: "/repo",
+            path: "src/current.ts",
+            bucket: "unstaged",
+            lineNumber: 9,
+            lineIndex: "8,0",
           },
         }),
       }),

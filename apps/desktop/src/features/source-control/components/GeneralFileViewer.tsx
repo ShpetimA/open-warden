@@ -1,9 +1,11 @@
 import { useRef } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile } from "@pierre/diffs/react";
+import { ArrowLeft } from "lucide-react";
 import { useTheme } from "next-themes";
 
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
 import {
   DIFF_LINE_FOCUS_CSS,
   useDiffLineFocus,
@@ -16,13 +18,12 @@ import { useGetRepoFileQuery } from "@/features/source-control/api";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
+import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { repoLabel } from "@/features/source-control/utils";
-import type { LspLocation } from "@/features/source-control/types";
+import type { DiffReturnTarget } from "@/features/source-control/types";
 
-type GeneralFileViewerProps = {
-  onOpenLspLocation?: (location: LspLocation) => void;
-};
+type GeneralFileViewerProps = Record<string, never>;
 
 const FILE_VIEWER_CSS = `
 :host {
@@ -55,10 +56,23 @@ function formatViewerSubtitle(repoPath: string, revision?: string | null) {
   return `${repoLabel(repoPath)} · Worktree`;
 }
 
-export function GeneralFileViewer({ onOpenLspLocation }: GeneralFileViewerProps) {
+function formatReturnToDiffLabel(target: DiffReturnTarget) {
+  const lineLabel = `:${target.lineNumber}`;
+  if (target.kind === "changes") {
+    return `${target.path}${lineLabel} · Changes`;
+  }
+  if (target.kind === "review") {
+    return `${target.path}${lineLabel} · Review`;
+  }
+  return `${target.path}${lineLabel} · Pull Request`;
+}
+
+export function GeneralFileViewer(_props: GeneralFileViewerProps) {
+  const dispatch = useAppDispatch();
   const { resolvedTheme } = useTheme();
   const target = useAppSelector((state) => state.sourceControl.fileViewerTarget);
   const viewerRef = useRef<HTMLDivElement | null>(null);
+  const returnToDiffTarget = target?.returnToDiff ?? null;
 
   const repoFileQuery = useGetRepoFileQuery(
     target
@@ -81,7 +95,9 @@ export function GeneralFileViewer({ onOpenLspLocation }: GeneralFileViewerProps)
   const lspText = file?.contents ?? null;
   const { onTokenClick } = useLspTokenNavigation(
     target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined,
-    { onOpenLocation: onOpenLspLocation },
+    {
+      getReturnToDiffTarget: () => target?.returnToDiff ?? null,
+    },
   );
 
   useCurrentLspDocument(target?.repoPath ?? "", target?.relPath ?? "", lspText);
@@ -94,13 +110,25 @@ export function GeneralFileViewer({ onOpenLspLocation }: GeneralFileViewerProps)
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
-      <div className="border-border/70 border-b px-4 py-2">
-        <div className="truncate text-sm font-medium">{target?.relPath ?? "File viewer"}</div>
-        <div className="text-muted-foreground truncate text-xs">
-          {target ? formatViewerSubtitle(target.repoPath, target.revision) : ""}
+      {returnToDiffTarget ? (
+        <div className="border-border/70 bg-surface-toolbar border-b px-4 py-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                dispatch(navigateBackToDiffFromFileViewer());
+              }}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to diff
+            </Button>
+            <div className="text-muted-foreground truncate text-xs">
+              {formatReturnToDiffLabel(returnToDiffTarget)}
+            </div>
+          </div>
         </div>
-      </div>
-
+      ) : null}
       <div ref={viewerRef} className="relative min-h-0 flex-1 overflow-auto">
         {errorMessage ? (
           <div className="text-destructive p-4 text-sm">{errorMessage}</div>
