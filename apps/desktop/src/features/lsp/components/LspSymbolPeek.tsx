@@ -4,13 +4,14 @@ import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile } from "@pierre/diffs/react";
 import { Search, X } from "lucide-react";
 import { useTheme } from "next-themes";
+import { shallowEqual } from "react-redux";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
   getDiffTheme,
   getDiffThemeType,
 } from "@/features/diff-view/diffRenderConfig";
-import { useGetRepoFileQuery } from "@/features/source-control/api";
+import { gitApi, useGetRepoFileQuery } from "@/features/source-control/api";
 import {
   DIFF_LINE_FOCUS_CSS,
   getRenderedLineOffset,
@@ -208,6 +209,8 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
   const locations = isVisible ? symbolPeek?.locations ?? [] : [];
   const activeIndex = isVisible ? symbolPeek?.activeIndex ?? 0 : 0;
   const activeLocation = isVisible ? symbolPeek?.locations[activeIndex] ?? null : null;
+  const anchorLineNumber = isVisible ? symbolPeek?.anchor.lineNumber ?? null : null;
+  const anchorLineIndex = isVisible ? symbolPeek?.anchor.lineIndex ?? null : null;
 
   const previewQuery = useGetRepoFileQuery(
     activeLocation
@@ -224,14 +227,52 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
 
   const previewFile = previewQuery.data;
   const previewError = errorMessageFrom(previewQuery.error, "");
+  const locationPaths = useMemo(
+    () => Array.from(new Set(locations.map((location) => location.relPath))),
+    [locations],
+  );
+
+  const cachedFileContentsByPath = useAppSelector((state) => {
+    if (!isVisible || !document) {
+      return {} as Record<string, string>;
+    }
+
+    const next: Record<string, string> = {};
+    for (const relPath of locationPaths) {
+      const cached = gitApi.endpoints.getRepoFile.select({
+        repoPath: document.repoPath,
+        relPath,
+      })(state).data;
+      if (cached?.contents) {
+        next[relPath] = cached.contents;
+      }
+    }
+    return next;
+  }, shallowEqual);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    for (const relPath of locationPaths) {
+      // Prime cache for peek list excerpts so cross-file results are stable.
+      void dispatch(
+        gitApi.util.prefetch("getRepoFile", { repoPath: document.repoPath, relPath }, {}),
+      );
+    }
+  }, [dispatch, document?.repoPath, isVisible, locationPaths]);
 
   const linesByPath = useMemo(() => {
     const map = new Map<string, string[]>();
-    if (activeLocation && previewFile?.contents) {
+    for (const [relPath, contents] of Object.entries(cachedFileContentsByPath)) {
+      map.set(relPath, splitFileLines(contents));
+    }
+    if (activeLocation && previewFile?.contents && !map.has(activeLocation.relPath)) {
       map.set(activeLocation.relPath, splitFileLines(previewFile.contents));
     }
     return map;
-  }, [activeLocation, previewFile?.contents]);
+  }, [activeLocation, cachedFileContentsByPath, previewFile?.contents]);
 
   const { groups, filteredIndexes, excerptsByIndex } = useMemo(
     () => buildSymbolPeekGroups(locations, deferredQuery, linesByPath),
@@ -263,7 +304,7 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
   }
 
   useEffect(() => {
-    if (!isVisible || !symbolPeek) {
+    if (!isVisible || anchorLineNumber === null) {
       setPopoverTop(null);
       return;
     }
@@ -274,10 +315,12 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
   }, [dispatch, filteredIndexes, isVisible, symbolPeek]);
 
   useEffect(() => {
-    if (!isVisible || !symbolPeek) {
+    if (!isVisible || anchorLineNumber === null) {
       setPopoverTop(null);
       return;
     }
+    const targetAnchorLineNumber = anchorLineNumber;
+    const targetAnchorLineIndex = anchorLineIndex;
 
     let cancelled = false;
     let attempt = 0;
@@ -295,8 +338,8 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
 
       const offset = getRenderedLineOffset(
         container,
-        symbolPeek.anchor.lineNumber,
-        symbolPeek.anchor.lineIndex,
+        targetAnchorLineNumber,
+        targetAnchorLineIndex,
       );
 
       if (!offset) {
@@ -322,7 +365,7 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
       cancelled = true;
       cancelAnimationFrame(frameId);
     };
-  }, [containerRef, isVisible, symbolPeek]);
+  }, [anchorLineIndex, anchorLineNumber, containerRef, isVisible]);
 
   useHotkey(
     "Enter",

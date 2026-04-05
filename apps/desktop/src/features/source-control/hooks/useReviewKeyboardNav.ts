@@ -3,7 +3,10 @@ import { useStore } from "react-redux";
 import { useAppDispatch } from "@/app/hooks";
 import type { RootState } from "@/app/store";
 import { gitApi } from "@/features/source-control/api";
-import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
+import {
+  setReviewActivePath,
+  setSymbolPeekActiveIndex,
+} from "@/features/source-control/sourceControlSlice";
 import type { FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
@@ -11,6 +14,7 @@ import {
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
 import { getVisibleFilePaths, useVerticalNavigationHotkeys } from "./keyboardNavigation";
+import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 export function useReviewKeyboardNav() {
   const dispatch = useAppDispatch();
@@ -39,6 +43,14 @@ export function useReviewKeyboardNav() {
 
   const navigateReview = (event: KeyboardEvent, nextKey: boolean) => {
     if (isTypingTarget(event.target)) return;
+
+    const symbolPeekIndex = getNextSymbolPeekIndex(store.getState(), nextKey);
+    if (symbolPeekIndex !== null) {
+      event.preventDefault();
+      dispatch(setSymbolPeekActiveIndex(symbolPeekIndex));
+      return;
+    }
+
     event.preventDefault();
 
     const { reviewActivePath, allReviewFiles } = getNavigationData();

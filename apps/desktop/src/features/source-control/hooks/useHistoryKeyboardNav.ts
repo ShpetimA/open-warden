@@ -6,7 +6,10 @@ import type { RootState } from "@/app/store";
 import { gitApi } from "@/features/source-control/api";
 import { selectHistoryCommit, selectHistoryFile } from "@/features/source-control/actions";
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
-import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import {
+  setHistoryNavTarget,
+  setSymbolPeekActiveIndex,
+} from "@/features/source-control/sourceControlSlice";
 import type { FileItem, HistoryCommit } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
@@ -19,6 +22,7 @@ import {
   SOURCE_CONTROL_HOTKEY_OPTIONS,
   useVerticalNavigationHotkeys,
 } from "./keyboardNavigation";
+import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch();
@@ -50,6 +54,14 @@ export function useHistoryKeyboardNav() {
 
   const navigateHistory = (event: KeyboardEvent, nextKey: boolean) => {
     if (isTypingTarget(event.target)) return;
+
+    const symbolPeekIndex = getNextSymbolPeekIndex(store.getState(), nextKey);
+    if (symbolPeekIndex !== null) {
+      event.preventDefault();
+      dispatch(setSymbolPeekActiveIndex(symbolPeekIndex));
+      return;
+    }
+
     event.preventDefault();
 
     const {

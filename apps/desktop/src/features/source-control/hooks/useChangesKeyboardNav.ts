@@ -14,6 +14,7 @@ import { isTypingTarget } from "@/features/source-control/utils";
 import {
   openFileViewer,
   setRepoTreeActivePath,
+  setSymbolPeekActiveIndex,
 } from "@/features/source-control/sourceControlSlice";
 import {
   getWrappedNavigationIndex,
@@ -25,6 +26,7 @@ import {
   SOURCE_CONTROL_HOTKEY_OPTIONS,
   useVerticalNavigationHotkeys,
 } from "./keyboardNavigation";
+import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 export function useChangesKeyboardNav() {
   const dispatch = useAppDispatch();
@@ -65,6 +67,14 @@ export function useChangesKeyboardNav() {
 
   const navigateChanges = (event: KeyboardEvent, nextKey: boolean, extendSelection: boolean) => {
     if (isTypingTarget(event.target)) return;
+
+    const symbolPeekIndex = getNextSymbolPeekIndex(store.getState(), nextKey);
+    if (symbolPeekIndex !== null) {
+      event.preventDefault();
+      dispatch(setSymbolPeekActiveIndex(symbolPeekIndex));
+      return;
+    }
+
     event.preventDefault();
 
     const {
