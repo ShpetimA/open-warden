@@ -352,11 +352,11 @@ function managedSourceRepoPath(hostedRepo: HostedRepoRef) {
   return path.join(managedRepoRootPath(hostedRepo), "source");
 }
 
-function managedWorktreePath(hostedRepo: HostedRepoRef, pullRequestNumber: number) {
+function managedWorktreePath(hostedRepo: HostedRepoRef) {
   return path.join(
     managedRepoRootPath(hostedRepo),
     "worktrees",
-    `pr-${String(pullRequestNumber)}`,
+    "review",
   );
 }
 
@@ -489,14 +489,7 @@ async function ensurePreparedWorktree(
 async function writeManagedRepoState(
   preparedWorkspace: PreparedPullRequestWorkspace,
 ) {
-  const existingWorkspaces = await readManagedRepoWorkspaces(preparedWorkspace.hostedRepo);
   const normalizedPreparedWorkspace = normalizePreparedWorkspace(preparedWorkspace);
-  const mergedWorkspaces = [
-    normalizedPreparedWorkspace,
-    ...existingWorkspaces.filter(
-      (workspace) => path.resolve(workspace.worktreePath) !== normalizedPreparedWorkspace.worktreePath,
-    ),
-  ];
   const statePath = managedRepoStatePath(preparedWorkspace.hostedRepo);
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(
@@ -507,7 +500,7 @@ async function writeManagedRepoState(
         owner: preparedWorkspace.hostedRepo.owner,
         repo: preparedWorkspace.hostedRepo.repo,
         updatedAt: new Date().toISOString(),
-        workspaces: mergedWorkspaces,
+        workspaces: [normalizedPreparedWorkspace],
       },
       null,
       2,
@@ -1072,7 +1065,7 @@ export async function preparePullRequestWorkspace(
     const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
     const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
     const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequest.number)}`;
-    const worktreePath = managedWorktreePath(hostedRepo, pullRequest.number);
+    const worktreePath = managedWorktreePath(hostedRepo);
 
     await fetchRemoteBranch(
       sourceRepoPath,
@@ -1135,7 +1128,7 @@ export async function preparePullRequestWorkspace(
     const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
     const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
     const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequestNumber)}`;
-    const worktreePath = managedWorktreePath(hostedRepo, pullRequestNumber);
+    const worktreePath = managedWorktreePath(hostedRepo);
     const authHeaders = createBitbucketGitAuthHeaders(connection);
     await fetchRemoteBranchWithFallbackAuth(
       sourceRepoPath,

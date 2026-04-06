@@ -251,7 +251,7 @@ function ProviderConnectionCard({
           <div className="text-sm font-semibold">{providerTitle(providerId)}</div>
           <div className="text-muted-foreground mt-1 text-xs leading-5">
             {isImplemented
-              ? "Connect once to list pull requests and create local review worktrees."
+              ? "Connect once to list pull requests and prepare a local review workspace."
               : "Planned provider. The interface is ready, but the backend is not wired yet."}
           </div>
         </div>
@@ -426,7 +426,7 @@ export function PullRequestsScreen() {
             <div className="text-[26px] font-semibold tracking-[-0.03em]">Pull Requests</div>
             <p className="text-muted-foreground max-w-[760px] text-sm leading-6">
               Connect a hosted git provider, inspect pull requests for the active repository, and
-              open a dedicated local review workspace with full diff and LSP support.
+              open a shared local review workspace with full diff and LSP support.
             </p>
           </section>
 

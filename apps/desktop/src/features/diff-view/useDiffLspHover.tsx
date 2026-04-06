@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { DiffTokenEventBaseProps } from "@pierre/diffs";
 
+import { parseMarkdown } from "@/features/markdown/parser";
 import { cn } from "@/lib/utils";
 import { desktop } from "@/platform/desktop";
 
@@ -19,7 +20,7 @@ type HoverAnchorRect = {
 type DiffLspHoverState = {
   open: boolean;
   loading: boolean;
-  text: string;
+  content: string;
   anchorRect: HoverAnchorRect | null;
 };
 
@@ -31,7 +32,7 @@ type UseDiffLspHoverOptions = {
 const CLOSED_HOVER_STATE: DiffLspHoverState = {
   open: false,
   loading: false,
-  text: "",
+  content: "",
   anchorRect: null,
 };
 
@@ -50,18 +51,11 @@ function readAnchorRect(tokenElement: HTMLElement): HoverAnchorRect {
   };
 }
 
-function readAnchorRectFromClick(
-  tokenElement: HTMLElement,
-  event: MouseEvent,
-): HoverAnchorRect {
+function readAnchorRectFromClick(tokenElement: HTMLElement, event: MouseEvent): HoverAnchorRect {
   const clientX =
-    typeof event.clientX === "number" && Number.isFinite(event.clientX)
-      ? event.clientX
-      : null;
+    typeof event.clientX === "number" && Number.isFinite(event.clientX) ? event.clientX : null;
   const clientY =
-    typeof event.clientY === "number" && Number.isFinite(event.clientY)
-      ? event.clientY
-      : null;
+    typeof event.clientY === "number" && Number.isFinite(event.clientY) ? event.clientY : null;
 
   if (clientX === null || clientY === null) {
     return readAnchorRect(tokenElement);
@@ -69,11 +63,7 @@ function readAnchorRectFromClick(
 
   const target = event.target;
   const targetElement =
-    target instanceof HTMLElement
-      ? target
-      : target instanceof Text
-        ? target.parentElement
-        : null;
+    target instanceof HTMLElement ? target : target instanceof Text ? target.parentElement : null;
   const targetRect = targetElement?.getBoundingClientRect();
   return {
     top: targetRect?.top ?? clientY,
@@ -97,10 +87,7 @@ function isHoverInfoClick(event: MouseEvent) {
   return (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey;
 }
 
-export function useDiffLspHover({
-  document,
-  resetKey,
-}: UseDiffLspHoverOptions) {
+export function useDiffLspHover({ document, resetKey }: UseDiffLspHoverOptions) {
   const [hoverState, setHoverState] = useState<DiffLspHoverState>(CLOSED_HOVER_STATE);
   const hoverRequestIdRef = useRef(0);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -198,7 +185,7 @@ export function useDiffLspHover({
     setHoverState({
       open: true,
       loading: true,
-      text: "Loading LSP info...",
+      content: "Loading LSP info...",
       anchorRect,
     });
 
@@ -218,7 +205,7 @@ export function useDiffLspHover({
         setHoverState({
           open: true,
           loading: false,
-          text: result.text,
+          content: result.text,
           anchorRect,
         });
       })
@@ -246,48 +233,7 @@ type DiffLspHoverPopoverProps = {
   popoverRef: MutableRefObject<HTMLDivElement | null>;
 };
 
-/**
- * Parses LSP hover text into structured sections.
- * First paragraph is typically the type signature (code), rest is description.
- */
-function parseHoverContent(text: string): { signature: string | null; description: string | null } {
-  const trimmed = text.trim();
-  const paragraphs = trimmed.split(/\n\n+/);
-
-  if (paragraphs.length === 0) {
-    return { signature: null, description: null };
-  }
-
-  if (paragraphs.length === 1) {
-    // Single block - check if it looks like code or description
-    const first = paragraphs[0].trim();
-    const looksLikeCode =
-      first.startsWith("(") ||
-      first.includes(":") ||
-      first.includes("=>") ||
-      first.includes("function") ||
-      first.includes("const ") ||
-      first.includes("let ") ||
-      first.includes("type ") ||
-      first.includes("interface ") ||
-      first.includes("class ");
-    return looksLikeCode ? { signature: first, description: null } : { signature: null, description: first };
-  }
-
-  // Multiple paragraphs - first is signature, rest is description
-  const signature = paragraphs[0].trim();
-  const description = paragraphs.slice(1).join("\n\n").trim();
-
-  return {
-    signature: signature || null,
-    description: description || null,
-  };
-}
-
-export function DiffLspHoverPopover({
-  hoverState,
-  popoverRef,
-}: DiffLspHoverPopoverProps) {
+export function DiffLspHoverPopover({ hoverState, popoverRef }: DiffLspHoverPopoverProps) {
   if (!hoverState.open || !hoverState.anchorRect) {
     return null;
   }
@@ -295,33 +241,44 @@ export function DiffLspHoverPopover({
   const viewportWidth = typeof window === "undefined" ? 1024 : window.innerWidth;
   const viewportHeight = typeof window === "undefined" ? 768 : window.innerHeight;
   const belowTop = hoverState.anchorRect.top + hoverState.anchorRect.height + HOVER_CARD_GAP;
+  const aboveAnchorTop = hoverState.anchorRect.top - HOVER_CARD_GAP;
   const belowSpace = Math.max(viewportHeight - belowTop - VIEWPORT_PADDING, 0);
   const aboveSpace = Math.max(hoverState.anchorRect.top - VIEWPORT_PADDING - HOVER_CARD_GAP, 0);
-  const placeAbove = belowSpace < 180 && aboveSpace > belowSpace;
+  const placeAbove = belowSpace < 180 && aboveSpace >= 120;
   const availableHeight = placeAbove ? aboveSpace : belowSpace;
   const safeViewportHeight = Math.max(viewportHeight - VIEWPORT_PADDING * 2, 120);
-  const maxHeight = Math.min(HOVER_CARD_MAX_HEIGHT, Math.max(availableHeight, 120), safeViewportHeight);
-  const preferredTop = placeAbove
-    ? hoverState.anchorRect.top - HOVER_CARD_GAP - maxHeight
-    : belowTop;
-  const top = Math.min(
-    Math.max(preferredTop, VIEWPORT_PADDING),
-    Math.max(viewportHeight - maxHeight - VIEWPORT_PADDING, VIEWPORT_PADDING),
+  const maxHeight = Math.min(
+    HOVER_CARD_MAX_HEIGHT,
+    Math.max(availableHeight, 120),
+    safeViewportHeight,
   );
+  const top = placeAbove
+    ? Math.min(
+        Math.max(aboveAnchorTop, VIEWPORT_PADDING),
+        Math.max(viewportHeight - VIEWPORT_PADDING, VIEWPORT_PADDING),
+      )
+    : Math.min(
+        Math.max(belowTop, VIEWPORT_PADDING),
+        Math.max(viewportHeight - VIEWPORT_PADDING, VIEWPORT_PADDING),
+      );
   const left = Math.min(
     Math.max(hoverState.anchorRect.left, VIEWPORT_PADDING),
     Math.max(viewportWidth - HOVER_CARD_WIDTH - VIEWPORT_PADDING, VIEWPORT_PADDING),
   );
 
-  const { signature, description } = hoverState.loading
-    ? { signature: null, description: null }
-    : parseHoverContent(hoverState.text);
+  const renderedMarkdown = useMemo(() => {
+    if (hoverState.loading || !hoverState.content.trim()) {
+      return "";
+    }
+
+    return parseMarkdown(hoverState.content);
+  }, [hoverState.content, hoverState.loading]);
 
   return (
     <div
       ref={popoverRef}
       className={cn(
-        "bg-popover text-popover-foreground fixed z-50 overflow-hidden rounded-md border shadow-md",
+        "bg-popover text-popover-foreground fixed z-50 overflow-hidden rounded-xs border shadow-md",
         "animate-in fade-in-0 zoom-in-95",
       )}
       style={{
@@ -330,26 +287,17 @@ export function DiffLspHoverPopover({
         width: HOVER_CARD_WIDTH,
         maxWidth: `calc(100vw - ${VIEWPORT_PADDING * 2}px)`,
         maxHeight,
+        transform: placeAbove ? "translateY(-100%)" : undefined,
       }}
     >
-      <div className="max-h-full overflow-auto p-3">
+      <div className="max-h-full overflow-auto p-2">
         {hoverState.loading ? (
           <div className="text-xs text-muted-foreground">Loading...</div>
         ) : (
-          <div className="flex flex-col gap-2 select-text">
-            {signature && (
-              <div className="bg-muted/50 max-h-56 overflow-auto rounded px-2 py-1.5">
-                <code className="text-xs font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed">
-                  {signature}
-                </code>
-              </div>
-            )}
-            {description && (
-              <div className="text-xs text-muted-foreground whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed">
-                {description}
-              </div>
-            )}
-          </div>
+          <div
+            className="markdown-preview text-xs leading-relaxed text-muted-foreground select-text [&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-muted/50 [&_code]:px-1 [&_code]:py-0.5 [&_pre]:overflow-auto [&_pre]:rounded [&_pre]:bg-muted/50 [&_pre]:px-2 [&_pre]:py-1.5 [&_pre_code]:bg-transparent [&_pre_code]:p-0"
+            dangerouslySetInnerHTML={{ __html: renderedMarkdown }}
+          />
         )}
       </div>
     </div>

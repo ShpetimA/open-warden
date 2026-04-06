@@ -127,7 +127,7 @@ describe("useDiffLspHover", () => {
     });
 
     expect(result.current.hoverState.open).toBe(true);
-    expect(result.current.hoverState.text).toContain("alias");
+    expect(result.current.hoverState.content).toContain("alias");
   });
 
   it("ignores non-addition lines", () => {

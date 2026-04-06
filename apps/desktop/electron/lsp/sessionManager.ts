@@ -131,9 +131,7 @@ function toDocumentPath(uri: string) {
   }
 }
 
-function normalizeDiagnostics(
-  source: DiagnosticsNotification["diagnostics"],
-): LspDiagnostic[] {
+function normalizeDiagnostics(source: DiagnosticsNotification["diagnostics"]): LspDiagnostic[] {
   if (!Array.isArray(source)) {
     return [];
   }
@@ -142,7 +140,8 @@ function normalizeDiagnostics(
     const startLine = (diagnostic.range?.start?.line ?? 0) + 1;
     const endLine = (diagnostic.range?.end?.line ?? diagnostic.range?.start?.line ?? 0) + 1;
     const startCharacter = (diagnostic.range?.start?.character ?? 0) + 1;
-    const endCharacter = (diagnostic.range?.end?.character ?? diagnostic.range?.start?.character ?? 0) + 1;
+    const endCharacter =
+      (diagnostic.range?.end?.character ?? diagnostic.range?.start?.character ?? 0) + 1;
 
     return {
       message: diagnostic.message ?? "Unknown diagnostic",
@@ -161,18 +160,6 @@ function normalizeLineEndings(value: string) {
   return value.replace(/\r\n?/g, "\n");
 }
 
-function stripMarkdownFormatting(value: string) {
-  return normalizeLineEndings(value)
-    .replace(/```[^\n]*\n([\s\S]*?)```/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^\s*>\s?/gm, "")
-    .replace(/(\*\*|__)(.*?)\1/g, "$2")
-    .replace(/(\*|_)(.*?)\1/g, "$2")
-    .trim();
-}
-
 function normalizeMarkedString(value: MarkedString): string | null {
   if (typeof value === "string") {
     const nextValue = normalizeLineEndings(value).trim();
@@ -180,7 +167,20 @@ function normalizeMarkedString(value: MarkedString): string | null {
   }
 
   const nextValue = typeof value.value === "string" ? normalizeLineEndings(value.value).trim() : "";
-  return nextValue.length > 0 ? nextValue : null;
+  if (nextValue.length === 0) {
+    return null;
+  }
+
+  if (!value.language) {
+    return nextValue;
+  }
+
+  const singleLine = !nextValue.includes("\n");
+  if (singleLine && nextValue.length <= 220) {
+    return `\`${nextValue}\``;
+  }
+
+  return `\`\`\`${value.language}\n${nextValue}\n\`\`\``;
 }
 
 export function normalizeLspHoverResponse(result: HoverResponse): LspHoverResult | null {
@@ -207,14 +207,12 @@ export function normalizeLspHoverResponse(result: HoverResponse): LspHoverResult
     return null;
   }
 
-  const rawValue = contents.value.trim();
+  const rawValue = normalizeLineEndings(contents.value).trim();
   if (rawValue.length === 0) {
     return null;
   }
 
-  const text =
-    contents.kind === "markdown" ? stripMarkdownFormatting(rawValue) : normalizeLineEndings(rawValue);
-  return text.length > 0 ? { text } : null;
+  return { text: rawValue };
 }
 
 function normalizeLocationRange(range: LspRange | undefined) {
@@ -243,12 +241,10 @@ export function normalizeLspLocationResponse(
 
     const location = value as BasicLocation | LocationLink;
     const isLocationLink =
-      "targetUri" in location ||
-      "targetSelectionRange" in location ||
-      "targetRange" in location;
+      "targetUri" in location || "targetSelectionRange" in location || "targetRange" in location;
     const uri = isLocationLink ? location.targetUri : (location as BasicLocation).uri;
     const range = isLocationLink
-      ? location.targetSelectionRange ?? location.targetRange
+      ? (location.targetSelectionRange ?? location.targetRange)
       : (location as BasicLocation).range;
 
     if (!uri) {

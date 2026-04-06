@@ -1,14 +1,17 @@
 import type { AppThunk } from "@/app/store";
+import { hostedReposApi } from "@/features/hosted-repos/api";
 import { preparePullRequestWorkspace } from "@/features/hosted-repos/services/hostedRepos";
 import {
+  clearCurrentPullRequestReview,
   createPullRequestReviewSession,
   setCurrentPullRequestReview,
   setPullRequestReviewTab,
 } from "@/features/pull-requests/pullRequestsSlice";
-import { openRepo } from "@/features/source-control/actions";
+import { openRepo, refreshActiveRepo } from "@/features/source-control/actions";
 import {
   clearError,
   clearReviewSelection,
+  resetRepoViewState,
   setChangesSidebarMode,
   setReviewBaseRef,
   setReviewHeadRef,
@@ -31,7 +34,18 @@ export const openPullRequestReview =
         pullRequestNumber,
       });
 
+      const reopeningCurrentRepo = preparedWorkspace.repoPath === activeRepo;
       await dispatch(openRepo(preparedWorkspace.repoPath));
+      if (reopeningCurrentRepo) {
+        dispatch(resetRepoViewState());
+        dispatch(clearCurrentPullRequestReview());
+      }
+      await dispatch(refreshActiveRepo());
+      dispatch(
+        hostedReposApi.util.invalidateTags([
+          { type: "HostedRepo", id: `${preparedWorkspace.repoPath}:pull-request-workspace` },
+        ]),
+      );
       dispatch(clearReviewSelection());
       dispatch(setReviewBaseRef(preparedWorkspace.compareBaseRef));
       dispatch(setReviewHeadRef(preparedWorkspace.compareHeadRef));

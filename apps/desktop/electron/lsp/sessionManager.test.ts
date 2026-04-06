@@ -17,7 +17,7 @@ describe("normalizeLspHoverResponse", () => {
     });
   });
 
-  it("normalizes markdown hover content to plain text", () => {
+  it("preserves markdown hover content", () => {
     expect(
       normalizeLspHoverResponse({
         contents: {
@@ -26,17 +26,32 @@ describe("normalizeLspHoverResponse", () => {
         },
       }),
     ).toEqual({
-      text: "number\n\nconst answer = 42;",
+      text: "**number**\n\n```ts\nconst answer = 42;\n```",
     });
   });
 
-  it("joins marked string arrays", () => {
+  it("joins marked string arrays and preserves code formatting", () => {
     expect(
       normalizeLspHoverResponse({
         contents: [{ language: "ts", value: "const answer = 42;" }, "Returns the answer."],
       }),
     ).toEqual({
-      text: "const answer = 42;\n\nReturns the answer.",
+      text: "`const answer = 42;`\n\nReturns the answer.",
+    });
+  });
+
+  it("formats multiline marked string values as fenced code blocks", () => {
+    expect(
+      normalizeLspHoverResponse({
+        contents: [
+          {
+            language: "rust",
+            value: 'fn demo() {\n    println!("hello");\n}',
+          },
+        ],
+      }),
+    ).toEqual({
+      text: '```rust\nfn demo() {\n    println!("hello");\n}\n```',
     });
   });
 
