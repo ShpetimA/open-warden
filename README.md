@@ -1,5 +1,6 @@
-# OpenWarden
+# ALPHA: OpenWarden
 
+Still in Alpha alot of the ui subject to change also working on stability would appreciate any feedback/issue reports.
 OpenWarden is a desktop Git review app for moving through local changes, commit history, branch comparisons, and review comments without leaving your workflow.
 
 ## Install on macOS
