@@ -1,4 +1,5 @@
 import type { AppThunk, RootState } from "@/app/store";
+import { toast } from "sonner";
 import { desktop } from "@/platform/desktop";
 import {
   addRecentRepo,
@@ -18,7 +19,6 @@ import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import {
   closeFileViewer,
-  clearError,
   hydrateWorkspaceSession as hydrateWorkspaceSessionState,
   removeRepo,
   resetRepoViewState,
@@ -29,7 +29,6 @@ import {
   setCommitMessage,
   setDiffFocusTarget,
   setDiffStyle,
-  setError,
   setHistoryCommitId,
   setHistoryNavTarget,
   setLastCommitId,
@@ -127,7 +126,8 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
     await desktop.saveWorkspaceSession(workspaceSession);
   } catch (error) {
     dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
-    dispatch(setError(error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(`Failed to restore workspace session: ${message}`);
   }
 };
 
@@ -137,7 +137,7 @@ export const openRepo =
     const resolvedRepoPath = await resolveRepoPath(repoPath);
 
     if (!resolvedRepoPath) {
-      dispatch(setError(`Could not open repository: ${repoPath}`));
+      toast.error(`Could not open repository: ${repoPath}`);
       return;
     }
 
@@ -147,7 +147,6 @@ export const openRepo =
 
     if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
       dispatch(setRecentRepos(nextRecentRepos));
-      dispatch(clearError());
       await persistWorkspaceSession(getState);
       return;
     }
@@ -165,7 +164,8 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
   try {
     selected = await desktop.selectFolder();
   } catch (error) {
-    dispatch(setError(error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(`Failed to select folder: ${message}`);
     return;
   }
 
@@ -374,17 +374,28 @@ export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getSt
   );
 };
 
+function repoActionLabel(action: RunningAction): string {
+  if (action === "stage-all") return "stage all files";
+  if (action === "unstage-all") return "unstage all files";
+  if (action === "discard-changes") return "discard selected changes";
+  if (action === "commit") return "create commit";
+  if (action.startsWith("file:stage:")) return "stage file";
+  if (action.startsWith("file:unstage:")) return "unstage file";
+  if (action.startsWith("file:discard:")) return "discard file changes";
+  return "run repository action";
+}
+
 const runRepoAction =
   (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     if (!activeRepo) return;
     dispatch(setRunningAction(action));
-    dispatch(clearError());
     try {
       await dispatch(thunk);
     } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
     } finally {
       dispatch(setRunningAction(""));
     }

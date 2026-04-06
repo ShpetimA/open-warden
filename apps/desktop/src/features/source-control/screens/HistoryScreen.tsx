@@ -45,11 +45,11 @@ export function HistoryScreen() {
         }
       : skipToken,
   );
-  const fileVersions = historyFileVersions.data;
-  const loadingPatch = historyFileVersions.isFetching;
+  const fileVersions = historyFileVersions.currentData ?? historyFileVersions.data;
+  const loadingPatch = !fileVersions && historyFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
-  const errorMessage = errorMessageFrom(historyFileVersions.error, "");
+  const errorMessage = fileVersions ? "" : errorMessageFrom(historyFileVersions.error, "");
   const previewPath = previewSelection?.path ?? "";
 
   return (

@@ -359,6 +359,7 @@ export function PullRequestsScreen() {
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
   const [openingPullRequestNumber, setOpeningPullRequestNumber] = useState<number | null>(null);
+  const [openPullRequestError, setOpenPullRequestError] = useState("");
 
   const { data: connections = [], isLoading: loadingConnections, isFetching: fetchingConnections } =
     useListProviderConnectionsQuery();
@@ -388,12 +389,18 @@ export function PullRequestsScreen() {
   }
 
   async function onOpenPullRequest(pullRequestNumber: number) {
+    setOpenPullRequestError("");
     setOpeningPullRequestNumber(pullRequestNumber);
-    const preparedWorkspace = await dispatch(openPullRequestReview(pullRequestNumber));
+    const result = await dispatch(openPullRequestReview(pullRequestNumber));
     setOpeningPullRequestNumber(null);
 
-    if (preparedWorkspace) {
+    if (result.workspace) {
       navigate("/changes");
+      return;
+    }
+
+    if (result.errorMessage) {
+      setOpenPullRequestError(result.errorMessage);
     }
   }
 
@@ -474,6 +481,10 @@ export function PullRequestsScreen() {
                   <GitPullRequest className="text-muted-foreground h-4 w-4" />
                   <div className="text-sm font-semibold">Repository pull requests</div>
                 </div>
+
+                {openPullRequestError ? (
+                  <div className="text-destructive mt-4 text-sm">{openPullRequestError}</div>
+                ) : null}
 
                 {!hostedRepo ? (
                   <div className="text-muted-foreground mt-4 text-sm leading-6">

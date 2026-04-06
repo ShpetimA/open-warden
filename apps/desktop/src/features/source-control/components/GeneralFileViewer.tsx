@@ -20,7 +20,6 @@ import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import { repoLabel } from "@/features/source-control/utils";
 import type { DiffReturnTarget } from "@/features/source-control/types";
 
 type GeneralFileViewerProps = Record<string, never>;
@@ -47,14 +46,6 @@ pre[data-file-type='single'] {
 }
 ${DIFF_LINE_FOCUS_CSS}
 `;
-
-function formatViewerSubtitle(repoPath: string, revision?: string | null) {
-  if (revision?.trim()) {
-    return `${repoLabel(repoPath)} · ${revision}`;
-  }
-
-  return `${repoLabel(repoPath)} · Worktree`;
-}
 
 function formatReturnToDiffLabel(target: DiffReturnTarget) {
   const lineLabel = `:${target.lineNumber}`;
@@ -88,8 +79,8 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
     },
   );
 
-  const file = repoFileQuery.data;
-  const errorMessage = errorMessageFrom(repoFileQuery.error, "");
+  const file = repoFileQuery.currentData ?? repoFileQuery.data;
+  const errorMessage = file ? "" : errorMessageFrom(repoFileQuery.error, "");
   const selectedLine = target?.line && target.line > 0 ? target.line : null;
   const focusKey = target?.focusKey ?? null;
   const lspText = file?.contents ?? null;

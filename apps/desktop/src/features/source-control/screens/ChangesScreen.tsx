@@ -63,11 +63,11 @@ function LocalChangesScreen() {
       refetchOnReconnect: true,
     },
   );
-  const fileVersions = workingFileVersions.data;
-  const loadingPatch = workingFileVersions.isFetching;
+  const fileVersions = workingFileVersions.currentData ?? workingFileVersions.data;
+  const loadingPatch = !fileVersions && workingFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
-  const errorMessage = errorMessageFrom(workingFileVersions.error, "");
+  const errorMessage = fileVersions ? "" : errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? "";
   const lspText = !loadingPatch && newFile ? newFile.contents : null;
   const lspHoverDocument =

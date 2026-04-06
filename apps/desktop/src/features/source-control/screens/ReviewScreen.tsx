@@ -264,11 +264,11 @@ function ReviewDiffPane({
       : skipToken,
   );
 
-  const reviewVersions = branchFileVersionsQuery.data;
+  const reviewVersions = branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data;
   const oldFile = reviewVersions?.oldFile ?? null;
   const newFile = reviewVersions?.newFile ?? null;
-  const loadingPatch = branchFileVersionsQuery.isFetching;
-  const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, "");
+  const loadingPatch = !reviewVersions && branchFileVersionsQuery.isFetching;
+  const errorMessage = reviewVersions ? "" : errorMessageFrom(branchFileVersionsQuery.error, "");
   const context = { kind: "review" as const, baseRef: reviewBaseRef, headRef: reviewHeadRef };
   const previewPath = previewSelection?.path ?? "";
   const focusedLineNumber =

@@ -15,7 +15,6 @@ import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import { closeRepo, openRepo, selectFolder, selectRepo } from "@/features/source-control/actions";
 import { SourceControlSidebar } from "@/features/source-control/components/SourceControlSidebar";
 import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { repoLabel, repoParentPath } from "@/features/source-control/utils";
 
 type EmptyRepoStateProps = {
@@ -108,17 +107,12 @@ function EmptyRepoState({ recentRepos, onOpenPicker, onOpenRepo }: EmptyRepoStat
 function renderMainContent(
   showOutlet: boolean,
   activeRepo: string,
-  errorMessage: string,
   recentRepos: string[],
   onOpenPicker: () => void,
   onOpenRepo: (repo: string) => void,
 ) {
   if (showOutlet) {
     return <Outlet />;
-  }
-
-  if (errorMessage) {
-    return <div className="text-destructive p-3 text-sm">{errorMessage}</div>;
   }
 
   if (!activeRepo) {
@@ -139,22 +133,19 @@ export function AppShell() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
-  const stateError = useAppSelector((state) => state.sourceControl.error);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [recentProjectsPickerOpen, setRecentProjectsPickerOpen] = useState(false);
   const isSettingsRoute = location.pathname.startsWith("/settings");
   const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
   const showPrimarySidebar = activeFeature ? featureHasPrimarySidebar(activeFeature) : false;
   const sidebarFeature = activeFeature === "history" ? "history" : "changes";
-  const { snapshotError, activeBranch: activeBranchData } = useGetGitSnapshotQuery(activeRepo, {
+  const { activeBranch: activeBranchData } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ error, data }) => ({
-      snapshotError: error,
+    selectFromResult: ({ data }) => ({
       activeBranch: data?.branch ?? "",
     }),
   });
   const activeBranch = activeRepo ? activeBranchData : "";
-  const errorMessage = errorMessageFrom(snapshotError, stateError);
 
   useHotkey(
     "Mod+O",
@@ -172,7 +163,6 @@ export function AppShell() {
   const mainContent = renderMainContent(
     isSettingsRoute,
     activeRepo,
-    errorMessage,
     recentRepos,
     () => {
       setRecentProjectsPickerOpen(true);

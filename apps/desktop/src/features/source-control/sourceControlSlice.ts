@@ -31,7 +31,6 @@ type SourceControlState = {
   commitMessage: string;
   lastCommitId: string;
   runningAction: RunningAction;
-  error: string;
   selectedFiles: SelectedFile[];
   selectionAnchor: SelectedFile | null;
   reviewBaseRef: string;
@@ -59,7 +58,6 @@ const initialState: SourceControlState = {
   commitMessage: "",
   lastCommitId: "",
   runningAction: "",
-  error: "",
   selectedFiles: [],
   selectionAnchor: null,
   reviewBaseRef: "",
@@ -161,16 +159,6 @@ const sourceControlSlice = createSlice({
         state.runningAction = action.payload;
       }
     },
-    setError(state, action: PayloadAction<string>) {
-      if (state.error !== action.payload) {
-        state.error = action.payload;
-      }
-    },
-    clearError(state) {
-      if (state.error !== "") {
-        state.error = "";
-      }
-    },
     resetRepoViewState(state) {
       state.historyFilter = "";
       state.historyCommitId = "";
@@ -182,7 +170,6 @@ const sourceControlSlice = createSlice({
       state.commitMessage = "";
       state.lastCommitId = "";
       state.runningAction = "";
-      state.error = "";
       state.selectedFiles = [];
       state.selectionAnchor = null;
       state.reviewBaseRef = "";
@@ -305,7 +292,6 @@ export const {
   addRepo,
   clearDiffFocusTarget,
   clearDiffSelection,
-  clearError,
   closeFileViewer,
   clearHistorySelection,
   clearReviewSelection,
@@ -320,7 +306,6 @@ export const {
   setCollapseUnstaged,
   setChangesSidebarMode,
   setDiffStyle,
-  setError,
   setHistoryCommitId,
   setHistoryFilter,
   setHistoryNavTarget,

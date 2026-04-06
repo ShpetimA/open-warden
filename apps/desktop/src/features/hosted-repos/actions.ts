@@ -9,23 +9,25 @@ import {
 } from "@/features/pull-requests/pullRequestsSlice";
 import { openRepo, refreshActiveRepo } from "@/features/source-control/actions";
 import {
-  clearError,
   clearReviewSelection,
   resetRepoViewState,
   setChangesSidebarMode,
   setReviewBaseRef,
   setReviewHeadRef,
-  setError,
 } from "@/features/source-control/sourceControlSlice";
 import type { PreparedPullRequestWorkspace } from "@/platform/desktop";
 
+export type OpenPullRequestReviewResult = {
+  workspace: PreparedPullRequestWorkspace | null;
+  errorMessage: string | null;
+};
+
 export const openPullRequestReview =
-  (pullRequestNumber: number): AppThunk<Promise<PreparedPullRequestWorkspace | null>> =>
+  (pullRequestNumber: number): AppThunk<Promise<OpenPullRequestReviewResult>> =>
   async (dispatch, getState) => {
     const activeRepo = getState().sourceControl.activeRepo;
     if (!activeRepo) {
-      dispatch(setError("No repository is currently active."));
-      return null;
+      return { workspace: null, errorMessage: "No repository is currently active." };
     }
 
     try {
@@ -52,10 +54,9 @@ export const openPullRequestReview =
       dispatch(setCurrentPullRequestReview(createPullRequestReviewSession(preparedWorkspace)));
       dispatch(setPullRequestReviewTab("files"));
       dispatch(setChangesSidebarMode("pull-request"));
-      dispatch(clearError());
-      return preparedWorkspace;
+      return { workspace: preparedWorkspace, errorMessage: null };
     } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
-      return null;
+      const message = error instanceof Error ? error.message : String(error);
+      return { workspace: null, errorMessage: message };
     }
   };

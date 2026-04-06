@@ -123,10 +123,10 @@ function PullRequestDiffPane({
       : skipToken,
   );
 
-  const reviewVersions = branchFileVersionsQuery.data;
+  const reviewVersions = branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data;
   const oldFile = reviewVersions?.oldFile ?? null;
   const newFile = reviewVersions?.newFile ?? null;
-  const loadingPatch = branchFileVersionsQuery.isLoading;
+  const loadingPatch = !reviewVersions && branchFileVersionsQuery.isLoading;
   const errorMessage = reviewVersions ? "" : errorMessageFrom(branchFileVersionsQuery.error, "");
   const previewPath = previewSelection?.path ?? "";
   const lspText = !loadingPatch && newFile ? newFile.contents : null;

@@ -22,7 +22,6 @@ function createState(overrides: Partial<RootState["sourceControl"]>): RootState 
       commitMessage: "",
       lastCommitId: "",
       runningAction: "",
-      error: "",
       selectedFiles: [],
       selectionAnchor: null,
       reviewBaseRef: "",
