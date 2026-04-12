@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { FileDiff as PierreFileDiff } from "@pierre/diffs/react";
+import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -420,43 +420,45 @@ export function DiffWorkspace({
         hoverState={hoverState}
         popoverRef={popoverRef}
       />
-      <div
-        ref={viewportRef}
-        key={diffViewportKey}
-        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
-      >
-        {currentFileDiff ? (
-          <PierreFileDiff
-            className="block min-w-0 max-w-full"
-            fileDiff={currentFileDiff}
-            selectedLines={selectedRange}
-            lineAnnotations={annotationsWithComposer}
-            renderAnnotation={renderAnnotation}
-            renderHeaderMetadata={() => (
-              <DiffHeaderMetadataControls
-                activePath={activePath}
-                canComment={canComment}
-                commentContext={commentContext}
-                expandUnchanged={expandUnchanged}
-                fileViewerRevision={fileViewerRevision}
-                onToggleExpandUnchanged={() => {
-                  setExpandUnchanged((current) => !current);
-                }}
-              />
-            )}
-            options={diffOptions}
-          />
-        ) : diffRenderGate === "unrenderable" ? (
-          renderUnrenderableDiffWarning()
-        ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
-          renderLargeDiffWarning()
-        ) : isParsingDiff ? (
-          <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
-        ) : (
-          <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
-        )}
-        <LspSymbolPeek document={lspHoverDocument} containerRef={viewportRef} />
-      </div>
+      <Virtualizer className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div
+          ref={viewportRef}
+          key={diffViewportKey}
+          className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+        >
+          {currentFileDiff ? (
+            <PierreFileDiff
+              className="block min-w-0 max-w-full"
+              fileDiff={currentFileDiff}
+              selectedLines={selectedRange}
+              lineAnnotations={annotationsWithComposer}
+              renderAnnotation={renderAnnotation}
+              renderHeaderMetadata={() => (
+                <DiffHeaderMetadataControls
+                  activePath={activePath}
+                  canComment={canComment}
+                  commentContext={commentContext}
+                  expandUnchanged={expandUnchanged}
+                  fileViewerRevision={fileViewerRevision}
+                  onToggleExpandUnchanged={() => {
+                    setExpandUnchanged((current) => !current);
+                  }}
+                />
+              )}
+              options={diffOptions}
+            />
+          ) : diffRenderGate === "unrenderable" ? (
+            renderUnrenderableDiffWarning()
+          ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
+            renderLargeDiffWarning()
+          ) : isParsingDiff ? (
+            <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
+          ) : (
+            <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
+          )}
+          <LspSymbolPeek document={lspHoverDocument} containerRef={viewportRef} />
+        </div>
+      </Virtualizer>
     </div>
   );
 }

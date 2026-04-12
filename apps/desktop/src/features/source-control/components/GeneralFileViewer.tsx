@@ -1,19 +1,13 @@
 import { useRef } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { File as PierreFile } from "@pierre/diffs/react";
+import { File as PierreFile, Virtualizer } from "@pierre/diffs/react";
 import { ArrowLeft } from "lucide-react";
 import { useTheme } from "next-themes";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
-import {
-  DIFF_LINE_FOCUS_CSS,
-  useDiffLineFocus,
-} from "@/features/source-control/diffLineFocus";
-import {
-  getDiffTheme,
-  getDiffThemeType,
-} from "@/features/diff-view/diffRenderConfig";
+import { DIFF_LINE_FOCUS_CSS, useDiffLineFocus } from "@/features/source-control/diffLineFocus";
+import { getDiffTheme, getDiffThemeType } from "@/features/diff-view/diffRenderConfig";
 import { useGetRepoFileQuery } from "@/features/source-control/api";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
@@ -25,26 +19,26 @@ import type { DiffReturnTarget } from "@/features/source-control/types";
 type GeneralFileViewerProps = Record<string, never>;
 
 const FILE_VIEWER_CSS = `
-:host {
-  min-width: 0;
-  max-width: 100%;
-}
+    :host {
+      min-width: 0;
+      max-width: 100%;
+    }
 
-[data-diffs-header] {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background-color: var(--diffs-bg);
-  border-bottom: 1px solid color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-fg));
-  min-width: 0;
-  overflow: hidden;
-}
+    [data-diffs-header] {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background-color: var(--diffs-bg);
+      border-bottom: 1px solid color-mix(in lab, var(--diffs-bg) 90%, var(--diffs-fg));
+      min-width: 0;
+      overflow: hidden;
+    }
 
-pre[data-file-type='single'] {
-  overflow: hidden;
-  min-width: 0;
-}
-${DIFF_LINE_FOCUS_CSS}
+    pre[data-file-type='single'] {
+      overflow: hidden;
+      min-width: 0;
+    }
+    ${DIFF_LINE_FOCUS_CSS}
 `;
 
 function formatReturnToDiffLabel(target: DiffReturnTarget) {
@@ -99,6 +93,18 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
     enabled: Boolean(file),
   });
 
+  if (errorMessage) {
+    return <div className="text-destructive p-4 text-sm">{errorMessage}</div>;
+  }
+
+  if (repoFileQuery.isFetching) {
+    return <div className="text-muted-foreground p-4 text-sm">Loading file...</div>;
+  }
+
+  if (!file) {
+    return <div className="text-muted-foreground p-4 text-sm">Select a file to view it.</div>;
+  }
+
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
       {returnToDiffTarget ? (
@@ -120,16 +126,10 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
           </div>
         </div>
       ) : null}
-      <div ref={viewerRef} className="relative min-h-0 flex-1 overflow-auto">
-        {errorMessage ? (
-          <div className="text-destructive p-4 text-sm">{errorMessage}</div>
-        ) : repoFileQuery.isFetching ? (
-          <div className="text-muted-foreground p-4 text-sm">Loading file...</div>
-        ) : !target ? (
-          <div className="text-muted-foreground p-4 text-sm">Select a file to view it.</div>
-        ) : !file ? (
-          <div className="text-muted-foreground p-4 text-sm">File content is unavailable.</div>
-        ) : (
+      <Virtualizer className="relative min-h-0 flex-1 overflow-auto">
+        <div
+         key={file.name}
+         ref={viewerRef} className="relative min-h-0 flex-1 overflow-auto">
           <PierreFile
             file={file}
             className="block min-w-0 max-w-full"
@@ -143,12 +143,12 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
               onTokenClick,
             }}
           />
-        )}
-        <LspSymbolPeek
-          document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
-          containerRef={viewerRef}
-        />
-      </div>
+          <LspSymbolPeek
+            document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
+            containerRef={viewerRef}
+          />
+        </div>
+      </Virtualizer>
     </section>
   );
 }
