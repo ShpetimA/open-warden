@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { shallowEqual } from "react-redux";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import type { RootState } from "@/app/store";
 import {
   getDiffTheme,
   getDiffThemeType,
@@ -18,7 +19,11 @@ import {
   useDiffLineFocus,
 } from "@/features/source-control/diffLineFocus";
 import { createFocusedFileViewerTarget } from "@/features/source-control/fileViewerNavigation";
-import { SOURCE_CONTROL_HOTKEY_OPTIONS } from "@/features/source-control/hooks/keyboardNavigation";
+import {
+  SOURCE_CONTROL_HOTKEY_OPTIONS,
+  useVerticalNavigationHotkeys,
+} from "@/features/source-control/hooks/keyboardNavigation";
+import { getNextSymbolPeekIndex } from "@/features/source-control/hooks/symbolPeekNavigation";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import {
   closeSymbolPeek,
@@ -26,7 +31,7 @@ import {
   setSymbolPeekActiveIndex,
   setSymbolPeekQuery,
 } from "@/features/source-control/sourceControlSlice";
-import type { LspLocation, SymbolPeekKind } from "@/features/source-control/types";
+import type { LspLocation, SymbolPeekKind, SymbolPeekState } from "@/features/source-control/types";
 
 const SYMBOL_PEEK_HEIGHT_REM = 32;
 const SYMBOL_PEEK_HEIGHT_PX = 250;
@@ -194,11 +199,8 @@ function SymbolPeekPreview({
   );
 }
 
-export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
-  const dispatch = useAppDispatch();
+export function LspSymbolPeekContainer({ document, containerRef }: SymbolPeekProps) {
   const symbolPeek = useAppSelector((state) => state.sourceControl.symbolPeek);
-  const deferredQuery = useDeferredValue(symbolPeek?.query ?? "");
-  const [popoverTop, setPopoverTop] = useState<number | null>(null);
 
   const isVisible =
     document !== undefined &&
@@ -206,11 +208,30 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
     symbolPeek.sourceDocument.repoPath === document.repoPath &&
     symbolPeek.sourceDocument.relPath === document.relPath;
 
-  const locations = isVisible ? symbolPeek?.locations ?? [] : [];
-  const activeIndex = isVisible ? symbolPeek?.activeIndex ?? 0 : 0;
-  const activeLocation = isVisible ? symbolPeek?.locations[activeIndex] ?? null : null;
-  const anchorLineNumber = isVisible ? symbolPeek?.anchor.lineNumber ?? null : null;
-  const anchorLineIndex = isVisible ? symbolPeek?.anchor.lineIndex ?? null : null;
+  if (!isVisible) {
+    return null;
+  }
+
+  return <LspSymbolPeek document={document} containerRef={containerRef} symbolPeek={symbolPeek} />;
+}
+
+type LspSymbolPeekProps = {
+  document: SymbolPeekDocument;
+  containerRef: RefObject<HTMLDivElement | null>;
+  symbolPeek: SymbolPeekState;
+};
+
+export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolPeekProps) {
+  const dispatch = useAppDispatch();
+  const deferredQuery = useDeferredValue(symbolPeek.query);
+  const [popoverTop, setPopoverTop] = useState<number | null>(null);
+  const listContainerRef = useRef<HTMLDivElement>(null);
+
+  const locations = symbolPeek.locations;
+  const activeIndex = symbolPeek.activeIndex;
+  const activeLocation = symbolPeek.locations[activeIndex];
+  const anchorLineNumber = symbolPeek.anchor.lineNumber;
+  const anchorLineIndex = symbolPeek.anchor.lineIndex;
 
   const previewQuery = useGetRepoFileQuery(
     activeLocation
@@ -233,10 +254,6 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
   );
 
   const cachedFileContentsByPath = useAppSelector((state) => {
-    if (!isVisible || !document) {
-      return {} as Record<string, string>;
-    }
-
     const next: Record<string, string> = {};
     for (const relPath of locationPaths) {
       const cached = gitApi.endpoints.getRepoFile.select({
@@ -251,17 +268,13 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
   }, shallowEqual);
 
   useEffect(() => {
-    if (!isVisible) {
-      return;
-    }
-
     for (const relPath of locationPaths) {
       // Prime cache for peek list excerpts so cross-file results are stable.
       void dispatch(
         gitApi.util.prefetch("getRepoFile", { repoPath: document.repoPath, relPath }, {}),
       );
     }
-  }, [dispatch, document?.repoPath, isVisible, locationPaths]);
+  }, [dispatch, document.repoPath, locationPaths]);
 
   const linesByPath = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -304,18 +317,13 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
   }
 
   useEffect(() => {
-    if (!isVisible || anchorLineNumber === null) {
-      setPopoverTop(null);
-      return;
-    }
-
     if (filteredIndexes.length > 0 && !filteredIndexes.includes(symbolPeek.activeIndex)) {
       dispatch(setSymbolPeekActiveIndex(filteredIndexes[0]));
     }
-  }, [dispatch, filteredIndexes, isVisible, symbolPeek]);
+  }, [dispatch, filteredIndexes, symbolPeek]);
 
   useEffect(() => {
-    if (!isVisible || anchorLineNumber === null) {
+    if (anchorLineNumber === null) {
       setPopoverTop(null);
       return;
     }
@@ -365,12 +373,46 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
       cancelled = true;
       cancelAnimationFrame(frameId);
     };
-  }, [anchorLineIndex, anchorLineNumber, containerRef, isVisible]);
+  }, [anchorLineIndex, anchorLineNumber, containerRef]);
+
+  const scrollToItem = (index: number) => {
+    if (!listContainerRef.current) {
+      return;
+    }
+
+    const activeItem = listContainerRef.current.querySelector<HTMLElement>(
+      `[data-symbol-peek-index="${index}"]`,
+    );
+    if (activeItem) {
+      activeItem.scrollIntoView({ block: "nearest" });
+    }
+  };
+
+  useVerticalNavigationHotkeys({
+    onNext: (event) => {
+      const state = { sourceControl: { symbolPeek } } as RootState;
+      const nextIndex = getNextSymbolPeekIndex(state, true);
+      if (nextIndex !== null) {
+        event.preventDefault();
+        scrollToItem(nextIndex);
+        setActiveIndex(nextIndex);
+      }
+    },
+    onPrevious: (event) => {
+      const state = { sourceControl: { symbolPeek } } as RootState;
+      const nextIndex = getNextSymbolPeekIndex(state, false);
+      if (nextIndex !== null) {
+        event.preventDefault();
+        scrollToItem(nextIndex);
+        setActiveIndex(nextIndex);
+      }
+    },
+  });
 
   useHotkey(
     "Enter",
     (event) => {
-      if (!isVisible || activeLocation === null) {
+      if (activeLocation === null) {
         return;
       }
 
@@ -379,27 +421,22 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
     },
     {
       ...SOURCE_CONTROL_HOTKEY_OPTIONS,
-      enabled: isVisible && activeLocation !== null,
+      enabled: activeLocation !== null,
     },
   );
 
   useHotkey(
     "Escape",
     (event) => {
-      if (!isVisible) {
-        return;
-      }
-
       event.preventDefault();
       closePeek();
     },
     {
       ...SOURCE_CONTROL_HOTKEY_OPTIONS,
-      enabled: isVisible,
     },
   );
 
-  if (!isVisible || symbolPeek === null || popoverTop === null) {
+  if (symbolPeek === null || popoverTop === null) {
     return null;
   }
 
@@ -450,7 +487,7 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
             />
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div ref={listContainerRef} className="min-h-0 flex-1 overflow-y-auto">
             {groups.length === 0 ? (
               <div className="text-muted-foreground px-2 py-2 text-[11px]">No matching symbols.</div>
             ) : (
@@ -466,6 +503,7 @@ export function LspSymbolPeek({ document, containerRef }: SymbolPeekProps) {
                       <button
                         key={`${location.relPath}:${location.line}:${location.character}:${index}`}
                         type="button"
+                        data-symbol-peek-index={index}
                         className={`block w-full border-t border-border px-2 py-1.5 text-left text-[11px] ${
                           isActive ? "bg-surface-active" : "hover:bg-accent/50"
                         }`}

@@ -10,7 +10,7 @@ import { DIFF_LINE_FOCUS_CSS, useDiffLineFocus } from "@/features/source-control
 import { getDiffTheme, getDiffThemeType } from "@/features/diff-view/diffRenderConfig";
 import { useGetRepoFileQuery } from "@/features/source-control/api";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
-import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
+import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
@@ -143,7 +143,7 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
               onTokenClick,
             }}
           />
-          <LspSymbolPeek
+          <LspSymbolPeekContainer
             document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
             containerRef={viewerRef}
           />

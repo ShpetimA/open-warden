@@ -49,7 +49,7 @@ import {
   type LspHoverDocument,
   useDiffLspHover,
 } from "@/features/diff-view/useDiffLspHover";
-import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
+import {LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import {
   DIFF_LINE_FOCUS_CSS,
@@ -456,7 +456,7 @@ export function DiffWorkspace({
           ) : (
             <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
           )}
-          <LspSymbolPeek document={lspHoverDocument} containerRef={viewportRef} />
+          <LspSymbolPeekContainer document={lspHoverDocument} containerRef={viewportRef} />
         </div>
       </Virtualizer>
     </div>
