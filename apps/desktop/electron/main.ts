@@ -107,6 +107,10 @@ ipcMain.removeHandler(DESKTOP_INVOKE_CHANNEL);
 ipcMain.handle(
   DESKTOP_INVOKE_CHANNEL,
   async (_event, method: DesktopMethod, ...args: unknown[]) => {
+    if (!(method in desktopApi)) {
+      throw new Error(`Unknown desktop method: ${String(method)}`);
+    }
+
     const handler = desktopApi[method] as (...params: unknown[]) => unknown;
     return handler(...args);
   },

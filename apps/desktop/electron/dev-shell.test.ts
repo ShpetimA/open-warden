@@ -1,9 +1,29 @@
 import { spawn } from "node:child_process";
+import net from "node:net";
 import path from "node:path";
 
 import { afterEach, expect, test } from "vitest";
 
 const activeChildren = new Set<ReturnType<typeof spawn>>();
+
+function reservePort() {
+  return new Promise<number>((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close((closeError) => {
+        if (closeError) {
+          reject(closeError);
+          return;
+        }
+
+        resolve(port);
+      });
+    });
+  });
+}
 
 function terminate(child: ReturnType<typeof spawn>) {
   return new Promise<void>((resolve) => {
@@ -33,11 +53,13 @@ test.runIf(process.platform === "darwin")(
   { timeout: 45_000 },
   async () => {
     const appDir = path.resolve(import.meta.dirname, "..");
+    const devServerPort = await reservePort();
     const child = spawn("pnpm", ["dev:electron"], {
       cwd: appDir,
       env: {
         ...process.env,
         CI: "1",
+        VITE_DEV_SERVER_PORT: String(devServerPort),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

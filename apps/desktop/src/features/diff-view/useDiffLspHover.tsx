@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import type { DiffTokenEventBaseProps } from "@pierre/diffs";
 
 import { parseMarkdown } from "@/features/markdown/parser";
@@ -136,12 +137,6 @@ export function useDiffLspHover({ document, resetKey }: UseDiffLspHoverOptions) 
       dismissHover();
     };
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        dismissHover();
-      }
-    };
-
     const onViewportChange = (event: Event) => {
       const target = event.target;
       if (target instanceof Node && popoverRef.current?.contains(target)) {
@@ -152,17 +147,30 @@ export function useDiffLspHover({ document, resetKey }: UseDiffLspHoverOptions) 
     };
 
     window.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("keydown", onKeyDown);
     window.addEventListener("scroll", onViewportChange, true);
     window.addEventListener("resize", onViewportChange);
 
     return () => {
       window.removeEventListener("pointerdown", onPointerDown, true);
-      window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("scroll", onViewportChange, true);
       window.removeEventListener("resize", onViewportChange);
     };
   }, [hoverState.open]);
+
+  useHotkey(
+    "Escape",
+    (event) => {
+      if (!hoverState.open) {
+        return;
+      }
+
+      event.preventDefault();
+      closeHover();
+    },
+    {
+      enabled: hoverState.open,
+    },
+  );
 
   const onTokenClick = (props: DiffTokenEventBaseProps, event: MouseEvent) => {
     if (!document || props.side !== "additions") {

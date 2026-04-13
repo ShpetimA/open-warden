@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { gitApi } from "@/features/source-control/api";
-import { LspSymbolPeek } from "@/features/lsp/components/LspSymbolPeek";
+import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import {
   openSymbolPeek,
   sourceControlReducer,
@@ -79,7 +79,7 @@ function SymbolPeekHarness() {
 
   return (
     <div ref={containerRef}>
-      <LspSymbolPeek
+      <LspSymbolPeekContainer
         document={{ repoPath: "/repo", relPath: "src/current.ts" }}
         containerRef={containerRef}
       />

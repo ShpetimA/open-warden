@@ -9,6 +9,8 @@ import waitOn from "wait-on";
 const appDir = path.resolve(import.meta.dirname, "..");
 const buildDir = path.join(appDir, ".vite", "build");
 const watchedFiles = new Set(["main.cjs", "preload.cjs"]);
+const devServerPort = Number.parseInt(process.env.VITE_DEV_SERVER_PORT ?? "1420", 10) || 1420;
+const devServerUrl = `http://localhost:${String(devServerPort)}`;
 
 let child = null;
 let restarting = false;
@@ -27,7 +29,7 @@ function spawnElectron() {
     cwd: appDir,
     env: {
       ...childEnv,
-      VITE_DEV_SERVER_URL: "http://localhost:1420",
+      VITE_DEV_SERVER_URL: devServerUrl,
     },
     stdio: "inherit",
   });
@@ -112,7 +114,7 @@ log("Waiting for renderer and Electron bundles");
 
 await waitOn({
   resources: [
-    "tcp:1420",
+    `tcp:${String(devServerPort)}`,
     `file:${path.join(buildDir, "main.cjs")}`,
     `file:${path.join(buildDir, "preload.cjs")}`,
   ],
