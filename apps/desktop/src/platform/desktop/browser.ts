@@ -21,14 +21,15 @@ import type {
   HistoryCommit,
   LspHoverResult,
   LspLocation,
+  ListPullRequestsInput,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
+  PullRequestPage,
   PullRequestReviewThread,
   PreparedPullRequestWorkspace,
   PreparePullRequestWorkspaceInput,
   ProviderConnection,
-  PullRequestSummary,
   ReplyToPullRequestThreadInput,
   RepoFileItem,
   SetPullRequestThreadResolvedInput,
@@ -176,7 +177,7 @@ export const browserDesktopApi: DesktopBridge = {
   ): Promise<PreparedPullRequestWorkspace | null> {
     return null;
   },
-  async listPullRequests(_repoPath: string): Promise<PullRequestSummary[]> {
+  async listPullRequests(_input: ListPullRequestsInput): Promise<PullRequestPage> {
     return unsupportedAsync("Pull request listing");
   },
   async getPullRequestConversation(
@@ -387,7 +388,7 @@ export const unavailableDesktopApi: DesktopBridge = {
   ): Promise<PreparedPullRequestWorkspace | null> {
     return null;
   },
-  async listPullRequests(_repoPath: string): Promise<PullRequestSummary[]> {
+  async listPullRequests(_input: ListPullRequestsInput): Promise<PullRequestPage> {
     return unavailableAsync();
   },
   async getPullRequestConversation(

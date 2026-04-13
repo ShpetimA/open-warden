@@ -9,6 +9,7 @@ import type {
   PullRequestReviewThread,
   PullRequestState,
   PullRequestSummary,
+  PullRequestPage,
 } from "../src/platform/desktop/contracts";
 
 export type GitHubUserResponse = {
@@ -283,6 +284,37 @@ export function toPullRequestSummary(
     headOwner: pullRequest.head.repo?.owner.login ?? pullRequest.base.repo.owner.login,
     headRepo: pullRequest.head.repo?.name ?? pullRequest.base.repo.name,
     updatedAt: pullRequest.updated_at,
+  };
+}
+
+function hasGitHubNextPage(headers: Headers) {
+  const linkHeader = headers.get("link");
+  if (!linkHeader) {
+    return false;
+  }
+
+  return linkHeader.split(",").some((entry) => entry.includes('rel="next"'));
+}
+
+export async function listGitHubPullRequests(
+  hostedRepo: HostedRepoRef,
+  token: string,
+  page: number,
+  perPage: number,
+): Promise<PullRequestPage> {
+  const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const normalizedPerPage =
+    Number.isFinite(perPage) && perPage > 0 ? Math.min(100, Math.floor(perPage)) : 25;
+  const pathname = `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls?state=open&per_page=${String(normalizedPerPage)}&page=${String(normalizedPage)}`;
+  const { data, headers } = await githubRequest<GitHubPullRequestResponse[]>(pathname, token);
+
+  return {
+    pullRequests: data
+      .map((pullRequest) => toPullRequestSummary(pullRequest, hostedRepo.providerId))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    page: normalizedPage,
+    perPage: normalizedPerPage,
+    hasNextPage: hasGitHubNextPage(headers),
   };
 }
 

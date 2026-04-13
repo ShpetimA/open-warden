@@ -9,6 +9,7 @@ import type {
   PullRequestReviewThread,
   PullRequestState,
   PullRequestSummary,
+  PullRequestPage,
 } from "../src/platform/desktop/contracts";
 import type { ProviderConnectionSecret } from "./providerConnections";
 
@@ -623,8 +624,14 @@ async function fetchBitbucketPaginatedValues<T>(
 ) {
   const values: T[] = [];
   let nextPathOrUrl: string | null = firstPath;
+  let pageCount = 0;
 
   while (nextPathOrUrl) {
+    pageCount += 1;
+    if (pageCount > 30) {
+      break;
+    }
+
     const pageResponse: { data: BitbucketPaginatedResponse<T>; headers: Headers } =
       await bitbucketRequest<BitbucketPaginatedResponse<T>>(nextPathOrUrl, connection);
     const page: BitbucketPaginatedResponse<T> = pageResponse.data;
@@ -638,17 +645,32 @@ async function fetchBitbucketPaginatedValues<T>(
 export async function listBitbucketPullRequests(
   hostedRepo: HostedRepoRef,
   connection: ProviderConnectionSecret,
-) {
-  const values = await fetchBitbucketPaginatedValues<BitbucketPullRequestResponse>(
-    `/repositories/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(
-      hostedRepo.repo,
-    )}/pullrequests?state=OPEN&sort=-updated_on&pagelen=50`,
+  page: number,
+  perPage: number,
+): Promise<PullRequestPage> {
+  const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const normalizedPerPage =
+    Number.isFinite(perPage) && perPage > 0 ? Math.min(100, Math.floor(perPage)) : 25;
+
+  const pathname = `/repositories/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(
+    hostedRepo.repo,
+  )}/pullrequests?state=OPEN&sort=-updated_on&pagelen=${String(normalizedPerPage)}&page=${String(normalizedPage)}`;
+
+  const { data } = await bitbucketRequest<BitbucketPaginatedResponse<BitbucketPullRequestResponse>>(
+    pathname,
     connection,
   );
 
-  return values
-    .map((pullRequest) => toBitbucketPullRequestSummary(pullRequest, hostedRepo))
-    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  const values = Array.isArray(data.values) ? data.values : [];
+
+  return {
+    pullRequests: values
+      .map((pullRequest) => toBitbucketPullRequestSummary(pullRequest, hostedRepo))
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    page: normalizedPage,
+    perPage: normalizedPerPage,
+    hasNextPage: typeof data.next === "string" && data.next.trim().length > 0,
+  };
 }
 
 export async function fetchBitbucketPullRequest(

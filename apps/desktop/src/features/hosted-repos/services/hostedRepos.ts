@@ -7,12 +7,13 @@ import type {
   PreparedPullRequestWorkspace,
   PreparePullRequestWorkspaceInput,
   ProviderConnection,
+  ListPullRequestsInput,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
+  PullRequestPage,
   PullRequestReviewThread,
-  PullRequestSummary,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
 } from "@/platform/desktop";
@@ -37,8 +38,8 @@ export async function resolvePullRequestWorkspace(repoPath: string) {
   return desktop.resolvePullRequestWorkspace(repoPath) as Promise<PreparedPullRequestWorkspace | null>;
 }
 
-export async function listPullRequests(repoPath: string) {
-  return desktop.listPullRequests(repoPath) as Promise<PullRequestSummary[]>;
+export async function listPullRequests(input: ListPullRequestsInput) {
+  return desktop.listPullRequests(input) as Promise<PullRequestPage>;
 }
 
 export async function getPullRequestConversation(input: PullRequestLocatorInput) {

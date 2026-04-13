@@ -227,7 +227,9 @@ export function PullRequestsSidebarTab() {
     : null;
   const [disconnectProvider, { isLoading: disconnectingProvider }] = useDisconnectProviderMutation();
   const pullRequestsQuery = useListPullRequestsQuery(
-    activeRepo && hostedRepo && activeProviderConnection ? activeRepo : skipToken,
+    activeRepo && hostedRepo && activeProviderConnection
+      ? { repoPath: activeRepo, page: 1, perPage: 25 }
+      : skipToken,
   );
 
   function onConnectProvider(providerId: GitProviderId) {
@@ -317,9 +319,9 @@ export function PullRequestsSidebarTab() {
                 ? String(pullRequestsQuery.error.message)
                 : "Failed to load pull requests."}
             </div>
-          ) : pullRequestsQuery.data && pullRequestsQuery.data.length > 0 ? (
+          ) : pullRequestsQuery.data && pullRequestsQuery.data.pullRequests.length > 0 ? (
             <div className="space-y-2">
-              {pullRequestsQuery.data.map((pullRequest) => (
+              {pullRequestsQuery.data.pullRequests.map((pullRequest) => (
                 <button
                   key={pullRequest.id}
                   type="button"

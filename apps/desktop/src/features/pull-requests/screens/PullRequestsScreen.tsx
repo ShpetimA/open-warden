@@ -1,21 +1,11 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { type FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { GitBranch, GitPullRequest, Plug, Unplug } from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  useConnectProviderMutation,
   useDisconnectProviderMutation,
   useListProviderConnectionsQuery,
   useListPullRequestsQuery,
@@ -25,6 +15,7 @@ import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
 import { setChangesSidebarMode } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
+import { ConnectBitbucketDialog, ConnectGitHubDialog } from "@/features/pull-requests/components/ConnectToProviders";
 
 function formatPullRequestUpdatedAt(updatedAt: string) {
   const date = new Date(updatedAt);
@@ -50,172 +41,7 @@ function providerImplemented(providerId: GitProviderId) {
   return providerId === "github" || providerId === "bitbucket";
 }
 
-type ConnectGitHubDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-};
-
-function ConnectGitHubDialog({ open, onOpenChange }: ConnectGitHubDialogProps) {
-  const [token, setToken] = useState("");
-  const [submitError, setSubmitError] = useState("");
-  const [connectProvider, { isLoading }] = useConnectProviderMutation();
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const nextToken = token.trim();
-    if (!nextToken) {
-      setSubmitError("GitHub token is required.");
-      return;
-    }
-
-    try {
-      await connectProvider({
-        providerId: "github",
-        method: "pat",
-        token: nextToken,
-      }).unwrap();
-      setToken("");
-      setSubmitError("");
-      onOpenChange(false);
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Connect GitHub</DialogTitle>
-          <DialogDescription>
-            Add a GitHub personal access token so OpenWarden can list pull requests and prepare
-            local review workspaces.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Personal access token</div>
-            <Input
-              type="password"
-              autoFocus
-              value={token}
-              onChange={(event) => {
-                setToken(event.target.value);
-                if (submitError) {
-                  setSubmitError("");
-                }
-              }}
-              placeholder="github_pat_..."
-            />
-            <div className="text-muted-foreground text-xs leading-5">
-              Use a token with repository read access. Private repositories usually require the
-              `repo` scope.
-            </div>
-            {submitError ? <div className="text-destructive text-xs">{submitError}</div> : null}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Connecting..." : "Connect"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-type ConnectBitbucketDialogProps = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-};
-
-function ConnectBitbucketDialog({ open, onOpenChange }: ConnectBitbucketDialogProps) {
-  const [identifier, setIdentifier] = useState("");
-  const [token, setToken] = useState("");
-  const [submitError, setSubmitError] = useState("");
-  const [connectProvider, { isLoading }] = useConnectProviderMutation();
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const nextIdentifier = identifier.trim();
-    const nextToken = token.trim();
-    if (!nextToken) {
-      setSubmitError("Bitbucket token or app password is required.");
-      return;
-    }
-
-    try {
-      await connectProvider({
-        providerId: "bitbucket",
-        method: "pat",
-        token: nextToken,
-        identifier: nextIdentifier || null,
-        authType: "auto",
-      }).unwrap();
-      setIdentifier("");
-      setToken("");
-      setSubmitError("");
-      onOpenChange(false);
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : String(error));
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Connect Bitbucket</DialogTitle>
-          <DialogDescription>
-            Add Bitbucket credentials so OpenWarden can list pull requests and prepare local review
-            workspaces.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Username or email (optional)</div>
-            <Input
-              autoFocus
-              value={identifier}
-              onChange={(event) => {
-                setIdentifier(event.target.value);
-                if (submitError) {
-                  setSubmitError("");
-                }
-              }}
-              placeholder="your-username"
-            />
-            <div className="text-muted-foreground text-xs leading-5">
-              Needed for app password basic auth. Leave empty to try bearer token auth.
-            </div>
-          </div>
-          <div className="space-y-2">
-            <div className="text-sm font-medium">Token or app password</div>
-            <Input
-              type="password"
-              value={token}
-              onChange={(event) => {
-                setToken(event.target.value);
-                if (submitError) {
-                  setSubmitError("");
-                }
-              }}
-              placeholder="App password or access token"
-            />
-            {submitError ? <div className="text-destructive text-xs">{submitError}</div> : null}
-          </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Connecting..." : "Connect"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+const PULL_REQUESTS_PAGE_SIZE = 25;
 
 function PullRequestRow({
   pullRequest,
@@ -267,6 +93,7 @@ export function PullRequestsScreen() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
+  const [pullRequestsPage, setPullRequestsPage] = useState(1);
 
   const { connections, loadingConnections } = useListProviderConnectionsQuery(undefined, {
     selectFromResult: ({ data, isLoading, isFetching }) => ({
@@ -290,13 +117,27 @@ export function PullRequestsScreen() {
 
   const [disconnectProvider, { isLoading: disconnectingProvider }] = useDisconnectProviderMutation();
 
-  const { pullRequests, pullRequestsError, loadingPullRequests } = useListPullRequestsQuery(
-    activeRepo && hostedRepo && activeProviderConnection ? activeRepo : skipToken,
+  const {
+    pullRequests,
+    hasNextPullRequestsPage,
+    pullRequestsError,
+    loadingPullRequests,
+    fetchingPullRequests,
+  } = useListPullRequestsQuery(
+    activeRepo && hostedRepo && activeProviderConnection
+      ? {
+          repoPath: activeRepo,
+          page: pullRequestsPage,
+          perPage: PULL_REQUESTS_PAGE_SIZE,
+        }
+      : skipToken,
     {
       selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        pullRequests: data ?? [],
+        pullRequests: data?.pullRequests ?? [],
+        hasNextPullRequestsPage: data?.hasNextPage ?? false,
         pullRequestsError: data ? "" : errorMessageFrom(error, ""),
-        loadingPullRequests: isLoading || isFetching,
+        loadingPullRequests: isLoading,
+        fetchingPullRequests: isFetching,
       }),
     },
   );
@@ -304,6 +145,16 @@ export function PullRequestsScreen() {
   useEffect(() => {
     dispatch(setChangesSidebarMode("pull-requests"));
   }, [dispatch]);
+
+  useEffect(() => {
+    setPullRequestsPage(1);
+  }, [activeRepo, hostedRepo?.providerId, hostedRepo?.owner, hostedRepo?.repo]);
+
+  useEffect(() => {
+    if (!loadingPullRequests && pullRequests.length === 0 && pullRequestsPage > 1 && !hasNextPullRequestsPage) {
+      setPullRequestsPage((current) => Math.max(1, current - 1));
+    }
+  }, [hasNextPullRequestsPage, loadingPullRequests, pullRequests.length, pullRequestsPage]);
 
   function onConnectProvider(providerId: GitProviderId) {
     if (providerId === "github") {
@@ -353,6 +204,49 @@ export function PullRequestsScreen() {
     }
 
     return `${hostedRepo.owner}/${hostedRepo.repo} · ${providerTitle(hostedRepo.providerId)}`;
+  }
+
+  function renderPagination(pageStart: number, pageEnd: number) {
+    if (pullRequestsPage <= 1 && !hasNextPullRequestsPage) {
+      return null;
+    }
+
+    return (
+      <div className="border-border/70 flex items-center justify-between border-t px-2 py-2">
+        <div className="text-muted-foreground text-xs">
+          Showing {String(pageStart + 1)}-{String(pageEnd)}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            disabled={pullRequestsPage <= 1 || fetchingPullRequests}
+            onClick={() => {
+              setPullRequestsPage((current) => Math.max(1, current - 1));
+            }}
+          >
+            Previous
+          </Button>
+          <div className="text-muted-foreground px-1 text-xs">Page {String(pullRequestsPage)}</div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            disabled={!hasNextPullRequestsPage || fetchingPullRequests}
+            onClick={() => {
+              if (!hasNextPullRequestsPage) {
+                return;
+              }
+
+              setPullRequestsPage((current) => current + 1);
+            }}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   function renderPullRequestsContent() {
@@ -416,7 +310,7 @@ export function PullRequestsScreen() {
       );
     }
 
-    if (loadingPullRequests) {
+    if (loadingPullRequests && pullRequestsPage === 1) {
       return (
         <div className="space-y-1">
           <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
@@ -430,6 +324,22 @@ export function PullRequestsScreen() {
       return <div className="text-destructive text-sm">{pullRequestsError}</div>;
     }
 
+    if (pullRequests.length === 0 && pullRequestsPage > 1) {
+      const pageStart = (pullRequestsPage - 1) * PULL_REQUESTS_PAGE_SIZE;
+      const pageEnd = pageStart + PULL_REQUESTS_PAGE_SIZE;
+
+      return (
+        <div className="flex h-full min-h-0 flex-col rounded-lg border border-border/70 bg-surface-0">
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
+            <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
+            <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
+            <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
+          </div>
+          {renderPagination(pageStart, pageEnd)}
+        </div>
+      );
+    }
+
     if (pullRequests.length === 0) {
       return (
         <div className="rounded-lg border border-border/70 bg-surface-0 p-4 text-sm text-muted-foreground">
@@ -438,17 +348,23 @@ export function PullRequestsScreen() {
       );
     }
 
+    const pageStart = (pullRequestsPage - 1) * PULL_REQUESTS_PAGE_SIZE;
+    const pageEnd = pageStart + pullRequests.length;
+
     return (
-      <div className="rounded-lg border border-border/70 bg-surface-0 p-1">
-        {pullRequests.map((pullRequest) => (
-          <PullRequestRow
-            key={pullRequest.id}
-            pullRequest={pullRequest}
-            onOpen={() => {
-              onOpenPullRequest(pullRequest);
-            }}
-          />
-        ))}
+      <div className="flex h-full min-h-0 flex-col rounded-lg border border-border/70 bg-surface-0">
+        <div className="min-h-0 flex-1 overflow-y-auto p-1">
+          {pullRequests.map((pullRequest) => (
+            <PullRequestRow
+              key={pullRequest.id}
+              pullRequest={pullRequest}
+              onOpen={() => {
+                onOpenPullRequest(pullRequest);
+              }}
+            />
+          ))}
+        </div>
+        {renderPagination(pageStart, pageEnd)}
       </div>
     );
   }
@@ -458,8 +374,8 @@ export function PullRequestsScreen() {
       <ConnectGitHubDialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen} />
       <ConnectBitbucketDialog open={bitbucketDialogOpen} onOpenChange={setBitbucketDialogOpen} />
 
-      <div className="h-full overflow-auto px-6 py-6">
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-4">
+      <div className="h-full overflow-hidden px-6 py-6">
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[1240px] flex-col gap-4">
           <header className="border-border/70 flex flex-wrap items-start justify-between gap-3 border-b pb-3">
             <div>
               <h1 className="text-xl font-semibold tracking-[-0.02em]">Pull Requests</h1>
@@ -487,7 +403,7 @@ export function PullRequestsScreen() {
             ) : null}
           </header>
 
-          {renderPullRequestsContent()}
+          <div className="min-h-0 flex-1">{renderPullRequestsContent()}</div>
         </div>
       </div>
     </>

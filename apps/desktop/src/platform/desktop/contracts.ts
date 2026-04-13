@@ -119,6 +119,19 @@ export type PullRequestSummary = {
   updatedAt: string;
 };
 
+export type ListPullRequestsInput = {
+  repoPath: string;
+  page: number;
+  perPage: number;
+};
+
+export type PullRequestPage = {
+  pullRequests: PullRequestSummary[];
+  page: number;
+  perPage: number;
+  hasNextPage: boolean;
+};
+
 export type PullRequestPerson = {
   login: string;
   displayName: string | null;
@@ -339,7 +352,7 @@ export type DesktopApi = {
   disconnectProvider(providerId: GitProviderId): Promise<void>;
   resolveHostedRepo(repoPath: string): Promise<HostedRepoRef | null>;
   resolvePullRequestWorkspace(repoPath: string): Promise<PreparedPullRequestWorkspace | null>;
-  listPullRequests(repoPath: string): Promise<PullRequestSummary[]>;
+  listPullRequests(input: ListPullRequestsInput): Promise<PullRequestPage>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;

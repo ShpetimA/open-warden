@@ -4,12 +4,13 @@ import type {
   AddPullRequestCommentInput,
   ConnectProviderInput,
   HostedRepoRef,
+  ListPullRequestsInput,
   ProviderConnection,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestLocatorInput,
+  PullRequestPage,
   PullRequestReviewThread,
-  PullRequestSummary,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
   PreparedPullRequestWorkspace,
@@ -100,15 +101,15 @@ export const hostedReposApi = createApi({
         { type: "HostedRepo", id: `${repoPath}:pull-request-workspace` },
       ],
     }),
-    listPullRequests: builder.query<PullRequestSummary[], string>({
-      async queryFn(repoPath) {
+    listPullRequests: builder.query<PullRequestPage, ListPullRequestsInput>({
+      async queryFn(input) {
         try {
-          return { data: await listPullRequests(repoPath) };
+          return { data: await listPullRequests(input) };
         } catch (error) {
           return { error: toErrorResult(error) };
         }
       },
-      providesTags: (_result, _error, repoPath) => [{ type: "PullRequests", id: repoPath }],
+      providesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
     }),
     getPullRequestConversation: builder.query<PullRequestConversation, PullRequestLocatorInput>({
       async queryFn(input) {

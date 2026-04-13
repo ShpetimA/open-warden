@@ -9,15 +9,16 @@ import type {
   ConnectProviderInput,
   GitProviderId,
   HostedRepoRef,
+  ListPullRequestsInput,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
+  PullRequestPage,
   PullRequestReviewThread,
   PreparePullRequestWorkspaceInput,
   PreparedPullRequestWorkspace,
   ProviderConnection,
-  PullRequestSummary,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
 } from "../src/platform/desktop/contracts";
@@ -46,9 +47,9 @@ import {
   githubGraphqlRequest,
   githubJsonRequest,
   githubRequest,
+  listGitHubPullRequests,
   toPullRequestDetail,
   toPullRequestIssueComment,
-  toPullRequestSummary,
   type GitHubIssueCommentResponse,
   type GitHubPullRequestResponse,
   type GitHubUserResponse,
@@ -794,10 +795,15 @@ export async function resolvePullRequestWorkspace(
   return state;
 }
 
-export async function listPullRequests(repoPath: string): Promise<PullRequestSummary[]> {
-  const hostedRepo = await resolveHostedRepo(repoPath);
+export async function listPullRequests(input: ListPullRequestsInput): Promise<PullRequestPage> {
+  const hostedRepo = await resolveHostedRepo(input.repoPath);
   if (!hostedRepo) {
-    return [];
+    return {
+      pullRequests: [],
+      page: input.page,
+      perPage: input.perPage,
+      hasNextPage: false,
+    };
   }
 
   const connection = await getProviderConnection(hostedRepo.providerId);
@@ -806,18 +812,11 @@ export async function listPullRequests(repoPath: string): Promise<PullRequestSum
   }
 
   if (hostedRepo.providerId === "github") {
-    const { data } = await githubRequest<GitHubPullRequestResponse[]>(
-      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls?state=open&per_page=50`,
-      connection.token,
-    );
-
-    return data
-      .map((pullRequest) => toPullRequestSummary(pullRequest, hostedRepo.providerId))
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    return listGitHubPullRequests(hostedRepo, connection.token, input.page, input.perPage);
   }
 
   if (hostedRepo.providerId === "bitbucket") {
-    return listBitbucketPullRequests(hostedRepo, connection);
+    return listBitbucketPullRequests(hostedRepo, connection, input.page, input.perPage);
   }
 
   throw new Error(`${providerDisplayName(hostedRepo.providerId)} pull request listing is not supported yet.`);
