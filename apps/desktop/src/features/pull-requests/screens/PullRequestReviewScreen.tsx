@@ -273,7 +273,7 @@ export function PullRequestReviewScreen() {
         String(pullRequestWorkspace.pullRequestNumber) === pullRequestNumber))
       ? createReviewSessionFromWorkspace(pullRequestWorkspace)
       : null;
-  const resolvedReview = matchesCurrentReview ? currentReview : workspaceReview ?? currentReview;
+  const resolvedReview = matchesCurrentReview ? currentReview : (workspaceReview ?? currentReview);
 
   const currentCompareBaseRef = resolvedReview?.compareBaseRef ?? "";
   const currentCompareHeadRef = resolvedReview?.compareHeadRef ?? "";
@@ -291,28 +291,25 @@ export function PullRequestReviewScreen() {
       }),
     },
   );
-  const {
-    conversation,
-    conversationError,
-    loadingConversation,
-  } = useGetPullRequestConversationQuery(
-    resolvedReview
-      ? {
-          repoPath: resolvedReview.repoPath,
-          pullRequestNumber: resolvedReview.pullRequestNumber,
-        }
-      : skipToken,
-    {
-      selectFromResult: ({ data, error, isLoading }) => ({
-        conversation: data ?? null,
-        conversationError: data ? "" : errorMessageFrom(error, ""),
-        loadingConversation: isLoading,
-      }),
-      pollingInterval: 10000,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
-    },
-  );
+  const { conversation, conversationError, loadingConversation } =
+    useGetPullRequestConversationQuery(
+      resolvedReview
+        ? {
+            repoPath: resolvedReview.repoPath,
+            pullRequestNumber: resolvedReview.pullRequestNumber,
+          }
+        : skipToken,
+      {
+        selectFromResult: ({ data, error, isLoading }) => ({
+          conversation: data ?? null,
+          conversationError: data ? "" : errorMessageFrom(error, ""),
+          loadingConversation: isLoading,
+        }),
+        pollingInterval: 10000,
+        refetchOnFocus: true,
+        refetchOnReconnect: true,
+      },
+    );
 
   const threadAnnotations = resolvedReview
     ? buildReviewThreadAnnotations(

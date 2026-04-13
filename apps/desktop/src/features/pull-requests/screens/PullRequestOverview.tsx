@@ -57,21 +57,21 @@ export const PullRequestOverview = () => {
 
   const routeMatchesActiveRepo = Boolean(
     hostedRepo &&
-      providerId &&
-      owner &&
-      repo &&
-      hostedRepo.providerId === providerId &&
-      hostedRepo.owner === owner &&
-      hostedRepo.repo === repo,
+    providerId &&
+    owner &&
+    repo &&
+    hostedRepo.providerId === providerId &&
+    hostedRepo.owner === owner &&
+    hostedRepo.repo === repo,
   );
 
   const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
   const hasValidRoute = Boolean(
     providerId &&
-      owner &&
-      repo &&
-      Number.isFinite(parsedPullRequestNumber) &&
-      parsedPullRequestNumber > 0,
+    owner &&
+    repo &&
+    Number.isFinite(parsedPullRequestNumber) &&
+    parsedPullRequestNumber > 0,
   );
 
   const conversationQueryArg =
@@ -252,7 +252,8 @@ export const PullRequestOverview = () => {
                   label="Changes"
                   value={
                     <span>
-                      {files.length} files <span className="text-emerald-500">+{totalAdditions}</span>{" "}
+                      {files.length} files{" "}
+                      <span className="text-emerald-500">+{totalAdditions}</span>{" "}
                       <span className="text-red-500">-{totalDeletions}</span>
                     </span>
                   }

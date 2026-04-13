@@ -374,8 +374,7 @@ export function PullRequestConversationTab({
           const thread = entry.thread;
           const rootComment = thread.comments[0] ?? null;
           const replies = thread.comments.slice(1);
-          const resolutionPending =
-            updatingThreadResolution && pendingThreadId === thread.id;
+          const resolutionPending = updatingThreadResolution && pendingThreadId === thread.id;
           const replyPending = replyingToThread && pendingThreadId === thread.id;
           const selected = activeThreadId === thread.id;
 
@@ -501,7 +500,10 @@ export function PullRequestConversationTab({
               {replies.length > 0 ? (
                 <div className="mt-3 space-y-2 border-l border-border/60 pl-3">
                   {replies.map((reply) => (
-                    <div key={reply.id} className="flex items-start gap-3 border-t border-border/50 pt-3 first:border-t-0 first:pt-0">
+                    <div
+                      key={reply.id}
+                      className="flex items-start gap-3 border-t border-border/50 pt-3 first:border-t-0 first:pt-0"
+                    >
                       <Avatar
                         login={reply.author?.login ?? null}
                         avatarUrl={reply.author?.avatarUrl ?? null}
@@ -522,30 +524,28 @@ export function PullRequestConversationTab({
                           <CommentBody body={reply.body} />
                         </div>
                         <div className="mt-1.5 flex flex-wrap gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={compactButtonClass}
-                          onClick={() => {
-                            setReplyThreadId(thread.id);
-                            setReplyDraft((current) => appendQuotedBody(current, reply.body));
-                            onSelectThread(thread.id);
-                          }}
-                        >
-                          <Quote className="h-3 w-3" />
-                          Quote
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={compactButtonClass}
-                          onClick={() =>
-                            void copyToClipboard(reply.body, "Review reply copied")
-                          }
-                        >
-                          <Copy className="h-3 w-3" />
-                          Copy
-                        </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={compactButtonClass}
+                            onClick={() => {
+                              setReplyThreadId(thread.id);
+                              setReplyDraft((current) => appendQuotedBody(current, reply.body));
+                              onSelectThread(thread.id);
+                            }}
+                          >
+                            <Quote className="h-3 w-3" />
+                            Quote
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={compactButtonClass}
+                            onClick={() => void copyToClipboard(reply.body, "Review reply copied")}
+                          >
+                            <Copy className="h-3 w-3" />
+                            Copy
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -564,27 +564,27 @@ export function PullRequestConversationTab({
                     className="min-h-20 rounded-none"
                   />
                   <div className="flex justify-end gap-2">
-                  <Button
-                    variant="ghost"
-                    className={compactButtonClass}
-                    onClick={() => {
-                      setReplyThreadId(null);
-                      setReplyDraft("");
-                    }}
-                  >
+                    <Button
+                      variant="ghost"
+                      className={compactButtonClass}
+                      onClick={() => {
+                        setReplyThreadId(null);
+                        setReplyDraft("");
+                      }}
+                    >
                       Cancel
                     </Button>
-                  <Button
-                    disabled={replyPending}
-                    className={compactButtonClass}
-                    onClick={() => {
-                      void submitThreadReply(thread.id);
-                    }}
-                  >
-                    <MessagesSquare className="h-3 w-3" />
-                    Reply
-                  </Button>
-                </div>
+                    <Button
+                      disabled={replyPending}
+                      className={compactButtonClass}
+                      onClick={() => {
+                        void submitThreadReply(thread.id);
+                      }}
+                    >
+                      <MessagesSquare className="h-3 w-3" />
+                      Reply
+                    </Button>
+                  </div>
                 </div>
               ) : null}
             </EntryCard>

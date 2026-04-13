@@ -92,9 +92,7 @@ export const desktopApi: DesktopApi = {
   getLspReferences: (input) => lspSessionManager.getReferences(input),
 };
 
-export function configureDesktopApi(options: {
-  onDiagnostics(event: LspDiagnosticsEvent): void;
-}) {
+export function configureDesktopApi(options: { onDiagnostics(event: LspDiagnosticsEvent): void }) {
   void lspSessionManager.dispose();
   lspSessionManager = new LspSessionManager({
     onDiagnostics: options.onDiagnostics,

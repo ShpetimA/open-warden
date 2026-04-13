@@ -2,9 +2,7 @@ import { toast } from "sonner";
 import type { DiffTokenEventBaseProps, TokenEventBase } from "@pierre/diffs";
 import { useAppDispatch } from "@/app/hooks";
 import { desktop } from "@/platform/desktop";
-import {
-  openSymbolPeek,
-} from "@/features/source-control/sourceControlSlice";
+import { openSymbolPeek } from "@/features/source-control/sourceControlSlice";
 import type { DiffReturnTarget } from "@/features/source-control/types";
 
 type LspTokenDocument = {
@@ -136,9 +134,7 @@ export function useLspTokenNavigation(
           return;
         }
 
-        dispatch(
-          openSymbolPeek(createPeekPayload("definitions", locations, source, returnToDiff)),
-        );
+        dispatch(openSymbolPeek(createPeekPayload("definitions", locations, source, returnToDiff)));
       })
       .catch((error) => {
         toast.error("Failed to get definition", {

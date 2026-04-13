@@ -294,12 +294,17 @@ export async function bitbucketRequest<T>(
   };
 }
 
-export function bitbucketAuthorLogin(author: {
-  username?: string;
-  nickname?: string;
-  uuid?: string;
-  account_id?: string;
-} | null | undefined) {
+export function bitbucketAuthorLogin(
+  author:
+    | {
+        username?: string;
+        nickname?: string;
+        uuid?: string;
+        account_id?: string;
+      }
+    | null
+    | undefined,
+) {
   if (!author) {
     return "unknown";
   }
@@ -312,18 +317,20 @@ export function bitbucketAuthorLogin(author: {
   return loginCandidate || "unknown";
 }
 
-function toBitbucketPerson(user: {
-  username?: string;
-  nickname?: string;
-  display_name?: string;
-  uuid?: string;
-  account_id?: string;
-  links?: {
-    avatar?: {
-      href?: string;
+function toBitbucketPerson(
+  user: {
+    username?: string;
+    nickname?: string;
+    display_name?: string;
+    uuid?: string;
+    account_id?: string;
+    links?: {
+      avatar?: {
+        href?: string;
+      };
     };
-  };
-} | null): PullRequestPerson | null {
+  } | null,
+): PullRequestPerson | null {
   if (!user) {
     return null;
   }
@@ -390,7 +397,9 @@ function toBitbucketPullRequestSummary(
     isDraft: pullRequest.draft ?? false,
     authorLogin: bitbucketAuthorLogin(author),
     authorDisplayName: author?.display_name ?? null,
-    url: pullRequest.links?.html?.href ?? `${hostedRepo.webUrl}/pull-requests/${String(pullRequest.id)}`,
+    url:
+      pullRequest.links?.html?.href ??
+      `${hostedRepo.webUrl}/pull-requests/${String(pullRequest.id)}`,
     baseRef: pullRequest.destination?.branch?.name ?? "",
     headRef: pullRequest.source?.branch?.name ?? "",
     headOwner: sourceRepoIdentity.owner,
@@ -411,7 +420,9 @@ function toBitbucketPullRequestDetail(
     body: pullRequest.description ?? "",
     state: mapBitbucketPullRequestState(pullRequest.state),
     isDraft: pullRequest.draft ?? false,
-    url: pullRequest.links?.html?.href ?? `${hostedRepo.webUrl}/pull-requests/${String(pullRequest.id)}`,
+    url:
+      pullRequest.links?.html?.href ??
+      `${hostedRepo.webUrl}/pull-requests/${String(pullRequest.id)}`,
     author: toBitbucketPerson(pullRequest.author ?? null),
     baseRef: pullRequest.destination?.branch?.name ?? "",
     headRef: pullRequest.source?.branch?.name ?? "",
@@ -454,7 +465,8 @@ function normalizeBitbucketComment(comment: BitbucketCommentResponse): Normalize
         path: inlinePath,
         from: typeof comment.inline?.from === "number" ? comment.inline.from : null,
         to: typeof comment.inline?.to === "number" ? comment.inline.to : null,
-        startFrom: typeof comment.inline?.start_from === "number" ? comment.inline.start_from : null,
+        startFrom:
+          typeof comment.inline?.start_from === "number" ? comment.inline.start_from : null,
         startTo: typeof comment.inline?.start_to === "number" ? comment.inline.start_to : null,
       }
     : null;
@@ -581,7 +593,8 @@ function toBitbucketConversation(
       continue;
     }
 
-    const rootInline = rootComment.inline ?? sortedComments.find((value) => value.inline)?.inline ?? null;
+    const rootInline =
+      rootComment.inline ?? sortedComments.find((value) => value.inline)?.inline ?? null;
     if (!rootInline) {
       continue;
     }
@@ -607,7 +620,9 @@ function toBitbucketConversation(
 
   return {
     detail,
-    issueComments: issueComments.sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
+    issueComments: issueComments.sort((left, right) =>
+      left.createdAt.localeCompare(right.createdAt),
+    ),
     reviewThreads,
   };
 }
@@ -796,6 +811,8 @@ export function pickBitbucketCloneUrl(
   return `https://bitbucket.org/${identity.owner}/${identity.repo}.git`;
 }
 
-export function toBitbucketIssueComment(comment: BitbucketCommentResponse): PullRequestIssueComment {
+export function toBitbucketIssueComment(
+  comment: BitbucketCommentResponse,
+): PullRequestIssueComment {
   return toIssueComment(normalizeBitbucketComment(comment));
 }

@@ -6,10 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { gitApi } from "@/features/source-control/api";
 import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
-import {
-  openSymbolPeek,
-  sourceControlReducer,
-} from "@/features/source-control/sourceControlSlice";
+import { openSymbolPeek, sourceControlReducer } from "@/features/source-control/sourceControlSlice";
 
 const mocks = vi.hoisted(() => ({
   useHotkey: vi.fn(),
@@ -64,9 +61,7 @@ function createStore() {
 }
 
 function findLocationButton(labelText: RegExp) {
-  return screen
-    .getAllByRole("button")
-    .find((button) => labelText.test(button.textContent ?? ""));
+  return screen.getAllByRole("button").find((button) => labelText.test(button.textContent ?? ""));
 }
 
 function SymbolPeekHarness() {
@@ -261,9 +256,7 @@ describe("LspSymbolPeek", () => {
 
     const enterHandler = [...mocks.useHotkey.mock.calls]
       .reverse()
-      .find((call) => call[0] === "Enter")?.[1] as
-      | ((event: KeyboardEvent) => void)
-      | undefined;
+      .find((call) => call[0] === "Enter")?.[1] as ((event: KeyboardEvent) => void) | undefined;
 
     expect(enterHandler).toBeTypeOf("function");
 

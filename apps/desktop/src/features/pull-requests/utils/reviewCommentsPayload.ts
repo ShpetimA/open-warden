@@ -37,7 +37,10 @@ function toRangeLabel(startLine: number | null, endLine: number | null) {
   return "unknown-unknown";
 }
 
-function lineBoundsForComment(thread: PullRequestReviewThread, comment: PullRequestReviewThread["comments"][number]) {
+function lineBoundsForComment(
+  thread: PullRequestReviewThread,
+  comment: PullRequestReviewThread["comments"][number],
+) {
   const startLine = comment.startLine ?? thread.startLine ?? comment.line ?? thread.line ?? null;
   const endLine = comment.line ?? thread.line ?? comment.startLine ?? thread.startLine ?? null;
   return { startLine, endLine };

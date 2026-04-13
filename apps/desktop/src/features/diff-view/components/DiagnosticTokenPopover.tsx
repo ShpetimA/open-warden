@@ -81,7 +81,8 @@ function tokenOverlapsDiagnostic(
   }
 
   const rangeStart = lineNumber === diagnostic.startLine ? diagnostic.startCharacter : 1;
-  const rangeEndRaw = lineNumber === diagnostic.endLine ? diagnostic.endCharacter : Number.MAX_SAFE_INTEGER;
+  const rangeEndRaw =
+    lineNumber === diagnostic.endLine ? diagnostic.endCharacter : Number.MAX_SAFE_INTEGER;
   const rangeEnd = Math.max(rangeEndRaw, rangeStart + 1);
   return tokenStart < rangeEnd && tokenEnd > rangeStart;
 }

@@ -170,13 +170,13 @@ export async function saveProviderConnection(
     authType:
       input.authType === "basic" || input.authType === "bearer"
         ? input.authType
-        : existing?.authType ?? (input.providerId === "github" ? "bearer" : "basic"),
+        : (existing?.authType ?? (input.providerId === "github" ? "bearer" : "basic")),
     identifier:
       input.identifier === null
         ? null
         : typeof input.identifier === "string" && input.identifier.trim()
           ? input.identifier.trim()
-          : existing?.identifier ?? null,
+          : (existing?.identifier ?? null),
   };
 
   const nextConnections = connections.filter((value) => value.providerId !== input.providerId);

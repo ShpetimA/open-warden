@@ -8,10 +8,7 @@ import { shallowEqual } from "react-redux";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { RootState } from "@/app/store";
-import {
-  getDiffTheme,
-  getDiffThemeType,
-} from "@/features/diff-view/diffRenderConfig";
+import { getDiffTheme, getDiffThemeType } from "@/features/diff-view/diffRenderConfig";
 import { gitApi, useGetRepoFileQuery } from "@/features/source-control/api";
 import {
   DIFF_LINE_FOCUS_CSS,
@@ -449,10 +446,10 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
       }}
     >
       <div className="border-border flex h-7 items-center gap-2 border-b px-2 text-[11px]">
-        <div className="text-primary truncate">
-          {activeLocation?.relPath ?? document.relPath}
+        <div className="text-primary truncate">{activeLocation?.relPath ?? document.relPath}</div>
+        <div className="text-muted-foreground truncate">
+          - {getSymbolPeekTitle(symbolPeek.kind, locations.length)}
         </div>
-        <div className="text-muted-foreground truncate">- {getSymbolPeekTitle(symbolPeek.kind, locations.length)}</div>
         <button
           type="button"
           className="text-muted-foreground hover:text-popover-foreground hover:bg-accent ml-auto inline-flex h-5 w-5 items-center justify-center"
@@ -489,7 +486,9 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
 
           <div ref={listContainerRef} className="min-h-0 flex-1 overflow-y-auto">
             {groups.length === 0 ? (
-              <div className="text-muted-foreground px-2 py-2 text-[11px]">No matching symbols.</div>
+              <div className="text-muted-foreground px-2 py-2 text-[11px]">
+                No matching symbols.
+              </div>
             ) : (
               groups.map((group) => (
                 <div key={group.relPath} className="border-border border-b last:border-b-0">

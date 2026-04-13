@@ -271,7 +271,10 @@ const sourceControlSlice = createSlice({
         return;
       }
 
-      const nextIndex = Math.max(0, Math.min(action.payload, state.symbolPeek.locations.length - 1));
+      const nextIndex = Math.max(
+        0,
+        Math.min(action.payload, state.symbolPeek.locations.length - 1),
+      );
       if (state.symbolPeek.activeIndex !== nextIndex) {
         state.symbolPeek.activeIndex = nextIndex;
       }

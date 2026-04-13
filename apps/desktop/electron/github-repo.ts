@@ -119,9 +119,7 @@ type GitHubReviewThreadGraphResponse = {
 type GitHubReviewThreadNode = NonNullable<
   NonNullable<
     NonNullable<
-      NonNullable<
-        NonNullable<GitHubReviewThreadGraphResponse["data"]>["repository"]
-      >["pullRequest"]
+      NonNullable<NonNullable<GitHubReviewThreadGraphResponse["data"]>["repository"]>["pullRequest"]
     >["reviewThreads"]
   >["nodes"]
 >[number];
@@ -318,12 +316,14 @@ export async function listGitHubPullRequests(
   };
 }
 
-export function toPullRequestPerson(user: {
-  login: string;
-  avatar_url?: string | null;
-  avatarUrl?: string | null;
-  name?: string | null;
-} | null): PullRequestPerson | null {
+export function toPullRequestPerson(
+  user: {
+    login: string;
+    avatar_url?: string | null;
+    avatarUrl?: string | null;
+    name?: string | null;
+  } | null,
+): PullRequestPerson | null {
   if (!user) {
     return null;
   }
@@ -467,9 +467,9 @@ export async function fetchGitHubIssueComments(
     token,
   );
 
-  return comments.map(toPullRequestIssueComment).sort((left, right) =>
-    left.createdAt.localeCompare(right.createdAt),
-  );
+  return comments
+    .map(toPullRequestIssueComment)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 export async function fetchGitHubReviewThreads(
@@ -518,15 +518,11 @@ export async function fetchGitHubReviewThreads(
     }
   `;
 
-  const payload = await githubGraphqlRequest<GitHubReviewThreadGraphResponse>(
-    token,
-    query,
-    {
-      owner: hostedRepo.owner,
-      repo: hostedRepo.repo,
-      number: pullRequestNumber,
-    },
-  );
+  const payload = await githubGraphqlRequest<GitHubReviewThreadGraphResponse>(token, query, {
+    owner: hostedRepo.owner,
+    repo: hostedRepo.repo,
+    number: pullRequestNumber,
+  });
 
   const nodes = payload.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
   return nodes.map(toPullRequestReviewThread).sort((left, right) => {

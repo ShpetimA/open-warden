@@ -35,11 +35,7 @@ const settingsSlice = createSlice({
   },
 });
 
-export const {
-  clearSettingsError,
-  hydrateAppSettings,
-  setFileTreeRenderMode,
-  setSettingsError,
-} = settingsSlice.actions;
+export const { clearSettingsError, hydrateAppSettings, setFileTreeRenderMode, setSettingsError } =
+  settingsSlice.actions;
 
 export const settingsReducer = settingsSlice.reducer;

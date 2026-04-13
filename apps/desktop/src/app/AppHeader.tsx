@@ -308,9 +308,7 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
   return (
     <header className="app-drag-region border-border bg-surface-toolbar grid h-14 select-none grid-cols-[1fr_auto_1fr] items-center gap-3 border-b pl-22 pr-3">
       <div className="min-w-0">
-        {activeFeature ? (
-          <HeaderSidebarToggles activeFeature={activeFeature} />
-        ) : null}
+        {activeFeature ? <HeaderSidebarToggles activeFeature={activeFeature} /> : null}
       </div>
 
       <div className="min-w-0 justify-self-center">

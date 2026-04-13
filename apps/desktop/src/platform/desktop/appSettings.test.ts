@@ -27,5 +27,4 @@ describe("appSettings helpers", () => {
       },
     });
   });
-
 });

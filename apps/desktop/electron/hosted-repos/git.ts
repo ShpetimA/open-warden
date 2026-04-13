@@ -50,10 +50,7 @@ export function createGitAuthHeaderFromConnection(connection: ProviderConnection
   return createGitBearerAuthHeader(connection.token);
 }
 
-export async function runGit(
-  args: string[],
-  options: GitExecutionOptions = {},
-): Promise<Buffer> {
+export async function runGit(args: string[], options: GitExecutionOptions = {}): Promise<Buffer> {
   try {
     const { stdout } = await execFile("git", args, {
       cwd: options.cwd,

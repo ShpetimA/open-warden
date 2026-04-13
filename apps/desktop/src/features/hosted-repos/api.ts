@@ -160,7 +160,10 @@ export const hostedReposApi = createApi({
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
-    replyToPullRequestThread: builder.mutation<PullRequestReviewThread, ReplyToPullRequestThreadInput>({
+    replyToPullRequestThread: builder.mutation<
+      PullRequestReviewThread,
+      ReplyToPullRequestThreadInput
+    >({
       async queryFn(input) {
         try {
           return { data: await replyToPullRequestThread(input) };

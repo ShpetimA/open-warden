@@ -28,9 +28,9 @@ describe("parseRemoteUrl", () => {
     expect(parseRemoteUrl("ssh://git@bitbucket.org/example/group-repo.git")?.providerId).toBe(
       "bitbucket",
     );
-    expect(
-      parseRemoteUrl("https://user@bitbucket.org/example/group-repo")?.providerId,
-    ).toBe("bitbucket");
+    expect(parseRemoteUrl("https://user@bitbucket.org/example/group-repo")?.providerId).toBe(
+      "bitbucket",
+    );
   });
 
   it("returns null for unsupported hosts", () => {

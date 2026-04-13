@@ -49,11 +49,7 @@ function managedSourceRepoPath(hostedRepo: HostedRepoRef) {
 }
 
 function managedWorktreePath(hostedRepo: HostedRepoRef, pullRequestNumber: number) {
-  return path.join(
-    managedRepoRootPath(hostedRepo),
-    "worktrees",
-    `pr-${String(pullRequestNumber)}`,
-  );
+  return path.join(managedRepoRootPath(hostedRepo), "worktrees", `pr-${String(pullRequestNumber)}`);
 }
 
 function managedRepoStatePath(hostedRepo: HostedRepoRef) {
@@ -198,7 +194,8 @@ async function writeManagedRepoState(preparedWorkspace: PreparedPullRequestWorks
   const existingWorkspaces = await readManagedRepoWorkspaces(preparedWorkspace.hostedRepo);
   const remainingWorkspaces = existingWorkspaces.filter(
     (workspace) =>
-      path.resolve(workspace.worktreePath) !== path.resolve(normalizedPreparedWorkspace.worktreePath),
+      path.resolve(workspace.worktreePath) !==
+      path.resolve(normalizedPreparedWorkspace.worktreePath),
   );
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(
@@ -226,7 +223,9 @@ type ManagedPullRequestWorkspaceState = {
   workspaces: PreparedPullRequestWorkspace[];
 };
 
-function normalizePreparedWorkspace(workspace: PreparedPullRequestWorkspace): PreparedPullRequestWorkspace {
+function normalizePreparedWorkspace(
+  workspace: PreparedPullRequestWorkspace,
+): PreparedPullRequestWorkspace {
   const normalizedWorktreePath = path.resolve(workspace.worktreePath);
   return {
     ...workspace,

@@ -33,7 +33,9 @@ export function getNextSymbolPeekIndex(state: RootState, nextKey: boolean) {
     return null;
   }
 
-  const activeFilteredIndex = filteredIndexes.findIndex((index) => index === symbolPeek.activeIndex);
+  const activeFilteredIndex = filteredIndexes.findIndex(
+    (index) => index === symbolPeek.activeIndex,
+  );
   const targetFilteredIndex = getWrappedNavigationIndex(
     activeFilteredIndex,
     filteredIndexes.length,

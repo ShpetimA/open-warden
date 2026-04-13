@@ -35,7 +35,9 @@ export async function resolveHostedRepo(repoPath: string) {
 }
 
 export async function resolvePullRequestWorkspace(repoPath: string) {
-  return desktop.resolvePullRequestWorkspace(repoPath) as Promise<PreparedPullRequestWorkspace | null>;
+  return desktop.resolvePullRequestWorkspace(
+    repoPath,
+  ) as Promise<PreparedPullRequestWorkspace | null>;
 }
 
 export async function listPullRequests(input: ListPullRequestsInput) {

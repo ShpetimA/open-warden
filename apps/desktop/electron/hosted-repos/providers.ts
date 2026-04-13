@@ -99,7 +99,7 @@ async function connectBitbucketProvider(input: ConnectProviderInput): Promise<Pr
       const displayName = data.display_name ?? null;
       const avatarUrl = data.links?.avatar?.href ?? null;
       const persistedIdentifier =
-        attempt.authType === "basic" ? attempt.identifier ?? null : null;
+        attempt.authType === "basic" ? (attempt.identifier ?? null) : null;
       return saveProviderConnection({
         ...input,
         token,

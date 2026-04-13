@@ -38,7 +38,11 @@ export function PullRequestPreviewLayout() {
   const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
 
   const hasValidRoute = Boolean(
-    providerId && owner && repo && Number.isFinite(parsedPullRequestNumber) && parsedPullRequestNumber > 0,
+    providerId &&
+    owner &&
+    repo &&
+    Number.isFinite(parsedPullRequestNumber) &&
+    parsedPullRequestNumber > 0,
   );
 
   const handleTabChange = (tab: PreviewTab) => {
@@ -103,7 +107,6 @@ function PullRequestPreviewModeRail({
     </aside>
   );
 }
-
 
 function PreviewModeRailButton({
   active,

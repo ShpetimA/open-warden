@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useConnectProviderMutation } from "@/features/hosted-repos/api";
-import { useState, type SubmitEvent} from "react";
+import { useState, type SubmitEvent } from "react";
 
 type ConnectBitbucketDialogProps = {
   open: boolean;
@@ -103,7 +103,6 @@ export function ConnectBitbucketDialog({ open, onOpenChange }: ConnectBitbucketD
   );
 }
 
-
 type ConnectGitHubDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -178,4 +177,3 @@ export function ConnectGitHubDialog({ open, onOpenChange }: ConnectGitHubDialogP
     </Dialog>
   );
 }
-

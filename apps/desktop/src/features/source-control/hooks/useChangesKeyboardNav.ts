@@ -87,8 +87,7 @@ export function useChangesKeyboardNav() {
       repoFiles,
       repoTreeActivePath,
       snapshot,
-    } =
-      getNavigationData();
+    } = getNavigationData();
 
     if (changesSidebarMode === "files") {
       if (!activeRepo) {

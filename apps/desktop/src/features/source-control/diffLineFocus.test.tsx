@@ -48,12 +48,18 @@ function FocusHarness({
 describe("useDiffLineFocus", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
-      return window.setTimeout(() => callback(performance.now()), 0);
-    }));
-    vi.stubGlobal("cancelAnimationFrame", vi.fn((handle: number) => {
-      window.clearTimeout(handle);
-    }));
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        return window.setTimeout(() => callback(performance.now()), 0);
+      }),
+    );
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      vi.fn((handle: number) => {
+        window.clearTimeout(handle);
+      }),
+    );
   });
 
   it("finds lines through the diff shadow root and refocuses repeated jumps", () => {

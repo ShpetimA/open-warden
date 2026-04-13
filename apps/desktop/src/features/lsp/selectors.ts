@@ -9,10 +9,6 @@ export function selectLspFileStateForFile(state: RootState, repoPath: string, re
   return state.lsp.byFile[toLspFileKey(repoPath, relPath)];
 }
 
-export function selectLspDiagnosticsForFile(
-  state: RootState,
-  repoPath: string,
-  relPath: string,
-) {
+export function selectLspDiagnosticsForFile(state: RootState, repoPath: string, relPath: string) {
   return selectLspFileStateForFile(state, repoPath, relPath)?.diagnostics ?? EMPTY_DIAGNOSTICS;
 }

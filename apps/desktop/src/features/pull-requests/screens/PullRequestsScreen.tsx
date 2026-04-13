@@ -15,7 +15,10 @@ import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
 import { setChangesSidebarMode } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
-import { ConnectBitbucketDialog, ConnectGitHubDialog } from "@/features/pull-requests/components/ConnectToProviders";
+import {
+  ConnectBitbucketDialog,
+  ConnectGitHubDialog,
+} from "@/features/pull-requests/components/ConnectToProviders";
 
 function formatPullRequestUpdatedAt(updatedAt: string) {
   const date = new Date(updatedAt);
@@ -102,20 +105,24 @@ export function PullRequestsScreen() {
     }),
   });
 
-  const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(activeRepo, {
-    skip: !activeRepo,
-    selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-      hostedRepo: data ?? null,
-      hostedRepoError: data ? "" : errorMessageFrom(error, ""),
-      resolvingHostedRepo: isLoading || isFetching,
-    }),
-  });
+  const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(
+    activeRepo,
+    {
+      skip: !activeRepo,
+      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+        hostedRepo: data ?? null,
+        hostedRepoError: data ? "" : errorMessageFrom(error, ""),
+        resolvingHostedRepo: isLoading || isFetching,
+      }),
+    },
+  );
 
   const activeProviderConnection = hostedRepo
-    ? connections.find((connection) => connection.providerId === hostedRepo.providerId) ?? null
+    ? (connections.find((connection) => connection.providerId === hostedRepo.providerId) ?? null)
     : null;
 
-  const [disconnectProvider, { isLoading: disconnectingProvider }] = useDisconnectProviderMutation();
+  const [disconnectProvider, { isLoading: disconnectingProvider }] =
+    useDisconnectProviderMutation();
 
   const {
     pullRequests,
@@ -151,7 +158,12 @@ export function PullRequestsScreen() {
   }, [activeRepo, hostedRepo?.providerId, hostedRepo?.owner, hostedRepo?.repo]);
 
   useEffect(() => {
-    if (!loadingPullRequests && pullRequests.length === 0 && pullRequestsPage > 1 && !hasNextPullRequestsPage) {
+    if (
+      !loadingPullRequests &&
+      pullRequests.length === 0 &&
+      pullRequestsPage > 1 &&
+      !hasNextPullRequestsPage
+    ) {
       setPullRequestsPage((current) => Math.max(1, current - 1));
     }
   }, [hasNextPullRequestsPage, loadingPullRequests, pullRequests.length, pullRequestsPage]);
@@ -288,9 +300,11 @@ export function PullRequestsScreen() {
               <Plug className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="text-sm font-medium">Connect {providerTitle(hostedRepo.providerId)}</div>
+              <div className="text-sm font-medium">
+                Connect {providerTitle(hostedRepo.providerId)}
+              </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                We detected {hostedRepo.owner}/{hostedRepo.repo} from your git remote. Connect {" "}
+                We detected {hostedRepo.owner}/{hostedRepo.repo} from your git remote. Connect{" "}
                 {providerTitle(hostedRepo.providerId)} to load pull requests.
               </div>
             </div>

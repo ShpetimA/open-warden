@@ -142,7 +142,11 @@ export function PullRequestInlineReviewThread({
               }}
               aria-label={collapsed ? "Expand thread" : "Collapse thread"}
             >
-              {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              {collapsed ? (
+                <ChevronRight className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
             </button>
             <button
               type="button"
@@ -250,7 +254,9 @@ export function PullRequestInlineReviewThread({
                       variant="ghost"
                       size="sm"
                       className={compactButtonClass}
-                      onClick={() => void copyToClipboard(rootComment.body, "Review comment copied")}
+                      onClick={() =>
+                        void copyToClipboard(rootComment.body, "Review comment copied")
+                      }
                     >
                       <Copy className="h-3 w-3" />
                       Copy
@@ -273,7 +279,10 @@ export function PullRequestInlineReviewThread({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <div className="text-[13px] font-semibold">
-                          {authorLabel(reply.author?.login ?? null, reply.author?.displayName ?? null)}
+                          {authorLabel(
+                            reply.author?.login ?? null,
+                            reply.author?.displayName ?? null,
+                          )}
                         </div>
                         <div className="text-muted-foreground text-[11px]">
                           {toDisplayDate(reply.createdAt)}

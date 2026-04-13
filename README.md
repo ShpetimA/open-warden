@@ -116,5 +116,6 @@ Example:
 ```
 
 Notes:
+
 - `extensions` entries can be with or without a leading dot (for example `ts` or `.ts`).
 - ESLint is supported as an LSP server (`vscode-eslint-language-server`) and can be configured like any other language server.

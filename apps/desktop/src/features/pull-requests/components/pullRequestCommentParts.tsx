@@ -38,22 +38,20 @@ function commentAuthor(comment: PullRequestIssueComment | PullRequestReviewComme
 }
 
 function formatRemoteIssueComment(comment: PullRequestIssueComment) {
-  return [
-    `- ${commentAuthor(comment)} · ${toDisplayDate(comment.createdAt)}`,
-    comment.body,
-  ].join("\n");
+  return [`- ${commentAuthor(comment)} · ${toDisplayDate(comment.createdAt)}`, comment.body].join(
+    "\n",
+  );
 }
 
 function formatRemoteReviewThread(thread: PullRequestReviewThread) {
   const lineLabel = thread.line ?? thread.startLine ?? "Unknown line";
   const threadHeader = `- ${thread.path}:${String(lineLabel)}${thread.isResolved ? " · resolved" : ""}`;
   const commentBlocks = thread.comments
-    .map(
-      (comment) =>
-        [
-          `  - ${commentAuthor(comment)} · ${toDisplayDate(comment.createdAt)}`,
-          `    ${comment.body.split("\n").join("\n    ")}`,
-        ].join("\n"),
+    .map((comment) =>
+      [
+        `  - ${commentAuthor(comment)} · ${toDisplayDate(comment.createdAt)}`,
+        `    ${comment.body.split("\n").join("\n    ")}`,
+      ].join("\n"),
     )
     .join("\n");
 
@@ -97,7 +95,11 @@ export function authorLabel(login: string | null, displayName: string | null) {
 }
 
 export function CommentBody({ body }: { body: string }) {
-  return <div className="text-foreground/90 whitespace-pre-wrap break-words text-[13px] leading-5">{body}</div>;
+  return (
+    <div className="text-foreground/90 whitespace-pre-wrap break-words text-[13px] leading-5">
+      {body}
+    </div>
+  );
 }
 
 export function Avatar({ login, avatarUrl }: { login: string | null; avatarUrl: string | null }) {

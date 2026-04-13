@@ -41,8 +41,8 @@ export function SettingsScreen() {
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-[-0.03em]">Settings</h1>
             <p className="text-muted-foreground max-w-2xl text-sm leading-6">
-              Global preferences are stored in a JSON file and stay in sync with the app while it
-              is open.
+              Global preferences are stored in a JSON file and stay in sync with the app while it is
+              open.
             </p>
           </div>
         </div>

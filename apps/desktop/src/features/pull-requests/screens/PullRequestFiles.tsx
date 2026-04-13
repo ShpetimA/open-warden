@@ -438,7 +438,6 @@ function extractFilePatch(
   return diffText.slice(section.start, section.end).trim();
 }
 
-
 function FilesDiffViewer({
   providerId,
   repoPath,

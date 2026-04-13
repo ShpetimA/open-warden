@@ -357,9 +357,7 @@ export type DesktopApi = {
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
-  replyToPullRequestThread(
-    input: ReplyToPullRequestThreadInput,
-  ): Promise<PullRequestReviewThread>;
+  replyToPullRequestThread(input: ReplyToPullRequestThreadInput): Promise<PullRequestReviewThread>;
   setPullRequestThreadResolved(
     input: SetPullRequestThreadResolvedInput,
   ): Promise<PullRequestReviewThread>;

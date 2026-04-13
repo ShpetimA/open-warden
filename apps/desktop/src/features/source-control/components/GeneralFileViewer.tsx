@@ -127,9 +127,7 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
         </div>
       ) : null}
       <Virtualizer className="relative min-h-0 flex-1 overflow-auto">
-        <div
-         key={file.name}
-         ref={viewerRef} className="relative min-h-0 flex-1 overflow-auto">
+        <div key={file.name} ref={viewerRef} className="relative min-h-0 flex-1 overflow-auto">
           <PierreFile
             file={file}
             className="block min-w-0 max-w-full"

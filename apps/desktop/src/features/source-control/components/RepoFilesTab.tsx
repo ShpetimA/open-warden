@@ -1,6 +1,9 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { openFileViewer, setRepoTreeActivePath } from "@/features/source-control/sourceControlSlice";
+import {
+  openFileViewer,
+  setRepoTreeActivePath,
+} from "@/features/source-control/sourceControlSlice";
 import { useGetRepoFilesQuery } from "@/features/source-control/api";
 import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
 import type { RepoFileItem } from "@/features/source-control/types";
@@ -95,7 +98,9 @@ export function RepoFilesTab() {
     <div className="bg-surface-toolbar flex min-h-0 h-full flex-1 flex-col overflow-hidden">
       <ScrollArea data-nav-region="repo-files" className="min-h-0 h-full flex-1 overflow-hidden">
         <div className="px-3 py-1.5">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">FILES</div>
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            FILES
+          </div>
         </div>
 
         {isLoadingRepoFiles ? (
@@ -107,7 +112,9 @@ export function RepoFilesTab() {
           mode={fileBrowserMode}
           className="space-y-0.5"
           emptyState={
-            <div className="text-muted-foreground px-2 py-2 text-xs">No repository files found.</div>
+            <div className="text-muted-foreground px-2 py-2 text-xs">
+              No repository files found.
+            </div>
           }
           renderFile={({ depth, file, mode, name, navIndex }) => (
             <RepoTreeFileRow
