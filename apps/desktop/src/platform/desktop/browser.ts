@@ -1,42 +1,16 @@
+import { createDesktopApiWithDefaults } from "./createDesktopApi";
+import { createAppSettings } from "./appSettings";
 import type {
-  AddPullRequestCommentInput,
   AppSettings,
-  Bucket,
-  CloseLspDocumentInput,
-  ConnectProviderInput,
   ConfirmOptions,
+  DesktopApi,
   DesktopBridge,
   DesktopUpdateActionResult,
   DesktopUpdateState,
-  DiscardFileInput,
-  GetLspHoverInput,
-  GetLspReferencesInput,
-  GetRepoFileInput,
-  GitProviderId,
-  SyncLspDocumentInput,
-  FileItem,
-  FileVersions,
-  GitSnapshot,
-  HostedRepoRef,
-  HistoryCommit,
-  LspHoverResult,
-  LspLocation,
-  ListPullRequestsInput,
-  PullRequestConversation,
-  PullRequestIssueComment,
-  PullRequestLocatorInput,
-  PullRequestPage,
-  PullRequestReviewThread,
-  PreparedPullRequestWorkspace,
-  PreparePullRequestWorkspaceInput,
-  ProviderConnection,
-  ReplyToPullRequestThreadInput,
-  RepoFileItem,
-  SetPullRequestThreadResolvedInput,
   WorkspaceSession,
 } from "./contracts";
+import type { DesktopApiMethod } from "./desktopApiMethods";
 import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
-import { createAppSettings } from "./appSettings";
 import { createWorkspaceSession } from "./workspaceSession";
 
 const WORKSPACE_SESSION_STORAGE_KEY = "open-warden.workspace-session";
@@ -132,165 +106,122 @@ function writeStoredAppSettings(settings: AppSettings): AppSettings {
   return normalizedSettings;
 }
 
+function browserUnsupportedFeature(method: DesktopApiMethod): string {
+  switch (method) {
+    case "openPath":
+      return "Opening local paths";
+    case "listProviderConnections":
+    case "connectProvider":
+    case "disconnectProvider":
+      return "Provider connections";
+    case "resolveHostedRepo":
+      return "Hosted repository detection";
+    case "listPullRequests":
+      return "Pull request listing";
+    case "getPullRequestConversation":
+      return "Pull request conversation";
+    case "getPullRequestFiles":
+      return "Pull request files";
+    case "getPullRequestPatch":
+      return "Pull request patch";
+    case "addPullRequestComment":
+      return "Pull request comments";
+    case "replyToPullRequestThread":
+      return "Pull request thread replies";
+    case "setPullRequestThreadResolved":
+      return "Pull request thread resolution";
+    case "preparePullRequestWorkspace":
+      return "Pull request review workspaces";
+    case "getGitSnapshot":
+      return "Git snapshot loading";
+    case "getRepoFiles":
+      return "Repository file listing";
+    case "getCommitHistory":
+      return "Commit history loading";
+    case "getBranches":
+      return "Branch listing";
+    case "getBranchFiles":
+      return "Branch file listing";
+    case "getCommitFiles":
+      return "Commit file listing";
+    case "getCommitFileVersions":
+      return "Commit file diff loading";
+    case "getFileVersions":
+      return "Working tree diff loading";
+    case "getBranchFileVersions":
+      return "Branch file diff loading";
+    case "stageFile":
+      return "Staging files";
+    case "unstageFile":
+      return "Unstaging files";
+    case "stageAll":
+      return "Staging all files";
+    case "unstageAll":
+      return "Unstaging all files";
+    case "discardFile":
+    case "discardFiles":
+      return "Discarding file changes";
+    case "discardAll":
+      return "Discarding all changes";
+    case "commitStaged":
+      return "Creating commits";
+    default:
+      return "Desktop runtime";
+  }
+}
+
+const browserDesktopApiCore = createDesktopApiWithDefaults({
+  fallback: (method) => async () => unsupportedAsync(browserUnsupportedFeature(method)),
+  overrides: {
+    async selectFolder() {
+      throw readBrowserDirectorySelectionError();
+    },
+    async loadWorkspaceSession() {
+      return readStoredWorkspaceSession();
+    },
+    async saveWorkspaceSession(session: WorkspaceSession) {
+      return writeStoredWorkspaceSession(session);
+    },
+    async loadAppSettings() {
+      return readStoredAppSettings();
+    },
+    async saveAppSettings(settings: AppSettings) {
+      return writeStoredAppSettings(settings);
+    },
+    async getAppSettingsPath() {
+      return APP_SETTINGS_STORAGE_KEY;
+    },
+    async confirm(message: string, _options?: ConfirmOptions) {
+      return window.confirm(message);
+    },
+    async checkAppExists(_appName: string) {
+      return false;
+    },
+    async listProviderConnections() {
+      return [];
+    },
+    async resolvePullRequestWorkspace(_repoPath: string) {
+      return null;
+    },
+    async getRepoFile() {
+      return null;
+    },
+    async syncLspDocument() {},
+    async closeLspDocument() {},
+    async getLspHover() {
+      return null;
+    },
+    async getLspDefinition() {
+      return [];
+    },
+    async getLspReferences() {
+      return [];
+    },
+  } satisfies Partial<DesktopApi>,
+});
+
 export const browserDesktopApi: DesktopBridge = {
-  async selectFolder() {
-    throw readBrowserDirectorySelectionError();
-  },
-  async loadWorkspaceSession() {
-    return readStoredWorkspaceSession();
-  },
-  async saveWorkspaceSession(session: WorkspaceSession) {
-    return writeStoredWorkspaceSession(session);
-  },
-  async loadAppSettings() {
-    return readStoredAppSettings();
-  },
-  async saveAppSettings(settings: AppSettings) {
-    return writeStoredAppSettings(settings);
-  },
-  async getAppSettingsPath() {
-    return APP_SETTINGS_STORAGE_KEY;
-  },
-  async confirm(message: string, _options?: ConfirmOptions) {
-    return window.confirm(message);
-  },
-  async checkAppExists(_appName: string) {
-    return false;
-  },
-  async openPath(_path: string, _appName?: string | null) {
-    unsupported("Opening local paths");
-  },
-  async listProviderConnections(): Promise<ProviderConnection[]> {
-    return [];
-  },
-  async connectProvider(_input: ConnectProviderInput): Promise<ProviderConnection> {
-    return unsupportedAsync("Provider connections");
-  },
-  async disconnectProvider(_providerId: GitProviderId) {
-    unsupported("Provider connections");
-  },
-  async resolveHostedRepo(_repoPath: string): Promise<HostedRepoRef | null> {
-    return unsupportedAsync("Hosted repository detection");
-  },
-  async resolvePullRequestWorkspace(
-    _repoPath: string,
-  ): Promise<PreparedPullRequestWorkspace | null> {
-    return null;
-  },
-  async listPullRequests(_input: ListPullRequestsInput): Promise<PullRequestPage> {
-    return unsupportedAsync("Pull request listing");
-  },
-  async getPullRequestConversation(
-    _input: PullRequestLocatorInput,
-  ): Promise<PullRequestConversation> {
-    return unsupportedAsync("Pull request conversation");
-  },
-  async getPullRequestFiles(_input: PullRequestLocatorInput) {
-    return unsupportedAsync("Pull request files");
-  },
-  async getPullRequestPatch(_input: PullRequestLocatorInput) {
-    return unsupportedAsync("Pull request patch");
-  },
-  async addPullRequestComment(
-    _input: AddPullRequestCommentInput,
-  ): Promise<PullRequestIssueComment> {
-    return unsupportedAsync("Pull request comments");
-  },
-  async replyToPullRequestThread(
-    _input: ReplyToPullRequestThreadInput,
-  ): Promise<PullRequestReviewThread> {
-    return unsupportedAsync("Pull request thread replies");
-  },
-  async setPullRequestThreadResolved(
-    _input: SetPullRequestThreadResolvedInput,
-  ): Promise<PullRequestReviewThread> {
-    return unsupportedAsync("Pull request thread resolution");
-  },
-  async preparePullRequestWorkspace(
-    _input: PreparePullRequestWorkspaceInput,
-  ): Promise<PreparedPullRequestWorkspace> {
-    return unsupportedAsync("Pull request review workspaces");
-  },
-  async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
-    return unsupportedAsync("Git snapshot loading");
-  },
-  async getRepoFiles(_repoPath: string): Promise<RepoFileItem[]> {
-    return unsupportedAsync("Repository file listing");
-  },
-  async getCommitHistory(_repoPath: string, _limit?: number): Promise<HistoryCommit[]> {
-    return unsupportedAsync("Commit history loading");
-  },
-  async getBranches(_repoPath: string) {
-    return unsupportedAsync<string[]>("Branch listing");
-  },
-  async getBranchFiles(_repoPath: string, _baseRef: string, _headRef: string): Promise<FileItem[]> {
-    return unsupportedAsync("Branch file listing");
-  },
-  async getCommitFiles(_repoPath: string, _commitId: string): Promise<FileItem[]> {
-    return unsupportedAsync("Commit file listing");
-  },
-  async getCommitFileVersions(
-    _repoPath: string,
-    _commitId: string,
-    _relPath: string,
-    _previousPath?: string,
-  ): Promise<FileVersions> {
-    return unsupportedAsync("Commit file diff loading");
-  },
-  async getFileVersions(
-    _repoPath: string,
-    _relPath: string,
-    _bucket: Bucket,
-  ): Promise<FileVersions> {
-    return unsupportedAsync("Working tree diff loading");
-  },
-  async getBranchFileVersions(
-    _repoPath: string,
-    _baseRef: string,
-    _headRef: string,
-    _relPath: string,
-    _previousPath?: string,
-  ): Promise<FileVersions> {
-    return unsupportedAsync("Branch file diff loading");
-  },
-  async stageFile(_repoPath: string, _relPath: string) {
-    unsupported("Staging files");
-  },
-  async unstageFile(_repoPath: string, _relPath: string) {
-    unsupported("Unstaging files");
-  },
-  async stageAll(_repoPath: string) {
-    unsupported("Staging all files");
-  },
-  async unstageAll(_repoPath: string) {
-    unsupported("Unstaging all files");
-  },
-  async discardFile(_repoPath: string, _relPath: string, _bucket: Bucket) {
-    unsupported("Discarding file changes");
-  },
-  async discardFiles(_repoPath: string, _files: DiscardFileInput[]) {
-    unsupported("Discarding file changes");
-  },
-  async discardAll(_repoPath: string) {
-    unsupported("Discarding all changes");
-  },
-  async commitStaged(_repoPath: string, _message: string) {
-    return unsupportedAsync<string>("Creating commits");
-  },
-  async getRepoFile(_input: GetRepoFileInput) {
-    return null;
-  },
-  async syncLspDocument(_input: SyncLspDocumentInput) {},
-  async closeLspDocument(_input: CloseLspDocumentInput) {},
-  async getLspHover(_input: GetLspHoverInput): Promise<LspHoverResult | null> {
-    return null;
-  },
-  async getLspDefinition(_input: GetLspHoverInput): Promise<LspLocation[]> {
-    return [];
-  },
-  async getLspReferences(_input: GetLspReferencesInput): Promise<LspLocation[]> {
-    return [];
-  },
+  ...browserDesktopApiCore,
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are only available in desktop builds.");
   },
@@ -343,165 +274,37 @@ async function unavailableAsync<T>(): Promise<T> {
   unavailable();
 }
 
+const unavailableDesktopApiCore = createDesktopApiWithDefaults({
+  fallback: () => async () => unavailableAsync(),
+  overrides: {
+    async loadWorkspaceSession() {
+      return createWorkspaceSession();
+    },
+    async saveWorkspaceSession(session: WorkspaceSession) {
+      return createWorkspaceSession(session);
+    },
+    async loadAppSettings() {
+      return createAppSettings();
+    },
+    async saveAppSettings(settings: AppSettings) {
+      return createAppSettings(settings);
+    },
+    async listProviderConnections() {
+      return [];
+    },
+    async resolvePullRequestWorkspace() {
+      return null;
+    },
+    async syncLspDocument() {},
+    async closeLspDocument() {},
+    async getLspHover() {
+      return null;
+    },
+  } satisfies Partial<DesktopApi>,
+});
+
 export const unavailableDesktopApi: DesktopBridge = {
-  async selectFolder() {
-    unavailable();
-  },
-  async loadWorkspaceSession() {
-    return createWorkspaceSession();
-  },
-  async saveWorkspaceSession(session: WorkspaceSession) {
-    return createWorkspaceSession(session);
-  },
-  async loadAppSettings() {
-    return createAppSettings();
-  },
-  async saveAppSettings(settings: AppSettings) {
-    return createAppSettings(settings);
-  },
-  async getAppSettingsPath() {
-    return unavailableAsync<string>();
-  },
-  async confirm(_message: string, _options?: ConfirmOptions) {
-    return unavailableAsync<boolean>();
-  },
-  async checkAppExists(_appName: string) {
-    return unavailableAsync<boolean>();
-  },
-  async openPath(_path: string, _appName?: string | null) {
-    unavailable();
-  },
-  async listProviderConnections(): Promise<ProviderConnection[]> {
-    return [];
-  },
-  async connectProvider(_input: ConnectProviderInput): Promise<ProviderConnection> {
-    return unavailableAsync();
-  },
-  async disconnectProvider(_providerId: GitProviderId) {
-    unavailable();
-  },
-  async resolveHostedRepo(_repoPath: string): Promise<HostedRepoRef | null> {
-    return unavailableAsync();
-  },
-  async resolvePullRequestWorkspace(
-    _repoPath: string,
-  ): Promise<PreparedPullRequestWorkspace | null> {
-    return null;
-  },
-  async listPullRequests(_input: ListPullRequestsInput): Promise<PullRequestPage> {
-    return unavailableAsync();
-  },
-  async getPullRequestConversation(
-    _input: PullRequestLocatorInput,
-  ): Promise<PullRequestConversation> {
-    return unavailableAsync();
-  },
-  async getPullRequestFiles(_input: PullRequestLocatorInput) {
-    return unavailableAsync();
-  },
-  async getPullRequestPatch(_input: PullRequestLocatorInput) {
-    return unavailableAsync();
-  },
-  async addPullRequestComment(
-    _input: AddPullRequestCommentInput,
-  ): Promise<PullRequestIssueComment> {
-    return unavailableAsync();
-  },
-  async replyToPullRequestThread(
-    _input: ReplyToPullRequestThreadInput,
-  ): Promise<PullRequestReviewThread> {
-    return unavailableAsync();
-  },
-  async setPullRequestThreadResolved(
-    _input: SetPullRequestThreadResolvedInput,
-  ): Promise<PullRequestReviewThread> {
-    return unavailableAsync();
-  },
-  async preparePullRequestWorkspace(
-    _input: PreparePullRequestWorkspaceInput,
-  ): Promise<PreparedPullRequestWorkspace> {
-    return unavailableAsync();
-  },
-  async getGitSnapshot(_repoPath: string): Promise<GitSnapshot> {
-    return unavailableAsync();
-  },
-  async getRepoFiles(_repoPath: string): Promise<RepoFileItem[]> {
-    return unavailableAsync();
-  },
-  async getCommitHistory(_repoPath: string, _limit?: number): Promise<HistoryCommit[]> {
-    return unavailableAsync();
-  },
-  async getBranches(_repoPath: string) {
-    return unavailableAsync<string[]>();
-  },
-  async getBranchFiles(_repoPath: string, _baseRef: string, _headRef: string): Promise<FileItem[]> {
-    return unavailableAsync();
-  },
-  async getCommitFiles(_repoPath: string, _commitId: string): Promise<FileItem[]> {
-    return unavailableAsync();
-  },
-  async getCommitFileVersions(
-    _repoPath: string,
-    _commitId: string,
-    _relPath: string,
-    _previousPath?: string,
-  ): Promise<FileVersions> {
-    return unavailableAsync();
-  },
-  async getFileVersions(
-    _repoPath: string,
-    _relPath: string,
-    _bucket: Bucket,
-  ): Promise<FileVersions> {
-    return unavailableAsync();
-  },
-  async getBranchFileVersions(
-    _repoPath: string,
-    _baseRef: string,
-    _headRef: string,
-    _relPath: string,
-    _previousPath?: string,
-  ): Promise<FileVersions> {
-    return unavailableAsync();
-  },
-  async stageFile(_repoPath: string, _relPath: string) {
-    unavailable();
-  },
-  async unstageFile(_repoPath: string, _relPath: string) {
-    unavailable();
-  },
-  async stageAll(_repoPath: string) {
-    unavailable();
-  },
-  async unstageAll(_repoPath: string) {
-    unavailable();
-  },
-  async discardFile(_repoPath: string, _relPath: string, _bucket: Bucket) {
-    unavailable();
-  },
-  async discardFiles(_repoPath: string, _files: DiscardFileInput[]) {
-    unavailable();
-  },
-  async discardAll(_repoPath: string) {
-    unavailable();
-  },
-  async commitStaged(_repoPath: string, _message: string) {
-    return unavailableAsync<string>();
-  },
-  async getRepoFile(_input: GetRepoFileInput) {
-    return unavailableAsync<null>();
-  },
-  async syncLspDocument(_input: SyncLspDocumentInput) {},
-  async closeLspDocument(_input: CloseLspDocumentInput) {},
-  async getLspHover(_input: GetLspHoverInput): Promise<LspHoverResult | null> {
-    return null;
-  },
-  async getLspDefinition(_input: GetLspHoverInput): Promise<LspLocation[]> {
-    return unavailableAsync();
-  },
-  async getLspReferences(_input: GetLspReferencesInput): Promise<LspLocation[]> {
-    return unavailableAsync();
-  },
+  ...unavailableDesktopApiCore,
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are unavailable right now.");
   },
