@@ -34,6 +34,7 @@ import {
 import type { GitProviderId, PullRequestReviewThread } from "@/platform/desktop";
 
 type PullRequestInlineReviewThreadProps = {
+  providerId?: GitProviderId;
   repoPath: string;
   pullRequestNumber: number;
   thread: PullRequestReviewThread;
@@ -47,6 +48,7 @@ function providerTitle(providerId: GitProviderId) {
 }
 
 export function PullRequestInlineReviewThread({
+  providerId,
   repoPath,
   pullRequestNumber,
   thread,
@@ -54,8 +56,8 @@ export function PullRequestInlineReviewThread({
 }: PullRequestInlineReviewThreadProps) {
   const dispatch = useAppDispatch();
   const activeThreadId = useAppSelector((state) => state.pullRequests.activeConversationThreadId);
-  const currentProviderId = useAppSelector(
-    (state) => state.pullRequests.currentReview?.providerId ?? "github",
+  const currentReviewProviderId = useAppSelector(
+    (state) => state.pullRequests.currentReview?.providerId ?? null,
   );
   const [replyDraft, setReplyDraft] = useState("");
   const [replyOpen, setReplyOpen] = useState(false);
@@ -73,8 +75,9 @@ export function PullRequestInlineReviewThread({
   const replyPending = replyingToThread && pendingThreadId === thread.id;
   const compactButtonClass = "h-6 px-2 text-[11px] gap-1.5";
   const lineLabel = thread.line ?? thread.startLine ?? "Unknown";
-  const providerName = providerTitle(currentProviderId);
-  const canResolveThreads = currentProviderId === "github" || currentProviderId === "bitbucket";
+  const activeProviderId = providerId ?? currentReviewProviderId ?? "github";
+  const providerName = providerTitle(activeProviderId);
+  const canResolveThreads = activeProviderId === "github" || activeProviderId === "bitbucket";
 
   useEffect(() => {
     if (thread.isResolved) {

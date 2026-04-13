@@ -102,7 +102,7 @@ export type SymbolPeekState = {
   returnToDiff?: DiffReturnTarget | null;
 };
 
-export type ChangesSidebarMode = "changes" | "files" | "pull-request";
+export type ChangesSidebarMode = "changes" | "files" | "pull-requests" | "pull-request";
 
 export type HistoryCommit = ContractHistoryCommit;
 

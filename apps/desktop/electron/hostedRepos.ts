@@ -9,6 +9,7 @@ import type {
   ConnectProviderInput,
   GitProviderId,
   HostedRepoRef,
+  PullRequestChangedFile,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
@@ -28,6 +29,8 @@ import {
   createBitbucketGitAuthHeaders,
   fetchBitbucketConversation,
   fetchBitbucketPullRequest,
+  fetchBitbucketPullRequestFiles,
+  fetchBitbucketPullRequestPatch,
   listBitbucketPullRequests,
   pickBitbucketCloneUrl,
   toBitbucketIssueComment,
@@ -37,6 +40,8 @@ import {
 import {
   fetchGitHubIssueComments,
   fetchGitHubPullRequest,
+  fetchGitHubPullRequestFiles,
+  fetchGitHubPullRequestPatch,
   fetchGitHubReviewThreads,
   githubGraphqlRequest,
   githubJsonRequest,
@@ -352,11 +357,11 @@ function managedSourceRepoPath(hostedRepo: HostedRepoRef) {
   return path.join(managedRepoRootPath(hostedRepo), "source");
 }
 
-function managedWorktreePath(hostedRepo: HostedRepoRef) {
+function managedWorktreePath(hostedRepo: HostedRepoRef, pullRequestNumber: number) {
   return path.join(
     managedRepoRootPath(hostedRepo),
     "worktrees",
-    "review",
+    `pr-${String(pullRequestNumber)}`,
   );
 }
 
@@ -486,11 +491,26 @@ async function ensurePreparedWorktree(
   ]);
 }
 
+async function ensurePreparedBranchCheckout(
+  repoPath: string,
+  localBranch: string,
+  headRefShort: string,
+) {
+  await runGitInRepo(repoPath, ["checkout", "-B", localBranch, headRefShort]);
+  await runGitInRepo(repoPath, ["reset", "--hard", headRefShort]);
+  await runGitInRepo(repoPath, ["clean", "-fd"]);
+}
+
 async function writeManagedRepoState(
   preparedWorkspace: PreparedPullRequestWorkspace,
 ) {
   const normalizedPreparedWorkspace = normalizePreparedWorkspace(preparedWorkspace);
   const statePath = managedRepoStatePath(preparedWorkspace.hostedRepo);
+  const existingWorkspaces = await readManagedRepoWorkspaces(preparedWorkspace.hostedRepo);
+  const remainingWorkspaces = existingWorkspaces.filter(
+    (workspace) =>
+      path.resolve(workspace.worktreePath) !== path.resolve(normalizedPreparedWorkspace.worktreePath),
+  );
   await fs.mkdir(path.dirname(statePath), { recursive: true });
   await fs.writeFile(
     statePath,
@@ -500,7 +520,10 @@ async function writeManagedRepoState(
         owner: preparedWorkspace.hostedRepo.owner,
         repo: preparedWorkspace.hostedRepo.repo,
         updatedAt: new Date().toISOString(),
-        workspaces: [normalizedPreparedWorkspace],
+        workspaces: dedupePreparedWorkspaces([
+          normalizedPreparedWorkspace,
+          ...remainingWorkspaces,
+        ]),
       },
       null,
       2,
@@ -828,6 +851,40 @@ export async function getPullRequestConversation(
   );
 }
 
+export async function getPullRequestFiles(
+  input: PullRequestLocatorInput,
+): Promise<PullRequestChangedFile[]> {
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+
+  if (hostedRepo.providerId === "github") {
+    return fetchGitHubPullRequestFiles(hostedRepo, connection.token, input.pullRequestNumber);
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    return fetchBitbucketPullRequestFiles(hostedRepo, connection, input.pullRequestNumber);
+  }
+
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} pull request files are not supported yet.`,
+  );
+}
+
+export async function getPullRequestPatch(input: PullRequestLocatorInput): Promise<string> {
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+
+  if (hostedRepo.providerId === "github") {
+    return fetchGitHubPullRequestPatch(hostedRepo, connection.token, input.pullRequestNumber);
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    return fetchBitbucketPullRequestPatch(hostedRepo, connection, input.pullRequestNumber);
+  }
+
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} pull request patches are not supported yet.`,
+  );
+}
+
 export async function addPullRequestComment(
   input: AddPullRequestCommentInput,
 ): Promise<PullRequestIssueComment> {
@@ -1036,6 +1093,7 @@ export async function setPullRequestThreadResolved(
 export async function preparePullRequestWorkspace(
   input: PreparePullRequestWorkspaceInput,
 ): Promise<PreparedPullRequestWorkspace> {
+  const openMode = input.openMode ?? "worktree";
   const hostedRepo = await resolveHostedRepo(input.repoPath);
   if (!hostedRepo) {
     throw new Error("No supported hosted repository was found for the selected repo.");
@@ -1059,13 +1117,19 @@ export async function preparePullRequestWorkspace(
       throw new Error("This pull request no longer has an accessible head repository.");
     }
 
-    const sourceRepoPath = await ensureManagedSourceRepo(hostedRepo, baseRepo.clone_url);
+    const sourceRepoPath =
+      openMode === "branch"
+        ? input.repoPath
+        : await ensureManagedSourceRepo(hostedRepo, baseRepo.clone_url);
     const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
     const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
     const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
     const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
     const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequest.number)}`;
-    const worktreePath = managedWorktreePath(hostedRepo);
+    const worktreePath =
+      openMode === "branch"
+        ? path.resolve(input.repoPath)
+        : managedWorktreePath(hostedRepo, pullRequest.number);
 
     await fetchRemoteBranch(
       sourceRepoPath,
@@ -1083,7 +1147,11 @@ export async function preparePullRequestWorkspace(
     );
     const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
     const compareHeadRef = headRefShort;
-    await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+    if (openMode === "branch") {
+      await ensurePreparedBranchCheckout(input.repoPath, localBranch, headRefShort);
+    } else {
+      await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+    }
     const preparedWorkspace: PreparedPullRequestWorkspace = {
       providerId: hostedRepo.providerId,
       repoPath: worktreePath,
@@ -1122,13 +1190,19 @@ export async function preparePullRequestWorkspace(
     const baseCloneUrl = pickBitbucketCloneUrl(baseRepo, hostedRepo.owner, hostedRepo.repo);
     const headCloneUrl = pickBitbucketCloneUrl(headRepo, hostedRepo.owner, hostedRepo.repo);
 
-    const sourceRepoPath = await ensureManagedSourceRepo(hostedRepo, baseCloneUrl);
+    const sourceRepoPath =
+      openMode === "branch"
+        ? input.repoPath
+        : await ensureManagedSourceRepo(hostedRepo, baseCloneUrl);
     const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
     const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
     const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
     const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
     const localBranch = `${OPEN_WARDEN_REMOTE_PREFIX}/pr-${String(pullRequestNumber)}`;
-    const worktreePath = managedWorktreePath(hostedRepo);
+    const worktreePath =
+      openMode === "branch"
+        ? path.resolve(input.repoPath)
+        : managedWorktreePath(hostedRepo, pullRequestNumber);
     const authHeaders = createBitbucketGitAuthHeaders(connection);
     await fetchRemoteBranchWithFallbackAuth(
       sourceRepoPath,
@@ -1147,7 +1221,11 @@ export async function preparePullRequestWorkspace(
 
     const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
     const compareHeadRef = headRefShort;
-    await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+    if (openMode === "branch") {
+      await ensurePreparedBranchCheckout(input.repoPath, localBranch, headRefShort);
+    } else {
+      await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+    }
     const preparedWorkspace: PreparedPullRequestWorkspace = {
       providerId: hostedRepo.providerId,
       repoPath: worktreePath,

@@ -184,6 +184,12 @@ export const browserDesktopApi: DesktopBridge = {
   ): Promise<PullRequestConversation> {
     return unsupportedAsync("Pull request conversation");
   },
+  async getPullRequestFiles(_input: PullRequestLocatorInput) {
+    return unsupportedAsync("Pull request files");
+  },
+  async getPullRequestPatch(_input: PullRequestLocatorInput) {
+    return unsupportedAsync("Pull request patch");
+  },
   async addPullRequestComment(
     _input: AddPullRequestCommentInput,
   ): Promise<PullRequestIssueComment> {
@@ -387,6 +393,12 @@ export const unavailableDesktopApi: DesktopBridge = {
   async getPullRequestConversation(
     _input: PullRequestLocatorInput,
   ): Promise<PullRequestConversation> {
+    return unavailableAsync();
+  },
+  async getPullRequestFiles(_input: PullRequestLocatorInput) {
+    return unavailableAsync();
+  },
+  async getPullRequestPatch(_input: PullRequestLocatorInput) {
     return unavailableAsync();
   },
   async addPullRequestComment(

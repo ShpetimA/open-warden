@@ -49,12 +49,9 @@ import {
   type LspHoverDocument,
   useDiffLspHover,
 } from "@/features/diff-view/useDiffLspHover";
-import {LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
+import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
-import {
-  DIFF_LINE_FOCUS_CSS,
-  useDiffLineFocus,
-} from "@/features/source-control/diffLineFocus";
+import { DIFF_LINE_FOCUS_CSS, useDiffLineFocus } from "@/features/source-control/diffLineFocus";
 import { formatRange } from "@/features/source-control/utils";
 import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
 
@@ -229,7 +226,11 @@ export function DiffWorkspace({
   const [expandUnchanged, setExpandUnchanged] = useState(false);
   const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
-  const { hoverState, onTokenClick: onHoverTokenClick, popoverRef } = useDiffLspHover({
+  const {
+    hoverState,
+    onTokenClick: onHoverTokenClick,
+    popoverRef,
+  } = useDiffLspHover({
     document: lspHoverDocument,
     resetKey: activeDiffIdentity,
   });
@@ -416,17 +417,16 @@ export function DiffWorkspace({
         onPointerEnter={diagnosticPopover.onPopoverEnter}
         onPointerLeave={diagnosticPopover.onPopoverLeave}
       />
-      <DiffLspHoverPopover
-        hoverState={hoverState}
-        popoverRef={popoverRef}
-      />
-      <Virtualizer className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div
-          ref={viewportRef}
-          key={diffViewportKey}
-          className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
-        >
-          {currentFileDiff ? (
+      <DiffLspHoverPopover hoverState={hoverState} popoverRef={popoverRef} />
+      <div
+        ref={viewportRef}
+        key={diffViewportKey}
+        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+      >
+        {currentFileDiff ? (
+          <Virtualizer
+            className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+          >
             <PierreFileDiff
               className="block min-w-0 max-w-full"
               fileDiff={currentFileDiff}
@@ -447,18 +447,18 @@ export function DiffWorkspace({
               )}
               options={diffOptions}
             />
-          ) : diffRenderGate === "unrenderable" ? (
-            renderUnrenderableDiffWarning()
-          ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
-            renderLargeDiffWarning()
-          ) : isParsingDiff ? (
-            <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
-          ) : (
-            <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
-          )}
-          <LspSymbolPeekContainer document={lspHoverDocument} containerRef={viewportRef} />
-        </div>
-      </Virtualizer>
+          </Virtualizer>
+        ) : diffRenderGate === "unrenderable" ? (
+          renderUnrenderableDiffWarning()
+        ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
+          renderLargeDiffWarning()
+        ) : isParsingDiff ? (
+          <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
+        ) : (
+          <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
+        )}
+        <LspSymbolPeekContainer document={lspHoverDocument} containerRef={viewportRef} />
+      </div>
     </div>
   );
 }

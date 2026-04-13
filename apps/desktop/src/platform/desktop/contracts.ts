@@ -184,9 +184,20 @@ export type PullRequestConversation = {
   reviewThreads: PullRequestReviewThread[];
 };
 
+export type PullRequestChangedFile = {
+  path: string;
+  previousPath: string | null;
+  status: Exclude<FileStatus, "untracked" | "type-changed" | "unmerged">;
+  additions: number;
+  deletions: number;
+};
+
+export type PullRequestOpenMode = "branch" | "worktree";
+
 export type PreparePullRequestWorkspaceInput = {
   repoPath: string;
   pullRequestNumber: number;
+  openMode?: PullRequestOpenMode;
 };
 
 export type PullRequestLocatorInput = {
@@ -330,6 +341,8 @@ export type DesktopApi = {
   resolvePullRequestWorkspace(repoPath: string): Promise<PreparedPullRequestWorkspace | null>;
   listPullRequests(repoPath: string): Promise<PullRequestSummary[]>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
+  getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
+  getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
   replyToPullRequestThread(
     input: ReplyToPullRequestThreadInput,

@@ -1,5 +1,6 @@
 import type {
   HostedRepoRef,
+  PullRequestChangedFile,
   PullRequestConversation,
   PullRequestDetail,
   PullRequestIssueComment,
@@ -70,6 +71,18 @@ export type BitbucketPullRequestResponse = {
   } | null;
   source?: BitbucketPullRequestSide | null;
   destination?: BitbucketPullRequestSide | null;
+};
+
+export type BitbucketDiffstatResponse = {
+  status?: string;
+  old?: {
+    path?: string;
+  } | null;
+  new?: {
+    path?: string;
+  } | null;
+  lines_added?: number;
+  lines_removed?: number;
 };
 
 export type BitbucketCommentResponse = {
@@ -649,6 +662,65 @@ export async function fetchBitbucketPullRequest(
   );
 
   return data;
+}
+
+function toBitbucketPullRequestChangedFileStatus(
+  status: string | undefined,
+): PullRequestChangedFile["status"] {
+  if (status === "added") return "added";
+  if (status === "removed" || status === "deleted") return "deleted";
+  if (status === "renamed") return "renamed";
+  if (status === "copied") return "copied";
+  return "modified";
+}
+
+function toBitbucketPullRequestChangedFile(
+  file: BitbucketDiffstatResponse,
+): PullRequestChangedFile | null {
+  const nextPath = file.new?.path?.trim() ?? "";
+  const previousPath = file.old?.path?.trim() ?? "";
+  const path = nextPath || previousPath;
+  if (!path) {
+    return null;
+  }
+
+  const normalizedPreviousPath = previousPath && previousPath !== path ? previousPath : null;
+  return {
+    path,
+    previousPath: normalizedPreviousPath,
+    status: toBitbucketPullRequestChangedFileStatus(file.status),
+    additions: typeof file.lines_added === "number" ? file.lines_added : 0,
+    deletions: typeof file.lines_removed === "number" ? file.lines_removed : 0,
+  };
+}
+
+export async function fetchBitbucketPullRequestPatch(
+  hostedRepo: HostedRepoRef,
+  connection: ProviderConnectionSecret,
+  pullRequestNumber: number,
+) {
+  const { data } = await bitbucketRequest<string>(
+    `${bitbucketPullRequestPath(hostedRepo, pullRequestNumber)}/diff`,
+    connection,
+    { responseType: "text" },
+  );
+
+  return data;
+}
+
+export async function fetchBitbucketPullRequestFiles(
+  hostedRepo: HostedRepoRef,
+  connection: ProviderConnectionSecret,
+  pullRequestNumber: number,
+) {
+  const values = await fetchBitbucketPaginatedValues<BitbucketDiffstatResponse>(
+    `${bitbucketPullRequestPath(hostedRepo, pullRequestNumber)}/diffstat?pagelen=100`,
+    connection,
+  );
+
+  return values
+    .map(toBitbucketPullRequestChangedFile)
+    .filter((file): file is PullRequestChangedFile => file !== null);
 }
 
 export async function fetchBitbucketConversation(

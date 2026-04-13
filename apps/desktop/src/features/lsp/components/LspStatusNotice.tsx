@@ -67,7 +67,9 @@ export function LspStatusNotice({ repoPath, relPath, active }: Props) {
   if (!fileState) {
     return (
       <div className="text-muted-foreground border-border/70 bg-surface-alt flex items-center gap-2 border-b px-3 py-2 text-xs">
-        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        <div className="h-5 flex items-center">
+          <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+        </div>
         <span>Checking diagnostics…</span>
       </div>
     );
@@ -76,7 +78,9 @@ export function LspStatusNotice({ repoPath, relPath, active }: Props) {
   if (fileState.reason) {
     return (
       <div className="border-border/70 bg-destructive/8 text-destructive flex items-center gap-2 border-b px-3 py-2 text-xs">
-        <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+        <div className="h-5 flex items-center">
+          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+        </div>
         <span className="truncate">Diagnostics unavailable: {fileState.reason}</span>
       </div>
     );
@@ -85,7 +89,9 @@ export function LspStatusNotice({ repoPath, relPath, active }: Props) {
   if (fileState.diagnostics.length === 0) {
     return (
       <div className="text-muted-foreground border-border/70 bg-surface-alt flex items-center gap-2 border-b px-3 py-2 text-xs">
-        <Search className="h-3.5 w-3.5 shrink-0" />
+        <div className="h-5 flex items-center">
+          <Search className="h-3.5 w-3.5 shrink-0" />
+        </div>
         <span>No diagnostics reported.</span>
       </div>
     );
@@ -93,7 +99,9 @@ export function LspStatusNotice({ repoPath, relPath, active }: Props) {
 
   return (
     <div className="border-border/70 bg-surface-alt flex items-center gap-2 border-b px-3 py-2 text-xs">
-      <AlertCircle className="text-amber-600 dark:text-amber-300 h-3.5 w-3.5 shrink-0" />
+      <div className="h-5 flex items-center">
+        <AlertCircle className="text-amber-600 dark:text-amber-300 h-3.5 w-3.5 shrink-0" />
+      </div>
       <span>{diagnosticsLabel(fileState.diagnostics.length)} reported.</span>
       <button
         type="button"

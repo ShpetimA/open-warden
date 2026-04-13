@@ -1,6 +1,7 @@
 import type {
   GitProviderId,
   HostedRepoRef,
+  PullRequestChangedFile,
   PullRequestDetail,
   PullRequestIssueComment,
   PullRequestPerson,
@@ -62,6 +63,14 @@ export type GitHubIssueCommentResponse = {
     login: string;
     avatar_url: string | null;
   } | null;
+};
+
+export type GitHubPullRequestFileResponse = {
+  filename: string;
+  previous_filename?: string | null;
+  status: string;
+  additions: number;
+  deletions: number;
 };
 
 type GitHubReviewThreadGraphResponse = {
@@ -167,6 +176,24 @@ function parseGitHubErrorMessage(text: string, status: number) {
     const hint = githubPermissionErrorHint(fallback);
     return hint ? `${fallback}. ${hint}` : fallback;
   }
+}
+
+export async function githubTextRequest(pathname: string, token: string, accept: string) {
+  const response = await fetch(`https://api.github.com${pathname}`, {
+    headers: {
+      Accept: accept,
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "open-warden",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(parseGitHubErrorMessage(message, response.status));
+  }
+
+  return response.text();
 }
 
 export async function githubJsonRequest<T>(
@@ -299,6 +326,26 @@ export function toPullRequestDetail(
   };
 }
 
+function toPullRequestChangedFileStatus(status: string): PullRequestChangedFile["status"] {
+  if (status === "added") return "added";
+  if (status === "removed") return "deleted";
+  if (status === "renamed") return "renamed";
+  if (status === "copied") return "copied";
+  return "modified";
+}
+
+export function toPullRequestChangedFile(
+  file: GitHubPullRequestFileResponse,
+): PullRequestChangedFile {
+  return {
+    path: file.filename,
+    previousPath: file.previous_filename ?? null,
+    status: toPullRequestChangedFileStatus(file.status),
+    additions: Number.isFinite(file.additions) ? file.additions : 0,
+    deletions: Number.isFinite(file.deletions) ? file.deletions : 0,
+  };
+}
+
 export function toPullRequestIssueComment(
   comment: GitHubIssueCommentResponse,
 ): PullRequestIssueComment {
@@ -351,6 +398,31 @@ export async function fetchGitHubPullRequest(
   );
 
   return data;
+}
+
+export async function fetchGitHubPullRequestPatch(
+  hostedRepo: HostedRepoRef,
+  token: string,
+  pullRequestNumber: number,
+) {
+  return githubTextRequest(
+    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(pullRequestNumber)}`,
+    token,
+    "application/vnd.github.v3.diff",
+  );
+}
+
+export async function fetchGitHubPullRequestFiles(
+  hostedRepo: HostedRepoRef,
+  token: string,
+  pullRequestNumber: number,
+) {
+  const files = await githubJsonRequest<GitHubPullRequestFileResponse[]>(
+    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(pullRequestNumber)}/files?per_page=100`,
+    token,
+  );
+
+  return files.map(toPullRequestChangedFile);
 }
 
 export async function fetchGitHubIssueComments(

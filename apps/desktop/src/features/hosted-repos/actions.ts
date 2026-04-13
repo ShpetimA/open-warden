@@ -1,6 +1,7 @@
 import type { AppThunk } from "@/app/store";
 import { hostedReposApi } from "@/features/hosted-repos/api";
 import { preparePullRequestWorkspace } from "@/features/hosted-repos/services/hostedRepos";
+import { desktop } from "@/platform/desktop";
 import {
   clearCurrentPullRequestReview,
   createPullRequestReviewSession,
@@ -15,7 +16,7 @@ import {
   setReviewBaseRef,
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
-import type { PreparedPullRequestWorkspace } from "@/platform/desktop";
+import type { PreparedPullRequestWorkspace, PullRequestOpenMode } from "@/platform/desktop";
 
 export type OpenPullRequestReviewResult = {
   workspace: PreparedPullRequestWorkspace | null;
@@ -23,7 +24,10 @@ export type OpenPullRequestReviewResult = {
 };
 
 export const openPullRequestReview =
-  (pullRequestNumber: number): AppThunk<Promise<OpenPullRequestReviewResult>> =>
+  (
+    pullRequestNumber: number,
+    openMode: PullRequestOpenMode = "worktree",
+  ): AppThunk<Promise<OpenPullRequestReviewResult>> =>
   async (dispatch, getState) => {
     const activeRepo = getState().sourceControl.activeRepo;
     if (!activeRepo) {
@@ -31,9 +35,25 @@ export const openPullRequestReview =
     }
 
     try {
+      if (openMode === "branch") {
+        const snapshot = await desktop.getGitSnapshot(activeRepo);
+        const hasLocalChanges =
+          snapshot.unstaged.length > 0 ||
+          snapshot.staged.length > 0 ||
+          snapshot.untracked.length > 0;
+        if (hasLocalChanges) {
+          return {
+            workspace: null,
+            errorMessage:
+              "Branch checkout needs a clean repository. Commit, stash, or discard local changes first.",
+          };
+        }
+      }
+
       const preparedWorkspace = await preparePullRequestWorkspace({
         repoPath: activeRepo,
         pullRequestNumber,
+        openMode,
       });
 
       const reopeningCurrentRepo = preparedWorkspace.repoPath === activeRepo;

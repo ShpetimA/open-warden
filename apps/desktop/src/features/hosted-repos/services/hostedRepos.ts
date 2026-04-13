@@ -7,6 +7,7 @@ import type {
   PreparedPullRequestWorkspace,
   PreparePullRequestWorkspaceInput,
   ProviderConnection,
+  PullRequestChangedFile,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
@@ -42,6 +43,14 @@ export async function listPullRequests(repoPath: string) {
 
 export async function getPullRequestConversation(input: PullRequestLocatorInput) {
   return desktop.getPullRequestConversation(input) as Promise<PullRequestConversation>;
+}
+
+export async function getPullRequestFiles(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestFiles(input) as Promise<PullRequestChangedFile[]>;
+}
+
+export async function getPullRequestPatch(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestPatch(input) as Promise<string>;
 }
 
 export async function addPullRequestComment(input: AddPullRequestCommentInput) {

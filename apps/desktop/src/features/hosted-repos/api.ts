@@ -5,6 +5,7 @@ import type {
   ConnectProviderInput,
   HostedRepoRef,
   ProviderConnection,
+  PullRequestChangedFile,
   PullRequestConversation,
   PullRequestLocatorInput,
   PullRequestReviewThread,
@@ -18,6 +19,8 @@ import {
   connectProvider,
   disconnectProvider,
   getPullRequestConversation,
+  getPullRequestFiles,
+  getPullRequestPatch,
   listProviderConnections,
   listPullRequests,
   replyToPullRequestThread,
@@ -35,7 +38,14 @@ function toErrorResult(error: unknown): ErrorResult {
 export const hostedReposApi = createApi({
   reducerPath: "hostedReposApi",
   baseQuery: fakeBaseQuery<ErrorResult>(),
-  tagTypes: ["ProviderConnections", "HostedRepo", "PullRequests", "PullRequestConversation"],
+  tagTypes: [
+    "ProviderConnections",
+    "HostedRepo",
+    "PullRequests",
+    "PullRequestConversation",
+    "PullRequestFiles",
+    "PullRequestPatch",
+  ],
   endpoints: (builder) => ({
     listProviderConnections: builder.query<ProviderConnection[], void>({
       async queryFn() {
@@ -112,6 +122,30 @@ export const hostedReposApi = createApi({
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
+    getPullRequestFiles: builder.query<PullRequestChangedFile[], PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await getPullRequestFiles(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestFiles", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
+    getPullRequestPatch: builder.query<string, PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await getPullRequestPatch(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestPatch", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
     addPullRequestComment: builder.mutation<void, AddPullRequestCommentInput>({
       async queryFn(input) {
         try {
@@ -160,6 +194,8 @@ export const {
   useAddPullRequestCommentMutation,
   useDisconnectProviderMutation,
   useGetPullRequestConversationQuery,
+  useGetPullRequestFilesQuery,
+  useGetPullRequestPatchQuery,
   useListProviderConnectionsQuery,
   useListPullRequestsQuery,
   useReplyToPullRequestThreadMutation,
