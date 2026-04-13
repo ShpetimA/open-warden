@@ -15,9 +15,9 @@ test("navigates with top-level feature tabs", async ({ page }) => {
   await expect(page).toHaveURL(/#\/review/);
 });
 
-test("opens command palette with keyboard shortcut", async ({ page }) => {
+test("opens command palette from the header action", async ({ page }) => {
   await page.goto("/");
 
-  await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+  await page.getByRole("button", { name: "Open command palette" }).click();
   await expect(page.getByPlaceholder("Search files, commands, or commits...")).toBeVisible();
 });

@@ -3,7 +3,7 @@ import { FolderTree, List } from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
-import { setFileBrowserMode } from "@/features/source-control/sourceControlSlice";
+import { updateFileTreeRenderMode } from "@/features/settings/actions";
 import type { FileBrowserMode } from "@/features/source-control/types";
 
 type SourceControlFileViewToggleProps = {
@@ -12,7 +12,9 @@ type SourceControlFileViewToggleProps = {
 
 export function SourceControlFileViewToggle({ className }: SourceControlFileViewToggleProps) {
   const dispatch = useAppDispatch();
-  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
 
   return (
     <div className={className}>
@@ -21,7 +23,7 @@ export function SourceControlFileViewToggle({ className }: SourceControlFileView
           active={fileBrowserMode === "tree"}
           label="Tree"
           mode="tree"
-          onClick={(mode) => dispatch(setFileBrowserMode(mode))}
+          onClick={(mode) => void dispatch(updateFileTreeRenderMode(mode))}
         >
           <FolderTree className="h-3.5 w-3.5" />
         </ViewModeButton>
@@ -29,7 +31,7 @@ export function SourceControlFileViewToggle({ className }: SourceControlFileView
           active={fileBrowserMode === "list"}
           label="List"
           mode="list"
-          onClick={(mode) => dispatch(setFileBrowserMode(mode))}
+          onClick={(mode) => void dispatch(updateFileTreeRenderMode(mode))}
         >
           <List className="h-3.5 w-3.5" />
         </ViewModeButton>

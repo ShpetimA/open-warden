@@ -11,6 +11,7 @@ import type {
   FileVersions,
   GitSnapshot,
   HistoryCommit,
+  RepoFileItem,
 } from "../src/platform/desktop/contracts";
 
 const execFile = promisify(nodeExecFile);
@@ -287,6 +288,16 @@ function parseHistoryOutput(output: Buffer) {
   return commits;
 }
 
+function parseRepoFilesOutput(output: Buffer): RepoFileItem[] {
+  const paths = splitNullTerminated(output)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return [...new Set(paths)]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+    .map((path) => ({ path }));
+}
+
 function isMissingGitObjectError(error: unknown) {
   if (!(error instanceof GitCommandError)) return false;
 
@@ -375,6 +386,18 @@ export async function getGitSnapshot(repoPath: string): Promise<GitSnapshot> {
     staged: parsed.staged,
     untracked: parsed.untracked,
   };
+}
+
+export async function getRepoFiles(repoPath: string): Promise<RepoFileItem[]> {
+  const output = await runGit(repoPath, [
+    "ls-files",
+    "-z",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+  ]);
+
+  return parseRepoFilesOutput(output);
 }
 
 export async function getCommitHistory(repoPath: string, limit = 200): Promise<HistoryCommit[]> {
@@ -487,6 +510,25 @@ export async function getFileVersions(
     oldFile: null,
     newFile: await readWorktreeFile(repoPath, normalizedPath, normalizedPath),
   };
+}
+
+export async function getRepoFile({
+  repoPath,
+  relPath,
+  revision,
+}: {
+  repoPath: string;
+  relPath: string;
+  revision?: string | null;
+}) {
+  const normalizedPath = normalizeGitPath(relPath);
+  const normalizedRevision = revision?.trim();
+
+  if (normalizedRevision) {
+    return readGitObject(repoPath, `${normalizedRevision}:${normalizedPath}`, normalizedPath);
+  }
+
+  return readWorktreeFile(repoPath, normalizedPath, normalizedPath);
 }
 
 export async function getBranchFileVersions(

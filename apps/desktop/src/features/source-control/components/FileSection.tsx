@@ -40,7 +40,9 @@ export function FileSection({
 }: Props) {
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
   const isChanges = sectionKey === "unstaged";
 
   return (

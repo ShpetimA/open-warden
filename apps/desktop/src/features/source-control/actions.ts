@@ -1,4 +1,5 @@
 import type { AppThunk, RootState } from "@/app/store";
+import { toast } from "sonner";
 import { desktop } from "@/platform/desktop";
 import {
   addRecentRepo,
@@ -7,24 +8,35 @@ import {
   normalizeRepoPaths,
 } from "@/platform/desktop/workspaceSession";
 import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
+import {
+  clearCurrentPullRequestReview,
+  setPullRequestFilesViewMode,
+  setPullRequestFileJumpTarget,
+  setPullRequestReviewTab,
+} from "@/features/pull-requests/pullRequestsSlice";
+import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import {
-  clearError,
+  closeFileViewer,
   hydrateWorkspaceSession as hydrateWorkspaceSessionState,
   removeRepo,
   resetRepoViewState,
   setActiveBucket,
   setActivePath,
   setActiveRepo,
+  setChangesSidebarMode,
   setCommitMessage,
+  setDiffFocusTarget,
   setDiffStyle,
-  setError,
   setHistoryCommitId,
   setHistoryNavTarget,
   setLastCommitId,
   setRecentRepos,
   setRepos,
+  setReviewActivePath,
+  setReviewBaseRef,
+  setReviewHeadRef,
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
@@ -67,6 +79,7 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
 
 const resetRepoScopedState = (): AppThunk => (dispatch) => {
   dispatch(resetRepoViewState());
+  dispatch(clearCurrentPullRequestReview());
 };
 
 async function persistWorkspaceSession(getState: () => RootState) {
@@ -113,7 +126,8 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
     await desktop.saveWorkspaceSession(workspaceSession);
   } catch (error) {
     dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
-    dispatch(setError(error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(`Failed to restore workspace session: ${message}`);
   }
 };
 
@@ -123,7 +137,7 @@ export const openRepo =
     const resolvedRepoPath = await resolveRepoPath(repoPath);
 
     if (!resolvedRepoPath) {
-      dispatch(setError(`Could not open repository: ${repoPath}`));
+      toast.error(`Could not open repository: ${repoPath}`);
       return;
     }
 
@@ -133,7 +147,6 @@ export const openRepo =
 
     if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
       dispatch(setRecentRepos(nextRecentRepos));
-      dispatch(clearError());
       await persistWorkspaceSession(getState);
       return;
     }
@@ -151,7 +164,8 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
   try {
     selected = await desktop.selectFolder();
   } catch (error) {
-    dispatch(setError(error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(`Failed to select folder: ${message}`);
     return;
   }
 
@@ -302,17 +316,86 @@ export const setDiffStyleValue =
     dispatch(setDiffStyle(value));
   };
 
+export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getState) => {
+  const returnToDiff = getState().sourceControl.fileViewerTarget?.returnToDiff;
+  if (!returnToDiff) {
+    return;
+  }
+
+  dispatch(closeFileViewer());
+
+  if (returnToDiff.kind === "changes") {
+    const selection = { bucket: returnToDiff.bucket, path: returnToDiff.path };
+    dispatch(setChangesSidebarMode("changes"));
+    dispatch(setActiveBucket(returnToDiff.bucket));
+    dispatch(setActivePath(returnToDiff.path));
+    dispatch(setSelectedFiles([selection]));
+    dispatch(setSelectionAnchor(selection));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "changes",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  if (returnToDiff.kind === "review") {
+    dispatch(setReviewBaseRef(returnToDiff.baseRef));
+    dispatch(setReviewHeadRef(returnToDiff.headRef));
+    dispatch(setReviewActivePath(returnToDiff.path));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "review",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  dispatch(setChangesSidebarMode("pull-request"));
+  dispatch(setPullRequestReviewTab("files"));
+  dispatch(setPullRequestFilesViewMode("review"));
+  dispatch(setReviewActivePath(returnToDiff.path));
+  dispatch(
+    setPullRequestFileJumpTarget({
+      path: returnToDiff.path,
+      lineNumber: returnToDiff.lineNumber,
+      lineIndex: returnToDiff.lineIndex,
+      focusKey: createFileViewerFocusKey(),
+      threadId: null,
+    }),
+  );
+};
+
+function repoActionLabel(action: RunningAction): string {
+  if (action === "stage-all") return "stage all files";
+  if (action === "unstage-all") return "unstage all files";
+  if (action === "discard-changes") return "discard selected changes";
+  if (action === "commit") return "create commit";
+  if (action.startsWith("file:stage:")) return "stage file";
+  if (action.startsWith("file:unstage:")) return "unstage file";
+  if (action.startsWith("file:discard:")) return "discard file changes";
+  return "run repository action";
+}
+
 const runRepoAction =
   (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     if (!activeRepo) return;
     dispatch(setRunningAction(action));
-    dispatch(clearError());
     try {
       await dispatch(thunk);
     } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
     } finally {
       dispatch(setRunningAction(""));
     }

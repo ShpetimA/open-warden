@@ -37,7 +37,6 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import { FileListRow } from "@/features/source-control/components/FileListRow";
 import { SourceControlFileBrowser } from "@/features/source-control/components/SourceControlFileBrowser";
-import { SourceControlFileViewToggle } from "@/features/source-control/components/SourceControlFileViewToggle";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { FileItem } from "@/features/source-control/types";
 
@@ -148,7 +147,9 @@ function ReviewFileList({
   reviewBaseRef,
   reviewHeadRef,
 }: ReviewFileListProps) {
-  const fileBrowserMode = useAppSelector((state) => state.sourceControl.fileBrowserMode);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
 
   useReviewKeyboardNav();
 
@@ -240,6 +241,7 @@ function ReviewDiffPane({
   branchFiles,
 }: ReviewDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
+  const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
   usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath);
   const previewSelection = useThrottledDiffSelection(
@@ -262,13 +264,25 @@ function ReviewDiffPane({
       : skipToken,
   );
 
-  const reviewVersions = branchFileVersionsQuery.data;
+  const reviewVersions = branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data;
   const oldFile = reviewVersions?.oldFile ?? null;
   const newFile = reviewVersions?.newFile ?? null;
-  const loadingPatch = branchFileVersionsQuery.isFetching;
-  const errorMessage = errorMessageFrom(branchFileVersionsQuery.error, "");
+  const loadingPatch = !reviewVersions && branchFileVersionsQuery.isFetching;
+  const errorMessage = reviewVersions ? "" : errorMessageFrom(branchFileVersionsQuery.error, "");
   const context = { kind: "review" as const, baseRef: reviewBaseRef, headRef: reviewHeadRef };
   const previewPath = previewSelection?.path ?? "";
+  const focusedLineNumber =
+    diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineNumber
+      : null;
+  const focusedLineIndex =
+    diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineIndex
+      : null;
+  const focusedLineKey =
+    diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.focusKey
+      : null;
 
   return (
     <section className="flex h-full min-h-0 flex-col">
@@ -282,13 +296,20 @@ function ReviewDiffPane({
         ) : !oldFile && !newFile ? (
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
-          <DiffWorkspace
-            oldFile={oldFile}
-            newFile={newFile}
-            activePath={previewPath}
-            commentContext={context}
-            canComment
-          />
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <DiffWorkspace
+              oldFile={oldFile}
+              newFile={newFile}
+              activePath={previewPath}
+              commentContext={context}
+              canComment
+              fileViewerRevision={reviewHeadRef}
+              lspJumpContextKind="review"
+              focusedLineNumber={focusedLineNumber}
+              focusedLineIndex={focusedLineIndex}
+              focusedLineKey={focusedLineKey}
+            />
+          </div>
         )}
       </div>
     </section>
@@ -365,11 +386,8 @@ export function ReviewScreen() {
       sidebar={
         <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
           <div className="border-border border-b p-2.5">
-            <div className="flex items-center gap-2">
-              <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-                BRANCH REVIEW
-              </div>
-              <SourceControlFileViewToggle className="ml-auto" />
+            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+              BRANCH REVIEW
             </div>
             <div className="border-input bg-surface mt-2 rounded-md border p-2">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-1.5">

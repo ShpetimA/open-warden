@@ -1,0 +1,16 @@
+export {
+  connectProvider,
+  disconnectProvider,
+  listProviderConnections,
+} from "./hosted-repos/providers";
+export { parseRemoteUrl, resolveHostedRepo } from "./hosted-repos/repository";
+export {
+  addPullRequestComment,
+  getPullRequestConversation,
+  getPullRequestFiles,
+  getPullRequestPatch,
+  listPullRequests,
+  replyToPullRequestThread,
+  setPullRequestThreadResolved,
+} from "./hosted-repos/pullRequests";
+export { preparePullRequestWorkspace, resolvePullRequestWorkspace } from "./hosted-repos/workspace";

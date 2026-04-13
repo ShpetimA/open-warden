@@ -45,11 +45,11 @@ export function HistoryScreen() {
         }
       : skipToken,
   );
-  const fileVersions = historyFileVersions.data;
-  const loadingPatch = historyFileVersions.isFetching;
+  const fileVersions = historyFileVersions.currentData ?? historyFileVersions.data;
+  const loadingPatch = !fileVersions && historyFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
-  const errorMessage = errorMessageFrom(historyFileVersions.error, "");
+  const errorMessage = fileVersions ? "" : errorMessageFrom(historyFileVersions.error, "");
   const previewPath = previewSelection?.path ?? "";
 
   return (
@@ -73,13 +73,16 @@ export function HistoryScreen() {
             ) : !oldFile && !newFile ? (
               <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
             ) : (
-              <DiffWorkspace
-                oldFile={oldFile}
-                newFile={newFile}
-                activePath={previewPath}
-                commentContext={{ kind: "changes" }}
-                canComment={false}
-              />
+              <div className="flex h-full min-h-0 min-w-0 flex-col">
+                <DiffWorkspace
+                  oldFile={oldFile}
+                  newFile={newFile}
+                  activePath={previewPath}
+                  commentContext={{ kind: "changes" }}
+                  canComment={false}
+                  fileViewerRevision={historyCommitId}
+                />
+              </div>
             )}
           </div>
         </section>

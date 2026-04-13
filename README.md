@@ -52,3 +52,71 @@ To build a local macOS Electron package:
 ```bash
 pnpm build:electron
 ```
+
+## LSP support (desktop app)
+
+OpenWarden can show diagnostics and code navigation in diffs by connecting to Language Server Protocol (LSP) servers.
+
+How server resolution works:
+
+1. Per-language override from OpenWarden global `settings.json` (`lsp.servers.<languageId>`).
+2. Auto-detect known language server binaries from your system `PATH`.
+3. If nothing is found, LSP for that language stays disabled until configured/installed.
+
+### Install language servers globally
+
+Install the servers you want on your machine (examples):
+
+```bash
+# TypeScript / JavaScript
+npm i -g typescript typescript-language-server
+
+# Python
+npm i -g pyright
+# (or install pylsp via pip if you prefer python-lsp-server)
+
+# Go
+go install golang.org/x/tools/gopls@latest
+
+# Rust
+rustup component add rust-analyzer
+```
+
+### Configure overrides (optional)
+
+In OpenWarden, go to `Settings` and click `Open JSON` to edit the global settings file.
+
+Example:
+
+```json
+{
+  "version": 1,
+  "sourceControl": {
+    "fileTreeRenderMode": "tree"
+  },
+  "lsp": {
+    "servers": {
+      "typescript": {
+        "command": "typescript-language-server",
+        "args": ["--stdio"],
+        "extensions": ["ts", "tsx", "mts", "cts"]
+      },
+      "python": {
+        "command": "pyright-langserver",
+        "args": ["--stdio"],
+        "extensions": ["py"]
+      },
+      "eslint": {
+        "command": "vscode-eslint-language-server",
+        "args": ["--stdio"],
+        "extensions": ["js", "jsx", "mjs", "cjs"]
+      }
+    }
+  }
+}
+```
+
+Notes:
+
+- `extensions` entries can be with or without a leading dot (for example `ts` or `.ts`).
+- ESLint is supported as an LSP server (`vscode-eslint-language-server`) and can be configured like any other language server.

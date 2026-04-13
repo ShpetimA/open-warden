@@ -10,7 +10,6 @@ import {
   removeCommentsByIds as removeCommentsByIdsAction,
   updateComment as updateCommentAction,
 } from "@/features/comments/commentsSlice";
-import { setError } from "@/features/source-control/sourceControlSlice";
 import type {
   Bucket,
   CommentContext,
@@ -132,22 +131,20 @@ export const copyComments =
       dispatch(removeCommentsByIdsAction(sourceIds));
       dispatch(setLastCopiedPayload(payload));
       return { ok: true, copiedCount: source.length, clearedCount: source.length };
-    } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+    } catch {
       return { ok: false, copiedCount: 0, clearedCount: 0 };
     }
   };
 
 export const copyLastCommentsPayload =
-  (): AppThunk<Promise<{ ok: boolean }>> => async (dispatch, getState) => {
+  (): AppThunk<Promise<{ ok: boolean }>> => async (_dispatch, getState) => {
     const payload = getState().commentsClipboard.lastCopiedPayload;
     if (!payload) return { ok: false };
 
     try {
       await navigator.clipboard.writeText(payload);
       return { ok: true };
-    } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+    } catch {
       return { ok: false };
     }
   };

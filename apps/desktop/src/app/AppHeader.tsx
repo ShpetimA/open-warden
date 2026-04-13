@@ -6,6 +6,7 @@ import {
   PanelRightOpen,
   RotateCcw,
   Search,
+  Settings2,
 } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "react-router";
@@ -23,7 +24,7 @@ import { countCommentsForRepoContext } from "@/features/comments/selectors";
 import type { CommentContext } from "@/features/source-control/types";
 
 type AppHeaderProps = {
-  activeFeature: FeatureKey;
+  activeFeature: FeatureKey | null;
   onOpenCommandPalette: () => void;
 };
 
@@ -47,10 +48,16 @@ function sidebarShortcut(icon: "left" | "right") {
 
 function getCommentContext(
   activeFeature: FeatureKey,
+  changesSidebarMode: string,
   reviewBaseRef: string,
   reviewHeadRef: string,
 ): CommentContext | null {
-  if (activeFeature === "review") {
+  const isReviewFeature =
+    activeFeature === "review" ||
+    activeFeature === "pull-requests" ||
+    (activeFeature === "changes" && changesSidebarMode === "pull-request");
+
+  if (isReviewFeature) {
     if (!reviewBaseRef || !reviewHeadRef) return null;
     return { kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef };
   }
@@ -64,6 +71,7 @@ function selectHeaderCommentContext(
 ): CommentContext | null {
   return getCommentContext(
     activeFeature,
+    state.sourceControl.changesSidebarMode,
     state.sourceControl.reviewBaseRef,
     state.sourceControl.reviewHeadRef,
   );
@@ -119,7 +127,12 @@ function HeaderCommentActions({ activeFeature }: HeaderCommentActionsProps) {
   if (!shouldShowButton) return null;
 
   const isRecopyMode = !hasComments && hasLastCopiedPayload;
-  const tooltipText = isRecopyMode ? "Copy last comments payload" : "Copy all comments (⌘⌥C)";
+  const isReviewContext = commentContext?.kind === "review";
+  const tooltipText = isRecopyMode
+    ? "Copy last comments payload"
+    : isReviewContext
+      ? "Copy local review comments (⌘⌥C)"
+      : "Copy all comments (⌘⌥C)";
 
   return (
     <TooltipProvider>
@@ -157,6 +170,10 @@ function HeaderSidebarToggles({ activeFeature }: HeaderSidebarTogglesProps) {
   const { panels, toggle } = useSidebarPanelRegistry();
   const sidebars = FEATURE_SIDEBARS[activeFeature];
   useSidebarToggleHotkeys({ activeFeature, toggle });
+
+  if (sidebars.length === 0) {
+    return null;
+  }
 
   return (
     <TooltipProvider>
@@ -212,7 +229,7 @@ function HeaderSidebarToggles({ activeFeature }: HeaderSidebarTogglesProps) {
 }
 
 type HeaderFeatureNavProps = {
-  activeFeature: FeatureKey;
+  activeFeature: FeatureKey | null;
 };
 
 function HeaderFeatureNav({ activeFeature }: HeaderFeatureNavProps) {
@@ -247,16 +264,30 @@ function HeaderFeatureNav({ activeFeature }: HeaderFeatureNavProps) {
 }
 
 type HeaderActionsProps = {
-  activeFeature: FeatureKey;
+  activeFeature: FeatureKey | null;
   onOpenCommandPalette: () => void;
 };
 
 function HeaderActions({ activeFeature, onOpenCommandPalette }: HeaderActionsProps) {
+  const navigate = useNavigate();
+
   return (
     <div className="app-no-drag flex min-w-0 items-center justify-self-end gap-1.5">
-      <HeaderCommentActions activeFeature={activeFeature} />
+      {activeFeature ? <HeaderCommentActions activeFeature={activeFeature} /> : null}
 
       <DesktopUpdateButton />
+
+      <button
+        type="button"
+        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+        onClick={() => {
+          navigate("/settings");
+        }}
+        title="Open Settings"
+        aria-label="Open settings"
+      >
+        <Settings2 className="h-3.5 w-3.5" />
+      </button>
 
       <button
         type="button"
@@ -277,7 +308,7 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
   return (
     <header className="app-drag-region border-border bg-surface-toolbar grid h-14 select-none grid-cols-[1fr_auto_1fr] items-center gap-3 border-b pl-22 pr-3">
       <div className="min-w-0">
-        <HeaderSidebarToggles activeFeature={activeFeature} />
+        {activeFeature ? <HeaderSidebarToggles activeFeature={activeFeature} /> : null}
       </div>
 
       <div className="min-w-0 justify-self-center">

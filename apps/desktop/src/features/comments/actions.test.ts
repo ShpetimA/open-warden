@@ -144,7 +144,6 @@ describe("comments actions", () => {
     expect(result).toEqual({ ok: false, copiedCount: 0, clearedCount: 0 });
     expect(commentIds(store)).toEqual(["c1", "c2"]);
     expect(store.getState().commentsClipboard.lastCopiedPayload).toBe("old payload");
-    expect(store.getState().sourceControl.error).toBe("clipboard denied");
   });
 
   it("copies last payload when available", async () => {

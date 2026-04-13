@@ -1,6 +1,14 @@
 import { desktop } from "@/platform/desktop";
 
-import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from "../types";
+import type {
+  Bucket,
+  DiffFile,
+  FileItem,
+  FileVersions,
+  GitSnapshot,
+  HistoryCommit,
+  RepoFileItem,
+} from "../types";
 
 type DiscardFileRequest = {
   relPath: string;
@@ -9,6 +17,10 @@ type DiscardFileRequest = {
 
 export async function getGitSnapshot(repoPath: string) {
   return desktop.getGitSnapshot(repoPath) as Promise<GitSnapshot>;
+}
+
+export async function getRepoFiles(repoPath: string) {
+  return desktop.getRepoFiles(repoPath) as Promise<RepoFileItem[]>;
 }
 
 export async function getCommitHistory(repoPath: string, limit?: number) {
@@ -25,6 +37,10 @@ export async function getBranchFiles(repoPath: string, baseRef: string, headRef:
 
 export async function getCommitFiles(repoPath: string, commitId: string) {
   return desktop.getCommitFiles(repoPath, commitId) as Promise<FileItem[]>;
+}
+
+export async function getRepoFile(repoPath: string, relPath: string, revision?: string | null) {
+  return desktop.getRepoFile({ repoPath, relPath, revision }) as Promise<DiffFile | null>;
 }
 
 export async function getCommitFileVersions(
