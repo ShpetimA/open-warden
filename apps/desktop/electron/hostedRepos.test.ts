@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRemoteUrl } from "./hostedRepos";
+import { parseRemoteUrl } from "./hosted-repos/repository";
 
 describe("parseRemoteUrl", () => {
   it("parses GitHub HTTPS remotes", () => {
