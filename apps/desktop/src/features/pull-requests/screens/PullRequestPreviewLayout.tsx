@@ -64,7 +64,7 @@ export function PullRequestPreviewLayout() {
   return (
     <div className="flex h-full min-h-0">
       <PullRequestPreviewModeRail activeTab={activeTab} onTabChange={handleTabChange} />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 h-full">
         <Outlet />
       </div>
     </div>
