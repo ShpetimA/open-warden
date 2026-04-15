@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { GitBranch, GitPullRequest, Plug, Unplug } from "lucide-react";
 
-import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
   useDisconnectProviderMutation,
@@ -12,7 +12,6 @@ import {
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
-import { setChangesSidebarMode } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
 import {
@@ -92,7 +91,6 @@ function PullRequestRow({
 
 export function PullRequestsScreen() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
@@ -148,10 +146,6 @@ export function PullRequestsScreen() {
       }),
     },
   );
-
-  useEffect(() => {
-    dispatch(setChangesSidebarMode("pull-requests"));
-  }, [dispatch]);
 
   useEffect(() => {
     setPullRequestsPage(1);

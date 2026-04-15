@@ -12,7 +12,6 @@ import {
   clearCurrentPullRequestReview,
   setPullRequestFilesViewMode,
   setPullRequestFileJumpTarget,
-  setPullRequestReviewTab,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
 import { gitApi } from "./api";
@@ -26,7 +25,6 @@ import {
   setActiveBucket,
   setActivePath,
   setActiveRepo,
-  setChangesSidebarMode,
   setCommitMessage,
   setDiffFocusTarget,
   setDiffStyle,
@@ -367,7 +365,6 @@ export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getSt
 
   if (returnToDiff.kind === "changes") {
     const selection = { bucket: returnToDiff.bucket, path: returnToDiff.path };
-    dispatch(setChangesSidebarMode("changes"));
     dispatch(setActiveBucket(returnToDiff.bucket));
     dispatch(setActivePath(returnToDiff.path));
     dispatch(setSelectedFiles([selection]));
@@ -400,8 +397,6 @@ export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getSt
     return;
   }
 
-  dispatch(setChangesSidebarMode("pull-request"));
-  dispatch(setPullRequestReviewTab("files"));
   dispatch(setPullRequestFilesViewMode("review"));
   dispatch(setReviewActivePath(returnToDiff.path));
   dispatch(

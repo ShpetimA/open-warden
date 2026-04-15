@@ -48,6 +48,7 @@ export function AppShell() {
         <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
           <AppHeader
             activeFeature={activeFeature}
+            currentPath={location.pathname}
             onOpenCommandPalette={() => {
               setCommandPaletteOpen(true);
             }}

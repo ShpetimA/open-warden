@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile, Virtualizer } from "@pierre/diffs/react";
 import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router";
 import { useTheme } from "next-themes";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -52,7 +53,14 @@ function formatReturnToDiffLabel(target: DiffReturnTarget) {
   return `${target.path}${lineLabel} · Pull Request`;
 }
 
+function returnToDiffPath(target: DiffReturnTarget) {
+  if (target.kind === "changes") return "/changes";
+  if (target.kind === "review") return "/review";
+  return "/changes/pull-request/files";
+}
+
 export function GeneralFileViewer(_props: GeneralFileViewerProps) {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { resolvedTheme } = useTheme();
   const target = useAppSelector((state) => state.sourceControl.fileViewerTarget);
@@ -114,6 +122,7 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
               size="sm"
               variant="secondary"
               onClick={() => {
+                navigate(returnToDiffPath(returnToDiffTarget));
                 dispatch(navigateBackToDiffFromFileViewer());
               }}
             >

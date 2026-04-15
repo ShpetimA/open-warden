@@ -121,7 +121,7 @@ export const PullRequestOverview = () => {
     setOpeningMode(null);
 
     if (result.workspace) {
-      navigate("/changes");
+      navigate("/changes/pull-request/files");
       return;
     }
 

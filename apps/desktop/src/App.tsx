@@ -11,8 +11,12 @@ import { PullRequestConversation } from "@/features/pull-requests/screens/PullRe
 import { PullRequestFiles } from "@/features/pull-requests/screens/PullRequestFiles";
 import { PullRequestOverview } from "@/features/pull-requests/screens/PullRequestOverview";
 import { PullRequestPreviewLayout } from "@/features/pull-requests/screens/PullRequestPreviewLayout";
+import { PullRequestReviewChecksScreen } from "@/features/pull-requests/screens/PullRequestReviewChecksScreen";
+import { PullRequestReviewConversationScreen } from "@/features/pull-requests/screens/PullRequestReviewConversationScreen";
+import { PullRequestReviewFilesScreen } from "@/features/pull-requests/screens/PullRequestReviewFilesScreen";
 import { PullRequestsScreen } from "@/features/pull-requests/screens/PullRequestsScreen";
 import { SettingsScreen } from "@/features/settings/screens/SettingsScreen";
+import { ChangesFilesScreen } from "@/features/source-control/screens/ChangesFilesScreen";
 import { ChangesScreen } from "@/features/source-control/screens/ChangesScreen";
 import { HistoryScreen } from "@/features/source-control/screens/HistoryScreen";
 import { ReviewScreen } from "@/features/source-control/screens/ReviewScreen";
@@ -40,6 +44,31 @@ const router = createHashRouter([
               {
                 index: true,
                 element: <ChangesScreen />,
+              },
+              {
+                path: "files",
+                element: <ChangesFilesScreen />,
+              },
+              {
+                path: "pull-request",
+                children: [
+                  {
+                    index: true,
+                    element: <Navigate to="files" replace />,
+                  },
+                  {
+                    path: "files",
+                    element: <PullRequestReviewFilesScreen />,
+                  },
+                  {
+                    path: "conversation",
+                    element: <PullRequestReviewConversationScreen />,
+                  },
+                  {
+                    path: "checks",
+                    element: <PullRequestReviewChecksScreen />,
+                  },
+                ],
               },
             ],
           },

@@ -28,7 +28,7 @@ import {
 } from "./keyboardNavigation";
 import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
-export function useChangesKeyboardNav() {
+export function useChangesKeyboardNav(mode: "changes" | "files") {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
 
@@ -38,7 +38,6 @@ export function useChangesKeyboardNav() {
       activeBucket,
       activePath,
       activeRepo,
-      changesSidebarMode,
       collapseStaged,
       collapseUnstaged,
       repoTreeActivePath,
@@ -57,7 +56,6 @@ export function useChangesKeyboardNav() {
       activeRepo,
       collapseStaged,
       collapseUnstaged,
-      changesSidebarMode,
       repoTreeActivePath,
       runningAction,
       repoFiles,
@@ -81,7 +79,6 @@ export function useChangesKeyboardNav() {
       activeBucket,
       activePath,
       activeRepo,
-      changesSidebarMode,
       collapseStaged,
       collapseUnstaged,
       repoFiles,
@@ -89,7 +86,7 @@ export function useChangesKeyboardNav() {
       snapshot,
     } = getNavigationData();
 
-    if (changesSidebarMode === "files") {
+    if (mode === "files") {
       if (!activeRepo) {
         return;
       }
@@ -176,8 +173,8 @@ export function useChangesKeyboardNav() {
 
   const stageOrUnstageSelection = (event: KeyboardEvent) => {
     if (isTypingTarget(event.target)) return;
-    const { changesSidebarMode, runningAction } = getNavigationData();
-    if (changesSidebarMode !== "changes") return;
+    const { runningAction } = getNavigationData();
+    if (mode !== "changes") return;
     if (runningAction) return;
     event.preventDefault();
     void dispatch(stageOrUnstageSelectionAction());

@@ -5,6 +5,7 @@ import {
   MessagesSquare,
   ShieldCheck,
 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { useResolvePullRequestWorkspaceQuery } from "@/features/hosted-repos/api";
@@ -12,31 +13,33 @@ import { PullRequestFilesTab } from "@/features/pull-requests/components/PullReq
 import {
   createPullRequestReviewSession,
   setCurrentPullRequestReview,
-  setPullRequestReviewTab,
+  setPullRequestFilesViewMode,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { refreshActiveRepo } from "@/features/source-control/actions";
 import {
   clearReviewSelection,
-  setChangesSidebarMode,
   setReviewBaseRef,
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
 
+import CurrentRepositoryHeader from "@/features/source-control/components/CurrentRepoHeader";
 import { ChangesTab } from "./ChangesTab";
 import { RepoFilesTab } from "./RepoFilesTab";
-import CurrentRepositoryHeader from "@/features/source-control/components/CurrentRepoHeader";
-
 
 type ChangesSidebarProps = {
   activeBranch?: string;
 };
 
+function isRoute(pathname: string, target: string) {
+  return pathname === target || pathname.startsWith(`${target}/`);
+}
+
 export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const changesSidebarMode = useAppSelector((state) => state.sourceControl.changesSidebarMode);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
-  const activeReviewTab = useAppSelector((state) => state.pullRequests.activeReviewTab);
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
 
@@ -45,15 +48,31 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
     selectFromResult: ({ data }) => ({ data }),
   });
 
-  const openPullRequestReview = (tab: "files" | "conversation" | "checks") => {
-    if (!pullRequestWorkspace) return;
+  const isRepoFilesRoute = isRoute(location.pathname, "/changes/files");
+  const isPullRequestFilesRoute = isRoute(location.pathname, "/changes/pull-request/files");
+  const isPullRequestConversationRoute = isRoute(
+    location.pathname,
+    "/changes/pull-request/conversation",
+  );
+  const isPullRequestChecksRoute = isRoute(location.pathname, "/changes/pull-request/checks");
+  const isPullRequestRoute = isRoute(location.pathname, "/changes/pull-request");
+  const isChangesRoute = !isRepoFilesRoute && !isPullRequestRoute;
+
+  const openPullRequestReview = (view: "files" | "conversation" | "checks") => {
+    if (!pullRequestWorkspace) {
+      return;
+    }
 
     dispatch(clearReviewSelection());
     dispatch(setReviewBaseRef(pullRequestWorkspace.compareBaseRef));
     dispatch(setReviewHeadRef(pullRequestWorkspace.compareHeadRef));
     dispatch(setCurrentPullRequestReview(createPullRequestReviewSession(pullRequestWorkspace)));
-    dispatch(setChangesSidebarMode("pull-request"));
-    dispatch(setPullRequestReviewTab(tab));
+
+    if (view === "files") {
+      dispatch(setPullRequestFilesViewMode("review"));
+    }
+
+    navigate(`/changes/pull-request/${view}`);
   };
 
   return (
@@ -62,14 +81,14 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
         <button
           type="button"
           className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${
-            changesSidebarMode === "changes"
+            isChangesRoute
               ? "bg-secondary text-secondary-foreground"
               : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
           }`}
           aria-label="Source control view"
           title="Source control view"
           onClick={() => {
-            dispatch(setChangesSidebarMode("changes"));
+            navigate("/changes");
           }}
         >
           <GitPullRequestArrow className="h-4 w-4" />
@@ -77,14 +96,14 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
         <button
           type="button"
           className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${
-            changesSidebarMode === "files"
+            isRepoFilesRoute
               ? "bg-secondary text-secondary-foreground"
               : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
           }`}
           aria-label="Repository files view"
           title="Repository files view"
           onClick={() => {
-            dispatch(setChangesSidebarMode("files"));
+            navigate("/changes/files");
           }}
         >
           <Files className="h-4 w-4" />
@@ -95,7 +114,7 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
             <button
               type="button"
               className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${
-                changesSidebarMode === "pull-request" && activeReviewTab === "files"
+                isPullRequestFilesRoute
                   ? "bg-secondary text-secondary-foreground"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
               }`}
@@ -110,7 +129,7 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
             <button
               type="button"
               className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${
-                changesSidebarMode === "pull-request" && activeReviewTab === "conversation"
+                isPullRequestConversationRoute
                   ? "bg-secondary text-secondary-foreground"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
               }`}
@@ -125,7 +144,7 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
             <button
               type="button"
               className={`inline-flex h-8 w-8 items-center justify-center rounded-md ${
-                changesSidebarMode === "pull-request" && activeReviewTab === "checks"
+                isPullRequestChecksRoute
                   ? "bg-secondary text-secondary-foreground"
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
               }`}
@@ -151,13 +170,13 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
           }}
         />
 
-        {changesSidebarMode === "pull-request" ? (
+        {isPullRequestRoute ? (
           <PullRequestFilesTab
             activeRepo={activeRepo}
             reviewBaseRef={reviewBaseRef}
             reviewHeadRef={reviewHeadRef}
           />
-        ) : changesSidebarMode === "files" ? (
+        ) : isRepoFilesRoute ? (
           <RepoFilesTab />
         ) : (
           <ChangesTab />
@@ -166,4 +185,3 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
     </aside>
   );
 }
-

@@ -6,13 +6,11 @@ import {
   clearCurrentPullRequestReview,
   createPullRequestReviewSession,
   setCurrentPullRequestReview,
-  setPullRequestReviewTab,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { openRepo, refreshActiveRepo } from "@/features/source-control/actions";
 import {
   clearReviewSelection,
   resetRepoViewState,
-  setChangesSidebarMode,
   setReviewBaseRef,
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
@@ -72,8 +70,6 @@ export const openPullRequestReview =
       dispatch(setReviewBaseRef(preparedWorkspace.compareBaseRef));
       dispatch(setReviewHeadRef(preparedWorkspace.compareHeadRef));
       dispatch(setCurrentPullRequestReview(createPullRequestReviewSession(preparedWorkspace)));
-      dispatch(setPullRequestReviewTab("files"));
-      dispatch(setChangesSidebarMode("pull-request"));
       return { workspace: preparedWorkspace, errorMessage: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

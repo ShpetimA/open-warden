@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   CheckCheck,
   ChevronDown,
@@ -27,10 +28,7 @@ import {
   copyToClipboard,
   toDisplayDate,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
-import {
-  setActiveConversationThreadId,
-  setPullRequestReviewTab,
-} from "@/features/pull-requests/pullRequestsSlice";
+import { setActiveConversationThreadId } from "@/features/pull-requests/pullRequestsSlice";
 import type { GitProviderId, PullRequestReviewThread } from "@/platform/desktop";
 
 type PullRequestInlineReviewThreadProps = {
@@ -55,6 +53,7 @@ export function PullRequestInlineReviewThread({
   onOpenFile,
 }: PullRequestInlineReviewThreadProps) {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const activeThreadId = useAppSelector((state) => state.pullRequests.activeConversationThreadId);
   const currentReviewProviderId = useAppSelector(
     (state) => state.pullRequests.currentReview?.providerId ?? null,
@@ -125,6 +124,11 @@ export function PullRequestInlineReviewThread({
     }
   }
 
+  const openConversation = () => {
+    dispatch(setActiveConversationThreadId(thread.id));
+    navigate("../conversation", { relative: "path" });
+  };
+
   return (
     <section
       className={`border-border/60 border bg-surface-alt/55 ${
@@ -151,10 +155,7 @@ export function PullRequestInlineReviewThread({
             <button
               type="button"
               className="text-[13px] font-semibold hover:underline"
-              onClick={() => {
-                dispatch(setActiveConversationThreadId(thread.id));
-                dispatch(setPullRequestReviewTab("conversation"));
-              }}
+              onClick={openConversation}
             >
               Comment on line {lineLabel}
             </button>
@@ -189,10 +190,7 @@ export function PullRequestInlineReviewThread({
               variant="ghost"
               size="sm"
               className={compactButtonClass}
-              onClick={() => {
-                dispatch(setActiveConversationThreadId(thread.id));
-                dispatch(setPullRequestReviewTab("conversation"));
-              }}
+              onClick={openConversation}
             >
               <MessagesSquare className="h-3 w-3" />
               Conversation

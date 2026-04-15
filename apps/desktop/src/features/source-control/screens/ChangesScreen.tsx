@@ -5,26 +5,21 @@ import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
-import { useGetFileVersionsQuery } from "@/features/source-control/api";
-import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
+import { useGetFileVersionsQuery, useGetGitSnapshotQuery } from "@/features/source-control/api";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { usePrefetchChangesDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import type { BucketedFile } from "@/features/source-control/types";
-import { PullRequestReviewScreen } from "@/features/pull-requests/screens/PullRequestReviewScreen";
 
-function LocalChangesScreen() {
-  useChangesKeyboardNav();
+export function ChangesScreen() {
+  useChangesKeyboardNav("changes");
   useChangesSync();
 
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
-  const changesSidebarMode = useAppSelector((state) => state.sourceControl.changesSidebarMode);
-  const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
@@ -90,19 +85,12 @@ function LocalChangesScreen() {
     diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
       ? diffFocusTarget.focusKey
       : null;
-  const showingFilesView = changesSidebarMode === "files";
 
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <section className="flex h-full min-h-0 min-w-0 flex-col">
         <div className="min-h-0 min-w-0 flex-1">
-          {showingFilesView ? (
-            fileViewerTarget ? (
-              <GeneralFileViewer />
-            ) : (
-              <div className="text-muted-foreground p-3 text-sm">Select a file from the tree.</div>
-            )
-          ) : errorMessage ? (
+          {errorMessage ? (
             <div className="text-destructive p-3 text-sm">{errorMessage}</div>
           ) : loadingPatch ? (
             <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
@@ -133,14 +121,4 @@ function LocalChangesScreen() {
       </section>
     </div>
   );
-}
-
-export function ChangesScreen() {
-  const changesSidebarMode = useAppSelector((state) => state.sourceControl.changesSidebarMode);
-
-  if (changesSidebarMode === "pull-request") {
-    return <PullRequestReviewScreen />;
-  }
-
-  return <LocalChangesScreen />;
 }

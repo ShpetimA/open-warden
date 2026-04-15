@@ -25,6 +25,7 @@ import type { CommentContext } from "@/features/source-control/types";
 
 type AppHeaderProps = {
   activeFeature: FeatureKey | null;
+  currentPath: string;
   onOpenCommandPalette: () => void;
 };
 
@@ -48,14 +49,14 @@ function sidebarShortcut(icon: "left" | "right") {
 
 function getCommentContext(
   activeFeature: FeatureKey,
-  changesSidebarMode: string,
+  currentPath: string,
   reviewBaseRef: string,
   reviewHeadRef: string,
 ): CommentContext | null {
   const isReviewFeature =
     activeFeature === "review" ||
     activeFeature === "pull-requests" ||
-    (activeFeature === "changes" && changesSidebarMode === "pull-request");
+    (activeFeature === "changes" && currentPath.startsWith("/changes/pull-request"));
 
   if (isReviewFeature) {
     if (!reviewBaseRef || !reviewHeadRef) return null;
@@ -68,20 +69,25 @@ function getCommentContext(
 function selectHeaderCommentContext(
   state: RootState,
   activeFeature: FeatureKey,
+  currentPath: string,
 ): CommentContext | null {
   return getCommentContext(
     activeFeature,
-    state.sourceControl.changesSidebarMode,
+    currentPath,
     state.sourceControl.reviewBaseRef,
     state.sourceControl.reviewHeadRef,
   );
 }
 
-function selectHeaderCommentCount(state: RootState, activeFeature: FeatureKey): number {
+function selectHeaderCommentCount(
+  state: RootState,
+  activeFeature: FeatureKey,
+  currentPath: string,
+): number {
   const activeRepo = state.sourceControl.activeRepo;
   if (!activeRepo) return 0;
 
-  const commentContext = selectHeaderCommentContext(state, activeFeature);
+  const commentContext = selectHeaderCommentContext(state, activeFeature, currentPath);
   if (!commentContext) return 0;
 
   return countCommentsForRepoContext(state.comments, activeRepo, commentContext);
@@ -89,14 +95,17 @@ function selectHeaderCommentCount(state: RootState, activeFeature: FeatureKey): 
 
 type HeaderCommentActionsProps = {
   activeFeature: FeatureKey;
+  currentPath: string;
 };
 
-function HeaderCommentActions({ activeFeature }: HeaderCommentActionsProps) {
+function HeaderCommentActions({ activeFeature, currentPath }: HeaderCommentActionsProps) {
   const dispatch = useAppDispatch();
   const commentContext = useAppSelector((state) =>
-    selectHeaderCommentContext(state, activeFeature),
+    selectHeaderCommentContext(state, activeFeature, currentPath),
   );
-  const commentCount = useAppSelector((state) => selectHeaderCommentCount(state, activeFeature));
+  const commentCount = useAppSelector((state) =>
+    selectHeaderCommentCount(state, activeFeature, currentPath),
+  );
   const hasLastCopiedPayload = useAppSelector(
     (state) => state.commentsClipboard.lastCopiedPayload.length > 0,
   );
@@ -265,15 +274,18 @@ function HeaderFeatureNav({ activeFeature }: HeaderFeatureNavProps) {
 
 type HeaderActionsProps = {
   activeFeature: FeatureKey | null;
+  currentPath: string;
   onOpenCommandPalette: () => void;
 };
 
-function HeaderActions({ activeFeature, onOpenCommandPalette }: HeaderActionsProps) {
+function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: HeaderActionsProps) {
   const navigate = useNavigate();
 
   return (
     <div className="app-no-drag flex min-w-0 items-center justify-self-end gap-1.5">
-      {activeFeature ? <HeaderCommentActions activeFeature={activeFeature} /> : null}
+      {activeFeature ? (
+        <HeaderCommentActions activeFeature={activeFeature} currentPath={currentPath} />
+      ) : null}
 
       <DesktopUpdateButton />
 
@@ -304,7 +316,7 @@ function HeaderActions({ activeFeature, onOpenCommandPalette }: HeaderActionsPro
   );
 }
 
-export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProps) {
+export function AppHeader({ activeFeature, currentPath, onOpenCommandPalette }: AppHeaderProps) {
   return (
     <header className="app-drag-region border-border bg-surface-toolbar grid h-14 select-none grid-cols-[1fr_auto_1fr] items-center gap-3 border-b pl-22 pr-3">
       <div className="min-w-0">
@@ -315,7 +327,11 @@ export function AppHeader({ activeFeature, onOpenCommandPalette }: AppHeaderProp
         <HeaderFeatureNav activeFeature={activeFeature} />
       </div>
 
-      <HeaderActions activeFeature={activeFeature} onOpenCommandPalette={onOpenCommandPalette} />
+      <HeaderActions
+        activeFeature={activeFeature}
+        currentPath={currentPath}
+        onOpenCommandPalette={onOpenCommandPalette}
+      />
     </header>
   );
 }
