@@ -128,6 +128,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Pull request comments";
     case "replyToPullRequestThread":
       return "Pull request thread replies";
+    case "submitPullRequestReviewComments":
+      return "Pull request review comment submission";
     case "setPullRequestThreadResolved":
       return "Pull request thread resolution";
     case "preparePullRequestCompareRefs":

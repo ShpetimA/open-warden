@@ -239,6 +239,26 @@ export type ReplyToPullRequestThreadInput = PullRequestLocatorInput & {
   body: string;
 };
 
+export type PullRequestReviewDraftCommentInput = {
+  draftId: string;
+  path: string;
+  body: string;
+  line: number;
+  side: "LEFT" | "RIGHT";
+  startLine?: number | null;
+  startSide?: "LEFT" | "RIGHT" | null;
+};
+
+export type SubmitPullRequestReviewCommentsInput = PullRequestLocatorInput & {
+  comments: PullRequestReviewDraftCommentInput[];
+};
+
+export type SubmitPullRequestReviewCommentsResult = {
+  submittedDraftIds: string[];
+  failedDraftId: string | null;
+  failedMessage: string | null;
+};
+
 export type SetPullRequestThreadResolvedInput = PullRequestLocatorInput & {
   threadId: string;
   resolved: boolean;
@@ -370,6 +390,9 @@ export type DesktopApi = {
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
   replyToPullRequestThread(input: ReplyToPullRequestThreadInput): Promise<PullRequestReviewThread>;
+  submitPullRequestReviewComments(
+    input: SubmitPullRequestReviewCommentsInput,
+  ): Promise<SubmitPullRequestReviewCommentsResult>;
   setPullRequestThreadResolved(
     input: SetPullRequestThreadResolvedInput,
   ): Promise<PullRequestReviewThread>;

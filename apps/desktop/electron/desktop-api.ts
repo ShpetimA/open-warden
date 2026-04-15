@@ -15,6 +15,7 @@ import {
   resolveHostedRepo,
   resolvePullRequestWorkspace,
   setPullRequestThreadResolved,
+  submitPullRequestReviewComments,
 } from "./hostedRepos";
 import {
   commitStaged,
@@ -66,6 +67,7 @@ export const desktopApi: DesktopApi = {
   getPullRequestPatch,
   addPullRequestComment,
   replyToPullRequestThread,
+  submitPullRequestReviewComments,
   setPullRequestThreadResolved,
   preparePullRequestCompareRefs,
   preparePullRequestWorkspace,

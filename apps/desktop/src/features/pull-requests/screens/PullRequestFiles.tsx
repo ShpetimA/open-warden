@@ -3,7 +3,8 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { FileCode2, Filter, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
-import { useAppSelector } from "@/app/hooks";
+import { toast } from "sonner";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
@@ -26,8 +27,14 @@ import {
   useGetPullRequestFilesQuery,
   usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
+  useSubmitPullRequestReviewCommentsMutation,
 } from "@/features/hosted-repos/api";
+import { removeCommentsByIds } from "@/features/comments/commentsSlice";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
+import {
+  buildSubmitPullRequestReviewCommentsInput,
+  getPendingReviewCommentsForContext,
+} from "@/features/pull-requests/utils/pendingReviewComments";
 import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
 import {
   buildPullRequestThreadAnnotations,
@@ -37,6 +44,7 @@ import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { FileListRow } from "@/features/source-control/components/FileListRow";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
+import type { CommentItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import { scrollKeyboardNavItemIntoView } from "@/lib/keyboard-navigation";
 import type { PullRequestChangedFile, PullRequestReviewThread } from "@/platform/desktop";
@@ -292,6 +300,18 @@ export const PullRequestFiles = () => {
     }
   }, [files, selectedFilePath, searchParams, setSearchParams]);
 
+  const pendingReviewComments = useAppSelector((state) => {
+    if (!activeRepo || !compareRefs?.compareBaseRef || !compareRefs.compareHeadRef) {
+      return [] as CommentItem[];
+    }
+
+    return getPendingReviewCommentsForContext(state.comments, activeRepo, {
+      kind: "review",
+      baseRef: compareRefs.compareBaseRef,
+      headRef: compareRefs.compareHeadRef,
+    });
+  });
+
   const commentCountByPath = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -303,8 +323,12 @@ export const PullRequestFiles = () => {
       });
     }
 
+    for (const comment of pendingReviewComments) {
+      counts[comment.filePath] = (counts[comment.filePath] ?? 0) + 1;
+    }
+
     return counts;
-  }, [files, reviewThreads]);
+  }, [files, pendingReviewComments, reviewThreads]);
 
   const handleSelectFile = useCallback(
     (path: string) => {
@@ -342,6 +366,7 @@ export const PullRequestFiles = () => {
               isLoadingCompareRefs={isLoadingCompareRefs}
               files={files}
               reviewThreads={reviewThreads}
+              pendingReviewComments={pendingReviewComments}
               selectedPath={selectedFilePath}
             />
           </div>
@@ -360,6 +385,7 @@ function FilesDiffViewer({
   isLoadingCompareRefs,
   files,
   reviewThreads,
+  pendingReviewComments,
   selectedPath,
 }: {
   repoPath: string;
@@ -370,8 +396,12 @@ function FilesDiffViewer({
   isLoadingCompareRefs: boolean;
   files: PullRequestChangedFile[];
   reviewThreads: PullRequestReviewThread[];
+  pendingReviewComments: CommentItem[];
   selectedPath: string;
 }) {
+  const dispatch = useAppDispatch();
+  const [submitPullRequestReviewComments, { isLoading: isSubmittingReviewComments }] =
+    useSubmitPullRequestReviewCommentsMutation();
   const selectedFile = files.find((file) => file.path === selectedPath) ?? null;
   const previewSelection = useThrottledDiffSelection(
     selectedFile
@@ -384,6 +414,14 @@ function FilesDiffViewer({
   const previewFile = files.find((file) => file.path === previewSelection?.path) ?? selectedFile;
   const allReviewCommentsPayload = buildPullRequestReviewCommentsPayload({ reviewThreads });
   const hasCompareRefs = Boolean(compareBaseRef && compareHeadRef);
+  const reviewCommentContext =
+    hasCompareRefs && compareBaseRef && compareHeadRef
+      ? { kind: "review" as const, baseRef: compareBaseRef, headRef: compareHeadRef }
+      : null;
+  const filePendingReviewComments = previewFile
+    ? pendingReviewComments.filter((comment) => comment.filePath === previewFile.path)
+    : [];
+  const pendingReviewCommentCount = pendingReviewComments.length;
 
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
     previewSelection && hasCompareRefs
@@ -513,19 +551,73 @@ function FilesDiffViewer({
     );
   }
 
+  const submitAllComments = async () => {
+    if (!repoPath || pullRequestNumber <= 0 || pendingReviewComments.length === 0) {
+      return;
+    }
+
+    try {
+      const result = await submitPullRequestReviewComments(
+        buildSubmitPullRequestReviewCommentsInput({
+          repoPath,
+          pullRequestNumber,
+          comments: pendingReviewComments,
+        }),
+      ).unwrap();
+
+      if (result.submittedDraftIds.length > 0) {
+        dispatch(removeCommentsByIds(result.submittedDraftIds));
+      }
+
+      if (result.failedMessage) {
+        if (result.submittedDraftIds.length > 0) {
+          toast.error(
+            `Submitted ${result.submittedDraftIds.length} comment${result.submittedDraftIds.length === 1 ? "" : "s"}, then stopped: ${result.failedMessage}`,
+          );
+        } else {
+          toast.error(result.failedMessage);
+        }
+        return;
+      }
+
+      toast.success(
+        `Submitted ${result.submittedDraftIds.length} pending comment${result.submittedDraftIds.length === 1 ? "" : "s"}`,
+      );
+    } catch (error) {
+      toast.error(errorMessageFrom(error, "Failed to submit review comments"));
+    }
+  };
+
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
         <ReviewCommentsCopyToolbar
           filePayload={fileReviewCommentsPayload}
           allPayload={allReviewCommentsPayload}
+          filePendingCommentCount={filePendingReviewComments.length}
+          totalPendingCommentCount={pendingReviewCommentCount}
+          canSubmitComments={Boolean(reviewCommentContext) && pendingReviewCommentCount > 0}
+          isSubmittingComments={isSubmittingReviewComments}
+          onSubmitAllComments={
+            pendingReviewCommentCount > 0
+              ? () => {
+                  void submitAllComments();
+                }
+              : undefined
+          }
         />
         <DiffWorkspace
           oldFile={selectedOldFile}
           newFile={selectedNewFile}
           activePath={previewFile?.path ?? selectedFile.path}
-          commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
-          canComment={false}
+          commentContext={
+            reviewCommentContext ?? {
+              kind: "review",
+              baseRef: compareBaseRef,
+              headRef: compareHeadRef,
+            }
+          }
+          canComment={Boolean(reviewCommentContext)}
           fileViewerRevision={compareHeadRef}
           lspJumpContextKind="pull-request"
           annotationItems={threadAnnotations}

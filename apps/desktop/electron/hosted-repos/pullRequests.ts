@@ -1,14 +1,17 @@
 import type {
   AddPullRequestCommentInput,
+  ListPullRequestsInput,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
   PullRequestPage,
+  PullRequestReviewDraftCommentInput,
   PullRequestReviewThread,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
-  ListPullRequestsInput,
+  SubmitPullRequestReviewCommentsInput,
+  SubmitPullRequestReviewCommentsResult,
 } from "../../src/platform/desktop/contracts";
 import {
   bitbucketPullRequestPath,
@@ -76,6 +79,96 @@ async function readPullRequestReviewThread(input: PullRequestLocatorInput, threa
   }
 
   return { thread, hostedRepo, connection };
+}
+
+type GitHubPullRequestReviewResponse = {
+  id?: number;
+};
+
+function errorMessageFromUnknown(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizePullRequestReviewComments(
+  comments: SubmitPullRequestReviewCommentsInput["comments"],
+) {
+  return comments.map((comment) => {
+    const path = comment.path.trim();
+    const body = comment.body.trim();
+
+    if (!comment.draftId.trim()) {
+      throw new Error("Each review draft must include a draft ID.");
+    }
+
+    if (!path) {
+      throw new Error("Review draft comments must target a file path.");
+    }
+
+    if (!body) {
+      throw new Error("Review draft comments cannot be empty.");
+    }
+
+    if (!Number.isInteger(comment.line) || comment.line <= 0) {
+      throw new Error(`Review draft comments must target a valid line for ${path}.`);
+    }
+
+    if (comment.startLine !== null && comment.startLine !== undefined) {
+      if (!Number.isInteger(comment.startLine) || comment.startLine <= 0) {
+        throw new Error(`Review draft comments must include a valid start line for ${path}.`);
+      }
+    }
+
+    return {
+      ...comment,
+      draftId: comment.draftId.trim(),
+      path,
+      body,
+    } satisfies PullRequestReviewDraftCommentInput;
+  });
+}
+
+function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput) {
+  return {
+    body: comment.body,
+    path: comment.path,
+    line: comment.line,
+    side: comment.side,
+    ...(comment.startLine == null
+      ? {}
+      : {
+          start_line: comment.startLine,
+          start_side: comment.startSide ?? comment.side,
+        }),
+  };
+}
+
+function toBitbucketInline(comment: PullRequestReviewDraftCommentInput) {
+  const inline: {
+    path: string;
+    from?: number;
+    to?: number;
+    start_from?: number;
+    start_to?: number;
+  } = {
+    path: comment.path,
+  };
+
+  if (comment.side === "LEFT") {
+    inline.from = comment.line;
+  } else {
+    inline.to = comment.line;
+  }
+
+  if (comment.startLine != null) {
+    const startSide = comment.startSide ?? comment.side;
+    if (startSide === "LEFT") {
+      inline.start_from = comment.startLine;
+    } else {
+      inline.start_to = comment.startLine;
+    }
+  }
+
+  return inline;
 }
 
 export async function listPullRequests(input: ListPullRequestsInput): Promise<PullRequestPage> {
@@ -295,6 +388,91 @@ export async function replyToPullRequestThread(
 
   throw new Error(
     `${providerDisplayName(hostedRepo.providerId)} thread replies are not supported yet.`,
+  );
+}
+
+export async function submitPullRequestReviewComments(
+  input: SubmitPullRequestReviewCommentsInput,
+): Promise<SubmitPullRequestReviewCommentsResult> {
+  const comments = normalizePullRequestReviewComments(input.comments);
+  if (comments.length === 0) {
+    return {
+      submittedDraftIds: [],
+      failedDraftId: null,
+      failedMessage: null,
+    };
+  }
+
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+  if (hostedRepo.providerId === "github") {
+    const review = await githubJsonRequest<GitHubPullRequestReviewResponse>(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/reviews`,
+      connection.token,
+      {
+        method: "POST",
+        body: {
+          comments: comments.map(toGitHubReviewCommentInput),
+        },
+      },
+    );
+
+    if (!review.id) {
+      throw new Error("GitHub did not return a review ID for the submitted comments.");
+    }
+
+    await githubJsonRequest(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/reviews/${String(review.id)}/events`,
+      connection.token,
+      {
+        method: "POST",
+        body: {
+          event: "COMMENT",
+        },
+      },
+    );
+
+    return {
+      submittedDraftIds: comments.map((comment) => comment.draftId),
+      failedDraftId: null,
+      failedMessage: null,
+    };
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    const submittedDraftIds: string[] = [];
+
+    for (const comment of comments) {
+      try {
+        await bitbucketRequest<BitbucketCommentResponse>(
+          `${bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber)}/comments`,
+          connection,
+          {
+            method: "POST",
+            body: {
+              content: { raw: comment.body },
+              inline: toBitbucketInline(comment),
+            },
+          },
+        );
+        submittedDraftIds.push(comment.draftId);
+      } catch (error) {
+        return {
+          submittedDraftIds,
+          failedDraftId: comment.draftId,
+          failedMessage: errorMessageFromUnknown(error),
+        };
+      }
+    }
+
+    return {
+      submittedDraftIds,
+      failedDraftId: null,
+      failedMessage: null,
+    };
+  }
+
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} review comment submission is not supported yet.`,
   );
 }
 

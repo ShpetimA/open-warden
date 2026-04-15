@@ -46,7 +46,7 @@ export function CommentComposer({
   const onSubmit = () => {
     if (!selectedRange || !draftComment.trim() || !activePath) return;
     onBeforeSubmit?.();
-    dispatch(addComment(selectedRange, draftComment, commentContext));
+    dispatch(addComment(selectedRange, draftComment, commentContext, activePath));
     setDraftComment("");
     onClose();
   };

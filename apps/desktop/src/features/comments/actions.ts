@@ -42,11 +42,17 @@ function isMatchingContext(comment: CommentItem, context?: CommentContext): bool
 }
 
 export const addComment =
-  (range: SelectionRange, text: string, context: CommentContext = { kind: "changes" }): AppThunk =>
+  (
+    range: SelectionRange,
+    text: string,
+    context: CommentContext = { kind: "changes" },
+    targetPathOverride?: string,
+  ): AppThunk =>
   (dispatch, getState) => {
     const trimmed = text.trim();
     const { activeRepo, activePath, activeBucket, reviewActivePath } = getState().sourceControl;
-    const targetPath = context.kind === "review" ? reviewActivePath : activePath;
+    const targetPath =
+      targetPathOverride ?? (context.kind === "review" ? reviewActivePath : activePath);
     if (!trimmed || !activeRepo || !targetPath) return;
 
     const side = range.side ?? "additions";

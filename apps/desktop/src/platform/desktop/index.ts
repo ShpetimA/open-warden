@@ -95,6 +95,7 @@ export type {
   PullRequestOpenMode,
   PullRequestPerson,
   PullRequestReviewComment,
+  PullRequestReviewDraftCommentInput,
   PullRequestReviewThread,
   ProviderAuthType,
   ProviderConnectionMethod,
@@ -104,5 +105,7 @@ export type {
   PullRequestState,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
+  SubmitPullRequestReviewCommentsInput,
+  SubmitPullRequestReviewCommentsResult,
   WorkspaceSession,
 } from "./contracts";

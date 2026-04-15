@@ -12,6 +12,7 @@ export {
   listPullRequests,
   replyToPullRequestThread,
   setPullRequestThreadResolved,
+  submitPullRequestReviewComments,
 } from "./hosted-repos/pullRequests";
 export {
   preparePullRequestCompareRefs,

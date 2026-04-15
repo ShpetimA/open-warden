@@ -12,7 +12,7 @@ import {
   commentsClipboardReducer,
   setLastCopiedPayload,
 } from "@/features/comments/commentsClipboardSlice";
-import { copyComments, copyLastCommentsPayload } from "@/features/comments/actions";
+import { addComment, copyComments, copyLastCommentsPayload } from "@/features/comments/actions";
 import { commentsReducer } from "@/features/comments/commentsSlice";
 
 type TestStore = ReturnType<typeof createTestStore>;
@@ -128,6 +128,29 @@ describe("comments actions", () => {
     expect(result).toEqual({ ok: true, copiedCount: 1, clearedCount: 1 });
     expect(writeText).toHaveBeenCalledWith("@src/file.ts#L1 - match");
     expect(commentIds(store)).toEqual(["c2", "c3"]);
+  });
+
+  it("adds a review comment to an explicit target path override", () => {
+    const store = createTestStore();
+
+    store.dispatch(
+      addComment(
+        { start: 3, end: 5, side: "additions", endSide: "additions" },
+        "review draft",
+        { kind: "review", baseRef: "main", headRef: "feature/a" },
+        "src/pull-request.ts",
+      ),
+    );
+
+    expect(store.getState().comments).toEqual([
+      expect.objectContaining({
+        filePath: "src/pull-request.ts",
+        text: "review draft",
+        contextKind: "review",
+        baseRef: "main",
+        headRef: "feature/a",
+      }),
+    ]);
   });
 
   it("keeps comments and payload unchanged when clipboard write fails", async () => {

@@ -17,6 +17,8 @@ import type {
   PullRequestReviewThread,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
+  SubmitPullRequestReviewCommentsInput,
+  SubmitPullRequestReviewCommentsResult,
 } from "@/platform/desktop";
 
 export async function listProviderConnections() {
@@ -63,6 +65,12 @@ export async function addPullRequestComment(input: AddPullRequestCommentInput) {
 
 export async function replyToPullRequestThread(input: ReplyToPullRequestThreadInput) {
   return desktop.replyToPullRequestThread(input) as Promise<PullRequestReviewThread>;
+}
+
+export async function submitPullRequestReviewComments(input: SubmitPullRequestReviewCommentsInput) {
+  return desktop.submitPullRequestReviewComments(
+    input,
+  ) as Promise<SubmitPullRequestReviewCommentsResult>;
 }
 
 export async function setPullRequestThreadResolved(input: SetPullRequestThreadResolvedInput) {

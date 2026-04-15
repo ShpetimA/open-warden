@@ -14,6 +14,8 @@ import type {
   PullRequestReviewThread,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
+  SubmitPullRequestReviewCommentsInput,
+  SubmitPullRequestReviewCommentsResult,
   PreparedPullRequestWorkspace,
 } from "@/platform/desktop";
 import {
@@ -30,6 +32,7 @@ import {
   resolveHostedRepo,
   resolvePullRequestWorkspace,
   setPullRequestThreadResolved,
+  submitPullRequestReviewComments,
 } from "./services/hostedRepos";
 
 type ErrorResult = { message: string };
@@ -190,6 +193,21 @@ export const hostedReposApi = createApi({
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
+    submitPullRequestReviewComments: builder.mutation<
+      SubmitPullRequestReviewCommentsResult,
+      SubmitPullRequestReviewCommentsInput
+    >({
+      async queryFn(input) {
+        try {
+          return { data: await submitPullRequestReviewComments(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
     setPullRequestThreadResolved: builder.mutation<
       PullRequestReviewThread,
       SetPullRequestThreadResolvedInput
@@ -222,4 +240,5 @@ export const {
   useResolveHostedRepoQuery,
   useResolvePullRequestWorkspaceQuery,
   useSetPullRequestThreadResolvedMutation,
+  useSubmitPullRequestReviewCommentsMutation,
 } = hostedReposApi;
