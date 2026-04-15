@@ -1,132 +1,19 @@
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { ArrowUpRight, FolderOpen } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
-import { featureHasPrimarySidebar, featureKeyFromPath } from "@/app/featureNavigation";
+import { featureKeyFromPath } from "@/app/featureNavigation";
+import { RepoTabs } from "@/app/RepoTabs";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { SidebarPanelRegistryProvider } from "@/components/layout/SidebarPanelRegistry";
 import { AppCommandPalette } from "@/features/command-palette/AppCommandPalette";
-
-import { RepoTabs } from "@/app/RepoTabs";
-import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import { closeRepo, openRepo, selectFolder, selectRepo } from "@/features/source-control/actions";
-import { SourceControlSidebar } from "@/features/source-control/components/SourceControlSidebar";
 import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
-import { repoLabel, repoParentPath } from "@/features/source-control/utils";
 
-type EmptyRepoStateProps = {
-  recentRepos: string[];
-  onOpenPicker: () => void;
-  onOpenRepo: (repo: string) => void;
+export type AppShellOutletContext = {
+  openRecentProjectsPicker: () => void;
 };
-
-function EmptyRepoState({ recentRepos, onOpenPicker, onOpenRepo }: EmptyRepoStateProps) {
-  const previewRecentRepos = recentRepos.slice(0, 5);
-
-  return (
-    <div className="flex h-full items-center justify-center px-6">
-      <div className="w-full max-w-[720px]">
-        <div className="space-y-6">
-          <div className="space-y-1.5">
-            <div className="text-foreground text-[22px] font-semibold tracking-[-0.03em]">
-              Open project
-            </div>
-            <p className="text-muted-foreground max-w-[480px] text-sm leading-6">
-              Resume a recent repository or choose a folder to start working immediately.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="border-border/70 bg-surface-alt hover:bg-accent/45 group flex min-h-20 w-full max-w-[280px] items-center justify-between rounded-2xl border px-4 py-3 text-left transition-[transform,background-color,border-color] duration-150 ease-[var(--ease-out)] active:scale-[0.99]"
-            onClick={onOpenPicker}
-          >
-            <div className="space-y-2">
-              <div className="bg-background text-muted-foreground flex h-9 w-9 items-center justify-center rounded-xl border border-white/8">
-                <FolderOpen className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="text-sm font-medium">Open project</div>
-                <div className="text-muted-foreground text-xs">
-                  Browse recent or choose a folder
-                </div>
-              </div>
-            </div>
-            <ArrowUpRight className="text-muted-foreground h-4 w-4 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </button>
-
-          <div className="max-w-[720px]">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-muted-foreground text-xs font-medium tracking-[0.14em] uppercase">
-                Recent Projects
-              </div>
-              <button
-                type="button"
-                className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-                onClick={onOpenPicker}
-              >
-                View all ({recentRepos.length})
-              </button>
-            </div>
-
-            {previewRecentRepos.length > 0 ? (
-              <div className="space-y-1">
-                {previewRecentRepos.map((repoPath) => (
-                  <button
-                    key={repoPath}
-                    type="button"
-                    className="hover:bg-accent/40 grid w-full grid-cols-[minmax(0,1fr)_minmax(0,280px)] items-center gap-4 rounded-xl px-3 py-2 text-left transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.995]"
-                    onClick={() => onOpenRepo(repoPath)}
-                  >
-                    <span className="truncate text-[15px] font-medium">{repoLabel(repoPath)}</span>
-                    <span className="text-muted-foreground truncate text-sm text-right">
-                      {repoParentPath(repoPath)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="border-border/70 text-muted-foreground hover:text-foreground hover:bg-accent/35 inline-flex h-11 items-center rounded-xl border px-3 text-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.99]"
-                onClick={onOpenPicker}
-              >
-                Open a folder to start building your recent list.
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function renderMainContent(
-  showOutlet: boolean,
-  activeRepo: string,
-  recentRepos: string[],
-  onOpenPicker: () => void,
-  onOpenRepo: (repo: string) => void,
-) {
-  if (showOutlet) {
-    return <Outlet />;
-  }
-
-  if (!activeRepo) {
-    return (
-      <EmptyRepoState
-        recentRepos={recentRepos}
-        onOpenPicker={onOpenPicker}
-        onOpenRepo={onOpenRepo}
-      />
-    );
-  }
-
-  return <Outlet />;
-}
 
 export function AppShell() {
   const location = useLocation();
@@ -137,38 +24,21 @@ export function AppShell() {
   const [recentProjectsPickerOpen, setRecentProjectsPickerOpen] = useState(false);
   const isSettingsRoute = location.pathname.startsWith("/settings");
   const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
-  const showPrimarySidebar = activeFeature ? featureHasPrimarySidebar(activeFeature) : false;
-  const sidebarFeature = activeFeature === "history" ? "history" : "changes";
-  const { activeBranch: activeBranchData } = useGetGitSnapshotQuery(activeRepo, {
-    skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      activeBranch: data?.branch ?? "",
-    }),
-  });
-  const activeBranch = activeRepo ? activeBranchData : "";
+
+  const openRecentProjectsPicker = () => {
+    setRecentProjectsPickerOpen(true);
+  };
 
   useHotkey(
     "Mod+O",
     (event) => {
       event.preventDefault();
-      setRecentProjectsPickerOpen(true);
+      openRecentProjectsPicker();
     },
     {
       ignoreInputs: false,
       preventDefault: false,
       stopPropagation: false,
-    },
-  );
-
-  const mainContent = renderMainContent(
-    isSettingsRoute,
-    activeRepo,
-    recentRepos,
-    () => {
-      setRecentProjectsPickerOpen(true);
-    },
-    (repo) => {
-      void dispatch(openRepo(repo));
     },
   );
 
@@ -184,27 +54,12 @@ export function AppShell() {
           />
 
           <div className="relative min-h-0">
-            {showPrimarySidebar ? (
-              <ResizableSidebarLayout
-                panelId="primary"
-                sidebarDefaultSize={22}
-                sidebarMinSize={14}
-                sidebarMaxSize={34}
-                sidebar={
-                  <SourceControlSidebar feature={sidebarFeature} activeBranch={activeBranch} />
-                }
-                content={<main className="h-full min-h-0">{mainContent}</main>}
-              />
-            ) : (
-              <main className="h-full min-h-0">{mainContent}</main>
-            )}
+            <Outlet context={{ openRecentProjectsPicker }} />
           </div>
 
           <RepoTabsContainer
             currentPath={location.pathname}
-            onShowRecentProjects={() => {
-              setRecentProjectsPickerOpen(true);
-            }}
+            onShowRecentProjects={openRecentProjectsPicker}
           />
         </div>
 

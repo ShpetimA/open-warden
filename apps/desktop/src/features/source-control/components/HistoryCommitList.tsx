@@ -11,7 +11,7 @@ import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
 import { setHistoryFilter } from "@/features/source-control/sourceControlSlice";
 import type { HistoryCommit } from "@/features/source-control/types";
 
-export function HistoryTab() {
+export function HistoryCommitList() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyFilter = useAppSelector((state) => state.sourceControl.historyFilter);
