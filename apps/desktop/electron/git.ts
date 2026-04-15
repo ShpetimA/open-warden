@@ -18,6 +18,8 @@ const execFile = promisify(nodeExecFile);
 const textDecoder = new TextDecoder("utf-8", { fatal: true });
 const MAX_BUFFER = 32 * 1024 * 1024;
 const GIT_TIMEOUT_MS = 30_000;
+const GIT_WRITE_RETRY_COUNT = 3;
+const GIT_WRITE_RETRY_DELAY_MS = 120;
 
 class GitCommandError extends Error {
   constructor(
@@ -108,6 +110,37 @@ async function runGit(
     }
 
     throw commandError;
+  }
+}
+
+function isGitLockError(error: unknown) {
+  if (!(error instanceof GitCommandError)) return false;
+
+  const stderr = error.stderr.toLowerCase();
+  return (
+    stderr.includes("index.lock") ||
+    stderr.includes("another git process seems to be running") ||
+    stderr.includes("could not lock")
+  );
+}
+
+async function wait(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runGitWrite(repoPath: string, args: string[]) {
+  let attempt = 0;
+
+  while (true) {
+    try {
+      await runGit(repoPath, args);
+      return;
+    } catch (error) {
+      const canRetry = isGitLockError(error) && attempt + 1 < GIT_WRITE_RETRY_COUNT;
+      if (!canRetry) throw error;
+      attempt += 1;
+      await wait(GIT_WRITE_RETRY_DELAY_MS * attempt);
+    }
   }
 }
 
@@ -360,9 +393,90 @@ async function hasHeadCommit(repoPath: string) {
   }
 }
 
+async function existsInHead(repoPath: string, relPath: string) {
+  try {
+    await runGit(repoPath, ["cat-file", "-e", `HEAD:${relPath}`], { allowFailure: true });
+    return true;
+  } catch (error) {
+    if (isMissingGitObjectError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
 async function removeWorktreePath(repoPath: string, relPath: string) {
   const fullPath = path.join(repoPath, relPath);
   await fs.rm(fullPath, { force: true, recursive: true });
+}
+
+function hasStatusPath(files: FileItem[], relPath: string) {
+  return files.some((file) => file.path === relPath);
+}
+
+async function getBucketsForPath(repoPath: string, relPath: string): Promise<Bucket[]> {
+  const statusOutput = await runGit(repoPath, [
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "-uall",
+    "--",
+    relPath,
+  ]);
+  const status = parseStatusOutput(statusOutput);
+  const buckets: Bucket[] = [];
+
+  if (hasStatusPath(status.staged, relPath)) buckets.push("staged");
+  if (hasStatusPath(status.unstaged, relPath)) buckets.push("unstaged");
+  if (hasStatusPath(status.untracked, relPath)) buckets.push("untracked");
+
+  return buckets;
+}
+
+function isRecoverableDiscardError(error: unknown) {
+  if (!(error instanceof GitCommandError)) return false;
+
+  const stderr = error.stderr.toLowerCase();
+  return (
+    stderr.includes("did not match any file") ||
+    stderr.includes("pathspec") ||
+    stderr.includes("is unmerged") ||
+    stderr.includes("needs merge")
+  );
+}
+
+async function discardFileForBucket(repoPath: string, relPath: string, bucket: Bucket) {
+  if (bucket === "untracked") {
+    await removeWorktreePath(repoPath, relPath);
+    return;
+  }
+
+  if (bucket === "unstaged") {
+    await runGitWrite(repoPath, ["restore", "--worktree", "--", relPath]);
+    return;
+  }
+
+  if (await hasHeadCommit(repoPath)) {
+    if (await existsInHead(repoPath, relPath)) {
+      await runGitWrite(repoPath, [
+        "restore",
+        "--source=HEAD",
+        "--staged",
+        "--worktree",
+        "--",
+        relPath,
+      ]);
+      return;
+    }
+
+    await runGitWrite(repoPath, ["rm", "--cached", "-f", "--", relPath]);
+    await removeWorktreePath(repoPath, relPath);
+    return;
+  }
+
+  await runGitWrite(repoPath, ["rm", "--cached", "-f", "--", relPath]);
+  await removeWorktreePath(repoPath, relPath);
 }
 
 async function readCommitParent(repoPath: string, commitId: string) {
@@ -550,62 +664,80 @@ export async function getBranchFileVersions(
 }
 
 export async function stageFile(repoPath: string, relPath: string) {
-  await runGit(repoPath, ["add", "--", normalizeGitPath(relPath)]);
+  await runGitWrite(repoPath, ["add", "--", normalizeGitPath(relPath)]);
 }
 
 export async function unstageFile(repoPath: string, relPath: string) {
-  await runGit(repoPath, ["reset", "--", normalizeGitPath(relPath)]);
+  await runGitWrite(repoPath, ["reset", "--", normalizeGitPath(relPath)]);
 }
 
 export async function stageAll(repoPath: string) {
-  await runGit(repoPath, ["add", "-A", "--", "."]);
+  await runGitWrite(repoPath, ["add", "-A", "--", "."]);
 }
 
 export async function unstageAll(repoPath: string) {
-  await runGit(repoPath, ["reset"]);
+  await runGitWrite(repoPath, ["reset"]);
 }
 
 export async function discardFile(repoPath: string, relPath: string, bucket: Bucket) {
   const normalizedPath = normalizeGitPath(relPath);
+  const attempted = new Set<Bucket>();
+  const queue: Bucket[] = [bucket];
 
-  if (bucket === "untracked") {
-    await removeWorktreePath(repoPath, normalizedPath);
-    return;
+  while (queue.length > 0) {
+    const currentBucket = queue.shift();
+    if (!currentBucket || attempted.has(currentBucket)) continue;
+    attempted.add(currentBucket);
+
+    try {
+      await discardFileForBucket(repoPath, normalizedPath, currentBucket);
+      return;
+    } catch (error) {
+      if (!isRecoverableDiscardError(error)) {
+        throw error;
+      }
+
+      const currentBuckets = await getBucketsForPath(repoPath, normalizedPath);
+      if (currentBuckets.length === 0) {
+        return;
+      }
+
+      for (const nextBucket of currentBuckets) {
+        if (!attempted.has(nextBucket)) {
+          queue.push(nextBucket);
+        }
+      }
+
+      if (queue.length === 0) {
+        throw error;
+      }
+    }
   }
-
-  if (bucket === "unstaged") {
-    await runGit(repoPath, ["restore", "--worktree", "--", normalizedPath]);
-    return;
-  }
-
-  if (await hasHeadCommit(repoPath)) {
-    await runGit(repoPath, [
-      "restore",
-      "--source=HEAD",
-      "--staged",
-      "--worktree",
-      "--",
-      normalizedPath,
-    ]);
-    return;
-  }
-
-  await runGit(repoPath, ["rm", "--cached", "-f", "--", normalizedPath]);
-  await removeWorktreePath(repoPath, normalizedPath);
 }
 
 export async function discardFiles(repoPath: string, files: DiscardFileInput[]) {
+  const failures: string[] = [];
+
   for (const file of files) {
-    await discardFile(repoPath, file.relPath, file.bucket);
+    try {
+      await discardFile(repoPath, file.relPath, file.bucket);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${file.relPath}: ${message}`);
+    }
   }
+
+  if (failures.length === 0) return;
+  if (failures.length === 1) throw new Error(failures[0]!);
+  throw new Error(`Failed to discard ${failures.length} files:\n${failures.join("\n")}`);
 }
 
 export async function discardAll(repoPath: string) {
   if (await hasHeadCommit(repoPath)) {
-    await runGit(repoPath, ["reset", "--hard", "HEAD"]);
+    await runGitWrite(repoPath, ["reset", "--hard", "HEAD"]);
   }
 
-  await runGit(repoPath, ["clean", "-fd", "--", "."]);
+  await runGitWrite(repoPath, ["clean", "-fd", "--", "."]);
 }
 
 export async function commitStaged(repoPath: string, message: string) {
@@ -613,7 +745,7 @@ export async function commitStaged(repoPath: string, message: string) {
     throw new Error("commit message is empty");
   }
 
-  await runGit(repoPath, ["commit", "-m", message]);
+  await runGitWrite(repoPath, ["commit", "-m", message]);
   const output = await runGit(repoPath, ["rev-parse", "HEAD"]);
   return decodeUtf8(output, "commit id").trim();
 }

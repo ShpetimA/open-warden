@@ -17,6 +17,7 @@ import {
 import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
+import { findExistingBucket } from "./utils";
 import {
   closeFileViewer,
   hydrateWorkspaceSession as hydrateWorkspaceSessionState,
@@ -75,6 +76,46 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
     seen.add(key);
     return true;
   });
+}
+
+type DiscardInput = { path: string; bucket: Bucket };
+type DiscardPayload = { relPath: string; bucket: Bucket };
+
+function discardBucketPriority(bucket: Bucket) {
+  if (bucket === "staged") return 3;
+  if (bucket === "unstaged") return 2;
+  return 1;
+}
+
+function pickPreferredDiscardBucket(current: Bucket | undefined, next: Bucket): Bucket {
+  if (!current) return next;
+  return discardBucketPriority(next) > discardBucketPriority(current) ? next : current;
+}
+
+function resolveDiscardBucket(
+  snapshot: GitSnapshot | null | undefined,
+  filePath: string,
+  fallback: Bucket,
+): Bucket | null {
+  if (!snapshot) return fallback;
+  return findExistingBucket(snapshot, filePath);
+}
+
+function buildDiscardPayload(
+  snapshot: GitSnapshot | null | undefined,
+  files: DiscardInput[],
+): DiscardPayload[] {
+  const byPath = new Map<string, Bucket>();
+
+  for (const file of files) {
+    const resolvedBucket = resolveDiscardBucket(snapshot, file.path, file.bucket);
+    if (!resolvedBucket) continue;
+
+    const existing = byPath.get(file.path);
+    byPath.set(file.path, pickPreferredDiscardBucket(existing, resolvedBucket));
+  }
+
+  return [...byPath.entries()].map(([relPath, bucket]) => ({ relPath, bucket }));
 }
 
 const resetRepoScopedState = (): AppThunk => (dispatch) => {
@@ -388,8 +429,8 @@ function repoActionLabel(action: RunningAction): string {
 const runRepoAction =
   (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
   async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
-    if (!activeRepo) return;
+    const { activeRepo, runningAction } = getState().sourceControl;
+    if (!activeRepo || runningAction) return;
     dispatch(setRunningAction(action));
     try {
       await dispatch(thunk);
@@ -446,16 +487,22 @@ export const unstageFileAction =
 export const discardFileAction =
   (bucket: Bucket, filePath: string): AppThunk =>
   async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
+    const state = getState();
+    const { activeRepo } = state.sourceControl;
     if (!activeRepo) return;
+
+    const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data;
+    const payload = buildDiscardPayload(snapshot, [{ path: filePath, bucket }]);
+    const target = payload[0];
+    if (!target) return;
 
     await dispatch(
       runRepoAction(`file:discard:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
           gitApi.endpoints.discardFile.initiate({
             repoPath: activeRepo,
-            relPath: filePath,
-            bucket,
+            relPath: target.relPath,
+            bucket: target.bucket,
           }),
         );
         await result.unwrap();
@@ -515,12 +562,19 @@ export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
 export const discardChangesGroupAction =
   (files: BucketedFile[]): AppThunk =>
   async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
+    const state = getState();
+    const { activeRepo } = state.sourceControl;
     if (!activeRepo) return;
+
+    const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data;
+    const payload = buildDiscardPayload(
+      snapshot,
+      files.map((file) => ({ path: file.path, bucket: file.bucket })),
+    );
+    if (payload.length === 0) return;
 
     await dispatch(
       runRepoAction("discard-changes", async (innerDispatch) => {
-        const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }));
         const result = innerDispatch(
           gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
         );
