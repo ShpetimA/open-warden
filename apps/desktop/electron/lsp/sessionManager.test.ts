@@ -116,6 +116,28 @@ describe("normalizeLspLocationResponse", () => {
       }),
     ).toEqual([]);
   });
+
+  it("normalizes backslash separators in returned relative paths", () => {
+    expect(
+      normalizeLspLocationResponse("/tmp/repo", {
+        uri: "file:///tmp/repo/src%5Cexample.ts",
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 1 },
+        },
+      }),
+    ).toEqual([
+      {
+        repoPath: "/tmp/repo",
+        relPath: "src/example.ts",
+        uri: "file:///tmp/repo/src%5Cexample.ts",
+        line: 1,
+        character: 0,
+        endLine: 1,
+        endCharacter: 1,
+      },
+    ]);
+  });
 });
 
 describe("LspSessionManager.getHover", () => {

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,6 +28,7 @@ import {
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
   useGetPullRequestPatchQuery,
+  usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import { PullRequestInlineReviewThread } from "@/features/pull-requests/components/PullRequestInlineReviewThread";
@@ -35,6 +37,7 @@ import {
   buildPullRequestThreadAnnotations,
   countPullRequestThreadsForFile,
 } from "@/features/pull-requests/utils/reviewThreadAnnotations";
+import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { FileListRow } from "@/features/source-control/components/FileListRow";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { isTypingTarget } from "@/features/source-control/utils";
@@ -287,10 +290,20 @@ export const PullRequestFiles = () => {
     hostedRepo.owner === owner &&
     hostedRepo.repo === repo,
   );
+
   const filesQueryArg =
     activeRepo && hasValidRoute && routeMatchesActiveRepo
       ? { repoPath: activeRepo, pullRequestNumber: parsedPullRequestNumber }
       : skipToken;
+
+  const { compareRefs, compareRefsError, isLoadingCompareRefs } =
+    usePreparePullRequestCompareRefsQuery(filesQueryArg, {
+      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+        compareRefs: data ?? null,
+        compareRefsError: data ? "" : errorMessageFrom(error, ""),
+        isLoadingCompareRefs: isLoading || isFetching,
+      }),
+    });
 
   const { files, filesError, isLoadingFiles } = useGetPullRequestFilesQuery(filesQueryArg, {
     selectFromResult: ({ data, error, isLoading, isFetching }) => ({
@@ -370,6 +383,10 @@ export const PullRequestFiles = () => {
               providerId={toGitProviderId(providerId)}
               repoPath={activeRepo ?? ""}
               pullRequestNumber={parsedPullRequestNumber}
+              compareBaseRef={compareRefs?.compareBaseRef ?? ""}
+              compareHeadRef={compareRefs?.compareHeadRef ?? ""}
+              compareRefsError={compareRefsError}
+              isLoadingCompareRefs={isLoadingCompareRefs}
               files={files}
               reviewThreads={reviewThreads}
               selectedPath={selectedFilePath}
@@ -442,6 +459,10 @@ function FilesDiffViewer({
   providerId,
   repoPath,
   pullRequestNumber,
+  compareBaseRef,
+  compareHeadRef,
+  compareRefsError,
+  isLoadingCompareRefs,
   files,
   reviewThreads,
   selectedPath,
@@ -452,6 +473,10 @@ function FilesDiffViewer({
   providerId?: GitProviderId;
   repoPath: string;
   pullRequestNumber: number;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  compareRefsError: string;
+  isLoadingCompareRefs: boolean;
   files: PullRequestChangedFile[];
   reviewThreads: PullRequestReviewThread[];
   selectedPath: string;
@@ -483,8 +508,43 @@ function FilesDiffViewer({
       })
     : "";
   const allReviewCommentsPayload = buildPullRequestReviewCommentsPayload({ reviewThreads });
+  const hasCompareRefs = Boolean(compareBaseRef && compareHeadRef);
+  const useRefBackedDiff = Boolean(selectedFile && hasCompareRefs);
 
-  if (isLoadingPatch && !patch) {
+  const { branchFileVersions, branchFileVersionsError, isLoadingBranchFileVersions } =
+    useGetBranchFileVersionsQuery(
+      useRefBackedDiff
+        ? {
+            repoPath,
+            baseRef: compareBaseRef,
+            headRef: compareHeadRef,
+            relPath: selectedFile?.path ?? "",
+            previousPath: selectedFile?.previousPath ?? undefined,
+          }
+        : skipToken,
+      {
+        selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+          branchFileVersions: data ?? null,
+          branchFileVersionsError: data ? "" : errorMessageFrom(error, ""),
+          isLoadingBranchFileVersions: isLoading || isFetching,
+        }),
+      },
+    );
+
+  const selectedOldFile = branchFileVersions?.oldFile ?? null;
+  const selectedNewFile = branchFileVersions?.newFile ?? null;
+  const hasRefBackedFileVersions = Boolean(selectedOldFile || selectedNewFile);
+
+  if (selectedFile && !hasCompareRefs && isLoadingCompareRefs && !patch) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <LoaderCircle className="text-muted-foreground h-5 w-5 animate-spin" />
+        <span className="text-muted-foreground ml-2 text-sm">Preparing compare refs...</span>
+      </div>
+    );
+  }
+
+  if (useRefBackedDiff && isLoadingBranchFileVersions && !branchFileVersions) {
     return (
       <div className="flex h-full items-center justify-center">
         <LoaderCircle className="text-muted-foreground h-5 w-5 animate-spin" />
@@ -493,10 +553,35 @@ function FilesDiffViewer({
     );
   }
 
-  if (patchError) {
+  if (!useRefBackedDiff && isLoadingPatch && !patch) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <LoaderCircle className="text-muted-foreground h-5 w-5 animate-spin" />
+        <span className="text-muted-foreground ml-2 text-sm">Loading diff...</span>
+      </div>
+    );
+  }
+
+  if (selectedFile && !hasCompareRefs && compareRefsError && !selectedPatch) {
+    return (
+      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
+        {compareRefsError}
+      </div>
+    );
+  }
+
+  if (!useRefBackedDiff && patchError) {
     return (
       <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
         {patchError}
+      </div>
+    );
+  }
+
+  if (useRefBackedDiff && branchFileVersionsError && !selectedPatch) {
+    return (
+      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
+        {branchFileVersionsError}
       </div>
     );
   }
@@ -535,7 +620,7 @@ function FilesDiffViewer({
     );
   }
 
-  if (!selectedPatch) {
+  if (!hasRefBackedFileVersions && !selectedPatch) {
     return (
       <div className="flex h-full items-center justify-center">
         <Empty className="border-0 bg-transparent">
@@ -559,36 +644,49 @@ function FilesDiffViewer({
         filePayload={fileReviewCommentsPayload}
         allPayload={allReviewCommentsPayload}
       />
-      <Virtualizer className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <PatchDiff
-          key={selectedFile.path}
-          className="block min-w-0 max-w-full"
-          patch={selectedPatch}
-          lineAnnotations={threadAnnotations}
-          renderAnnotation={(annotation) => {
-            const metadata = annotation.metadata;
-            if (!metadata || metadata.type !== "pull-request-thread") {
-              return null;
-            }
-
-            return (
-              <PullRequestInlineReviewThread
-                providerId={providerId}
-                repoPath={metadata.repoPath}
-                pullRequestNumber={metadata.pullRequestNumber}
-                thread={metadata.thread}
-              />
-            );
-          }}
-          options={{
-            theme: getDiffTheme(),
-            themeType: getDiffThemeType(resolvedTheme),
-            unsafeCSS: PREVIEW_PATCH_CSS,
-            disableLineNumbers: false,
-            hunkSeparators: "line-info-basic",
-          }}
+      {hasRefBackedFileVersions ? (
+        <DiffWorkspace
+          oldFile={selectedOldFile}
+          newFile={selectedNewFile}
+          activePath={selectedFile.path}
+          commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
+          canComment={false}
+          fileViewerRevision={compareHeadRef}
+          lspJumpContextKind="pull-request"
+          annotationItems={threadAnnotations}
         />
-      </Virtualizer>
+      ) : (
+        <Virtualizer className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <PatchDiff
+            key={selectedFile.path}
+            className="block min-w-0 max-w-full"
+            patch={selectedPatch}
+            lineAnnotations={threadAnnotations}
+            renderAnnotation={(annotation) => {
+              const metadata = annotation.metadata;
+              if (!metadata || metadata.type !== "pull-request-thread") {
+                return null;
+              }
+
+              return (
+                <PullRequestInlineReviewThread
+                  providerId={providerId}
+                  repoPath={metadata.repoPath}
+                  pullRequestNumber={metadata.pullRequestNumber}
+                  thread={metadata.thread}
+                />
+              );
+            }}
+            options={{
+              theme: getDiffTheme(),
+              themeType: getDiffThemeType(resolvedTheme),
+              unsafeCSS: PREVIEW_PATCH_CSS,
+              disableLineNumbers: false,
+              hunkSeparators: "line-info-basic",
+            }}
+          />
+        </Virtualizer>
+      )}
     </div>
   );
 }

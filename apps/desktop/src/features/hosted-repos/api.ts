@@ -7,6 +7,7 @@ import type {
   ListPullRequestsInput,
   ProviderConnection,
   PullRequestChangedFile,
+  PullRequestCompareRefs,
   PullRequestConversation,
   PullRequestLocatorInput,
   PullRequestPage,
@@ -24,6 +25,7 @@ import {
   getPullRequestPatch,
   listProviderConnections,
   listPullRequests,
+  preparePullRequestCompareRefs,
   replyToPullRequestThread,
   resolveHostedRepo,
   resolvePullRequestWorkspace,
@@ -46,6 +48,7 @@ export const hostedReposApi = createApi({
     "PullRequestConversation",
     "PullRequestFiles",
     "PullRequestPatch",
+    "PullRequestCompareRefs",
   ],
   endpoints: (builder) => ({
     listProviderConnections: builder.query<ProviderConnection[], void>({
@@ -147,6 +150,18 @@ export const hostedReposApi = createApi({
         { type: "PullRequestPatch", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
+    preparePullRequestCompareRefs: builder.query<PullRequestCompareRefs, PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await preparePullRequestCompareRefs(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestCompareRefs", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
     addPullRequestComment: builder.mutation<void, AddPullRequestCommentInput>({
       async queryFn(input) {
         try {
@@ -202,6 +217,7 @@ export const {
   useGetPullRequestPatchQuery,
   useListProviderConnectionsQuery,
   useListPullRequestsQuery,
+  usePreparePullRequestCompareRefsQuery,
   useReplyToPullRequestThreadMutation,
   useResolveHostedRepoQuery,
   useResolvePullRequestWorkspaceQuery,

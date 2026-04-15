@@ -23,12 +23,14 @@ import { PullRequestConversationTab } from "@/features/pull-requests/components/
 import {
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
+  useGetGitSnapshotQuery,
 } from "@/features/source-control/api";
 import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
 import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import {
   clearReviewSelection,
+  setChangesSidebarMode,
   setReviewActivePath,
   setReviewBaseRef,
   setReviewHeadRef,
@@ -36,6 +38,7 @@ import {
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { DiffAnnotationItem, FileItem } from "@/features/source-control/types";
 import {
+  clearCurrentPullRequestReview,
   setActiveConversationThreadId,
   setPullRequestFilesViewMode,
   setPullRequestFileJumpTarget,
@@ -255,6 +258,10 @@ export function PullRequestReviewScreen() {
     skip: !activeRepo,
     selectFromResult: ({ data }) => ({ data }),
   });
+  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo || "", {
+    skip: !activeRepo,
+    selectFromResult: ({ data }) => ({ data }),
+  });
 
   const hasRouteParams = Boolean(providerId && owner && repo && pullRequestNumber);
   const matchesCurrentReview =
@@ -264,8 +271,13 @@ export function PullRequestReviewScreen() {
     currentReview.owner === owner &&
     currentReview.repo === repo &&
     String(currentReview.pullRequestNumber) === pullRequestNumber;
+  const workspaceMatchesActiveBranch =
+    !pullRequestWorkspace || !snapshot
+      ? true
+      : snapshot.branch === pullRequestWorkspace.localBranch;
   const workspaceReview =
     pullRequestWorkspace &&
+    workspaceMatchesActiveBranch &&
     (!hasRouteParams ||
       (pullRequestWorkspace.providerId === providerId &&
         pullRequestWorkspace.owner === owner &&
@@ -273,7 +285,10 @@ export function PullRequestReviewScreen() {
         String(pullRequestWorkspace.pullRequestNumber) === pullRequestNumber))
       ? createReviewSessionFromWorkspace(pullRequestWorkspace)
       : null;
-  const resolvedReview = matchesCurrentReview ? currentReview : (workspaceReview ?? currentReview);
+  const allowCurrentReviewFallback = workspaceMatchesActiveBranch || !pullRequestWorkspace;
+  const resolvedReview = matchesCurrentReview
+    ? currentReview
+    : (workspaceReview ?? (allowCurrentReviewFallback ? currentReview : null));
 
   const currentCompareBaseRef = resolvedReview?.compareBaseRef ?? "";
   const currentCompareHeadRef = resolvedReview?.compareHeadRef ?? "";
@@ -336,6 +351,22 @@ export function PullRequestReviewScreen() {
       dispatch(clearReviewSelection());
     }
   }, [dispatch, hasRouteParams, matchesCurrentReview]);
+
+  useEffect(() => {
+    if (!pullRequestWorkspace || !snapshot) {
+      return;
+    }
+
+    if (snapshot.branch === pullRequestWorkspace.localBranch) {
+      return;
+    }
+
+    dispatch(setChangesSidebarMode("changes"));
+    dispatch(clearCurrentPullRequestReview());
+    dispatch(clearReviewSelection());
+    dispatch(setReviewBaseRef(""));
+    dispatch(setReviewHeadRef(""));
+  }, [dispatch, pullRequestWorkspace, snapshot]);
 
   useEffect(() => {
     if (!pullRequestWorkspace) {

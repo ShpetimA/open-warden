@@ -24,6 +24,7 @@ export const DESKTOP_API_METHODS = [
   "addPullRequestComment",
   "replyToPullRequestThread",
   "setPullRequestThreadResolved",
+  "preparePullRequestCompareRefs",
   "preparePullRequestWorkspace",
   "getGitSnapshot",
   "getRepoFiles",

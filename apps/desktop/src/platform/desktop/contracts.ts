@@ -207,6 +207,18 @@ export type PullRequestChangedFile = {
 
 export type PullRequestOpenMode = "branch" | "worktree";
 
+export type PullRequestCompareRefs = {
+  providerId: GitProviderId;
+  owner: string;
+  repo: string;
+  pullRequestNumber: number;
+  baseRef: string;
+  headRef: string;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  localBranch: string;
+};
+
 export type PreparePullRequestWorkspaceInput = {
   repoPath: string;
   pullRequestNumber: number;
@@ -361,6 +373,7 @@ export type DesktopApi = {
   setPullRequestThreadResolved(
     input: SetPullRequestThreadResolvedInput,
   ): Promise<PullRequestReviewThread>;
+  preparePullRequestCompareRefs(input: PullRequestLocatorInput): Promise<PullRequestCompareRefs>;
   preparePullRequestWorkspace(
     input: PreparePullRequestWorkspaceInput,
   ): Promise<PreparedPullRequestWorkspace>;

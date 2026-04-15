@@ -130,6 +130,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Pull request thread replies";
     case "setPullRequestThreadResolved":
       return "Pull request thread resolution";
+    case "preparePullRequestCompareRefs":
+      return "Pull request compare refs";
     case "preparePullRequestWorkspace":
       return "Pull request review workspaces";
     case "getGitSnapshot":

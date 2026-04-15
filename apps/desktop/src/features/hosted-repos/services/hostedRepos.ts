@@ -9,6 +9,7 @@ import type {
   ProviderConnection,
   ListPullRequestsInput,
   PullRequestChangedFile,
+  PullRequestCompareRefs,
   PullRequestConversation,
   PullRequestIssueComment,
   PullRequestLocatorInput,
@@ -66,6 +67,10 @@ export async function replyToPullRequestThread(input: ReplyToPullRequestThreadIn
 
 export async function setPullRequestThreadResolved(input: SetPullRequestThreadResolvedInput) {
   return desktop.setPullRequestThreadResolved(input) as Promise<PullRequestReviewThread>;
+}
+
+export async function preparePullRequestCompareRefs(input: PullRequestLocatorInput) {
+  return desktop.preparePullRequestCompareRefs(input) as Promise<PullRequestCompareRefs>;
 }
 
 export async function preparePullRequestWorkspace(input: PreparePullRequestWorkspaceInput) {

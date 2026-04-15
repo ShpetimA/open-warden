@@ -13,4 +13,8 @@ export {
   replyToPullRequestThread,
   setPullRequestThreadResolved,
 } from "./hosted-repos/pullRequests";
-export { preparePullRequestWorkspace, resolvePullRequestWorkspace } from "./hosted-repos/workspace";
+export {
+  preparePullRequestCompareRefs,
+  preparePullRequestWorkspace,
+  resolvePullRequestWorkspace,
+} from "./hosted-repos/workspace";

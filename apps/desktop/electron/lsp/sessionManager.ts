@@ -28,6 +28,7 @@ type SessionManagerOptions = {
 type PendingRequest = {
   resolve(value: unknown): void;
   reject(error: unknown): void;
+  timeoutId: ReturnType<typeof setTimeout>;
 };
 
 type OpenDocument = {
@@ -37,7 +38,11 @@ type OpenDocument = {
 };
 
 type InitializeResult = {
-  capabilities?: unknown;
+  capabilities?: {
+    hoverProvider?: unknown;
+    definitionProvider?: unknown;
+    referencesProvider?: unknown;
+  };
 };
 
 type DiagnosticsNotification = {
@@ -100,8 +105,29 @@ type LocationLink = {
   targetRange?: LspRange;
 };
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
+const INITIALIZE_REQUEST_TIMEOUT_MS = 20_000;
+const SHUTDOWN_REQUEST_TIMEOUT_MS = 2_000;
+
+type FileSessionBinding = {
+  sessionKey: string;
+  languageId: string;
+};
+
+function normalizeRelPath(relPath: string) {
+  return relPath.replace(/\\/g, "/");
+}
+
 function toSessionKey(repoPath: string, languageId: string) {
   return `${repoPath}::${languageId}`;
+}
+
+function toFileKey(repoPath: string, relPath: string) {
+  return `${repoPath}\u0000${normalizeRelPath(relPath)}`;
+}
+
+function toSessionSettingsSignature(languageId: string, settings: AppSettings) {
+  return JSON.stringify(settings.lsp.servers[languageId] ?? null);
 }
 
 function toDocumentUri(repoPath: string, relPath: string) {
@@ -256,7 +282,7 @@ export function normalizeLspLocationResponse(
       return [];
     }
 
-    const relPath = path.relative(repoPath, documentPath);
+    const relPath = normalizeRelPath(path.relative(repoPath, documentPath));
     if (!relPath || relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return [];
     }
@@ -291,6 +317,8 @@ class LspSession {
   private readonly onExit: () => void;
   private nextRequestId = 1;
   private closed = false;
+  private disposing = false;
+  private serverCapabilities: InitializeResult["capabilities"] | null = null;
   private readonly spawned: Promise<void>;
   private readonly initialized: Promise<void>;
 
@@ -341,7 +369,7 @@ class LspSession {
         this.handleResponse(id, result, error);
       },
       onTransportError: (error) => {
-        this.failPendingRequests(error);
+        this.handleFatalError(error);
       },
     });
 
@@ -357,29 +385,26 @@ class LspSession {
 
       this.process.once("error", (error) => {
         if (settled) {
-          this.failPendingRequests(error);
+          this.handleFatalError(error);
           return;
         }
 
         settled = true;
         reject(error);
+        this.closeInternals(this.errorMessage(error));
       });
 
       this.process.once("exit", (code, signal) => {
-        const error = new Error(
-          `Language server for ${languageId} exited (code: ${code ?? "null"}, signal: ${
-            signal ?? "null"
-          }).`,
-        );
+        const errorMessage = `Language server for ${languageId} exited (code: ${code ?? "null"}, signal: ${
+          signal ?? "null"
+        }).`;
 
         if (!settled) {
           settled = true;
-          reject(error);
-        } else {
-          this.failPendingRequests(error);
+          reject(new Error(errorMessage));
         }
 
-        this.closeInternals();
+        this.closeInternals(errorMessage);
       });
     });
 
@@ -403,7 +428,7 @@ class LspSession {
         },
       })) as InitializeResult;
 
-      void initializeResult;
+      this.serverCapabilities = initializeResult.capabilities ?? null;
       this.protocol.sendNotification("initialized", {});
     });
   }
@@ -475,6 +500,10 @@ class LspSession {
   async getHover(line: number, character: number, relPath: string): Promise<LspHoverResult | null> {
     await this.initialized;
 
+    if (!this.isMethodSupported(this.serverCapabilities?.hoverProvider)) {
+      return null;
+    }
+
     const uri = toDocumentUri(this.repoPath, relPath);
     if (!this.openDocuments.has(uri)) {
       return null;
@@ -495,6 +524,10 @@ class LspSession {
 
   async getDefinition(line: number, character: number, relPath: string): Promise<LspLocation[]> {
     await this.initialized;
+
+    if (!this.isMethodSupported(this.serverCapabilities?.definitionProvider)) {
+      return [];
+    }
 
     const uri = toDocumentUri(this.repoPath, relPath);
     if (!this.openDocuments.has(uri)) {
@@ -522,6 +555,10 @@ class LspSession {
   ): Promise<LspLocation[]> {
     await this.initialized;
 
+    if (!this.isMethodSupported(this.serverCapabilities?.referencesProvider)) {
+      return [];
+    }
+
     const uri = toDocumentUri(this.repoPath, relPath);
     if (!this.openDocuments.has(uri)) {
       return [];
@@ -544,14 +581,12 @@ class LspSession {
   }
 
   dispose() {
-    if (this.closed) {
+    if (this.closed || this.disposing) {
       return;
     }
 
-    this.closeInternals();
-    if (!this.process.killed) {
-      this.process.kill();
-    }
+    this.disposing = true;
+    void this.shutdownAndDispose();
   }
 
   private handleNotification(method: string, params: unknown) {
@@ -564,12 +599,16 @@ class LspSession {
       return;
     }
 
+    if (!this.openDocuments.has(notification.uri)) {
+      return;
+    }
+
     const documentPath = toDocumentPath(notification.uri);
     if (!documentPath) {
       return;
     }
 
-    const relPath = path.relative(this.repoPath, documentPath);
+    const relPath = normalizeRelPath(path.relative(this.repoPath, documentPath));
     if (!relPath || relPath.startsWith("..") || path.isAbsolute(relPath)) {
       return;
     }
@@ -619,6 +658,7 @@ class LspSession {
     }
 
     this.pendingRequests.delete(id);
+    clearTimeout(pendingRequest.timeoutId);
 
     if (error) {
       pendingRequest.reject(new Error(error.message));
@@ -629,37 +669,125 @@ class LspSession {
   }
 
   private sendRequest(method: string, params: unknown) {
+    if (this.closed) {
+      return Promise.reject(new Error(`Language server session closed for ${this.languageId}.`));
+    }
+
     const requestId = this.nextRequestId;
     this.nextRequestId += 1;
 
     return new Promise<unknown>((resolve, reject) => {
-      this.pendingRequests.set(requestId, { resolve, reject });
+      const timeoutId = setTimeout(() => {
+        const pendingRequest = this.pendingRequests.get(requestId);
+        if (!pendingRequest) {
+          return;
+        }
+
+        this.pendingRequests.delete(requestId);
+        pendingRequest.reject(new Error(`LSP request timed out: ${method}.`));
+      }, this.requestTimeoutMsForMethod(method));
+
+      this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
       this.protocol.sendRequest(requestId, method, params);
     });
   }
 
   private failPendingRequests(error: unknown) {
     for (const pendingRequest of this.pendingRequests.values()) {
+      clearTimeout(pendingRequest.timeoutId);
       pendingRequest.reject(error);
     }
 
     this.pendingRequests.clear();
   }
 
-  private closeInternals() {
+  private async shutdownAndDispose() {
+    await Promise.race([
+      this.initialized.catch(() => {}),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, SHUTDOWN_REQUEST_TIMEOUT_MS);
+      }),
+    ]);
+
+    if (this.closed) {
+      return;
+    }
+
+    try {
+      await this.sendRequest("shutdown", null);
+    } catch {
+      // Ignore shutdown errors and continue best-effort teardown.
+    }
+
+    if (this.closed) {
+      return;
+    }
+
+    try {
+      this.protocol.sendNotification("exit");
+    } catch {
+      // Ignore exit notification errors during teardown.
+    }
+
+    this.closeInternals();
+    if (!this.process.killed) {
+      this.process.kill();
+    }
+  }
+
+  private handleFatalError(error: unknown) {
+    if (this.closed) {
+      return;
+    }
+
+    this.closeInternals(this.errorMessage(error));
+    if (!this.process.killed) {
+      this.process.kill();
+    }
+  }
+
+  private requestTimeoutMsForMethod(method: string) {
+    switch (method) {
+      case "initialize":
+        return INITIALIZE_REQUEST_TIMEOUT_MS;
+      case "shutdown":
+        return SHUTDOWN_REQUEST_TIMEOUT_MS;
+      default:
+        return DEFAULT_REQUEST_TIMEOUT_MS;
+    }
+  }
+
+  private isMethodSupported(capability: unknown) {
+    return capability !== false;
+  }
+
+  private errorMessage(error: unknown) {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+
+    return String(error);
+  }
+
+  private closeInternals(reason?: string) {
     if (this.closed) {
       return;
     }
 
     this.closed = true;
+    this.disposing = false;
     this.protocol.dispose();
-    this.failPendingRequests(new Error(`Language server session closed for ${this.languageId}.`));
+    this.failPendingRequests(
+      new Error(reason ?? `Language server session closed for ${this.languageId}.`),
+    );
     this.onExit();
   }
 }
 
 export class LspSessionManager {
   private readonly sessions = new Map<string, Promise<LspSession>>();
+  private readonly sessionSettingsSignatures = new Map<string, string>();
+  private readonly fileSessionByFile = new Map<string, FileSessionBinding>();
   private readonly onDiagnostics: SessionManagerOptions["onDiagnostics"];
   private readonly loadAppSettings: NonNullable<SessionManagerOptions["loadAppSettings"]>;
 
@@ -670,16 +798,34 @@ export class LspSessionManager {
 
   async syncDocument({ repoPath, relPath, text }: SyncLspDocumentInput) {
     const settings = await this.loadNormalizedSettings();
+    const fileKey = toFileKey(repoPath, relPath);
+    const previousBinding = this.fileSessionByFile.get(fileKey);
     const languageId = languageIdForPath(relPath, settings.lsp.servers);
+
     if (!languageId) {
+      if (previousBinding) {
+        this.fileSessionByFile.delete(fileKey);
+        await this.closeBoundSessionDocument(previousBinding.sessionKey, relPath);
+      }
       this.emitDiagnostics(repoPath, relPath, null, [], "Unsupported language.");
       return;
+    }
+
+    const nextSessionKey = toSessionKey(repoPath, languageId);
+    if (previousBinding && previousBinding.sessionKey !== nextSessionKey) {
+      this.fileSessionByFile.delete(fileKey);
+      await this.closeBoundSessionDocument(previousBinding.sessionKey, relPath);
     }
 
     try {
       const session = await this.getSession(repoPath, languageId, settings);
       await session.syncDocument(relPath, text);
+      this.fileSessionByFile.set(fileKey, {
+        sessionKey: nextSessionKey,
+        languageId,
+      });
     } catch (error) {
+      this.fileSessionByFile.delete(fileKey);
       this.emitDiagnostics(
         repoPath,
         relPath,
@@ -692,24 +838,22 @@ export class LspSessionManager {
 
   async closeDocument({ repoPath, relPath }: CloseLspDocumentInput) {
     const settings = await this.loadNormalizedSettings();
-    const languageId = languageIdForPath(relPath, settings.lsp.servers);
+    const fileKey = toFileKey(repoPath, relPath);
+    const binding = this.fileSessionByFile.get(fileKey);
+    const fallbackLanguageId = languageIdForPath(relPath, settings.lsp.servers);
+    const languageId = binding?.languageId ?? fallbackLanguageId ?? null;
+
     this.emitDiagnostics(repoPath, relPath, languageId, [], null);
+    this.fileSessionByFile.delete(fileKey);
 
-    if (!languageId) {
+    const sessionKey =
+      binding?.sessionKey ??
+      (fallbackLanguageId ? toSessionKey(repoPath, fallbackLanguageId) : null);
+    if (!sessionKey) {
       return;
     }
 
-    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
-    if (!sessionPromise) {
-      return;
-    }
-
-    try {
-      const session = await sessionPromise;
-      await session.closeDocument(relPath);
-    } catch {
-      return;
-    }
+    await this.closeBoundSessionDocument(sessionKey, relPath);
   }
 
   async getHover({
@@ -719,12 +863,7 @@ export class LspSessionManager {
     character,
   }: GetLspHoverInput): Promise<LspHoverResult | null> {
     const settings = await this.loadNormalizedSettings();
-    const languageId = languageIdForPath(relPath, settings.lsp.servers);
-    if (!languageId) {
-      return null;
-    }
-
-    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
+    const sessionPromise = this.resolveSessionPromiseForFile(repoPath, relPath, settings);
     if (!sessionPromise) {
       return null;
     }
@@ -744,12 +883,7 @@ export class LspSessionManager {
     character,
   }: GetLspHoverInput): Promise<LspLocation[]> {
     const settings = await this.loadNormalizedSettings();
-    const languageId = languageIdForPath(relPath, settings.lsp.servers);
-    if (!languageId) {
-      return [];
-    }
-
-    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
+    const sessionPromise = this.resolveSessionPromiseForFile(repoPath, relPath, settings);
     if (!sessionPromise) {
       return [];
     }
@@ -770,12 +904,7 @@ export class LspSessionManager {
     includeDeclaration = false,
   }: GetLspReferencesInput): Promise<LspLocation[]> {
     const settings = await this.loadNormalizedSettings();
-    const languageId = languageIdForPath(relPath, settings.lsp.servers);
-    if (!languageId) {
-      return [];
-    }
-
-    const sessionPromise = this.sessions.get(toSessionKey(repoPath, languageId));
+    const sessionPromise = this.resolveSessionPromiseForFile(repoPath, relPath, settings);
     if (!sessionPromise) {
       return [];
     }
@@ -791,6 +920,8 @@ export class LspSessionManager {
   async dispose() {
     const sessions = Array.from(this.sessions.values());
     this.sessions.clear();
+    this.sessionSettingsSignatures.clear();
+    this.fileSessionByFile.clear();
 
     for (const sessionPromise of sessions) {
       try {
@@ -804,9 +935,23 @@ export class LspSessionManager {
 
   private getSession(repoPath: string, languageId: string, settings: AppSettings) {
     const key = toSessionKey(repoPath, languageId);
+    const nextSignature = toSessionSettingsSignature(languageId, settings);
     const existing = this.sessions.get(key);
-    if (existing) {
+    const existingSignature = this.sessionSettingsSignatures.get(key);
+
+    if (existing && existingSignature === nextSignature) {
       return existing;
+    }
+
+    if (existing && existingSignature !== nextSignature) {
+      this.sessions.delete(key);
+      this.sessionSettingsSignatures.delete(key);
+      this.clearFileBindingsForSessionKey(key);
+      void existing
+        .then((session) => {
+          session.dispose();
+        })
+        .catch(() => {});
     }
 
     const sessionPromise = LspSession.create(
@@ -816,14 +961,58 @@ export class LspSessionManager {
       this.onDiagnostics,
       () => {
         this.sessions.delete(key);
+        this.sessionSettingsSignatures.delete(key);
+        this.clearFileBindingsForSessionKey(key);
       },
     ).catch((error) => {
       this.sessions.delete(key);
+      this.sessionSettingsSignatures.delete(key);
+      this.clearFileBindingsForSessionKey(key);
       throw error;
     });
 
     this.sessions.set(key, sessionPromise);
+    this.sessionSettingsSignatures.set(key, nextSignature);
     return sessionPromise;
+  }
+
+  private resolveSessionPromiseForFile(repoPath: string, relPath: string, settings: AppSettings) {
+    const binding = this.fileSessionByFile.get(toFileKey(repoPath, relPath));
+    if (binding) {
+      const sessionPromise = this.sessions.get(binding.sessionKey);
+      if (sessionPromise) {
+        return sessionPromise;
+      }
+    }
+
+    const languageId = languageIdForPath(relPath, settings.lsp.servers);
+    if (!languageId) {
+      return null;
+    }
+
+    return this.sessions.get(toSessionKey(repoPath, languageId)) ?? null;
+  }
+
+  private clearFileBindingsForSessionKey(sessionKey: string) {
+    for (const [fileKey, binding] of this.fileSessionByFile.entries()) {
+      if (binding.sessionKey === sessionKey) {
+        this.fileSessionByFile.delete(fileKey);
+      }
+    }
+  }
+
+  private async closeBoundSessionDocument(sessionKey: string, relPath: string) {
+    const sessionPromise = this.sessions.get(sessionKey);
+    if (!sessionPromise) {
+      return;
+    }
+
+    try {
+      const session = await sessionPromise;
+      await session.closeDocument(relPath);
+    } catch {
+      return;
+    }
   }
 
   private async loadNormalizedSettings(): Promise<AppSettings> {
@@ -844,7 +1033,7 @@ export class LspSessionManager {
   ) {
     this.onDiagnostics({
       repoPath,
-      relPath,
+      relPath: normalizeRelPath(relPath),
       languageId,
       diagnostics,
       reason,
