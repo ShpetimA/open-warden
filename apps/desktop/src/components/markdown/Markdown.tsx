@@ -126,7 +126,7 @@ function ShikiCodeInner({ code, lang }: { code: string; lang: string }) {
   const html = use(highlightCode(code, lang));
 
   return (
-    <div className="group/code relative mb-2 [&_pre]:mb-0 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border/60 [&_pre]:bg-background [&_pre]:p-3 [&_pre]:text-xs">
+    <div className="group/code relative mb-2 max-w-full [&_pre]:mb-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border/60 [&_pre]:bg-background [&_pre]:p-3 [&_pre]:text-xs">
       {/* biome-ignore lint/security/noDangerouslySetInnerHtml: shiki output is trusted */}
       <div dangerouslySetInnerHTML={{ __html: html }} />
       <CopyButton code={code} />
@@ -173,7 +173,7 @@ const components: Record<string, FC<any>> = {
     </h4>
   ),
   p: ({ node: _, children, ...props }) => (
-    <p className="mb-2 text-sm leading-relaxed last:mb-0" {...props}>
+    <p className="mb-2 max-w-full break-words text-sm leading-relaxed [overflow-wrap:anywhere] last:mb-0" {...props}>
       {children}
     </p>
   ),
@@ -199,7 +199,7 @@ const components: Record<string, FC<any>> = {
     </ol>
   ),
   li: ({ node: _, children, ...props }) => (
-    <li className="text-sm leading-relaxed" {...props}>
+    <li className="max-w-full break-words text-sm leading-relaxed [overflow-wrap:anywhere]" {...props}>
       {children}
     </li>
   ),
@@ -218,7 +218,10 @@ const components: Record<string, FC<any>> = {
       return <ShikiCode code={code} lang={langMatch[1]} />;
     }
     return (
-      <code className="bg-surface rounded-md px-1.5 py-0.5 font-mono text-xs" {...props}>
+      <code
+        className="bg-surface inline max-w-full break-words rounded-md px-1.5 py-0.5 font-mono text-xs [overflow-wrap:anywhere]"
+        {...props}
+      >
         {children}
       </code>
     );
@@ -234,7 +237,10 @@ const components: Record<string, FC<any>> = {
       return <>{children}</>;
     }
     return (
-      <pre className="bg-surface border-border/60 mb-2 overflow-x-auto rounded-lg border p-3 text-xs" {...props}>
+      <pre
+        className="bg-surface border-border/60 mb-2 max-w-full overflow-x-auto rounded-lg border p-3 text-xs"
+        {...props}
+      >
         {children}
       </pre>
     );
@@ -265,7 +271,7 @@ const components: Record<string, FC<any>> = {
   ),
   td: ({ node: _, children, ...props }) => (
     <td
-      className="border-border/50 last:border-r-0 [tr:last-child_&]:border-b-0 border-r border-b px-3 py-1.5 text-xs"
+      className="border-border/50 last:border-r-0 [tr:last-child_&]:border-b-0 max-w-full border-r border-b px-3 py-1.5 text-xs break-words [overflow-wrap:anywhere]"
       {...props}
     >
       {children}
@@ -343,7 +349,7 @@ export function Markdown({
   );
 
   return (
-    <div className={cn("text-foreground", className)}>
+    <div className={cn("text-foreground min-w-0 max-w-full overflow-hidden", className)}>
       <Md remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
         {safeMarkdown}
       </Md>

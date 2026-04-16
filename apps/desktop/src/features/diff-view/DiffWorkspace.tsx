@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -53,7 +53,6 @@ import {
 import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { DIFF_LINE_FOCUS_CSS, useDiffLineFocus } from "@/features/source-control/diffLineFocus";
-import { formatRange } from "@/features/source-control/utils";
 import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
 
 type Props = {
@@ -229,6 +228,18 @@ export function DiffWorkspace({
   const [expandUnchanged, setExpandUnchanged] = useState(false);
   const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
+  const getReturnToDiffTarget = useCallback(
+    (source: { lineNumber: number; lineIndex: string | null }) =>
+      buildReturnToDiffTarget(
+        jumpContext,
+        source,
+        activeRepo,
+        activePath,
+        commentContext,
+        activeBucket,
+      ),
+    [activeBucket, activePath, activeRepo, commentContext, jumpContext],
+  );
   const {
     hoverState,
     onTokenClick: onHoverTokenClick,
@@ -238,18 +249,10 @@ export function DiffWorkspace({
     resetKey: activeDiffIdentity,
   });
   const { onTokenClick: onNavigationTokenClick } = useLspTokenNavigation(lspHoverDocument, {
-    getReturnToDiffTarget: (source) =>
-      buildReturnToDiffTarget(
-        jumpContext,
-        source,
-        activeRepo,
-        activePath,
-        commentContext,
-        activeBucket,
-      ),
+    getReturnToDiffTarget,
   });
 
-  const diffTheme = getDiffTheme();
+  const diffTheme = useMemo(() => getDiffTheme(), []);
   const { annotations: currentAnnotations } = useCurrentFileComments(
     activeRepo,
     activePath,
@@ -277,103 +280,167 @@ export function DiffWorkspace({
     enabled: Boolean(currentFileDiff),
   });
 
-  const applySelectionRange = (range: SelectionRange | null) => {
+  const applySelectionRange = useCallback((range: SelectionRange | null) => {
     setSelectedRange(range);
-  };
+  }, []);
 
-  const onLineSelectionEnd = (range: SelectionRange | null) => {
+  const onLineSelectionEnd = useCallback((range: SelectionRange | null) => {
     setSelectedRange(range);
-  };
+  }, []);
 
-  const renderAnnotation = (annotation: { metadata?: DiffAnnotationItem }) => {
-    const data = annotation.metadata;
-    if (!data) return null;
+  const onCloseCommentComposer = useCallback(() => {
+    setSelectedRange(null);
+  }, []);
 
-    if (data.type === "composer") {
-      return (
-        <CommentComposer
-          visible
-          activePath={activePath}
-          selectedRange={selectedRange}
-          commentContext={commentContext}
-          onClose={onCloseCommentComposer}
-          onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
-          mentions={commentMentions}
-        />
-      );
-    }
+  const renderAnnotation = useCallback(
+    (annotation: { metadata?: DiffAnnotationItem }) => {
+      const data = annotation.metadata;
+      if (!data) return null;
 
-    if (data.type === "pull-request-thread") {
-      return (
-        <PullRequestInlineReviewThread
-          repoPath={data.repoPath}
-          pullRequestNumber={data.pullRequestNumber}
-          thread={data.thread}
-          mentions={commentMentions}
-        />
-      );
-    }
+      if (data.type === "composer") {
+        return (
+          <CommentComposer
+            visible
+            activePath={activePath}
+            selectedRange={selectedRange}
+            commentContext={commentContext}
+            onClose={onCloseCommentComposer}
+            onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
+            mentions={commentMentions}
+          />
+        );
+      }
 
-    if (data.type === "diagnostic") {
-      return null;
-    }
+      if (data.type === "pull-request-thread") {
+        return (
+          <PullRequestInlineReviewThread
+            repoPath={data.repoPath}
+            pullRequestNumber={data.pullRequestNumber}
+            thread={data.thread}
+            mentions={commentMentions}
+          />
+        );
+      }
 
-    return <CommentAnnotation comment={data} />;
-  };
+      if (data.type === "diagnostic") {
+        return null;
+      }
 
-  const diagnosticsByLine = buildDiagnosticsByLine(lspDiagnostics);
+      return <CommentAnnotation comment={data} />;
+    },
+    [
+      activePath,
+      commentContext,
+      commentMentions,
+      onCloseCommentComposer,
+      repoCommentCount,
+      selectedRange,
+      showFirstCommentTip,
+    ],
+  );
+
+  const diagnosticsByLine = useMemo(() => buildDiagnosticsByLine(lspDiagnostics), [lspDiagnostics]);
   const diagnosticPopover = useDiagnosticTokenPopover(diagnosticsByLine);
 
-  const diffOptions: FileDiffOptions<DiffAnnotationItem> = {
-    diffStyle,
-    theme: diffTheme,
-    themeType: diffThemeType,
-    unsafeCSS: STICKY_HEADER_CSS,
-    disableLineNumbers: false,
-    maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
-    expandUnchanged,
-    expansionLineCount: 20,
-    hunkSeparators: "line-info-basic" as const,
-    enableLineSelection: canComment,
-    onTokenClick: (props, event) => {
+  const handleTokenClick = useCallback<NonNullable<FileDiffOptions<DiffAnnotationItem>["onTokenClick"]>>(
+    (props, event) => {
       if (onHoverTokenClick(props, event)) {
         return;
       }
 
       onNavigationTokenClick(props, event);
     },
-    onTokenEnter: diagnosticPopover.onTokenEnter,
-    onTokenLeave: diagnosticPopover.onTokenLeave,
-    onLineSelected: canComment ? applySelectionRange : undefined,
-    onLineSelectionEnd: canComment ? onLineSelectionEnd : undefined,
-    onPostRender: (rootNode) => applyDiagnosticTokenDecorations(rootNode, diagnosticsByLine),
-  };
+    [onHoverTokenClick, onNavigationTokenClick],
+  );
 
-  const onCloseCommentComposer = () => {
-    setSelectedRange(null);
-  };
+  const handlePostRender = useCallback(
+    (rootNode: HTMLElement) => applyDiagnosticTokenDecorations(rootNode, diagnosticsByLine),
+    [diagnosticsByLine],
+  );
 
-  const selectedRangeLabel = selectedRange
-    ? formatRange(selectedRange.start, selectedRange.end)
-    : "";
-  const baseAnnotations = [...currentAnnotations, ...annotationItems];
-  const annotationsWithComposer: DiffLineAnnotation<DiffAnnotationItem>[] = selectedRange
-    ? [
-        ...baseAnnotations,
-        {
-          lineNumber: selectedRange.end,
-          metadata: {
-            type: "composer",
-            side: selectedRange.side ?? "deletions",
-            endSide: selectedRange.endSide,
-            startLine: selectedRange.start,
-            endLine: selectedRange.end,
-          },
+  const handleToggleExpandUnchanged = useCallback(() => {
+    setExpandUnchanged((current) => !current);
+  }, []);
+
+  const renderHeaderMetadata = useCallback(
+    () => (
+      <DiffHeaderMetadataControls
+        activePath={activePath}
+        canComment={canComment}
+        commentContext={commentContext}
+        expandUnchanged={expandUnchanged}
+        fileViewerRevision={fileViewerRevision}
+        onToggleExpandUnchanged={handleToggleExpandUnchanged}
+      />
+    ),
+    [
+      activePath,
+      canComment,
+      commentContext,
+      expandUnchanged,
+      fileViewerRevision,
+      handleToggleExpandUnchanged,
+    ],
+  );
+
+  const diffOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
+    () => ({
+      diffStyle,
+      theme: diffTheme,
+      themeType: diffThemeType,
+      unsafeCSS: STICKY_HEADER_CSS,
+      disableLineNumbers: false,
+      maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
+      expandUnchanged,
+      expansionLineCount: 20,
+      hunkSeparators: "line-info-basic",
+      enableLineSelection: canComment,
+      onTokenClick: handleTokenClick,
+      onTokenEnter: diagnosticPopover.onTokenEnter,
+      onTokenLeave: diagnosticPopover.onTokenLeave,
+      onLineSelected: canComment ? applySelectionRange : undefined,
+      onLineSelectionEnd: canComment ? onLineSelectionEnd : undefined,
+      onPostRender: handlePostRender,
+    }),
+    [
+      applySelectionRange,
+      canComment,
+      diagnosticPopover.onTokenEnter,
+      diagnosticPopover.onTokenLeave,
+      diffStyle,
+      diffTheme,
+      diffThemeType,
+      expandUnchanged,
+      handlePostRender,
+      handleTokenClick,
+      onLineSelectionEnd,
+    ],
+  );
+
+  const baseAnnotations = useMemo(
+    () => [...currentAnnotations, ...annotationItems],
+    [annotationItems, currentAnnotations],
+  );
+  const annotationsWithComposer = useMemo<DiffLineAnnotation<DiffAnnotationItem>[]>(() => {
+    if (!selectedRange) {
+      return baseAnnotations;
+    }
+
+    return [
+      ...baseAnnotations,
+      {
+        lineNumber: selectedRange.end,
+        metadata: {
+          type: "composer",
           side: selectedRange.side ?? "deletions",
+          endSide: selectedRange.endSide,
+          startLine: selectedRange.start,
+          endLine: selectedRange.end,
         },
-      ]
-    : baseAnnotations;
-  const diffViewportKey = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? "expanded" : "collapsed"}`;
+        side: selectedRange.side ?? "deletions",
+      },
+    ];
+  }, [baseAnnotations, selectedRange]);
 
   const renderLargeDiffWarning = () => {
     return (
@@ -424,7 +491,7 @@ export function DiffWorkspace({
       <DiffLspHoverPopover hoverState={hoverState} popoverRef={popoverRef} />
       <div
         ref={viewportRef}
-        key={diffViewportKey}
+        key={activeDiffIdentity}
         className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
         {currentFileDiff ? (
@@ -435,18 +502,7 @@ export function DiffWorkspace({
               selectedLines={selectedRange}
               lineAnnotations={annotationsWithComposer}
               renderAnnotation={renderAnnotation}
-              renderHeaderMetadata={() => (
-                <DiffHeaderMetadataControls
-                  activePath={activePath}
-                  canComment={canComment}
-                  commentContext={commentContext}
-                  expandUnchanged={expandUnchanged}
-                  fileViewerRevision={fileViewerRevision}
-                  onToggleExpandUnchanged={() => {
-                    setExpandUnchanged((current) => !current);
-                  }}
-                />
-              )}
+              renderHeaderMetadata={renderHeaderMetadata}
               options={diffOptions}
             />
           </Virtualizer>

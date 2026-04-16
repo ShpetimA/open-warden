@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { toast } from "sonner";
 import type { DiffTokenEventBaseProps, TokenEventBase } from "@pierre/diffs";
 import { useAppDispatch } from "@/app/hooks";
@@ -72,76 +73,81 @@ export function useLspTokenNavigation(
     } as const;
   }
 
-  const onTokenClick = (props: TokenPosition, event: MouseEvent) => {
-    if (!document) {
-      return;
-    }
+  const onTokenClick = useCallback(
+    (props: TokenPosition, event: MouseEvent) => {
+      if (!document) {
+        return;
+      }
 
-    if (props.side && props.side !== "additions") {
-      return;
-    }
+      if (props.side && props.side !== "additions") {
+        return;
+      }
 
-    const definitionClick = isDefinitionClick(event);
-    const referencesClick = isReferencesClick(event);
+      const definitionClick = isDefinitionClick(event);
+      const referencesClick = isReferencesClick(event);
 
-    if (!definitionClick && !referencesClick) {
-      return;
-    }
+      if (!definitionClick && !referencesClick) {
+        return;
+      }
 
-    event.preventDefault();
-    event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
 
-    const position = toLspPosition(props);
-    const source: LspJumpSource = {
-      lineNumber: props.lineNumber,
-      lineIndex: getTokenLineIndex(props.tokenElement),
-    };
-    const returnToDiff = options?.getReturnToDiffTarget?.(source) ?? null;
+      const position = toLspPosition(props);
+      const source: LspJumpSource = {
+        lineNumber: props.lineNumber,
+        lineIndex: getTokenLineIndex(props.tokenElement),
+      };
+      const returnToDiff = options?.getReturnToDiffTarget?.(source) ?? null;
 
-    if (referencesClick) {
+      if (referencesClick) {
+        void desktop
+          .getLspReferences({
+            ...document,
+            ...position,
+            includeDeclaration: false,
+          })
+          .then((locations) => {
+            if (locations.length === 0) {
+              toast.info("No references found.");
+              return;
+            }
+
+            dispatch(
+              openSymbolPeek(createPeekPayload("references", locations, source, returnToDiff)),
+            );
+          })
+          .catch((error) => {
+            toast.error("Failed to get references", {
+              description: error instanceof Error ? error.message : String(error),
+            });
+          });
+        return;
+      }
+
       void desktop
-        .getLspReferences({
+        .getLspDefinition({
           ...document,
           ...position,
-          includeDeclaration: false,
         })
         .then((locations) => {
           if (locations.length === 0) {
-            toast.info("No references found.");
+            toast.info("No definition found.");
             return;
           }
 
           dispatch(
-            openSymbolPeek(createPeekPayload("references", locations, source, returnToDiff)),
+            openSymbolPeek(createPeekPayload("definitions", locations, source, returnToDiff)),
           );
         })
         .catch((error) => {
-          toast.error("Failed to get references", {
+          toast.error("Failed to get definition", {
             description: error instanceof Error ? error.message : String(error),
           });
         });
-      return;
-    }
-
-    void desktop
-      .getLspDefinition({
-        ...document,
-        ...position,
-      })
-      .then((locations) => {
-        if (locations.length === 0) {
-          toast.info("No definition found.");
-          return;
-        }
-
-        dispatch(openSymbolPeek(createPeekPayload("definitions", locations, source, returnToDiff)));
-      })
-      .catch((error) => {
-        toast.error("Failed to get definition", {
-          description: error instanceof Error ? error.message : String(error),
-        });
-      });
-  };
+    },
+    [dispatch, document, options?.getReturnToDiffTarget],
+  );
 
   return {
     onTokenClick,

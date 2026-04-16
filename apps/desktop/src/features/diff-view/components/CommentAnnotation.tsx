@@ -1,4 +1,4 @@
-import { Pencil, Trash2, X } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { useAppDispatch } from "@/app/hooks";

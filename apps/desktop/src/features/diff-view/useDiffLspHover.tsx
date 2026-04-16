@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import type { DiffTokenEventBaseProps } from "@pierre/diffs";
 
@@ -94,11 +94,11 @@ export function useDiffLspHover({ document, resetKey }: UseDiffLspHoverOptions) 
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const activeTokenRef = useRef<HTMLElement | null>(null);
 
-  const closeHover = () => {
+  const closeHover = useCallback(() => {
     hoverRequestIdRef.current += 1;
     setHoverState(CLOSED_HOVER_STATE);
     activeTokenRef.current = null;
-  };
+  }, []);
 
   useEffect(() => {
     hoverRequestIdRef.current += 1;
@@ -172,61 +172,64 @@ export function useDiffLspHover({ document, resetKey }: UseDiffLspHoverOptions) 
     },
   );
 
-  const onTokenClick = (props: DiffTokenEventBaseProps, event: MouseEvent) => {
-    if (!document || props.side !== "additions") {
-      return false;
-    }
+  const onTokenClick = useCallback(
+    (props: DiffTokenEventBaseProps, event: MouseEvent) => {
+      if (!document || props.side !== "additions") {
+        return false;
+      }
 
-    if (!isHoverInfoClick(event)) {
-      return false;
-    }
+      if (!isHoverInfoClick(event)) {
+        return false;
+      }
 
-    event.preventDefault();
-    event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
 
-    activeTokenRef.current = props.tokenElement;
-    const nextRequestId = hoverRequestIdRef.current + 1;
-    hoverRequestIdRef.current = nextRequestId;
-    const hoverPosition = toLspHoverPosition(props);
-    const anchorRect = readAnchorRectFromClick(props.tokenElement, event);
+      activeTokenRef.current = props.tokenElement;
+      const nextRequestId = hoverRequestIdRef.current + 1;
+      hoverRequestIdRef.current = nextRequestId;
+      const hoverPosition = toLspHoverPosition(props);
+      const anchorRect = readAnchorRectFromClick(props.tokenElement, event);
 
-    setHoverState({
-      open: true,
-      loading: true,
-      content: "Loading LSP info...",
-      anchorRect,
-    });
-
-    void desktop
-      .getLspHover({
-        ...document,
-        ...hoverPosition,
-      })
-      .then((result) => {
-        if (hoverRequestIdRef.current !== nextRequestId || !result?.text) {
-          if (hoverRequestIdRef.current === nextRequestId) {
-            closeHover();
-          }
-          return;
-        }
-
-        setHoverState({
-          open: true,
-          loading: false,
-          content: result.text,
-          anchorRect,
-        });
-      })
-      .catch(() => {
-        if (hoverRequestIdRef.current !== nextRequestId) {
-          return;
-        }
-
-        closeHover();
+      setHoverState({
+        open: true,
+        loading: true,
+        content: "Loading LSP info...",
+        anchorRect,
       });
 
-    return true;
-  };
+      void desktop
+        .getLspHover({
+          ...document,
+          ...hoverPosition,
+        })
+        .then((result) => {
+          if (hoverRequestIdRef.current !== nextRequestId || !result?.text) {
+            if (hoverRequestIdRef.current === nextRequestId) {
+              closeHover();
+            }
+            return;
+          }
+
+          setHoverState({
+            open: true,
+            loading: false,
+            content: result.text,
+            anchorRect,
+          });
+        })
+        .catch(() => {
+          if (hoverRequestIdRef.current !== nextRequestId) {
+            return;
+          }
+
+          closeHover();
+        });
+
+      return true;
+    },
+    [closeHover, document],
+  );
 
   return {
     hoverState,

@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
+import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
 import { featureKeyFromPath } from "@/app/featureNavigation";
 import { RepoTabs } from "@/app/RepoTabs";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -43,42 +44,44 @@ export function AppShell() {
   );
 
   return (
-    <SidebarPanelRegistryProvider>
-      <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-        <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
-          <AppHeader
-            activeFeature={activeFeature}
-            currentPath={location.pathname}
-            onOpenCommandPalette={() => {
-              setCommandPaletteOpen(true);
-            }}
-          />
+    <NuqsAdapter>
+      <SidebarPanelRegistryProvider>
+        <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
+          <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
+            <AppHeader
+              activeFeature={activeFeature}
+              currentPath={location.pathname}
+              onOpenCommandPalette={() => {
+                setCommandPaletteOpen(true);
+              }}
+            />
 
-          <div className="relative min-h-0">
-            <Outlet context={{ openRecentProjectsPicker }} />
+            <div className="relative min-h-0">
+              <Outlet context={{ openRecentProjectsPicker }} />
+            </div>
+
+            <RepoTabsContainer
+              currentPath={location.pathname}
+              onShowRecentProjects={openRecentProjectsPicker}
+            />
           </div>
 
-          <RepoTabsContainer
-            currentPath={location.pathname}
-            onShowRecentProjects={openRecentProjectsPicker}
+          <RecentProjectsPicker
+            open={recentProjectsPickerOpen}
+            activeRepo={activeRepo}
+            recentRepos={recentRepos}
+            onOpenChange={setRecentProjectsPickerOpen}
+            onSelectRepo={(repoPath) => {
+              void dispatch(openRepo(repoPath));
+            }}
+            onChooseFolder={() => {
+              void dispatch(selectFolder());
+            }}
           />
+          <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
         </div>
-
-        <RecentProjectsPicker
-          open={recentProjectsPickerOpen}
-          activeRepo={activeRepo}
-          recentRepos={recentRepos}
-          onOpenChange={setRecentProjectsPickerOpen}
-          onSelectRepo={(repoPath) => {
-            void dispatch(openRepo(repoPath));
-          }}
-          onChooseFolder={() => {
-            void dispatch(selectFolder());
-          }}
-        />
-        <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
-      </div>
-    </SidebarPanelRegistryProvider>
+      </SidebarPanelRegistryProvider>
+    </NuqsAdapter>
   );
 }
 

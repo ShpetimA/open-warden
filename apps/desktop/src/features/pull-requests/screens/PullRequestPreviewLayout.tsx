@@ -1,7 +1,12 @@
-import { Outlet, useLocation, useNavigate, useParams } from "react-router";
-import type { GitProviderId } from "@/platform/desktop";
-import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
 import { FileCode2, GitPullRequest, MessagesSquare, ShieldCheck } from "lucide-react";
+import { useQueryState } from "nuqs";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router";
+import {
+  pullRequestPreviewSearchParsers,
+  serializePullRequestPreviewSearch,
+} from "@/features/pull-requests/searchParams";
+import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
+import type { GitProviderId } from "@/platform/desktop";
 
 export type PreviewTab = "overview" | "conversation" | "files" | "checks";
 
@@ -34,6 +39,7 @@ export function PullRequestPreviewLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { providerId, owner, repo, pullRequestNumber } = useParams();
+  const [selectedFilePath] = useQueryState("file", pullRequestPreviewSearchParsers.file);
   const activeTab = parsePreviewTabFromPathname(location.pathname);
   const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
 
@@ -58,7 +64,11 @@ export function PullRequestPreviewLayout() {
       tab,
     });
 
-    navigate(`${nextPath}${location.search}`);
+    navigate(
+      serializePullRequestPreviewSearch(nextPath, {
+        file: selectedFilePath ?? null,
+      }),
+    );
   };
 
   return (

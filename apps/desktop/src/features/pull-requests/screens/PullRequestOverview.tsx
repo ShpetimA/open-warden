@@ -15,12 +15,17 @@ import {
   buildPreviewTabPath,
   type PreviewTab,
 } from "@/features/pull-requests/screens/PullRequestPreviewLayout";
+import {
+  pullRequestPreviewSearchParsers,
+  serializePullRequestPreviewSearch,
+} from "@/features/pull-requests/searchParams";
 import { buildPullRequestsInboxPath } from "@/features/pull-requests/utils";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { GitProviderId, PullRequestOpenMode } from "@/platform/desktop/contracts";
 import { skipToken } from "@reduxjs/toolkit/query";
+import { useQueryState } from "nuqs";
 import { useState, type ReactNode } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
 function providerTitle(providerId: string) {
@@ -43,7 +48,7 @@ export const PullRequestOverview = () => {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const { providerId, owner, repo, pullRequestNumber } = useParams();
-  const [searchParams] = useSearchParams();
+  const [selectedFilePath] = useQueryState("file", pullRequestPreviewSearchParsers.file);
   const [openingMode, setOpeningMode] = useState<PullRequestOpenMode | null>(null);
   const [openError, setOpenError] = useState("");
 
@@ -171,13 +176,14 @@ export const PullRequestOverview = () => {
       tab,
     });
 
-    const nextParams = new URLSearchParams(searchParams);
-    if (tab === "files" && files.length > 0 && !searchParams.get("file")) {
-      nextParams.set("file", files[0].path);
-    }
+    const nextFilePath =
+      tab === "files" && files.length > 0 && !selectedFilePath ? files[0].path : selectedFilePath;
 
-    const nextQuery = nextParams.toString();
-    navigate(nextQuery ? `${nextPath}?${nextQuery}` : nextPath);
+    navigate(
+      serializePullRequestPreviewSearch(nextPath, {
+        file: nextFilePath ?? null,
+      }),
+    );
   }
 
   if (!conversation) return null;

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { DiffTokenEventBaseProps } from "@pierre/diffs";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import type { LspDiagnostic } from "@/features/source-control/types";
@@ -142,7 +142,7 @@ export function useDiagnosticTokenPopover(diagnosticsByLine: Map<number, LspDiag
     anchorRect: null,
   });
 
-  const closePopover = () => {
+  const closePopover = useCallback(() => {
     if (diagnosticCloseTimerRef.current) {
       clearTimeout(diagnosticCloseTimerRef.current);
       diagnosticCloseTimerRef.current = null;
@@ -153,28 +153,31 @@ export function useDiagnosticTokenPopover(diagnosticsByLine: Map<number, LspDiag
       diagnostics: [],
       anchorRect: null,
     });
-  };
+  }, []);
 
-  const onTokenEnter = (props: DiffTokenEventBaseProps) => {
-    if (diagnosticCloseTimerRef.current) {
-      clearTimeout(diagnosticCloseTimerRef.current);
-      diagnosticCloseTimerRef.current = null;
-    }
+  const onTokenEnter = useCallback(
+    (props: DiffTokenEventBaseProps) => {
+      if (diagnosticCloseTimerRef.current) {
+        clearTimeout(diagnosticCloseTimerRef.current);
+        diagnosticCloseTimerRef.current = null;
+      }
 
-    const diagnostics = findDiagnosticsForToken(props.tokenElement, diagnosticsByLine);
-    if (diagnostics.length === 0) {
-      closePopover();
-      return;
-    }
+      const diagnostics = findDiagnosticsForToken(props.tokenElement, diagnosticsByLine);
+      if (diagnostics.length === 0) {
+        closePopover();
+        return;
+      }
 
-    setState({
-      open: true,
-      diagnostics,
-      anchorRect: readAnchorRect(props.tokenElement),
-    });
-  };
+      setState({
+        open: true,
+        diagnostics,
+        anchorRect: readAnchorRect(props.tokenElement),
+      });
+    },
+    [closePopover, diagnosticsByLine],
+  );
 
-  const onTokenLeave = () => {
+  const onTokenLeave = useCallback(() => {
     if (diagnosticCloseTimerRef.current) {
       clearTimeout(diagnosticCloseTimerRef.current);
     }
@@ -184,20 +187,20 @@ export function useDiagnosticTokenPopover(diagnosticsByLine: Map<number, LspDiag
         closePopover();
       }
     }, 120);
-  };
+  }, [closePopover]);
 
-  const onPopoverEnter = () => {
+  const onPopoverEnter = useCallback(() => {
     isDiagnosticPopoverHoveredRef.current = true;
     if (diagnosticCloseTimerRef.current) {
       clearTimeout(diagnosticCloseTimerRef.current);
       diagnosticCloseTimerRef.current = null;
     }
-  };
+  }, []);
 
-  const onPopoverLeave = () => {
+  const onPopoverLeave = useCallback(() => {
     isDiagnosticPopoverHoveredRef.current = false;
     closePopover();
-  };
+  }, [closePopover]);
 
   return {
     state,
