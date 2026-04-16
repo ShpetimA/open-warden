@@ -36,6 +36,7 @@ import {
   getPendingReviewCommentsForContext,
 } from "@/features/pull-requests/utils/pendingReviewComments";
 import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
+import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import {
   buildPullRequestThreadAnnotations,
   countPullRequestThreadsForFile,
@@ -47,7 +48,11 @@ import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMe
 import type { CommentItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import { scrollKeyboardNavItemIntoView } from "@/lib/keyboard-navigation";
-import type { PullRequestChangedFile, PullRequestReviewThread } from "@/platform/desktop";
+import type {
+  PullRequestChangedFile,
+  PullRequestConversation,
+  PullRequestReviewThread,
+} from "@/platform/desktop";
 
 type FileCommentFilter = "all" | "with-comments" | "without-comments";
 
@@ -283,8 +288,9 @@ export const PullRequestFiles = () => {
     }),
   });
 
-  const { reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
+  const { conversation, reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
     selectFromResult: ({ data }) => ({
+      conversation: data ?? null,
       reviewThreads: data?.reviewThreads ?? [],
     }),
     pollingInterval: 10000,
@@ -365,6 +371,7 @@ export const PullRequestFiles = () => {
               compareRefsError={compareRefsError}
               isLoadingCompareRefs={isLoadingCompareRefs}
               files={files}
+              conversation={conversation}
               reviewThreads={reviewThreads}
               pendingReviewComments={pendingReviewComments}
               selectedPath={selectedFilePath}
@@ -384,6 +391,7 @@ function FilesDiffViewer({
   compareRefsError,
   isLoadingCompareRefs,
   files,
+  conversation,
   reviewThreads,
   pendingReviewComments,
   selectedPath,
@@ -395,6 +403,7 @@ function FilesDiffViewer({
   compareRefsError: string;
   isLoadingCompareRefs: boolean;
   files: PullRequestChangedFile[];
+  conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
   pendingReviewComments: CommentItem[];
   selectedPath: string;
@@ -402,6 +411,7 @@ function FilesDiffViewer({
   const dispatch = useAppDispatch();
   const [submitPullRequestReviewComments, { isLoading: isSubmittingReviewComments }] =
     useSubmitPullRequestReviewCommentsMutation();
+  const commentMentions = usePullRequestMentionCandidates(conversation);
   const selectedFile = files.find((file) => file.path === selectedPath) ?? null;
   const previewSelection = useThrottledDiffSelection(
     selectedFile
@@ -621,6 +631,7 @@ function FilesDiffViewer({
           fileViewerRevision={compareHeadRef}
           lspJumpContextKind="pull-request"
           annotationItems={threadAnnotations}
+          commentMentions={commentMentions}
         />
       </div>
     </div>

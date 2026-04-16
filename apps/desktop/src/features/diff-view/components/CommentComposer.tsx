@@ -2,41 +2,42 @@ import { useEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { useAppDispatch } from "@/app/hooks";
+import {
+  MarkdownEditor,
+  type MentionConfig,
+} from "@/components/markdown/MarkdownEditor";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { addComment } from "@/features/comments/actions";
 import type { CommentContext, SelectionRange } from "@/features/source-control/types";
 
 type Props = {
   visible: boolean;
-  label: string;
-  activePath: string;
-  selectedRange: SelectionRange | null;
-  commentContext: CommentContext;
+  defaultValue?: string;
+  activePath?: string;
+  selectedRange?: SelectionRange | null;
+  commentContext?: CommentContext;
+  submitButtonText?: string;
   onClose: () => void;
   onBeforeSubmit?: () => void;
+  overrideSubmit?: (text: string) => void;
+  mentions?: MentionConfig;
 };
 
 export function CommentComposer({
   visible,
-  label,
   activePath,
   selectedRange,
   commentContext,
+  submitButtonText = "Add",
   onClose,
   onBeforeSubmit,
+  overrideSubmit,
+  defaultValue = "",
+  mentions,
 }: Props) {
   const dispatch = useAppDispatch();
-  const [draftComment, setDraftComment] = useState("");
+  const [draftComment, setDraftComment] = useState(defaultValue);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const resizeComposer = () => {
-    const input = inputRef.current;
-    if (!input) return;
-
-    input.style.height = "0px";
-    input.style.height = `${input.scrollHeight}px`;
-  };
 
   const onCancel = () => {
     setDraftComment("");
@@ -44,6 +45,10 @@ export function CommentComposer({
   };
 
   const onSubmit = () => {
+    if (overrideSubmit) {
+      overrideSubmit(draftComment)
+      return
+    }
     if (!selectedRange || !draftComment.trim() || !activePath) return;
     onBeforeSubmit?.();
     dispatch(addComment(selectedRange, draftComment, commentContext, activePath));
@@ -52,15 +57,14 @@ export function CommentComposer({
   };
 
   useEffect(() => {
+    if (defaultValue) {
+      const end = defaultValue.length
+      inputRef.current?.setSelectionRange(end, end)
+    }
     if (visible) {
-      resizeComposer();
       inputRef.current?.focus({ preventScroll: true });
     }
-  }, [visible]);
-
-  useEffect(() => {
-    resizeComposer();
-  }, [draftComment]);
+  }, [visible, defaultValue]);
 
   useHotkey(
     "Mod+Enter",
@@ -83,26 +87,26 @@ export function CommentComposer({
   if (!visible) return null;
 
   return (
-    <div className="border-input bg-surface-elevated border p-2 shadow-xl max-w-lg">
-      <div className="text-foreground/90 mb-1 text-[11px]">Comment on {label}</div>
-      <Textarea
-        ref={inputRef}
+    <div className="flex flex-col bg-surface-elevated border-border/60 max-w-5xl border-x border-b pb-3">
+      <MarkdownEditor
         value={draftComment}
-        onChange={(event) => setDraftComment(event.target.value)}
-        placeholder="Type comment"
-        rows={1}
-        className="border-input rounded-sm bg-input resize-none min-h-7 overflow-hidden px-2 py-1.5 text-xs"
+        onChange={setDraftComment}
+        placeholder="Leave a comment..."
+        compact
+        textareaRef={inputRef}
+        mentions={mentions}
       />
-      <div className="mt-2 flex items-center gap-1">
+      <div className="mt-3 ml-auto flex items-center gap-2">
         <Button
-          size="sm"
-          variant="secondary"
+          size="xs"
+          variant="outline"
+          className="bg-surface-alt rounded-none px-3"
           onClick={onSubmit}
-          disabled={!draftComment.trim() || !activePath}
+          disabled={!draftComment.trim()}
         >
-          Add
+          {submitButtonText}
         </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>
+        <Button size="xs" variant="ghost" className="rounded-none px-2" onClick={onCancel}>
           Cancel
         </Button>
       </div>

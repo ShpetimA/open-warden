@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { MarkdownEditor } from "@/components/markdown/MarkdownEditor";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   useAddPullRequestCommentMutation,
   useReplyToPullRequestThreadMutation,
@@ -28,6 +28,7 @@ import {
   copyToClipboard,
   toDisplayDate,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
+import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import type {
   GitProviderId,
   PullRequestConversation,
@@ -49,6 +50,21 @@ function providerTitle(providerId: GitProviderId) {
   if (providerId === "github") return "GitHub";
   if (providerId === "gitlab") return "GitLab";
   return "Bitbucket";
+}
+
+function threadLineLabel(thread: PullRequestReviewThread) {
+  const startLine = thread.startLine ?? thread.line;
+  const endLine = thread.line ?? thread.startLine;
+
+  if (startLine && endLine && startLine !== endLine) {
+    return `L${startLine}-${endLine}`;
+  }
+
+  if (endLine) {
+    return `Line ${endLine}`;
+  }
+
+  return "Unknown line";
 }
 
 type ConversationEntry =
@@ -94,8 +110,8 @@ function EntryCard({
 }) {
   return (
     <section
-      className={`border-border/60 border bg-surface-alt/55 p-3 ${
-        highlighted ? "border-primary/30 bg-accent/15" : ""
+      className={`border-border/60 bg-surface-elevated border ${
+        highlighted ? "border-primary/40" : ""
       }`}
     >
       {children}
@@ -122,9 +138,11 @@ export function PullRequestConversationTab({
     useReplyToPullRequestThreadMutation();
   const [setPullRequestThreadResolved, { isLoading: updatingThreadResolution }] =
     useSetPullRequestThreadResolvedMutation();
-  const compactButtonClass = "h-6 px-2 text-[11px] gap-1.5";
+  const compactButtonClass =
+    "border-border/60 bg-black/10 hover:bg-black/20 h-7 gap-1.5 rounded-full border px-3 text-[11px] font-medium text-foreground/90";
   const providerName = providerTitle(providerId);
   const canResolveThreads = providerId === "github" || providerId === "bitbucket";
+  const mentionConfig = usePullRequestMentionCandidates(conversation);
 
   const entries = conversationEntries(conversation);
 
@@ -193,7 +211,7 @@ export function PullRequestConversationTab({
     <div className="h-full overflow-auto px-5 py-4">
       <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-3">
         <EntryCard>
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 px-4 py-3">
             <div>
               <div className="text-[13px] font-semibold tracking-[-0.01em]">
                 Review conversation
@@ -203,7 +221,7 @@ export function PullRequestConversationTab({
                 to move context into your own replies.
               </div>
             </div>
-            <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-1">
               <Button
                 variant="outline"
                 size="sm"
@@ -230,18 +248,18 @@ export function PullRequestConversationTab({
           </div>
 
           {composerOpen ? (
-            <div className="mt-4 space-y-3">
-              <Textarea
+            <div className="border-border/60 mt-1 space-y-3 border-t px-4 py-4">
+              <MarkdownEditor
                 value={topLevelDraft}
-                onChange={(event) => {
-                  setTopLevelDraft(event.target.value);
-                }}
+                onChange={setTopLevelDraft}
                 placeholder="Add a top-level pull request comment..."
-                className="min-h-28"
+                compact
+                mentions={mentionConfig}
               />
               <div className="flex justify-end gap-2">
                 <Button
                   variant="ghost"
+                  className="rounded-none px-2"
                   onClick={() => {
                     setComposerOpen(false);
                     setTopLevelDraft("");
@@ -249,7 +267,11 @@ export function PullRequestConversationTab({
                 >
                   Cancel
                 </Button>
-                <Button disabled={addingComment} onClick={() => void submitTopLevelComment()}>
+                <Button
+                  disabled={addingComment}
+                  className="rounded-full px-3"
+                  onClick={() => void submitTopLevelComment()}
+                >
                   Post comment
                 </Button>
               </div>
@@ -262,49 +284,51 @@ export function PullRequestConversationTab({
             const author = conversation.detail.author;
             return (
               <EntryCard key={`description-${index}`}>
-                <div className="flex items-start gap-3">
-                  <Avatar login={author?.login ?? null} avatarUrl={author?.avatarUrl ?? null} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <div className="text-[13px] font-semibold">
-                        {authorLabel(author?.login ?? null, author?.displayName ?? null)}
+                <div className="px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar login={author?.login ?? null} avatarUrl={author?.avatarUrl ?? null} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                          {authorLabel(author?.login ?? null, author?.displayName ?? null)}
+                        </div>
+                        <div className="text-muted-foreground text-[11px]">
+                          opened this pull request
+                        </div>
+                        <div className="text-muted-foreground text-[11px]">
+                          {toDisplayDate(conversation.detail.createdAt)}
+                        </div>
                       </div>
-                      <div className="text-muted-foreground text-[11px]">
-                        opened this pull request
+                      <div className="mt-2">
+                        <CommentBody body={conversation.detail.body} />
                       </div>
-                      <div className="text-muted-foreground text-[11px]">
-                        {toDisplayDate(conversation.detail.createdAt)}
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={compactButtonClass}
+                          onClick={() => {
+                            setComposerOpen(true);
+                            setTopLevelDraft((current) =>
+                              appendQuotedBody(current, conversation.detail.body),
+                            );
+                          }}
+                        >
+                          <Quote className="h-3.5 w-3.5" />
+                          Quote
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={compactButtonClass}
+                          onClick={() =>
+                            void copyToClipboard(conversation.detail.body, "PR description copied")
+                          }
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy
+                        </Button>
                       </div>
-                    </div>
-                    <div className="mt-2">
-                      <CommentBody body={conversation.detail.body} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={compactButtonClass}
-                        onClick={() => {
-                          setComposerOpen(true);
-                          setTopLevelDraft((current) =>
-                            appendQuotedBody(current, conversation.detail.body),
-                          );
-                        }}
-                      >
-                        <Quote className="h-3 w-3" />
-                        Quote
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={compactButtonClass}
-                        onClick={() =>
-                          void copyToClipboard(conversation.detail.body, "PR description copied")
-                        }
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </Button>
                     </div>
                   </div>
                 </div>
@@ -316,54 +340,56 @@ export function PullRequestConversationTab({
             const author = entry.comment.author;
             return (
               <EntryCard key={entry.comment.id}>
-                <div className="flex items-start gap-3">
-                  <Avatar login={author?.login ?? null} avatarUrl={author?.avatarUrl ?? null} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <div className="text-[13px] font-semibold">
-                        {authorLabel(author?.login ?? null, author?.displayName ?? null)}
+                <div className="px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar login={author?.login ?? null} avatarUrl={author?.avatarUrl ?? null} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                          {authorLabel(author?.login ?? null, author?.displayName ?? null)}
+                        </div>
+                        <div className="text-muted-foreground text-[11px]">
+                          commented {toDisplayDate(entry.comment.createdAt)}
+                        </div>
                       </div>
-                      <div className="text-muted-foreground text-[11px]">
-                        commented {toDisplayDate(entry.comment.createdAt)}
+                      <div className="mt-2">
+                        <CommentBody body={entry.comment.body} />
                       </div>
-                    </div>
-                    <div className="mt-2">
-                      <CommentBody body={entry.comment.body} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={compactButtonClass}
-                        onClick={() => {
-                          setComposerOpen(true);
-                          setTopLevelDraft((current) =>
-                            appendQuotedBody(current, entry.comment.body),
-                          );
-                        }}
-                      >
-                        <Quote className="h-3 w-3" />
-                        Quote reply
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={compactButtonClass}
-                        onClick={() =>
-                          void copyToClipboard(entry.comment.body, `${providerName} comment copied`)
-                        }
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </Button>
-                      {entry.comment.url ? (
-                        <Button variant="ghost" size="sm" className={compactButtonClass} asChild>
-                          <a href={entry.comment.url} target="_blank" rel="noreferrer">
-                            <ExternalLink className="h-3 w-3" />
-                            Open
-                          </a>
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={compactButtonClass}
+                          onClick={() => {
+                            setComposerOpen(true);
+                            setTopLevelDraft((current) =>
+                              appendQuotedBody(current, entry.comment.body),
+                            );
+                          }}
+                        >
+                          <Quote className="h-3.5 w-3.5" />
+                          Quote reply
                         </Button>
-                      ) : null}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={compactButtonClass}
+                          onClick={() =>
+                            void copyToClipboard(entry.comment.body, `${providerName} comment copied`)
+                          }
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy
+                        </Button>
+                        {entry.comment.url ? (
+                          <Button variant="ghost" size="sm" className={compactButtonClass} asChild>
+                            <a href={entry.comment.url} target="_blank" rel="noreferrer">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Open
+                            </a>
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -380,12 +406,12 @@ export function PullRequestConversationTab({
 
           return (
             <EntryCard key={thread.id} highlighted={selected}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+              <div className="border-border/60 flex items-start justify-between gap-3 border-b px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
                     <button
                       type="button"
-                      className="text-[13px] font-semibold hover:underline"
+                      className="text-[12px] font-semibold tracking-[-0.01em] hover:underline"
                       onClick={() => {
                         onSelectThread(thread.id);
                         onJumpToThread(thread);
@@ -393,20 +419,18 @@ export function PullRequestConversationTab({
                     >
                       {thread.path}
                     </button>
-                    <div className="text-muted-foreground text-[11px]">
-                      {thread.line ?? thread.startLine ?? "Unknown line"}
-                    </div>
+                    <div className="text-muted-foreground text-[11px]">{threadLineLabel(thread)}</div>
                     <div
-                      className={`rounded-none border px-2 py-0.5 text-[10px] font-medium ${
+                      className={`border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ${
                         thread.isResolved
-                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-                          : "border-amber-500/20 bg-amber-500/10 text-amber-200"
+                          ? "border-emerald-500/30 bg-emerald-500/8 text-emerald-300"
+                          : "border-amber-500/30 bg-amber-500/8 text-amber-300"
                       }`}
                     >
                       {thread.isResolved ? "Resolved" : "Unresolved"}
                     </div>
                     {thread.isOutdated ? (
-                      <div className="border-border/70 bg-background text-muted-foreground rounded-none border px-2 py-0.5 text-[10px] font-medium">
+                      <div className="border-border/70 bg-background text-muted-foreground border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]">
                         Outdated
                       </div>
                     ) : null}
@@ -416,7 +440,7 @@ export function PullRequestConversationTab({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="flex flex-wrap items-center justify-end gap-1">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -426,7 +450,7 @@ export function PullRequestConversationTab({
                       onJumpToThread(thread);
                     }}
                   >
-                    <FileCode2 className="h-3 w-3" />
+                    <FileCode2 className="h-3.5 w-3.5" />
                     Open file
                   </Button>
                   {canResolveThreads ? (
@@ -439,7 +463,7 @@ export function PullRequestConversationTab({
                         void toggleThreadResolution(thread);
                       }}
                     >
-                      <CheckCheck className="h-3 w-3" />
+                      <CheckCheck className="h-3.5 w-3.5" />
                       {thread.isResolved ? "Reopen" : "Resolve"}
                     </Button>
                   ) : null}
@@ -447,143 +471,145 @@ export function PullRequestConversationTab({
               </div>
 
               {rootComment ? (
-                <div className="mt-3 flex items-start gap-3">
-                  <Avatar
-                    login={rootComment.author?.login ?? null}
-                    avatarUrl={rootComment.author?.avatarUrl ?? null}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <div className="text-[13px] font-semibold">
-                        {authorLabel(
-                          rootComment.author?.login ?? null,
-                          rootComment.author?.displayName ?? null,
-                        )}
+                <div className="px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <Avatar
+                      login={rootComment.author?.login ?? null}
+                      avatarUrl={rootComment.author?.avatarUrl ?? null}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                          {authorLabel(
+                            rootComment.author?.login ?? null,
+                            rootComment.author?.displayName ?? null,
+                          )}
+                        </div>
+                        <div className="text-muted-foreground text-[11px]">
+                          {toDisplayDate(rootComment.createdAt)}
+                        </div>
                       </div>
-                      <div className="text-muted-foreground text-[11px]">
-                        {toDisplayDate(rootComment.createdAt)}
+                      <div className="mt-2">
+                        <CommentBody body={rootComment.body} />
                       </div>
-                    </div>
-                    <div className="mt-2">
-                      <CommentBody body={rootComment.body} />
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={compactButtonClass}
-                        onClick={() => {
-                          setReplyThreadId(thread.id);
-                          setReplyDraft((current) => appendQuotedBody(current, rootComment.body));
-                          onSelectThread(thread.id);
-                        }}
-                      >
-                        <CornerDownLeft className="h-3 w-3" />
-                        Reply
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={compactButtonClass}
-                        onClick={() =>
-                          void copyToClipboard(rootComment.body, "Review comment copied")
-                        }
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </Button>
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={compactButtonClass}
+                          onClick={() => {
+                            setReplyThreadId(thread.id);
+                            setReplyDraft((current) => appendQuotedBody(current, rootComment.body));
+                            onSelectThread(thread.id);
+                          }}
+                        >
+                          <CornerDownLeft className="h-3.5 w-3.5" />
+                          Reply
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={compactButtonClass}
+                          onClick={() =>
+                            void copyToClipboard(rootComment.body, "Review comment copied")
+                          }
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          Copy
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
               ) : null}
 
               {replies.length > 0 ? (
-                <div className="mt-3 space-y-2 border-l border-border/60 pl-3">
-                  {replies.map((reply) => (
-                    <div
-                      key={reply.id}
-                      className="flex items-start gap-3 border-t border-border/50 pt-3 first:border-t-0 first:pt-0"
-                    >
-                      <Avatar
-                        login={reply.author?.login ?? null}
-                        avatarUrl={reply.author?.avatarUrl ?? null}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <div className="text-[13px] font-semibold">
-                            {authorLabel(
-                              reply.author?.login ?? null,
-                              reply.author?.displayName ?? null,
-                            )}
+                <div className="border-border/40 border-t px-4 py-3">
+                  <div className="border-border/50 space-y-3 border-l pl-4">
+                    {replies.map((reply) => (
+                      <div key={reply.id} className="flex items-start gap-3">
+                        <Avatar
+                          login={reply.author?.login ?? null}
+                          avatarUrl={reply.author?.avatarUrl ?? null}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                              {authorLabel(
+                                reply.author?.login ?? null,
+                                reply.author?.displayName ?? null,
+                              )}
+                            </div>
+                            <div className="text-muted-foreground text-[11px]">
+                              {toDisplayDate(reply.createdAt)}
+                            </div>
                           </div>
-                          <div className="text-muted-foreground text-[11px]">
-                            {toDisplayDate(reply.createdAt)}
+                          <div className="mt-1.5">
+                            <CommentBody body={reply.body} />
                           </div>
-                        </div>
-                        <div className="mt-1.5">
-                          <CommentBody body={reply.body} />
-                        </div>
-                        <div className="mt-1.5 flex flex-wrap gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={compactButtonClass}
-                            onClick={() => {
-                              setReplyThreadId(thread.id);
-                              setReplyDraft((current) => appendQuotedBody(current, reply.body));
-                              onSelectThread(thread.id);
-                            }}
-                          >
-                            <Quote className="h-3 w-3" />
-                            Quote
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={compactButtonClass}
-                            onClick={() => void copyToClipboard(reply.body, "Review reply copied")}
-                          >
-                            <Copy className="h-3 w-3" />
-                            Copy
-                          </Button>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={compactButtonClass}
+                              onClick={() => {
+                                setReplyThreadId(thread.id);
+                                setReplyDraft((current) => appendQuotedBody(current, reply.body));
+                                onSelectThread(thread.id);
+                              }}
+                            >
+                              <Quote className="h-3.5 w-3.5" />
+                              Quote
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={compactButtonClass}
+                              onClick={() => void copyToClipboard(reply.body, "Review reply copied")}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              Copy
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               ) : null}
 
               {replyThreadId === thread.id ? (
-                <div className="mt-3 space-y-2 border-t border-border/60 pt-3">
-                  <Textarea
-                    value={replyDraft}
-                    onChange={(event) => {
-                      setReplyDraft(event.target.value);
-                    }}
-                    placeholder="Reply to this review thread..."
-                    className="min-h-20 rounded-none"
-                  />
-                  <div className="flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      className={compactButtonClass}
-                      onClick={() => {
-                        setReplyThreadId(null);
-                        setReplyDraft("");
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      disabled={replyPending}
-                      className={compactButtonClass}
-                      onClick={() => {
-                        void submitThreadReply(thread.id);
-                      }}
-                    >
-                      <MessagesSquare className="h-3 w-3" />
-                      Reply
-                    </Button>
+                <div className="border-border/60 border-t px-4 py-4">
+                  <div className="space-y-3">
+                    <MarkdownEditor
+                      value={replyDraft}
+                      onChange={setReplyDraft}
+                      placeholder="Reply to this review thread..."
+                      compact
+                      mentions={mentionConfig}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        className="h-7 rounded-none px-2 text-[12px]"
+                        onClick={() => {
+                          setReplyThreadId(null);
+                          setReplyDraft("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        disabled={replyPending}
+                        className="h-7 rounded-full px-3 text-[12px]"
+                        onClick={() => {
+                          void submitThreadReply(thread.id);
+                        }}
+                      >
+                        <MessagesSquare className="h-3.5 w-3.5" />
+                        Reply
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : null}

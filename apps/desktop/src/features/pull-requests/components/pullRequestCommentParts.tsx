@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 
+import { Markdown } from "@/components/markdown/Markdown";
 import type {
   PullRequestConversation,
   PullRequestIssueComment,
@@ -95,11 +96,7 @@ export function authorLabel(login: string | null, displayName: string | null) {
 }
 
 export function CommentBody({ body }: { body: string }) {
-  return (
-    <div className="text-foreground/90 whitespace-pre-wrap break-words text-[13px] leading-5">
-      {body}
-    </div>
-  );
+  return <Markdown className="text-foreground/90 break-words text-[13px] leading-5">{body}</Markdown>;
 }
 
 export function Avatar({ login, avatarUrl }: { login: string | null; avatarUrl: string | null }) {

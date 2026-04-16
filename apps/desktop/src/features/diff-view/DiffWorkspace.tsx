@@ -27,6 +27,7 @@ import type {
 } from "@/features/source-control/types";
 import { CommentAnnotation } from "@/features/diff-view/components/CommentAnnotation";
 import { CommentComposer } from "@/features/diff-view/components/CommentComposer";
+import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
 import {
   DiagnosticTokenPopover,
   useDiagnosticTokenPopover,
@@ -69,6 +70,7 @@ type Props = {
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
   annotationItems?: DiffLineAnnotation<DiffAnnotationItem>[];
+  commentMentions?: MentionConfig;
 };
 
 const STICKY_HEADER_CSS = `
@@ -212,6 +214,7 @@ export function DiffWorkspace({
   focusedLineIndex = null,
   focusedLineKey = null,
   annotationItems = [],
+  commentMentions,
 }: Props) {
   const { resolvedTheme } = useTheme();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -290,12 +293,12 @@ export function DiffWorkspace({
       return (
         <CommentComposer
           visible
-          label={selectedRangeLabel}
           activePath={activePath}
           selectedRange={selectedRange}
           commentContext={commentContext}
           onClose={onCloseCommentComposer}
           onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
+          mentions={commentMentions}
         />
       );
     }
@@ -306,6 +309,7 @@ export function DiffWorkspace({
           repoPath={data.repoPath}
           pullRequestNumber={data.pullRequestNumber}
           thread={data.thread}
+          mentions={commentMentions}
         />
       );
     }
