@@ -13,7 +13,6 @@ import {
   useGetBranchFileVersionsQuery,
 } from "@/features/source-control/api";
 import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
-import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
@@ -82,8 +81,6 @@ function PullRequestDiffPane({
   annotationItems,
 }: PullRequestDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
-  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
-
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath);
   const previewSelection = useThrottledDiffSelection(
     reviewActivePath

@@ -29,7 +29,6 @@ import {
   ReviewFileList,
   ReviewSelectionSync,
 } from "@/features/source-control/components/ReviewFileList";
-import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import {
   clearReviewSelection,
@@ -115,7 +114,6 @@ function ReviewDiffPane({
 }: ReviewDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
-  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath);
   const previewSelection = useThrottledDiffSelection(
     reviewActivePath

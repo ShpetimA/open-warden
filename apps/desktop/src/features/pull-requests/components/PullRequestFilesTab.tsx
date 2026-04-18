@@ -1,33 +1,10 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-
-import { useAppSelector } from "@/app/hooks";
 import { useGetBranchFilesQuery } from "@/features/source-control/api";
 import {
   ReviewFileList,
   ReviewSelectionSync,
 } from "@/features/source-control/components/ReviewFileList";
-import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
-import type { FileItem } from "@/features/source-control/types";
 
-type PullRequestFilesPrefetcherProps = {
-  branchFiles: FileItem[];
-  activeRepo: string;
-  reviewBaseRef: string;
-  reviewHeadRef: string;
-};
-
-function PullRequestFilesPrefetcher({
-  branchFiles,
-  activeRepo,
-  reviewBaseRef,
-  reviewHeadRef,
-}: PullRequestFilesPrefetcherProps) {
-  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
-
-  usePrefetchReviewDiffs(branchFiles, activeRepo, reviewBaseRef, reviewHeadRef, reviewActivePath);
-
-  return null;
-}
 
 type PullRequestFilesTabProps = {
   activeRepo: string;
@@ -66,13 +43,6 @@ export function PullRequestFilesTab({
           <span>{branchFiles.length === 1 ? "file" : "files"}</span>
         </div>
       </div>
-
-      <PullRequestFilesPrefetcher
-        branchFiles={branchFiles}
-        activeRepo={activeRepo}
-        reviewBaseRef={reviewBaseRef}
-        reviewHeadRef={reviewHeadRef}
-      />
 
       <ReviewSelectionSync
         readyForDiff={readyForDiff}

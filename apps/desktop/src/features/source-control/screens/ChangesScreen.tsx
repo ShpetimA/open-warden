@@ -5,13 +5,11 @@ import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
-import { useGetFileVersionsQuery, useGetGitSnapshotQuery } from "@/features/source-control/api";
+import { useGetFileVersionsQuery } from "@/features/source-control/api";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
-import { usePrefetchChangesDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { BucketedFile } from "@/features/source-control/types";
 
 export function ChangesScreen() {
   useChangesKeyboardNav("changes");
@@ -21,24 +19,6 @@ export function ChangesScreen() {
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
-  const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
-  const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
-  const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
-  const snapshot = activeRepo ? snapshotData : undefined;
-
-  const visibleRows: BucketedFile[] = [
-    ...(collapseStaged
-      ? []
-      : (snapshot?.staged ?? []).map((file) => ({ ...file, bucket: "staged" as const }))),
-    ...(collapseUnstaged
-      ? []
-      : [
-          ...(snapshot?.unstaged ?? []).map((file) => ({ ...file, bucket: "unstaged" as const })),
-          ...(snapshot?.untracked ?? []).map((file) => ({ ...file, bucket: "untracked" as const })),
-        ]),
-  ];
-
-  usePrefetchChangesDiffs(visibleRows, activeRepo, activeBucket, activePath);
 
   const previewSelection = useThrottledDiffSelection(
     activePath

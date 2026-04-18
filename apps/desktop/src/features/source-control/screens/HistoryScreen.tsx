@@ -7,7 +7,6 @@ import {
   useGetCommitFilesQuery,
   useGetCommitFileVersionsQuery,
 } from "@/features/source-control/api";
-import { usePrefetchHistoryDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { HistoryFilesPane } from "@/features/source-control/components/HistoryFilesPane";
 import { useHistoryKeyboardNav } from "@/features/source-control/hooks/useHistoryKeyboardNav";
 import { useHistorySync } from "@/features/source-control/hooks/useHistorySync";
@@ -44,8 +43,6 @@ function HistoryDiffPane() {
   const { data: historyFiles } = useGetCommitFilesQuery(
     activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
   );
-
-  usePrefetchHistoryDiffs(historyFiles ?? [], activeRepo, historyCommitId, activePath);
 
   const selectedHistoryFile = historyFiles?.find((file) => file.path === activePath);
   const previewSelection = useThrottledDiffSelection(
