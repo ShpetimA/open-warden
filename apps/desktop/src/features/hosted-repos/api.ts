@@ -12,11 +12,12 @@ import type {
   PullRequestLocatorInput,
   PullRequestPage,
   PullRequestReviewThread,
+  PullRequestSummary,
   ReplyToPullRequestThreadInput,
+  ResolveActivePullRequestForBranchInput,
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
-  PreparedPullRequestWorkspace,
 } from "@/platform/desktop";
 import {
   addPullRequestComment,
@@ -27,10 +28,10 @@ import {
   getPullRequestPatch,
   listProviderConnections,
   listPullRequests,
+  resolveActivePullRequestForBranch,
   preparePullRequestCompareRefs,
   replyToPullRequestThread,
   resolveHostedRepo,
-  resolvePullRequestWorkspace,
   setPullRequestThreadResolved,
   submitPullRequestReviewComments,
 } from "./services/hostedRepos";
@@ -95,18 +96,6 @@ export const hostedReposApi = createApi({
       },
       providesTags: (_result, _error, repoPath) => [{ type: "HostedRepo", id: repoPath }],
     }),
-    resolvePullRequestWorkspace: builder.query<PreparedPullRequestWorkspace | null, string>({
-      async queryFn(repoPath) {
-        try {
-          return { data: await resolvePullRequestWorkspace(repoPath) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
-      },
-      providesTags: (_result, _error, repoPath) => [
-        { type: "HostedRepo", id: `${repoPath}:pull-request-workspace` },
-      ],
-    }),
     listPullRequests: builder.query<PullRequestPage, ListPullRequestsInput>({
       async queryFn(input) {
         try {
@@ -116,6 +105,21 @@ export const hostedReposApi = createApi({
         }
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
+    }),
+    resolveActivePullRequestForBranch: builder.query<
+      PullRequestSummary | null,
+      ResolveActivePullRequestForBranchInput
+    >({
+      async queryFn(input) {
+        try {
+          return { data: await resolveActivePullRequestForBranch(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, branch }) => [
+        { type: "PullRequests", id: `${repoPath}:active:${branch}` },
+      ],
     }),
     getPullRequestConversation: builder.query<PullRequestConversation, PullRequestLocatorInput>({
       async queryFn(input) {
@@ -238,7 +242,7 @@ export const {
   usePreparePullRequestCompareRefsQuery,
   useReplyToPullRequestThreadMutation,
   useResolveHostedRepoQuery,
-  useResolvePullRequestWorkspaceQuery,
+  useResolveActivePullRequestForBranchQuery,
   useSetPullRequestThreadResolvedMutation,
   useSubmitPullRequestReviewCommentsMutation,
 } = hostedReposApi;

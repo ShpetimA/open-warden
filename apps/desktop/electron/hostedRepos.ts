@@ -10,12 +10,9 @@ export {
   getPullRequestFiles,
   getPullRequestPatch,
   listPullRequests,
+  resolveActivePullRequestForBranch,
   replyToPullRequestThread,
   setPullRequestThreadResolved,
   submitPullRequestReviewComments,
 } from "./hosted-repos/pullRequests";
-export {
-  preparePullRequestCompareRefs,
-  preparePullRequestWorkspace,
-  resolvePullRequestWorkspace,
-} from "./hosted-repos/workspace";
+export { preparePullRequestCompareRefs, preparePullRequestWorkspace } from "./hosted-repos/workspace";

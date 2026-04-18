@@ -8,6 +8,8 @@ import type {
   PullRequestPage,
   PullRequestReviewDraftCommentInput,
   PullRequestReviewThread,
+  PullRequestSummary,
+  ResolveActivePullRequestForBranchInput,
   ReplyToPullRequestThreadInput,
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
@@ -18,10 +20,13 @@ import {
   bitbucketRequest,
   bitbucketThreadRootDatabaseId,
   fetchBitbucketConversation,
+  fetchBitbucketPullRequest,
   fetchBitbucketPullRequestFiles,
   fetchBitbucketPullRequestPatch,
   listBitbucketPullRequests,
+  resolveBitbucketOpenPullRequestForBranch,
   toBitbucketIssueComment,
+  toBitbucketPullRequestSummary,
   type BitbucketCommentResponse,
 } from "../bitbucket-repo";
 import {
@@ -33,7 +38,9 @@ import {
   githubGraphqlRequest,
   githubJsonRequest,
   listGitHubPullRequests,
+  resolveGitHubOpenPullRequestForBranch,
   toPullRequestDetail,
+  toPullRequestSummary,
   toPullRequestIssueComment,
   type GitHubIssueCommentResponse,
 } from "../github-repo";
@@ -87,6 +94,20 @@ type GitHubPullRequestReviewResponse = {
 
 function errorMessageFromUnknown(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function managedPullRequestNumberFromBranch(branch: string) {
+  const match = /^open-warden\/pr-(\d+)$/.exec(branch.trim());
+  if (!match) {
+    return null;
+  }
+
+  const pullRequestNumber = Number.parseInt(match[1] ?? "", 10);
+  if (!Number.isFinite(pullRequestNumber) || pullRequestNumber <= 0) {
+    return null;
+  }
+
+  return pullRequestNumber;
 }
 
 function normalizePullRequestReviewComments(
@@ -198,6 +219,83 @@ export async function listPullRequests(input: ListPullRequestsInput): Promise<Pu
   throw new Error(
     `${providerDisplayName(hostedRepo.providerId)} pull request listing is not supported yet.`,
   );
+}
+
+export async function resolveActivePullRequestForBranch(
+  input: ResolveActivePullRequestForBranchInput,
+): Promise<PullRequestSummary | null> {
+  const normalizedBranch = input.branch.trim();
+  if (!normalizedBranch) {
+    return null;
+  }
+
+  const hostedRepo = await resolveHostedRepo(input.repoPath);
+  if (!hostedRepo) {
+    return null;
+  }
+
+  const connection = await getProviderConnection(hostedRepo.providerId);
+  if (!connection) {
+    return null;
+  }
+
+  const managedPullRequestNumber = managedPullRequestNumberFromBranch(normalizedBranch);
+
+  if (hostedRepo.providerId === "github") {
+    const matchingPullRequest = await resolveGitHubOpenPullRequestForBranch(
+      hostedRepo,
+      connection.token,
+      normalizedBranch,
+    );
+    if (matchingPullRequest) {
+      return matchingPullRequest;
+    }
+
+    if (!managedPullRequestNumber) {
+      return null;
+    }
+
+    try {
+      const pullRequest = await fetchGitHubPullRequest(
+        hostedRepo,
+        connection.token,
+        managedPullRequestNumber,
+      );
+      const summary = toPullRequestSummary(pullRequest, hostedRepo.providerId);
+      return summary.state === "open" ? summary : null;
+    } catch {
+      return null;
+    }
+  }
+
+  if (hostedRepo.providerId === "bitbucket") {
+    const matchingPullRequest = await resolveBitbucketOpenPullRequestForBranch(
+      hostedRepo,
+      connection,
+      normalizedBranch,
+    );
+    if (matchingPullRequest) {
+      return matchingPullRequest;
+    }
+
+    if (!managedPullRequestNumber) {
+      return null;
+    }
+
+    try {
+      const pullRequest = await fetchBitbucketPullRequest(
+        hostedRepo,
+        connection,
+        managedPullRequestNumber,
+      );
+      const summary = toBitbucketPullRequestSummary(pullRequest, hostedRepo);
+      return summary.state === "open" ? summary : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 export async function getPullRequestConversation(

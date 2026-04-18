@@ -100,32 +100,4 @@ export const {
   setPullRequestFilesViewMode,
 } = pullRequestsSlice.actions;
 
-export function createPullRequestReviewSession(workspace: {
-  providerId: GitProviderId;
-  owner: string;
-  repo: string;
-  pullRequestNumber: number;
-  title: string;
-  baseRef: string;
-  headRef: string;
-  compareBaseRef: string;
-  compareHeadRef: string;
-  repoPath: string;
-  worktreePath: string;
-}): PullRequestReviewSession {
-  return {
-    providerId: workspace.providerId,
-    owner: workspace.owner,
-    repo: workspace.repo,
-    pullRequestNumber: workspace.pullRequestNumber,
-    title: workspace.title,
-    baseRef: workspace.baseRef,
-    headRef: workspace.headRef,
-    compareBaseRef: workspace.compareBaseRef,
-    compareHeadRef: workspace.compareHeadRef,
-    repoPath: workspace.repoPath,
-    worktreePath: workspace.worktreePath,
-  };
-}
-
 export const pullRequestsReducer = pullRequestsSlice.reducer;

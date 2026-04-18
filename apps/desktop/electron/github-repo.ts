@@ -128,6 +128,45 @@ type GitHubReviewThreadCommentNode = NonNullable<
   NonNullable<GitHubReviewThreadNode["comments"]>["nodes"]
 >[number];
 
+type GitHubPullRequestByHeadGraphResponse = {
+  data?: {
+    repository?: {
+      pullRequests?: {
+        nodes?: Array<{
+          number: number;
+          title: string;
+          isDraft: boolean;
+          url: string;
+          updatedAt: string;
+          baseRefName: string;
+          headRefName: string;
+          headRepository?: {
+            name: string;
+            owner?: {
+              login: string;
+            } | null;
+          } | null;
+          baseRepository?: {
+            name: string;
+            owner?: {
+              login: string;
+            } | null;
+          } | null;
+          author?: {
+            login?: string | null;
+            name?: string | null;
+          } | null;
+        }>;
+      };
+    };
+  };
+  errors?: Array<{ message: string }>;
+};
+
+type GitHubPullRequestByHeadNode = NonNullable<
+  NonNullable<NonNullable<NonNullable<GitHubPullRequestByHeadGraphResponse["data"]>["repository"]>["pullRequests"]>["nodes"]
+>[number];
+
 export async function githubRequest<T>(pathname: string, token: string) {
   const response = await fetch(`https://api.github.com${pathname}`, {
     headers: {
@@ -314,6 +353,99 @@ export async function listGitHubPullRequests(
     perPage: normalizedPerPage,
     hasNextPage: hasGitHubNextPage(headers),
   };
+}
+
+function toPullRequestSummaryFromHeadNode(
+  node: GitHubPullRequestByHeadNode,
+  hostedRepo: HostedRepoRef,
+): PullRequestSummary {
+  const baseOwner = node.baseRepository?.owner?.login ?? hostedRepo.owner;
+  const baseRepo = node.baseRepository?.name ?? hostedRepo.repo;
+  const headOwner = node.headRepository?.owner?.login ?? baseOwner;
+  const headRepo = node.headRepository?.name ?? baseRepo;
+
+  return {
+    id: `${hostedRepo.providerId}:${String(node.number)}`,
+    providerId: hostedRepo.providerId,
+    number: node.number,
+    title: node.title,
+    state: "open",
+    isDraft: node.isDraft,
+    authorLogin: node.author?.login?.trim() || "unknown",
+    authorDisplayName: node.author?.name ?? null,
+    url: node.url,
+    baseRef: node.baseRefName,
+    headRef: node.headRefName,
+    headOwner,
+    headRepo,
+    updatedAt: node.updatedAt,
+  };
+}
+
+export async function resolveGitHubOpenPullRequestForBranch(
+  hostedRepo: HostedRepoRef,
+  token: string,
+  branch: string,
+): Promise<PullRequestSummary | null> {
+  const normalizedBranch = branch.trim();
+  if (!normalizedBranch) {
+    return null;
+  }
+
+  const query = `
+    query ResolveActivePullRequestForBranch($owner: String!, $repo: String!, $headRefName: String!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequests(
+          first: 20
+          states: OPEN
+          headRefName: $headRefName
+          orderBy: { field: UPDATED_AT, direction: DESC }
+        ) {
+          nodes {
+            number
+            title
+            isDraft
+            url
+            updatedAt
+            baseRefName
+            headRefName
+            author {
+              login
+              ... on User {
+                name
+              }
+            }
+            baseRepository {
+              name
+              owner {
+                login
+              }
+            }
+            headRepository {
+              name
+              owner {
+                login
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const payload = await githubGraphqlRequest<GitHubPullRequestByHeadGraphResponse>(token, query, {
+      owner: hostedRepo.owner,
+      repo: hostedRepo.repo,
+      headRefName: normalizedBranch,
+    });
+    const nodes = payload.data?.repository?.pullRequests?.nodes ?? [];
+    const match = nodes.find((node) => node.headRefName === normalizedBranch) ?? nodes[0] ?? null;
+    return match ? toPullRequestSummaryFromHeadNode(match, hostedRepo) : null;
+  } catch {
+    const page = await listGitHubPullRequests(hostedRepo, token, 1, 100);
+    return page.pullRequests.find((pullRequest) => pullRequest.headRef === normalizedBranch) ?? null;
+  }
 }
 
 export function toPullRequestPerson(

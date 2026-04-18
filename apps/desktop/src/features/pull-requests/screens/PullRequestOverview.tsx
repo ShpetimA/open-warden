@@ -121,15 +121,13 @@ export const PullRequestOverview = () => {
     const result = await dispatch(openPullRequestReview(parsedPullRequestNumber, mode));
     setOpeningMode(null);
 
-    if (result.workspace) {
+    if (!result.errorMessage) {
       navigate("/changes/pull-request/files");
       return;
     }
 
-    if (result.errorMessage) {
-      setOpenError(result.errorMessage);
-      toast.error(result.errorMessage);
-    }
+    setOpenError(result.errorMessage);
+    toast.error(result.errorMessage);
   }
 
   async function handleCopyPullRequestLink() {

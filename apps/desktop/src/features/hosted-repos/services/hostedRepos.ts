@@ -7,6 +7,7 @@ import type {
   PreparedPullRequestWorkspace,
   PreparePullRequestWorkspaceInput,
   ProviderConnection,
+  ResolveActivePullRequestForBranchInput,
   ListPullRequestsInput,
   PullRequestChangedFile,
   PullRequestCompareRefs,
@@ -37,14 +38,14 @@ export async function resolveHostedRepo(repoPath: string) {
   return desktop.resolveHostedRepo(repoPath) as Promise<HostedRepoRef | null>;
 }
 
-export async function resolvePullRequestWorkspace(repoPath: string) {
-  return desktop.resolvePullRequestWorkspace(
-    repoPath,
-  ) as Promise<PreparedPullRequestWorkspace | null>;
-}
-
 export async function listPullRequests(input: ListPullRequestsInput) {
   return desktop.listPullRequests(input) as Promise<PullRequestPage>;
+}
+
+export async function resolveActivePullRequestForBranch(
+  input: ResolveActivePullRequestForBranchInput,
+) {
+  return desktop.resolveActivePullRequestForBranch(input);
 }
 
 export async function getPullRequestConversation(input: PullRequestLocatorInput) {

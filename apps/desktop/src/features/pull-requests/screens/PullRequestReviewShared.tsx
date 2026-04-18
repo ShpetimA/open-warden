@@ -1,6 +1,6 @@
+import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect, type ReactNode, type ComponentType } from "react";
 import { GitPullRequest } from "lucide-react";
-import { useNavigate, useParams } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import {
@@ -10,153 +10,215 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { useResolvePullRequestWorkspaceQuery } from "@/features/hosted-repos/api";
+import {
+  usePreparePullRequestCompareRefsQuery,
+  useResolveActivePullRequestForBranchQuery,
+  useResolveHostedRepoQuery,
+} from "@/features/hosted-repos/api";
 import type { PullRequestReviewSession } from "@/features/pull-requests/pullRequestsSlice";
-import { clearCurrentPullRequestReview, setCurrentPullRequestReview } from "@/features/pull-requests/pullRequestsSlice";
+import {
+  clearCurrentPullRequestReview,
+  setCurrentPullRequestReview,
+} from "@/features/pull-requests/pullRequestsSlice";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
   clearReviewSelection,
   setReviewBaseRef,
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
-import type { PreparedPullRequestWorkspace } from "@/platform/desktop";
 
-function createReviewSessionFromWorkspace(workspace: PreparedPullRequestWorkspace): PullRequestReviewSession {
+function createReviewSessionFromActivePullRequest(input: {
+  repoPath: string;
+  providerId: PullRequestReviewSession["providerId"];
+  owner: string;
+  repo: string;
+  pullRequestNumber: number;
+  title: string;
+  baseRef: string;
+  headRef: string;
+  compareBaseRef: string;
+  compareHeadRef: string;
+}): PullRequestReviewSession {
   return {
-    providerId: workspace.providerId,
-    owner: workspace.owner,
-    repo: workspace.repo,
-    pullRequestNumber: workspace.pullRequestNumber,
-    title: workspace.title,
-    baseRef: workspace.baseRef,
-    headRef: workspace.headRef,
-    compareBaseRef: workspace.compareBaseRef,
-    compareHeadRef: workspace.compareHeadRef,
-    repoPath: workspace.repoPath,
-    worktreePath: workspace.worktreePath,
+    providerId: input.providerId,
+    owner: input.owner,
+    repo: input.repo,
+    pullRequestNumber: input.pullRequestNumber,
+    title: input.title,
+    baseRef: input.baseRef,
+    headRef: input.headRef,
+    compareBaseRef: input.compareBaseRef,
+    compareHeadRef: input.compareHeadRef,
+    repoPath: input.repoPath,
+    worktreePath: input.repoPath,
   };
 }
 
-function reviewSessionMatchesWorkspace(
+function reviewSessionMatchesPullRequest(
   review: PullRequestReviewSession | null,
-  workspace: PreparedPullRequestWorkspace,
+  nextReview: PullRequestReviewSession,
 ) {
-  if (!review) return false;
+  if (!review) {
+    return false;
+  }
 
   return (
-    review.providerId === workspace.providerId &&
-    review.owner === workspace.owner &&
-    review.repo === workspace.repo &&
-    review.pullRequestNumber === workspace.pullRequestNumber &&
-    review.title === workspace.title &&
-    review.baseRef === workspace.baseRef &&
-    review.headRef === workspace.headRef &&
-    review.compareBaseRef === workspace.compareBaseRef &&
-    review.compareHeadRef === workspace.compareHeadRef &&
-    review.repoPath === workspace.repoPath &&
-    review.worktreePath === workspace.worktreePath
+    review.providerId === nextReview.providerId &&
+    review.owner === nextReview.owner &&
+    review.repo === nextReview.repo &&
+    review.pullRequestNumber === nextReview.pullRequestNumber &&
+    review.title === nextReview.title &&
+    review.baseRef === nextReview.baseRef &&
+    review.headRef === nextReview.headRef &&
+    review.repoPath === nextReview.repoPath &&
+    review.worktreePath === nextReview.worktreePath
   );
 }
 
 export function usePullRequestReviewSession() {
-  const navigate = useNavigate();
-  const { providerId, owner, repo, pullRequestNumber } = useParams();
   const dispatch = useAppDispatch();
 
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const currentReview = useAppSelector((state) => state.pullRequests.currentReview);
+  const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
+  const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
 
-  const { data: pullRequestWorkspace } = useResolvePullRequestWorkspaceQuery(activeRepo || "", {
+  const { activeBranch } = useGetGitSnapshotQuery(activeRepo || "", {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({ data }),
-  });
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo || "", {
-    skip: !activeRepo,
-    selectFromResult: ({ data }) => ({ data }),
+    selectFromResult: ({ data }) => ({
+      activeBranch: data?.branch?.trim() ?? "",
+    }),
   });
 
-  const hasRouteParams = Boolean(providerId && owner && repo && pullRequestNumber);
-  const matchesCurrentReview =
-    hasRouteParams &&
+  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ data }) => ({
+      hostedRepo: data ?? null,
+    }),
+  });
+
+  const {
+    activePullRequest,
+    loadingActivePullRequest,
+    fetchingActivePullRequest,
+    hasActivePullRequestError,
+  } = useResolveActivePullRequestForBranchQuery(
+    { repoPath: activeRepo, branch: activeBranch },
+    {
+      skip: !activeRepo || !activeBranch,
+      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+        activePullRequest: data ?? null,
+        loadingActivePullRequest: isLoading,
+        fetchingActivePullRequest: isFetching,
+        hasActivePullRequestError: Boolean(error),
+      }),
+    },
+  );
+
+  const { compareRefs } = usePreparePullRequestCompareRefsQuery(
+    activeRepo && activePullRequest
+      ? {
+          repoPath: activeRepo,
+          pullRequestNumber: activePullRequest.number,
+        }
+      : skipToken,
+    {
+      selectFromResult: ({ data }) => ({
+        compareRefs: data ?? null,
+      }),
+    },
+  );
+
+  const samePullRequestAsCurrentReview =
     currentReview !== null &&
-    currentReview.providerId === providerId &&
-    currentReview.owner === owner &&
-    currentReview.repo === repo &&
-    String(currentReview.pullRequestNumber) === pullRequestNumber;
-  const workspaceMatchesActiveBranch =
-    !pullRequestWorkspace || !snapshot ? true : snapshot.branch === pullRequestWorkspace.localBranch;
-  const workspaceReview =
-    pullRequestWorkspace &&
-    workspaceMatchesActiveBranch &&
-    (!hasRouteParams ||
-      (pullRequestWorkspace.providerId === providerId &&
-        pullRequestWorkspace.owner === owner &&
-        pullRequestWorkspace.repo === repo &&
-        String(pullRequestWorkspace.pullRequestNumber) === pullRequestNumber))
-      ? createReviewSessionFromWorkspace(pullRequestWorkspace)
+    activePullRequest !== null &&
+    currentReview.repoPath === activeRepo &&
+    currentReview.providerId === activePullRequest.providerId &&
+    currentReview.pullRequestNumber === activePullRequest.number;
+
+  const compareBaseRef =
+    compareRefs?.compareBaseRef ?? (samePullRequestAsCurrentReview ? currentReview.compareBaseRef : "");
+  const compareHeadRef =
+    compareRefs?.compareHeadRef ?? (samePullRequestAsCurrentReview ? currentReview.compareHeadRef : "");
+
+  const nextResolvedReview =
+    activeRepo && hostedRepo && activePullRequest
+      ? createReviewSessionFromActivePullRequest({
+          repoPath: activeRepo,
+          providerId: activePullRequest.providerId,
+          owner: hostedRepo.owner,
+          repo: hostedRepo.repo,
+          pullRequestNumber: activePullRequest.number,
+          title: activePullRequest.title,
+          baseRef: activePullRequest.baseRef,
+          headRef: activePullRequest.headRef,
+          compareBaseRef,
+          compareHeadRef,
+        })
       : null;
-  const allowCurrentReviewFallback = workspaceMatchesActiveBranch || !pullRequestWorkspace;
-  const resolvedReview = matchesCurrentReview
-    ? currentReview
-    : (workspaceReview ?? (allowCurrentReviewFallback ? currentReview : null));
+
+  const keepCurrentReviewWhileLoading =
+    !nextResolvedReview &&
+    currentReview !== null &&
+    currentReview.repoPath === activeRepo &&
+    (loadingActivePullRequest || fetchingActivePullRequest);
+
+  const resolvedReview = nextResolvedReview ?? (keepCurrentReviewWhileLoading ? currentReview : null);
 
   useEffect(() => {
-    if (hasRouteParams && !matchesCurrentReview) {
-      dispatch(clearReviewSelection());
-    }
-  }, [dispatch, hasRouteParams, matchesCurrentReview]);
-
-  useEffect(() => {
-    if (!pullRequestWorkspace || !snapshot) {
+    if (!nextResolvedReview) {
       return;
     }
 
-    if (snapshot.branch === pullRequestWorkspace.localBranch) {
+    if (!reviewSessionMatchesPullRequest(currentReview, nextResolvedReview)) {
+      dispatch(setCurrentPullRequestReview(nextResolvedReview));
+    }
+  }, [currentReview, dispatch, nextResolvedReview]);
+
+  useEffect(() => {
+    if (!compareRefs) {
       return;
     }
 
-    navigate("/changes", { replace: true });
+    if (reviewBaseRef !== compareRefs.compareBaseRef) {
+      dispatch(setReviewBaseRef(compareRefs.compareBaseRef));
+    }
+    if (reviewHeadRef !== compareRefs.compareHeadRef) {
+      dispatch(setReviewHeadRef(compareRefs.compareHeadRef));
+    }
+  }, [compareRefs, dispatch, reviewBaseRef, reviewHeadRef]);
+
+  useEffect(() => {
+    const waitingForActivePullRequest = loadingActivePullRequest || fetchingActivePullRequest;
+    if (waitingForActivePullRequest) {
+      return;
+    }
+
+    if (activePullRequest || hasActivePullRequestError) {
+      return;
+    }
+
+    if (currentReview === null && reviewBaseRef === "" && reviewHeadRef === "") {
+      return;
+    }
+
     dispatch(clearCurrentPullRequestReview());
     dispatch(clearReviewSelection());
-    dispatch(setReviewBaseRef(""));
-    dispatch(setReviewHeadRef(""));
-  }, [dispatch, navigate, pullRequestWorkspace, snapshot]);
-
-  useEffect(() => {
-    if (!pullRequestWorkspace) {
-      return;
+    if (reviewBaseRef !== "") {
+      dispatch(setReviewBaseRef(""));
     }
-
-    const workspaceMatchesRoute =
-      !hasRouteParams ||
-      (pullRequestWorkspace.providerId === providerId &&
-        pullRequestWorkspace.owner === owner &&
-        pullRequestWorkspace.repo === repo &&
-        String(pullRequestWorkspace.pullRequestNumber) === pullRequestNumber);
-    if (!workspaceMatchesRoute) {
-      return;
-    }
-
-    const nextReview = createReviewSessionFromWorkspace(pullRequestWorkspace);
-    if (!reviewSessionMatchesWorkspace(currentReview, pullRequestWorkspace)) {
-      dispatch(setCurrentPullRequestReview(nextReview));
-    }
-
-    if (currentReview?.compareBaseRef !== pullRequestWorkspace.compareBaseRef) {
-      dispatch(setReviewBaseRef(pullRequestWorkspace.compareBaseRef));
-    }
-    if (currentReview?.compareHeadRef !== pullRequestWorkspace.compareHeadRef) {
-      dispatch(setReviewHeadRef(pullRequestWorkspace.compareHeadRef));
+    if (reviewHeadRef !== "") {
+      dispatch(setReviewHeadRef(""));
     }
   }, [
+    activePullRequest,
     currentReview,
     dispatch,
-    hasRouteParams,
-    owner,
-    providerId,
-    pullRequestNumber,
-    pullRequestWorkspace,
-    repo,
+    fetchingActivePullRequest,
+    hasActivePullRequestError,
+    loadingActivePullRequest,
+    reviewBaseRef,
+    reviewHeadRef,
   ]);
 
   return {
@@ -226,7 +288,7 @@ export function InactivePullRequestReviewPlaceholder() {
     <PullRequestReviewPlaceholder
       icon={GitPullRequest}
       title="Open a pull request from the list"
-      description="This review session is not active anymore. Go back to Pull Requests and reopen the PR to restore its local workspace."
+      description="Switch to a branch with an open pull request to see review files and conversation tabs automatically."
     />
   );
 }

@@ -376,7 +376,7 @@ function bitbucketRepoIdentity(
   return { owner, repo: name };
 }
 
-function toBitbucketPullRequestSummary(
+export function toBitbucketPullRequestSummary(
   pullRequest: BitbucketPullRequestResponse,
   hostedRepo: HostedRepoRef,
 ): PullRequestSummary {
@@ -686,6 +686,35 @@ export async function listBitbucketPullRequests(
     perPage: normalizedPerPage,
     hasNextPage: typeof data.next === "string" && data.next.trim().length > 0,
   };
+}
+
+export async function resolveBitbucketOpenPullRequestForBranch(
+  hostedRepo: HostedRepoRef,
+  connection: ProviderConnectionSecret,
+  branch: string,
+): Promise<PullRequestSummary | null> {
+  const normalizedBranch = branch.trim();
+  if (!normalizedBranch) {
+    return null;
+  }
+
+  const encodedQuery = encodeURIComponent(
+    `state = "OPEN" AND source.branch.name = "${normalizedBranch.replaceAll("\"", "\\\"")}"`,
+  );
+  const pathname = `/repositories/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(
+    hostedRepo.repo,
+  )}/pullrequests?sort=-updated_on&pagelen=20&q=${encodedQuery}`;
+  const { data } = await bitbucketRequest<BitbucketPaginatedResponse<BitbucketPullRequestResponse>>(
+    pathname,
+    connection,
+  );
+  const values = Array.isArray(data.values) ? data.values : [];
+  const match =
+    values.find((pullRequest) => (pullRequest.source?.branch?.name ?? "") === normalizedBranch) ??
+    values[0] ??
+    null;
+
+  return match ? toBitbucketPullRequestSummary(match, hostedRepo) : null;
 }
 
 export async function fetchBitbucketPullRequest(

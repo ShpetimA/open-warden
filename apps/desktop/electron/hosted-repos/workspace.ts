@@ -509,34 +509,6 @@ async function readManagedRepoWorkspaces(hostedRepo: HostedRepoRef) {
   }
 }
 
-async function readManagedRepoState(hostedRepo: HostedRepoRef, worktreePath: string) {
-  const resolvedWorktreePath = path.resolve(worktreePath);
-  const workspaces = await readManagedRepoWorkspaces(hostedRepo);
-  for (const workspace of workspaces) {
-    if (path.resolve(workspace.worktreePath) === resolvedWorktreePath) {
-      return workspace;
-    }
-  }
-
-  return null;
-}
-
-export async function resolvePullRequestWorkspace(
-  repoPath: string,
-): Promise<PreparedPullRequestWorkspace | null> {
-  const hostedRepo = await resolveHostedRepo(repoPath);
-  if (!hostedRepo) {
-    return null;
-  }
-
-  const state = await readManagedRepoState(hostedRepo, repoPath);
-  if (!state) {
-    return null;
-  }
-
-  return state;
-}
-
 export async function preparePullRequestCompareRefs(
   input: PullRequestLocatorInput,
 ): Promise<PullRequestCompareRefs> {

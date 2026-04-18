@@ -8,7 +8,7 @@ import {
 import { useLocation, useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { useResolvePullRequestWorkspaceQuery } from "@/features/hosted-repos/api";
+import { useResolveActivePullRequestForBranchQuery } from "@/features/hosted-repos/api";
 import { PullRequestFilesTab } from "@/features/pull-requests/components/PullRequestFilesTab";
 
 import CurrentRepositoryHeader from "@/features/source-control/components/CurrentRepoHeader";
@@ -25,6 +25,57 @@ function isRoute(pathname: string, target: string) {
   return pathname === target || pathname.startsWith(`${target}/`);
 }
 
+type PullRequestSidebarTabsProps = {
+  activeRepo: string;
+  activeBranch: string;
+};
+
+function PullRequestSidebarTabs({ activeRepo, activeBranch }: PullRequestSidebarTabsProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const { activePullRequest } = useResolveActivePullRequestForBranchQuery(
+    { repoPath: activeRepo, branch: activeBranch },
+    {
+      skip: !activeRepo || !activeBranch,
+      selectFromResult: ({ data }) => ({
+        activePullRequest: data ?? null,
+      }),
+    },
+  );
+
+  const isPullRequestFilesRoute = isRoute(location.pathname, "/changes/pull-request/files");
+  const isPullRequestConversationRoute = isRoute(
+    location.pathname,
+    "/changes/pull-request/conversation",
+  );
+  const isPullRequestChecksRoute = isRoute(location.pathname, "/changes/pull-request/checks");
+
+  if (!activePullRequest) {
+    return null;
+  }
+
+  return (
+    <div className="border-border/70 mt-2 flex flex-col gap-1 border-t pt-2">
+      <SidebarTabButton
+        icon={<GitPullRequest className="h-4 w-4" />}
+        isActive={isPullRequestFilesRoute}
+        onClick={() => navigate("/changes/pull-request/files")}
+      />
+      <SidebarTabButton
+        icon={<MessagesSquare className="h-4 w-4" />}
+        isActive={isPullRequestConversationRoute}
+        onClick={() => navigate("/changes/pull-request/conversation")}
+      />
+      <SidebarTabButton
+        icon={<ShieldCheck className="h-4 w-4" />}
+        isActive={isPullRequestChecksRoute}
+        onClick={() => navigate("/changes/pull-request/checks")}
+      />
+    </div>
+  );
+}
+
 export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -34,18 +85,7 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
 
-  const { data: pullRequestWorkspace } = useResolvePullRequestWorkspaceQuery(activeRepo || "", {
-    skip: !activeRepo,
-    selectFromResult: ({ data }) => ({ data }),
-  });
-
   const isRepoFilesRoute = isRoute(location.pathname, "/changes/files");
-  const isPullRequestFilesRoute = isRoute(location.pathname, "/changes/pull-request/files");
-  const isPullRequestConversationRoute = isRoute(
-    location.pathname,
-    "/changes/pull-request/conversation",
-  );
-  const isPullRequestChecksRoute = isRoute(location.pathname, "/changes/pull-request/checks");
   const isPullRequestRoute = isRoute(location.pathname, "/changes/pull-request");
   const isChangesRoute = !isRepoFilesRoute && !isPullRequestRoute;
 
@@ -63,25 +103,7 @@ export function ChangesSidebar({ activeBranch }: ChangesSidebarProps) {
           onClick={() => navigate("/changes/files")}
         />
 
-        {pullRequestWorkspace ? (
-          <div className="border-border/70 mt-2 flex flex-col gap-1 border-t pt-2">
-            <SidebarTabButton
-              icon={<GitPullRequest className="h-4 w-4" />}
-              isActive={isPullRequestFilesRoute}
-              onClick={() => navigate("/changes/pull-request/files")}
-            />
-            <SidebarTabButton
-              icon={<MessagesSquare className="h-4 w-4" />}
-              isActive={isPullRequestConversationRoute}
-              onClick={() => navigate("/changes/pull-request/conversation")}
-            />
-            <SidebarTabButton
-              icon={<ShieldCheck className="h-4 w-4" />}
-              isActive={isPullRequestChecksRoute}
-              onClick={() => navigate("/changes/pull-request/checks")}
-            />
-          </div>
-        ) : null}
+        <PullRequestSidebarTabs activeRepo={activeRepo} activeBranch={activeBranch ?? ""} />
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

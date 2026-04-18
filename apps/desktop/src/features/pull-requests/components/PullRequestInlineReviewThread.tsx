@@ -5,10 +5,10 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
-  CornerDownLeft,
   ExternalLink,
   MessagesSquare,
   Quote,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,10 +26,8 @@ import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMe
 import {
   appendQuotedBody,
   authorLabel,
-  Avatar,
   CommentBody,
   copyToClipboard,
-  toDisplayDate,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { setActiveConversationThreadId } from "@/features/pull-requests/pullRequestsSlice";
 import type { GitProviderId, PullRequestReviewThread } from "@/platform/desktop";
@@ -64,6 +62,22 @@ function threadLineLabel(thread: PullRequestReviewThread) {
   return "Unknown line";
 }
 
+function formatRelativeTime(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 export function PullRequestInlineReviewThread({
   providerId,
   repoPath,
@@ -87,13 +101,9 @@ export function PullRequestInlineReviewThread({
   const [setPullRequestThreadResolved, { isLoading: updatingThreadResolution }] =
     useSetPullRequestThreadResolvedMutation();
 
-  const rootComment = thread.comments[0] ?? null;
-  const replies = thread.comments.slice(1);
   const selected = activeThreadId === thread.id;
   const resolutionPending = updatingThreadResolution && pendingThreadId === thread.id;
   const replyPending = replyingToThread && pendingThreadId === thread.id;
-  const subtleActionClass =
-    "border-border/60 bg-black/10 hover:bg-black/20 h-7 gap-1.5 rounded-full border px-3 text-[11px] font-medium text-foreground/90";
   const lineLabel = threadLineLabel(thread);
   const activeProviderId = providerId ?? currentReviewProviderId ?? "github";
   const providerName = providerTitle(activeProviderId);
@@ -152,197 +162,170 @@ export function PullRequestInlineReviewThread({
 
   return (
     <section
-      className={`border-border/60 bg-surface-elevated border ${selected ? "border-primary/40" : ""}`}
+      className={`bg-surface-elevated border-border/60 w-full min-w-0 max-w-[min(100%,32rem)] border whitespace-normal ${selected ? "border-primary/40" : ""}`}
     >
-      <div className="border-border/60 flex items-start justify-between gap-3 border-b px-3 py-2.5">
+      {/* Header - more compact */}
+      <div className="border-border/60 flex items-center gap-2 border-b px-1 py-1">
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground inline-flex h-5 w-5 shrink-0 items-center justify-center"
+          onClick={() => setCollapsed((current) => !current)}
+          aria-label={collapsed ? "Expand thread" : "Collapse thread"}
+        >
+          {collapsed ? (
+            <ChevronRight className="h-3 w-3" />
+          ) : (
+            <ChevronDown className="h-3 w-3" />
+          )}
+        </button>
+
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground inline-flex h-5 w-5 items-center justify-center"
-              onClick={() => {
-                setCollapsed((current) => !current);
-              }}
-              aria-label={collapsed ? "Expand thread" : "Collapse thread"}
-            >
-              {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <button
               type="button"
               className="text-[12px] font-semibold tracking-[-0.01em] hover:underline"
               onClick={openConversation}
             >
-              Comment on {lineLabel}
+              {lineLabel}
             </button>
-            <div className="text-muted-foreground text-[11px]">
-              {thread.comments.length} {thread.comments.length === 1 ? "comment" : "comments"}
-            </div>
-            <div
-              className={`border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ${
-                thread.isResolved
-                  ? "border-emerald-500/30 bg-emerald-500/8 text-emerald-300"
-                  : "border-amber-500/30 bg-amber-500/8 text-amber-300"
-              }`}
-            >
-              {thread.isResolved ? "Resolved" : "Unresolved"}
-            </div>
-            {thread.isOutdated ? (
-              <div className="border-border/70 bg-background text-muted-foreground border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em]">
-                Outdated
-              </div>
-            ) : null}
+            <span className="text-muted-foreground text-[11px]">
+              · {thread.comments.length}
+            </span>
+            {thread.isResolved ? (
+              <span className="text-emerald-500 text-[10px]">
+                <Check className="inline h-3 w-3" />
+              </span>
+            ) : (
+              <span className="bg-amber-500/10 text-amber-500 rounded-full px-1.5 py-0 text-[9px] font-medium">
+                open
+              </span>
+            )}
+            {thread.isOutdated && (
+              <span className="text-muted-foreground text-[10px]">outdated</span>
+            )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-1">
+        <div className="flex items-center gap-1">
           {onOpenFile ? (
-            <Button variant="ghost" size="sm" className={subtleActionClass} onClick={onOpenFile}>
-              <ExternalLink className="h-3.5 w-3.5" />
-              Open file
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onOpenFile}>
+              <ExternalLink className="h-3 w-3" />
             </Button>
           ) : (
-            <Button variant="ghost" size="sm" className={subtleActionClass} onClick={openConversation}>
-              <MessagesSquare className="h-3.5 w-3.5" />
-              Conversation
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={openConversation}>
+              <MessagesSquare className="h-3 w-3" />
             </Button>
           )}
-          {canResolveThreads ? (
+          {canResolveThreads && (
             <Button
               variant="ghost"
-              size="sm"
-              className={subtleActionClass}
+              size="icon"
+              className="h-6 w-6"
               disabled={resolutionPending}
               onClick={toggleResolution}
             >
-              <CheckCheck className="h-3.5 w-3.5" />
-              {thread.isResolved ? "Reopen" : "Resolve"}
+              <CheckCheck className={thread.isResolved ? "text-emerald-500 h-3 w-3" : "h-3 w-3"} />
             </Button>
-          ) : null}
+          )}
         </div>
       </div>
 
       {collapsed ? null : (
-        <div className="bg-background/30">
-          {rootComment ? (
-            <div className="border-border/50 border-b px-4 py-4">
-              <div className="flex items-start gap-3">
-                <Avatar
-                  login={rootComment.author?.login ?? null}
-                  avatarUrl={rootComment.author?.avatarUrl ?? null}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <div className="text-[13px] font-semibold tracking-[-0.01em]">
-                      {authorLabel(
-                        rootComment.author?.login ?? null,
-                        rootComment.author?.displayName ?? null,
-                      )}
-                    </div>
-                    <div className="text-muted-foreground text-[11px]">
-                      {toDisplayDate(rootComment.createdAt)}
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <CommentBody body={rootComment.body} />
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={subtleActionClass}
-                      onClick={() => {
-                        setReplyOpen(true);
-                        setReplyDraft((current) => appendQuotedBody(current, rootComment.body));
-                      }}
-                    >
-                      <CornerDownLeft className="h-3.5 w-3.5" />
-                      Reply
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={subtleActionClass}
-                      onClick={() =>
-                        void copyToClipboard(rootComment.body, "Review comment copied")
-                      }
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
+        <div className="bg-background/30 w-full min-w-0">
+          {/* Comments list - unified, compact */}
+          <div className="flex w-full min-w-0 flex-col">
+            {thread.comments.map((comment, index) => {
+              const isRoot = index === 0;
 
-          {replies.length > 0 ? (
-            <div className="px-4 py-3">
-              <div className="border-border/50 space-y-3 border-l pl-4">
-                {replies.map((reply) => (
-                  <div key={reply.id} className="flex items-start gap-3">
-                    <Avatar
-                      login={reply.author?.login ?? null}
-                      avatarUrl={reply.author?.avatarUrl ?? null}
-                    />
+              return (
+                <div
+                  key={comment.id}
+                  className={`w-full min-w-0 px-3 py-3 ${!isRoot ? "border-border/40 border-t" : ""}`}
+                >
+                  <div className="flex w-full min-w-0 items-start gap-2.5">
+                    {/* Compact avatar */}
+                    {comment.author?.avatarUrl ? (
+                      <img
+                        src={comment.author.avatarUrl}
+                        alt={comment.author.login}
+                        className="border-border mt-0.5 h-5 w-5 shrink-0 rounded-full border"
+                      />
+                    ) : (
+                      <div className="border-border bg-muted mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[9px] font-semibold">
+                        {(comment.author?.login ?? "?").slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <div className="text-[13px] font-semibold tracking-[-0.01em]">
+                      {/* Compact header: name · time */}
+                      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                        <span className="text-[12px] font-medium">
                           {authorLabel(
-                            reply.author?.login ?? null,
-                            reply.author?.displayName ?? null,
+                            comment.author?.login ?? null,
+                            comment.author?.displayName ?? null,
                           )}
-                        </div>
-                        <div className="text-muted-foreground text-[11px]">
-                          {toDisplayDate(reply.createdAt)}
+                        </span>
+                        <span className="text-muted-foreground text-[11px]">
+                          {formatRelativeTime(comment.createdAt)}
+                        </span>
+                      </div>
+
+                      {/* Comment body - tighter with proper overflow handling */}
+                      <div className="mt-1 min-w-0 max-w-full whitespace-normal [word-break:break-word] [overflow-wrap:anywhere]">
+                        <div className="text-[13px] leading-5 [&_p]:!mb-1.5 [&_p]:!text-[13px] [&_p]:!leading-5 [&_p:last-child]:!mb-0 [&_li]:!text-[13px]">
+                          <CommentBody body={comment.body} />
                         </div>
                       </div>
-                      <div className="mt-1.5">
-                        <CommentBody body={reply.body} />
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={subtleActionClass}
+
+                      {/* Actions - minimal, inline */}
+                      <div className="mt-2 flex items-center gap-1">
+                        <button
+                          type="button"
                           onClick={() => {
                             setReplyOpen(true);
-                            setReplyDraft((current) => appendQuotedBody(current, reply.body));
+                            setReplyDraft((current) =>
+                              appendQuotedBody(current, comment.body),
+                            );
                           }}
+                          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors"
                         >
-                          <Quote className="h-3.5 w-3.5" />
-                          Quote
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={subtleActionClass}
-                          onClick={() => void copyToClipboard(reply.body, "Review reply copied")}
+                          <Quote className="h-3 w-3" />
+                          Reply
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyToClipboard(comment.body, "Copied to clipboard")
+                          }
+                          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors"
                         >
-                          <Copy className="h-3.5 w-3.5" />
+                          <Copy className="h-3 w-3" />
                           Copy
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+                </div>
+              );
+            })}
+          </div>
 
+          {/* Reply form - compact */}
           {replyOpen ? (
-            <div className="border-border/60 border-t px-4 py-4">
-              <div className="space-y-3">
+            <div className="border-border/60 border-t px-3 py-3">
+              <div className="space-y-2">
                 <MarkdownEditor
                   value={replyDraft}
                   onChange={setReplyDraft}
-                  placeholder="Reply to this review thread..."
+                  placeholder="Reply..."
                   compact
                   mentions={mentions}
                 />
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="ghost"
-                    className="h-7 rounded-none px-2 text-[12px]"
+                    size="sm"
+                    className="h-7 px-2 text-[11px]"
                     onClick={() => {
                       setReplyOpen(false);
                       setReplyDraft("");
@@ -351,19 +334,28 @@ export function PullRequestInlineReviewThread({
                     Cancel
                   </Button>
                   <Button
-                    disabled={replyPending}
-                    className="h-7 rounded-full px-3 text-[12px]"
-                    onClick={() => {
-                      void submitReply();
-                    }}
+                    size="sm"
+                    disabled={replyPending || !replyDraft.trim()}
+                    className="h-7 px-3 text-[11px]"
+                    onClick={() => void submitReply()}
                   >
-                    <MessagesSquare className="h-3.5 w-3.5" />
                     Reply
                   </Button>
                 </div>
               </div>
             </div>
-          ) : null}
+          ) : (
+            /* Quick reply trigger */
+            <div className="border-border/60 border-t px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setReplyOpen(true)}
+                className="text-muted-foreground hover:text-foreground hover:bg-surface-1 w-full rounded-md border border-dashed px-3 py-1.5 text-left text-[12px] transition-colors"
+              >
+                Reply to this thread...
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

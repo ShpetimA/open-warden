@@ -17,6 +17,7 @@ export type AppShellOutletContext = {
 };
 
 export function AppShell() {
+  const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -29,6 +30,18 @@ export function AppShell() {
   const openRecentProjectsPicker = () => {
     setRecentProjectsPickerOpen(true);
   };
+
+  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
+    if (!switchingRepo) {
+      return;
+    }
+
+    if (location.pathname === "/changes") {
+      return;
+    }
+
+    navigate("/changes", { replace: true });
+  }
 
   useHotkey(
     "Mod+O",
@@ -72,7 +85,10 @@ export function AppShell() {
             recentRepos={recentRepos}
             onOpenChange={setRecentProjectsPickerOpen}
             onSelectRepo={(repoPath) => {
-              void dispatch(openRepo(repoPath));
+              const switchingRepo = repoPath !== activeRepo;
+              void dispatch(openRepo(repoPath)).then(() => {
+                navigateToChangesAfterRepoSwitch(switchingRepo);
+              });
             }}
             onChooseFolder={() => {
               void dispatch(selectFolder());
@@ -97,13 +113,27 @@ function RepoTabsContainer({ currentPath, onShowRecentProjects }: RepoTabsContai
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
 
+  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
+    if (!switchingRepo) {
+      return;
+    }
+
+    if (currentPath === "/changes") {
+      return;
+    }
+
+    navigate("/changes", { replace: true });
+  }
+
   return (
     <RepoTabs
       repos={repos}
       activeRepo={activeRepo}
       recentRepos={recentRepos}
       onSelectRepo={(repo) => {
+        const switchingRepo = repo !== activeRepo;
         void dispatch(selectRepo(repo));
+        navigateToChangesAfterRepoSwitch(switchingRepo);
       }}
       onCloseRepo={(repo) => {
         void dispatch(closeRepo(repo)).then((result) => {
@@ -113,7 +143,10 @@ function RepoTabsContainer({ currentPath, onShowRecentProjects }: RepoTabsContai
         });
       }}
       onOpenRecentRepo={(repo) => {
-        void dispatch(openRepo(repo));
+        const switchingRepo = repo !== activeRepo;
+        void dispatch(openRepo(repo)).then(() => {
+          navigateToChangesAfterRepoSwitch(switchingRepo);
+        });
       }}
       onShowAllRecentProjects={onShowRecentProjects}
       onOpenFolder={() => {

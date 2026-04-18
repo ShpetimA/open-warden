@@ -125,6 +125,11 @@ export type ListPullRequestsInput = {
   perPage: number;
 };
 
+export type ResolveActivePullRequestForBranchInput = {
+  repoPath: string;
+  branch: string;
+};
+
 export type PullRequestPage = {
   pullRequests: PullRequestSummary[];
   page: number;
@@ -383,8 +388,10 @@ export type DesktopApi = {
   connectProvider(input: ConnectProviderInput): Promise<ProviderConnection>;
   disconnectProvider(providerId: GitProviderId): Promise<void>;
   resolveHostedRepo(repoPath: string): Promise<HostedRepoRef | null>;
-  resolvePullRequestWorkspace(repoPath: string): Promise<PreparedPullRequestWorkspace | null>;
   listPullRequests(input: ListPullRequestsInput): Promise<PullRequestPage>;
+  resolveActivePullRequestForBranch(
+    input: ResolveActivePullRequestForBranchInput,
+  ): Promise<PullRequestSummary | null>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;

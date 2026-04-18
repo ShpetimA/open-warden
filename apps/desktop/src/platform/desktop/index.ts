@@ -100,6 +100,7 @@ export type {
   ProviderAuthType,
   ProviderConnectionMethod,
   ListPullRequestsInput,
+  ResolveActivePullRequestForBranchInput,
   PullRequestPage,
   PullRequestSummary,
   PullRequestState,

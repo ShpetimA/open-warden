@@ -118,6 +118,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Hosted repository detection";
     case "listPullRequests":
       return "Pull request listing";
+    case "resolveActivePullRequestForBranch":
+      return "Active pull request detection";
     case "getPullRequestConversation":
       return "Pull request conversation";
     case "getPullRequestFiles":
@@ -204,7 +206,7 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
     async listProviderConnections() {
       return [];
     },
-    async resolvePullRequestWorkspace(_repoPath: string) {
+    async resolveActivePullRequestForBranch() {
       return null;
     },
     async getRepoFile() {
@@ -296,7 +298,7 @@ const unavailableDesktopApiCore = createDesktopApiWithDefaults({
     async listProviderConnections() {
       return [];
     },
-    async resolvePullRequestWorkspace() {
+    async resolveActivePullRequestForBranch() {
       return null;
     },
     async syncLspDocument() {},

@@ -1,23 +1,12 @@
 import type { AppThunk } from "@/app/store";
-import { hostedReposApi } from "@/features/hosted-repos/api";
 import { preparePullRequestWorkspace } from "@/features/hosted-repos/services/hostedRepos";
 import { desktop } from "@/platform/desktop";
-import {
-  clearCurrentPullRequestReview,
-  createPullRequestReviewSession,
-  setCurrentPullRequestReview,
-} from "@/features/pull-requests/pullRequestsSlice";
+import { clearCurrentPullRequestReview } from "@/features/pull-requests/pullRequestsSlice";
 import { openRepo, refreshActiveRepo } from "@/features/source-control/actions";
-import {
-  clearReviewSelection,
-  resetRepoViewState,
-  setReviewBaseRef,
-  setReviewHeadRef,
-} from "@/features/source-control/sourceControlSlice";
-import type { PreparedPullRequestWorkspace, PullRequestOpenMode } from "@/platform/desktop";
+import { resetRepoViewState } from "@/features/source-control/sourceControlSlice";
+import type { PullRequestOpenMode } from "@/platform/desktop";
 
 export type OpenPullRequestReviewResult = {
-  workspace: PreparedPullRequestWorkspace | null;
   errorMessage: string | null;
 };
 
@@ -29,7 +18,7 @@ export const openPullRequestReview =
   async (dispatch, getState) => {
     const activeRepo = getState().sourceControl.activeRepo;
     if (!activeRepo) {
-      return { workspace: null, errorMessage: "No repository is currently active." };
+      return { errorMessage: "No repository is currently active." };
     }
 
     try {
@@ -41,7 +30,6 @@ export const openPullRequestReview =
           snapshot.untracked.length > 0;
         if (hasLocalChanges) {
           return {
-            workspace: null,
             errorMessage:
               "Branch checkout needs a clean repository. Commit, stash, or discard local changes first.",
           };
@@ -61,18 +49,9 @@ export const openPullRequestReview =
         dispatch(clearCurrentPullRequestReview());
       }
       await dispatch(refreshActiveRepo());
-      dispatch(
-        hostedReposApi.util.invalidateTags([
-          { type: "HostedRepo", id: `${preparedWorkspace.repoPath}:pull-request-workspace` },
-        ]),
-      );
-      dispatch(clearReviewSelection());
-      dispatch(setReviewBaseRef(preparedWorkspace.compareBaseRef));
-      dispatch(setReviewHeadRef(preparedWorkspace.compareHeadRef));
-      dispatch(setCurrentPullRequestReview(createPullRequestReviewSession(preparedWorkspace)));
-      return { workspace: preparedWorkspace, errorMessage: null };
+      return { errorMessage: null };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return { workspace: null, errorMessage: message };
+      return { errorMessage: message };
     }
   };

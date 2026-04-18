@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -114,6 +114,26 @@ pre[data-diff-type='single'] {
 
 [data-lsp-diagnostic-token='hint'] {
   text-decoration-color: rgb(5 150 105 / 0.95);
+}
+
+[data-interactive-line-numbers] [data-column-number] {
+  padding-left: 2.7ch;
+}
+
+[data-gutter-utility-slot] {
+  left: 0;
+  right: auto;
+  justify-content: flex-start;
+}
+
+[data-utility-button] {
+  background-color: transparent;
+  color: var(--diffs-fg);
+  width: 0.8lh;
+  height: 0.8lh;
+  margin-right: 0;
+  margin-left: 0.70ch;
+  border-radius: 999px;
 }
 ${DIFF_LINE_FOCUS_CSS}
 `;
@@ -412,6 +432,7 @@ export function DiffWorkspace({
       expansionLineCount: 20,
       hunkSeparators: "line-info-basic",
       enableLineSelection: canComment,
+      enableGutterUtility: canComment,
       onTokenClick: handleTokenClick,
       onTokenEnter: diagnosticPopover.onTokenEnter,
       onTokenLeave: diagnosticPopover.onTokenLeave,
