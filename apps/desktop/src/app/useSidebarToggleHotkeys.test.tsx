@@ -1,6 +1,8 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import { FEATURE_SIDEBARS } from "@/app/featureNavigation";
+
 import { useSidebarToggleHotkeys } from "./useSidebarToggleHotkeys";
 
 const mocks = vi.hoisted(() => ({
@@ -19,7 +21,7 @@ describe("useSidebarToggleHotkeys", () => {
   test("binds both sidebar shortcuts on history and toggles the correct panels", () => {
     const toggle = vi.fn();
 
-    renderHook(() => useSidebarToggleHotkeys({ activeFeature: "history", toggle }));
+    renderHook(() => useSidebarToggleHotkeys({ sidebars: FEATURE_SIDEBARS.history, toggle }));
 
     expect(mocks.useHotkey).toHaveBeenNthCalledWith(
       1,
@@ -51,7 +53,7 @@ describe("useSidebarToggleHotkeys", () => {
   test("disables the right-sidebar shortcut when the current tab only has one sidebar", () => {
     const toggle = vi.fn();
 
-    renderHook(() => useSidebarToggleHotkeys({ activeFeature: "review", toggle }));
+    renderHook(() => useSidebarToggleHotkeys({ sidebars: FEATURE_SIDEBARS.review, toggle }));
 
     expect(mocks.useHotkey).toHaveBeenNthCalledWith(
       1,

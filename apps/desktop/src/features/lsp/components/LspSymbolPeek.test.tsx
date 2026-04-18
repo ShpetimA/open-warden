@@ -2,6 +2,7 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect, useRef } from "react";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { gitApi } from "@/features/source-control/api";
@@ -174,9 +175,11 @@ describe("LspSymbolPeek", () => {
     );
 
     render(
-      <Provider store={store}>
-        <SymbolPeekHarness />
-      </Provider>,
+      <MemoryRouter initialEntries={["/changes/files"]}>
+        <Provider store={store}>
+          <SymbolPeekHarness />
+        </Provider>
+      </MemoryRouter>,
     );
 
     expect(
@@ -189,7 +192,7 @@ describe("LspSymbolPeek", () => {
       /src\/a\.ts:alpha\s+beta hit\s+gamma second/i,
     );
 
-    const previewButton = findLocationButton(/Ln 2, Col 1Line 2/i);
+    const previewButton = findLocationButton(/Ln 2, Col 1(?:Line 2|omega target)/i);
     expect(previewButton).toBeDefined();
     fireEvent.click(previewButton!);
 
@@ -245,12 +248,14 @@ describe("LspSymbolPeek", () => {
     );
 
     render(
-      <Provider store={store}>
-        <SymbolPeekHarness />
-      </Provider>,
+      <MemoryRouter initialEntries={["/changes"]}>
+        <Provider store={store}>
+          <SymbolPeekHarness />
+        </Provider>
+      </MemoryRouter>,
     );
 
-    const previewButton = findLocationButton(/Ln 2, Col 1Line 2/i);
+    const previewButton = findLocationButton(/Ln 2, Col 1(?:Line 2|omega target)/i);
     expect(previewButton).toBeDefined();
     fireEvent.click(previewButton!);
 

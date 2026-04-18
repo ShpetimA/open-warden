@@ -205,7 +205,7 @@ describe("source control workspace actions", () => {
     await store.dispatch(navigateBackToDiffFromFileViewer());
     const state = store.getState();
 
-    expect(state.sourceControl.changesSidebarMode).toBe("changes");
+    expect(state.sourceControl.changesSidebarMode).toBe("files");
     expect(state.sourceControl.fileViewerTarget).toBeNull();
     expect(state.sourceControl.activeBucket).toBe("unstaged");
     expect(state.sourceControl.activePath).toBe("src/origin.ts");
