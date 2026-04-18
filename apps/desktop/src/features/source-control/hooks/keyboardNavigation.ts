@@ -19,21 +19,45 @@ export const SOURCE_CONTROL_HOTKEY_OPTIONS = {
   stopPropagation: false,
 } as const;
 
-function sortByNavIndex(a: HTMLElement, b: HTMLElement) {
-  return Number(a.dataset.navIndex) - Number(b.dataset.navIndex);
-}
-
 function getVisibleNavItems<T>(regionId: string, readValue: NavRegionValueReader<T>): T[] {
-  return Array.from(
-    document.querySelectorAll<HTMLElement>(
-      `[data-nav-region="${regionId}"] [data-tree-file-row="true"]`,
-    ),
-  )
-    .sort(sortByNavIndex)
-    .flatMap((element) => {
-      const value = readValue(element);
-      return value === null ? [] : [value];
-    });
+  const regionElement = document.querySelector<HTMLElement>(`[data-nav-region="${regionId}"]`);
+  if (!regionElement) {
+    return [];
+  }
+
+  const navRows = regionElement.querySelectorAll<HTMLElement>(
+    "[data-tree-file-row='true'][data-nav-index]",
+  );
+  if (navRows.length === 0) {
+    return [];
+  }
+
+  const orderedItems: Array<T | undefined> = [];
+
+  for (const element of navRows) {
+    const navIndex = Number(element.dataset.navIndex);
+    if (!Number.isInteger(navIndex) || navIndex < 0) {
+      continue;
+    }
+
+    const value = readValue(element);
+    if (value === null) {
+      continue;
+    }
+
+    if (orderedItems[navIndex] === undefined) {
+      orderedItems[navIndex] = value;
+    }
+  }
+
+  const visibleItems: T[] = [];
+  for (const item of orderedItems) {
+    if (item !== undefined) {
+      visibleItems.push(item);
+    }
+  }
+
+  return visibleItems;
 }
 
 export function getVisibleFilePaths(regionId: string) {

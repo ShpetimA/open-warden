@@ -15,7 +15,8 @@ export function scrollKeyboardNavItemIntoView(region: string, targetIndex: numbe
   const regionElement = document.querySelector<HTMLElement>(`[data-nav-region="${region}"]`);
   if (!regionElement) return;
 
-  const navItems = Array.from(regionElement.querySelectorAll<HTMLElement>("[data-nav-index]"));
-  const targetItem = navItems.find((item) => Number(item.dataset.navIndex) === targetIndex);
+  const targetItem = regionElement.querySelector<HTMLElement>(
+    `[data-nav-index="${targetIndex}"]`,
+  );
   targetItem?.scrollIntoView({ block: "nearest" });
 }
