@@ -533,7 +533,12 @@ export function DiffWorkspace({
         className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
       >
         {currentFileDiff ? (
-          <Virtualizer className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <Virtualizer
+            config={{
+              overscrollSize: 600,
+              intersectionObserverMargin: 1200,
+            }}
+            className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <PierreFileDiff
               className="block min-w-0 max-w-full"
               fileDiff={currentFileDiff}

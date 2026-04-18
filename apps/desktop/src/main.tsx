@@ -8,8 +8,7 @@ import { DesktopUpdateBootstrap } from "./features/desktop-update/DesktopUpdateB
 import { LspDiagnosticsBootstrap } from "./features/lsp/LspDiagnosticsBootstrap";
 import { AppSettingsBootstrap } from "./features/settings/AppSettingsBootstrap";
 import { WorkspaceSessionBootstrap } from "./features/source-control/WorkspaceSessionBootstrap";
-import { WorkerPoolContextProvider } from "@pierre/diffs/react";
-import { workerFactory } from "./lib/diffs-worker";
+import { DiffWorkerPoolProvider } from "@/provider/DiffWorkerProvider.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <Provider store={store}>
@@ -27,22 +26,13 @@ createRoot(document.getElementById("root")!).render(
         },
       }}
     >
-      <WorkerPoolContextProvider
-        poolOptions={{
-          workerFactory,
-          poolSize: 4,
-          totalASTLRUCacheSize: 200,
-        }}
-        highlighterOptions={{
-          useTokenTransformer: true,
-        }}
-      >
+      <DiffWorkerPoolProvider>
         <AppSettingsBootstrap>
           <WorkspaceSessionBootstrap>
             <App />
           </WorkspaceSessionBootstrap>
         </AppSettingsBootstrap>
-      </WorkerPoolContextProvider>
+      </DiffWorkerPoolProvider>
     </PacerProvider>
   </Provider>,
 );
