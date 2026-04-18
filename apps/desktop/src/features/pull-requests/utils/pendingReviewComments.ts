@@ -21,7 +21,9 @@ function toDiffSide(side: CommentItem["side"]) {
 }
 
 function isMultiLineComment(comment: CommentItem) {
-  return comment.startLine !== comment.endLine || (comment.endSide ?? comment.side) !== comment.side;
+  return (
+    comment.startLine !== comment.endLine || (comment.endSide ?? comment.side) !== comment.side
+  );
 }
 
 export function getPendingReviewCommentsForContext(
