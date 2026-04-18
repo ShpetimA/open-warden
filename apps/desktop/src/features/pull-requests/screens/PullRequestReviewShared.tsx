@@ -1,5 +1,5 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { useEffect, type ReactNode, type ComponentType } from "react";
+import { useEffect, type ComponentType } from "react";
 import { GitPullRequest } from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -225,36 +225,6 @@ export function usePullRequestReviewSession() {
     activeRepo,
     resolvedReview,
   };
-}
-
-export function PullRequestReviewFrame({
-  review,
-  children,
-}: {
-  review: PullRequestReviewSession;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-border/70 bg-surface-toolbar border-b px-6 py-4">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
-          <div className="min-w-0">
-            <div className="text-muted-foreground text-[11px] font-semibold tracking-[0.14em] uppercase">
-              Pull Request Review
-            </div>
-            <div className="mt-1 truncate text-[24px] font-semibold tracking-[-0.03em]">
-              #{review.pullRequestNumber} {review.title}
-            </div>
-            <div className="text-muted-foreground mt-1 text-sm">
-              {review.owner}/{review.repo}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1">{children}</div>
-    </div>
-  );
 }
 
 export function PullRequestReviewPlaceholder({

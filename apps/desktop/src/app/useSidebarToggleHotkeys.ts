@@ -1,19 +1,19 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-import { FEATURE_SIDEBARS, type FeatureKey } from "@/app/featureNavigation";
+import type { SidebarConfig } from "@/app/featureNavigation";
 
 type UseSidebarToggleHotkeysOptions = {
-  activeFeature: FeatureKey;
+  sidebars: SidebarConfig[];
   toggle: (panelId: string) => void;
 };
 
-function sidebarPanelIdForIcon(activeFeature: FeatureKey, icon: "left" | "right") {
-  return FEATURE_SIDEBARS[activeFeature].find((sidebar) => sidebar.icon === icon)?.panelId ?? null;
+function sidebarPanelIdForIcon(sidebars: SidebarConfig[], icon: "left" | "right") {
+  return sidebars.find((sidebar) => sidebar.icon === icon)?.panelId ?? null;
 }
 
-export function useSidebarToggleHotkeys({ activeFeature, toggle }: UseSidebarToggleHotkeysOptions) {
-  const leftSidebarPanelId = sidebarPanelIdForIcon(activeFeature, "left");
-  const rightSidebarPanelId = sidebarPanelIdForIcon(activeFeature, "right");
+export function useSidebarToggleHotkeys({ sidebars, toggle }: UseSidebarToggleHotkeysOptions) {
+  const leftSidebarPanelId = sidebarPanelIdForIcon(sidebars, "left");
+  const rightSidebarPanelId = sidebarPanelIdForIcon(sidebars, "right");
 
   useHotkey(
     "Mod+S",

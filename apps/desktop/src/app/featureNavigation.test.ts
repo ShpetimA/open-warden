@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  FEATURE_NAV_ITEMS,
-  featureHasPrimarySidebar,
-  featureKeyFromPath,
-} from "@/app/featureNavigation";
+import { FEATURE_NAV_ITEMS, featureKeyFromPath } from "@/app/featureNavigation";
 
 describe("feature navigation", () => {
   it("maps routes to feature keys", () => {
@@ -15,13 +11,6 @@ describe("feature navigation", () => {
     expect(featureKeyFromPath("/comments")).toBe("changes");
     expect(featureKeyFromPath("/")).toBe("changes");
     expect(featureKeyFromPath("/unknown/path")).toBe("changes");
-  });
-
-  it("marks primary-sidebar features", () => {
-    expect(featureHasPrimarySidebar("changes")).toBe(true);
-    expect(featureHasPrimarySidebar("pull-requests")).toBe(false);
-    expect(featureHasPrimarySidebar("history")).toBe(true);
-    expect(featureHasPrimarySidebar("review")).toBe(false);
   });
 
   it("exposes all top-level feature tabs", () => {

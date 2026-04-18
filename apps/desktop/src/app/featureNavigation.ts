@@ -24,10 +24,6 @@ export function featureKeyFromPath(pathname: string): FeatureKey {
   return "changes";
 }
 
-export function featureHasPrimarySidebar(feature: FeatureKey): boolean {
-  return feature === "changes" || feature === "history";
-}
-
 export type SidebarConfig = {
   panelId: string;
   icon: "left" | "right";

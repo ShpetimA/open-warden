@@ -177,8 +177,8 @@ type HeaderSidebarTogglesProps = {
 
 function HeaderSidebarToggles({ activeFeature }: HeaderSidebarTogglesProps) {
   const { panels, toggle } = useSidebarPanelRegistry();
-  const sidebars = FEATURE_SIDEBARS[activeFeature];
-  useSidebarToggleHotkeys({ activeFeature, toggle });
+  const sidebars = FEATURE_SIDEBARS[activeFeature].filter((sidebar) => panels.has(sidebar.panelId));
+  useSidebarToggleHotkeys({ sidebars, toggle });
 
   if (sidebars.length === 0) {
     return null;

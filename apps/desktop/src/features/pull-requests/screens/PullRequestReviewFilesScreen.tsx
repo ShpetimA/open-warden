@@ -3,6 +3,7 @@ import type { DiffLineAnnotation } from "@pierre/diffs";
 import { useEffect } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
@@ -14,17 +15,13 @@ import {
 } from "@/features/source-control/api";
 import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
-import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { DiffAnnotationItem, FileItem } from "@/features/source-control/types";
 import { setPullRequestFilesViewMode } from "@/features/pull-requests/pullRequestsSlice";
+import { PullRequestFilesSidebar } from "@/features/pull-requests/components/PullRequestFilesSidebar";
 import type { PullRequestReviewThread } from "@/platform/desktop";
 
-import {
-  InactivePullRequestReviewPlaceholder,
-  PullRequestReviewFrame,
-  usePullRequestReviewSession,
-} from "./PullRequestReviewShared";
+import { InactivePullRequestReviewPlaceholder, usePullRequestReviewSession } from "./PullRequestReviewShared";
 
 const EMPTY_BRANCH_FILES: FileItem[] = [];
 
@@ -168,14 +165,15 @@ export function PullRequestReviewFilesScreen() {
     resolvedReview && activeRepo && currentCompareBaseRef && currentCompareHeadRef,
   );
 
-  const { branchFiles, hasBranchFilesData } = useGetBranchFilesQuery(
+  const { branchFiles, hasBranchFilesData, isLoadingBranchFiles } = useGetBranchFilesQuery(
     readyForDiff
       ? { repoPath: activeRepo, baseRef: currentCompareBaseRef, headRef: currentCompareHeadRef }
       : skipToken,
     {
-      selectFromResult: ({ data }) => ({
+      selectFromResult: ({ data, isLoading }) => ({
         branchFiles: data ?? EMPTY_BRANCH_FILES,
         hasBranchFilesData: Boolean(data),
+        isLoadingBranchFiles: isLoading,
       }),
     },
   );
@@ -219,17 +217,6 @@ export function PullRequestReviewFilesScreen() {
       fileViewerTarget.returnToDiff.repoPath === resolvedReview?.repoPath);
 
   useEffect(() => {
-    if (!readyForDiff) return;
-    if (!hasBranchFilesData) return;
-    if (branchFiles.length === 0) return;
-
-    const existing = branchFiles.find((file) => file.path === reviewActivePath);
-    if (!existing) {
-      dispatch(setReviewActivePath(branchFiles[0].path));
-    }
-  }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath]);
-
-  useEffect(() => {
     if (
       fileViewerTarget?.returnToDiff?.kind === "pull-request" &&
       fileViewerTarget.returnToDiff.repoPath === activeRepo &&
@@ -244,22 +231,38 @@ export function PullRequestReviewFilesScreen() {
   }
 
   return (
-    <PullRequestReviewFrame review={resolvedReview}>
-      {showingPullRequestFileViewer ? (
-        <GeneralFileViewer />
-      ) : (
-        <PullRequestDiffPane
+    <ResizableSidebarLayout
+      panelId="primary"
+      sidebarDefaultSize={24}
+      sidebarMinSize={16}
+      sidebarMaxSize={40}
+      sidebar={
+        <PullRequestFilesSidebar
           activeRepo={activeRepo}
-          reviewBaseRef={currentCompareBaseRef}
-          reviewHeadRef={currentCompareHeadRef}
+          review={resolvedReview}
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
-          focusedLineNumber={focusedLineNumber}
-          focusedLineIndex={focusedLineIndex}
-          focusedLineKey={focusedLineKey}
-          annotationItems={threadAnnotations}
+          hasBranchFilesData={hasBranchFilesData}
+          isLoadingBranchFiles={isLoadingBranchFiles}
         />
-      )}
-    </PullRequestReviewFrame>
+      }
+      content={
+        showingPullRequestFileViewer ? (
+          <GeneralFileViewer />
+        ) : (
+          <PullRequestDiffPane
+            activeRepo={activeRepo}
+            reviewBaseRef={currentCompareBaseRef}
+            reviewHeadRef={currentCompareHeadRef}
+            readyForDiff={readyForDiff}
+            branchFiles={branchFiles}
+            focusedLineNumber={focusedLineNumber}
+            focusedLineIndex={focusedLineIndex}
+            focusedLineKey={focusedLineKey}
+            annotationItems={threadAnnotations}
+          />
+        )
+      }
+    />
   );
 }

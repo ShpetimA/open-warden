@@ -1,11 +1,13 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppSelector } from "@/app/hooks";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
 import { useGetFileVersionsQuery } from "@/features/source-control/api";
+import { ChangesSidebar } from "@/features/source-control/components/ChangesSidebar";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
@@ -15,6 +17,19 @@ export function ChangesScreen() {
   useChangesKeyboardNav("changes");
   useChangesSync();
 
+  return (
+    <ResizableSidebarLayout
+      panelId="primary"
+      sidebarDefaultSize={22}
+      sidebarMinSize={14}
+      sidebarMaxSize={34}
+      sidebar={<ChangesSidebar />}
+      content={<ChangesDiffPane />}
+    />
+  );
+}
+
+function ChangesDiffPane() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
