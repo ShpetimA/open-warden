@@ -13,20 +13,7 @@ function tokenCanRenderDiagnostic(token: HTMLElement): boolean {
     return false;
   }
 
-  const lineType = lineElement.getAttribute("data-line-type");
-  if (lineType === "change-deletion") {
-    return false;
-  }
-
-  if (token.closest("[data-additions]")) {
-    return true;
-  }
-
-  if (token.closest("[data-deletions]")) {
-    return false;
-  }
-
-  return true;
+  return lineCanRenderDiagnostic(lineElement);
 }
 
 function getTokenLineNumber(token: HTMLElement): number | null {
@@ -35,8 +22,29 @@ function getTokenLineNumber(token: HTMLElement): number | null {
     return null;
   }
 
+  return readLineNumber(lineElement);
+}
+
+function readLineNumber(lineElement: HTMLElement): number | null {
   const value = Number.parseInt(lineElement.getAttribute("data-line") ?? "", 10);
   return Number.isFinite(value) ? value : null;
+}
+
+function lineCanRenderDiagnostic(lineElement: HTMLElement): boolean {
+  const lineType = lineElement.getAttribute("data-line-type");
+  if (lineType === "change-deletion") {
+    return false;
+  }
+
+  if (lineElement.closest("[data-additions]")) {
+    return true;
+  }
+
+  if (lineElement.closest("[data-deletions]")) {
+    return false;
+  }
+
+  return true;
 }
 
 function getTokenCharRange(token: HTMLElement): { start: number; end: number } | null {
@@ -128,6 +136,8 @@ export function findDiagnosticSeverityForToken(
   return winningSeverity;
 }
 
+// Applies diagnostic attributes with minimal DOM churn by updating only tokens
+// whose severity changed and skipping lines that cannot render diagnostics.
 export function applyDiagnosticTokenDecorations(
   rootNode: HTMLElement,
   diagnosticsByLine: Map<number, LspDiagnostic[]>,
@@ -137,14 +147,77 @@ export function applyDiagnosticTokenDecorations(
     roots.unshift(rootNode.shadowRoot);
   }
 
-  const tokens = roots.flatMap((root) =>
-    Array.from(root.querySelectorAll<HTMLElement>("[data-line] [data-char]")),
-  );
-  for (const token of tokens) {
-    token.removeAttribute("data-lsp-diagnostic-token");
-    const severity = findDiagnosticSeverityForToken(token, diagnosticsByLine);
-    if (severity) {
-      token.setAttribute("data-lsp-diagnostic-token", severity);
+  if (diagnosticsByLine.size === 0) {
+    for (const root of roots) {
+      const tokens = root.querySelectorAll<HTMLElement>("[data-lsp-diagnostic-token]");
+      for (const token of tokens) {
+        token.removeAttribute("data-lsp-diagnostic-token");
+      }
+    }
+    return;
+  }
+
+  for (const root of roots) {
+    const lines = root.querySelectorAll<HTMLElement>("[data-line]");
+    for (const line of lines) {
+      const lineNumber = readLineNumber(line);
+      if (!lineNumber) {
+        continue;
+      }
+
+      const diagnostics = diagnosticsByLine.get(lineNumber);
+      const canRender = diagnostics != null && diagnostics.length > 0 && lineCanRenderDiagnostic(line);
+      if (!canRender) {
+        const markedTokens = line.querySelectorAll<HTMLElement>("[data-char][data-lsp-diagnostic-token]");
+        for (const token of markedTokens) {
+          token.removeAttribute("data-lsp-diagnostic-token");
+        }
+        continue;
+      }
+
+      const tokens = line.querySelectorAll<HTMLElement>("[data-char]");
+      for (const token of tokens) {
+        const nextSeverity = getSeverityForTokenInLine(token, lineNumber, diagnostics);
+        const currentSeverity = token.getAttribute("data-lsp-diagnostic-token");
+
+        if (!nextSeverity) {
+          if (currentSeverity !== null) {
+            token.removeAttribute("data-lsp-diagnostic-token");
+          }
+          continue;
+        }
+
+        if (currentSeverity !== nextSeverity) {
+          token.setAttribute("data-lsp-diagnostic-token", nextSeverity);
+        }
+      }
     }
   }
+}
+
+function getSeverityForTokenInLine(
+  token: HTMLElement,
+  lineNumber: number,
+  diagnostics: LspDiagnostic[],
+): LspDiagnostic["severity"] | null {
+  const charRange = getTokenCharRange(token);
+  if (!charRange) {
+    return null;
+  }
+
+  let winningSeverity: LspDiagnostic["severity"] | null = null;
+  let winningPriority = -1;
+  for (const diagnostic of diagnostics) {
+    if (!tokenOverlapsDiagnostic(lineNumber, charRange.start, charRange.end, diagnostic)) {
+      continue;
+    }
+
+    const priority = DIAGNOSTIC_SEVERITY_PRIORITY[diagnostic.severity];
+    if (priority > winningPriority) {
+      winningPriority = priority;
+      winningSeverity = diagnostic.severity;
+    }
+  }
+
+  return winningSeverity;
 }
