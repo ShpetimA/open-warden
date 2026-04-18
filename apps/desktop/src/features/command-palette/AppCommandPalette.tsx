@@ -72,6 +72,10 @@ function isMatchingContext(comment: CommentItem, context: CommentContext): boole
   return true;
 }
 
+function repoLabelFromPath(repoPath: string) {
+  return repoPath.split("/").findLast(Boolean) ?? repoPath;
+}
+
 function flattenSnapshot(snapshot: {
   staged: BucketedFile[];
   unstaged: BucketedFile[];
@@ -287,7 +291,7 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       .filter((repoPath) => !repos.includes(repoPath))
       .map((repoPath) => ({
         id: `repo:recent:${repoPath}`,
-        label: `Open Recent: ${repoPath.split("/").filter(Boolean).pop() ?? repoPath}`,
+        label: `Open Recent: ${repoLabelFromPath(repoPath)}`,
         subtitle: repoPath,
         keywords: ["repo", "recent", "project", "reopen"],
         disabled: repoPath === activeRepo,
@@ -297,7 +301,7 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       })),
     ...repos.map((repoPath) => ({
       id: `repo:switch:${repoPath}`,
-      label: `Switch Repo: ${repoPath.split("/").filter(Boolean).pop() ?? repoPath}`,
+      label: `Switch Repo: ${repoLabelFromPath(repoPath)}`,
       subtitle: repoPath,
       keywords: ["repo", "switch"],
       disabled: repoPath === activeRepo,

@@ -2,10 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { useAppDispatch } from "@/app/hooks";
-import {
-  MarkdownEditor,
-  type MentionConfig,
-} from "@/components/markdown/MarkdownEditor";
+import { MarkdownEditor, type MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import { addComment } from "@/features/comments/actions";
 import type { CommentContext, SelectionRange } from "@/features/source-control/types";
@@ -46,8 +43,8 @@ export function CommentComposer({
 
   const onSubmit = () => {
     if (overrideSubmit) {
-      overrideSubmit(draftComment)
-      return
+      overrideSubmit(draftComment);
+      return;
     }
     if (!selectedRange || !draftComment.trim() || !activePath) return;
     onBeforeSubmit?.();
@@ -58,8 +55,8 @@ export function CommentComposer({
 
   useEffect(() => {
     if (defaultValue) {
-      const end = defaultValue.length
-      inputRef.current?.setSelectionRange(end, end)
+      const end = defaultValue.length;
+      inputRef.current?.setSelectionRange(end, end);
     }
     if (visible) {
       inputRef.current?.focus({ preventScroll: true });

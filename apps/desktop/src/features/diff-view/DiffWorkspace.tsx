@@ -138,6 +138,20 @@ pre[data-diff-type='single'] {
 ${DIFF_LINE_FOCUS_CSS}
 `;
 
+function renderUnrenderableDiffWarning() {
+  return (
+    <Empty className="border-0 rounded-none h-full gap-4">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <FileWarning />
+        </EmptyMedia>
+        <EmptyTitle>Diff too large</EmptyTitle>
+        <EmptyDescription>The diff is too large to be displayed.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
 function getDiffIdentity(
   activePath: string,
   oldFile: DiffFile | null,
@@ -166,16 +180,13 @@ function useCurrentFileComments(
   commentContext: CommentContext,
   canComment: boolean,
 ): FileCommentsResult {
-  const comments = useAppSelector(
-    (state): CommentItem[] => {
-      if (!canComment || !activeRepo || !activePath) {
-        return EMPTY_FILE_COMMENTS;
-      }
+  const comments = useAppSelector((state): CommentItem[] => {
+    if (!canComment || !activeRepo || !activePath) {
+      return EMPTY_FILE_COMMENTS;
+    }
 
-      return fileComments(state.comments, activeRepo, activePath, commentContext);
-    },
-    shallowEqual,
-  );
+    return fileComments(state.comments, activeRepo, activePath, commentContext);
+  }, shallowEqual);
 
   const annotations = useMemo(() => {
     if (comments.length === 0) {
@@ -379,7 +390,9 @@ export function DiffWorkspace({
   const diagnosticsByLine = useMemo(() => buildDiagnosticsByLine(lspDiagnostics), [lspDiagnostics]);
   const diagnosticPopover = useDiagnosticTokenPopover(diagnosticsByLine);
 
-  const handleTokenClick = useCallback<NonNullable<FileDiffOptions<DiffAnnotationItem>["onTokenClick"]>>(
+  const handleTokenClick = useCallback<
+    NonNullable<FileDiffOptions<DiffAnnotationItem>["onTokenClick"]>
+  >(
     (props, event) => {
       if (onHoverTokenClick(props, event)) {
         return;
@@ -502,20 +515,6 @@ export function DiffWorkspace({
     );
   };
 
-  const renderUnrenderableDiffWarning = () => {
-    return (
-      <Empty className="border-0 rounded-none h-full gap-4">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <FileWarning />
-          </EmptyMedia>
-          <EmptyTitle>Diff too large</EmptyTitle>
-          <EmptyDescription>The diff is too large to be displayed.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
-  };
-
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <DiagnosticTokenPopover
@@ -538,7 +537,8 @@ export function DiffWorkspace({
               overscrollSize: 600,
               intersectionObserverMargin: 1200,
             }}
-            className="relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+            className="relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+          >
             <PierreFileDiff
               className="block min-w-0 max-w-full"
               fileDiff={currentFileDiff}

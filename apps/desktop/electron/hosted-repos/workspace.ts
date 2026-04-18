@@ -38,7 +38,7 @@ const TRACKING_REF_REGEX = new RegExp(
 );
 
 function toSafePathSegment(value: string) {
-  return value.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "-");
+  return value.replace(/[<>:"/\\|?*]|\p{Cc}/gu, "-");
 }
 
 function openWardenRootPath() {
@@ -326,7 +326,10 @@ async function deleteTrackingRef(repoPath: string, refName: string) {
   }
 }
 
-async function cleanupStalePullRequestTrackingRefs(repoPath: string, activePullRequestNumber: number) {
+async function cleanupStalePullRequestTrackingRefs(
+  repoPath: string,
+  activePullRequestNumber: number,
+) {
   const trackedRefs = await listPullRequestTrackingRefs(repoPath);
   if (trackedRefs.length === 0) {
     return;

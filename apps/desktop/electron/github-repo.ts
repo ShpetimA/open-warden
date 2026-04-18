@@ -164,7 +164,11 @@ type GitHubPullRequestByHeadGraphResponse = {
 };
 
 type GitHubPullRequestByHeadNode = NonNullable<
-  NonNullable<NonNullable<NonNullable<GitHubPullRequestByHeadGraphResponse["data"]>["repository"]>["pullRequests"]>["nodes"]
+  NonNullable<
+    NonNullable<
+      NonNullable<GitHubPullRequestByHeadGraphResponse["data"]>["repository"]
+    >["pullRequests"]
+  >["nodes"]
 >[number];
 
 export async function githubRequest<T>(pathname: string, token: string) {
@@ -348,7 +352,7 @@ export async function listGitHubPullRequests(
   return {
     pullRequests: data
       .map((pullRequest) => toPullRequestSummary(pullRequest, hostedRepo.providerId))
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     page: normalizedPage,
     perPage: normalizedPerPage,
     hasNextPage: hasGitHubNextPage(headers),
@@ -444,7 +448,9 @@ export async function resolveGitHubOpenPullRequestForBranch(
     return match ? toPullRequestSummaryFromHeadNode(match, hostedRepo) : null;
   } catch {
     const page = await listGitHubPullRequests(hostedRepo, token, 1, 100);
-    return page.pullRequests.find((pullRequest) => pullRequest.headRef === normalizedBranch) ?? null;
+    return (
+      page.pullRequests.find((pullRequest) => pullRequest.headRef === normalizedBranch) ?? null
+    );
   }
 }
 
@@ -601,7 +607,7 @@ export async function fetchGitHubIssueComments(
 
   return comments
     .map(toPullRequestIssueComment)
-    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+    .toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 export async function fetchGitHubReviewThreads(
@@ -657,7 +663,7 @@ export async function fetchGitHubReviewThreads(
   });
 
   const nodes = payload.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
-  return nodes.map(toPullRequestReviewThread).sort((left, right) => {
+  return nodes.map(toPullRequestReviewThread).toSorted((left, right) => {
     const leftCreatedAt = left.comments[0]?.createdAt ?? "";
     const rightCreatedAt = right.comments[0]?.createdAt ?? "";
     return leftCreatedAt.localeCompare(rightCreatedAt);

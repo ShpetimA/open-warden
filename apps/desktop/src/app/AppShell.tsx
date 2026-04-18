@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
-import { NuqsAdapter } from 'nuqs/adapters/react-router/v7'
+import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { featureKeyFromPath } from "@/app/featureNavigation";
 import { RepoTabs } from "@/app/RepoTabs";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";

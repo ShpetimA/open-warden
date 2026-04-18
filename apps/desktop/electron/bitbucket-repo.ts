@@ -537,7 +537,7 @@ function toBitbucketConversation(
 ): PullRequestConversation {
   const visibleComments = comments
     .filter((comment) => !comment.deleted || comment.body.trim().length > 0)
-    .sort(sortNormalizedBitbucketComments);
+    .toSorted(sortNormalizedBitbucketComments);
   const commentsById = new Map<number, NormalizedBitbucketComment>();
   for (const comment of visibleComments) {
     commentsById.set(comment.id, comment);
@@ -587,7 +587,7 @@ function toBitbucketConversation(
 
   const reviewThreads: PullRequestReviewThread[] = [];
   for (const [rootId, threadComments] of reviewThreadComments.entries()) {
-    const sortedComments = [...threadComments].sort(sortNormalizedBitbucketComments);
+    const sortedComments = [...threadComments].toSorted(sortNormalizedBitbucketComments);
     const rootComment = commentsById.get(rootId) ?? sortedComments[0];
     if (!rootComment) {
       continue;
@@ -620,7 +620,7 @@ function toBitbucketConversation(
 
   return {
     detail,
-    issueComments: issueComments.sort((left, right) =>
+    issueComments: issueComments.toSorted((left, right) =>
       left.createdAt.localeCompare(right.createdAt),
     ),
     reviewThreads,
@@ -681,7 +681,7 @@ export async function listBitbucketPullRequests(
   return {
     pullRequests: values
       .map((pullRequest) => toBitbucketPullRequestSummary(pullRequest, hostedRepo))
-      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     page: normalizedPage,
     perPage: normalizedPerPage,
     hasNextPage: typeof data.next === "string" && data.next.trim().length > 0,
@@ -699,7 +699,7 @@ export async function resolveBitbucketOpenPullRequestForBranch(
   }
 
   const encodedQuery = encodeURIComponent(
-    `state = "OPEN" AND source.branch.name = "${normalizedBranch.replaceAll("\"", "\\\"")}"`,
+    `state = "OPEN" AND source.branch.name = "${normalizedBranch.replaceAll('"', '\\"')}"`,
   );
   const pathname = `/repositories/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(
     hostedRepo.repo,

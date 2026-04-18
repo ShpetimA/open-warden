@@ -29,19 +29,19 @@ vi.mock("sonner", () => ({
   },
 }));
 
+function createTokenElement(lineIndex = "2") {
+  const lineElement = document.createElement("span");
+  lineElement.setAttribute("data-line", "3");
+  lineElement.setAttribute("data-line-index", lineIndex);
+  const tokenElement = document.createElement("span");
+  lineElement.appendChild(tokenElement);
+  return tokenElement;
+}
+
 describe("useLspTokenNavigation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
-
-  function createTokenElement(lineIndex = "2") {
-    const lineElement = document.createElement("span");
-    lineElement.setAttribute("data-line", "3");
-    lineElement.setAttribute("data-line-index", lineIndex);
-    const tokenElement = document.createElement("span");
-    lineElement.appendChild(tokenElement);
-    return tokenElement;
-  }
 
   it("opens symbol peek for a single definition result", async () => {
     mocks.getLspDefinition.mockResolvedValue([

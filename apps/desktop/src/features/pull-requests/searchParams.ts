@@ -4,6 +4,4 @@ export const pullRequestPreviewSearchParsers = {
   file: parseAsString,
 };
 
-export const serializePullRequestPreviewSearch = createSerializer(
-  pullRequestPreviewSearchParsers,
-);
+export const serializePullRequestPreviewSearch = createSerializer(pullRequestPreviewSearchParsers);

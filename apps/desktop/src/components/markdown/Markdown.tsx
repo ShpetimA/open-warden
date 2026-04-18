@@ -150,7 +150,6 @@ function ShikiCode({ code, lang }: { code: string; lang: string }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- markdown component overrides receive broad union props
 const components: Record<string, FC<any>> = {
   h1: ({ node: _, children, ...props }) => (
     <h1 className="mt-5 mb-3 text-2xl font-semibold tracking-tight first:mt-0" {...props}>
@@ -173,7 +172,10 @@ const components: Record<string, FC<any>> = {
     </h4>
   ),
   p: ({ node: _, children, ...props }) => (
-    <p className="mb-2 max-w-full break-words text-sm leading-relaxed [overflow-wrap:anywhere] last:mb-0" {...props}>
+    <p
+      className="mb-2 max-w-full break-words text-sm leading-relaxed [overflow-wrap:anywhere] last:mb-0"
+      {...props}
+    >
       {children}
     </p>
   ),
@@ -199,7 +201,10 @@ const components: Record<string, FC<any>> = {
     </ol>
   ),
   li: ({ node: _, children, ...props }) => (
-    <li className="max-w-full break-words text-sm leading-relaxed [overflow-wrap:anywhere]" {...props}>
+    <li
+      className="max-w-full break-words text-sm leading-relaxed [overflow-wrap:anywhere]"
+      {...props}
+    >
       {children}
     </li>
   ),
@@ -333,13 +338,7 @@ const components: Record<string, FC<any>> = {
   ),
 };
 
-export function Markdown({
-  children,
-  className,
-}: {
-  children: string;
-  className?: string;
-}) {
+export function Markdown({ children, className }: { children: string; className?: string }) {
   const safeMarkdown = useMemo(
     () =>
       DOMPurify.sanitize(children, {

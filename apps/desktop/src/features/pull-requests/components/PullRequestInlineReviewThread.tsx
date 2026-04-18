@@ -13,10 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import {
-  MarkdownEditor,
-  type MentionConfig,
-} from "@/components/markdown/MarkdownEditor";
+import { MarkdownEditor, type MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { Button } from "@/components/ui/button";
 import {
   useReplyToPullRequestThreadMutation,
@@ -172,11 +169,7 @@ export function PullRequestInlineReviewThread({
           onClick={() => setCollapsed((current) => !current)}
           aria-label={collapsed ? "Expand thread" : "Collapse thread"}
         >
-          {collapsed ? (
-            <ChevronRight className="h-3 w-3" />
-          ) : (
-            <ChevronDown className="h-3 w-3" />
-          )}
+          {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </button>
 
         <div className="min-w-0 flex-1">
@@ -188,9 +181,7 @@ export function PullRequestInlineReviewThread({
             >
               {lineLabel}
             </button>
-            <span className="text-muted-foreground text-[11px]">
-              · {thread.comments.length}
-            </span>
+            <span className="text-muted-foreground text-[11px]">· {thread.comments.length}</span>
             {thread.isResolved ? (
               <span className="text-emerald-500 text-[10px]">
                 <Check className="inline h-3 w-3" />
@@ -283,9 +274,7 @@ export function PullRequestInlineReviewThread({
                           type="button"
                           onClick={() => {
                             setReplyOpen(true);
-                            setReplyDraft((current) =>
-                              appendQuotedBody(current, comment.body),
-                            );
+                            setReplyDraft((current) => appendQuotedBody(current, comment.body));
                           }}
                           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors"
                         >
@@ -294,9 +283,7 @@ export function PullRequestInlineReviewThread({
                         </button>
                         <button
                           type="button"
-                          onClick={() =>
-                            void copyToClipboard(comment.body, "Copied to clipboard")
-                          }
+                          onClick={() => void copyToClipboard(comment.body, "Copied to clipboard")}
                           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] transition-colors"
                         >
                           <Copy className="h-3 w-3" />

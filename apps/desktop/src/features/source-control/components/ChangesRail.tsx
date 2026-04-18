@@ -16,7 +16,13 @@ function isRoute(pathname: string, target: string) {
   return pathname === target || pathname.startsWith(`${target}/`);
 }
 
-function PullRequestRailTabs({ activeRepo, activeBranch }: { activeRepo: string; activeBranch: string }) {
+function PullRequestRailTabs({
+  activeRepo,
+  activeBranch,
+}: {
+  activeRepo: string;
+  activeBranch: string;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
   const currentReview = useAppSelector((state) => state.pullRequests.currentReview);
@@ -38,7 +44,8 @@ function PullRequestRailTabs({ activeRepo, activeBranch }: { activeRepo: string;
     currentReview !== null &&
     currentReview.repoPath === activeRepo &&
     (loadingActivePullRequest || fetchingActivePullRequest);
-  const shouldShowPullRequestTabs = Boolean(activePullRequest) || keepPullRequestTabsVisibleWhileLoading;
+  const shouldShowPullRequestTabs =
+    Boolean(activePullRequest) || keepPullRequestTabsVisibleWhileLoading;
 
   const isPullRequestFilesRoute = isRoute(location.pathname, "/changes/pull-request/files");
   const isPullRequestConversationRoute = isRoute(

@@ -14,14 +14,19 @@ import {
 import { getCaretCoordinates } from "@/components/markdown/get-caret-coordinates";
 import { Markdown, highlightCode } from "@/components/markdown/Markdown";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Bold, Code, Heading, Italic, Link, List, ListOrdered, ListTodo, Quote } from "lucide-react";
+import {
+  Bold,
+  Code,
+  Heading,
+  Italic,
+  Link,
+  List,
+  ListOrdered,
+  ListTodo,
+  Quote,
+} from "lucide-react";
 
 export type MentionCandidate = {
   id: string;
@@ -378,7 +383,8 @@ export function MarkdownEditor({
               onKeyDown={handleKeyDown}
               placeholder={placeholder}
               rows={2}
-              className="placeholder:text-muted-foreground w-full resize-y bg-transparent px-5 py-5 font-mono text-[15px] leading-7 outline-none" />
+              className="placeholder:text-muted-foreground w-full resize-y bg-transparent px-5 py-5 font-mono text-[15px] leading-7 outline-none"
+            />
           ) : (
             <HighlightedMarkdownEditor
               value={value}
@@ -459,7 +465,9 @@ function MentionDropdown({
           <Spinner className="text-muted-foreground size-3.5" />
         </div>
       ) : null}
-      {isEmpty ? <div className="text-muted-foreground px-3 py-2 text-xs">No users found</div> : null}
+      {isEmpty ? (
+        <div className="text-muted-foreground px-3 py-2 text-xs">No users found</div>
+      ) : null}
       {candidates.map((candidate, index) => (
         <button
           key={candidate.id}
@@ -531,7 +539,9 @@ function MdToolbarButton({
         <span className="flex items-center gap-1.5">
           {label}
           {shortcut ? (
-            <kbd className="bg-foreground/10 rounded-full px-1.5 py-0.5 font-mono text-[10px]">{shortcut}</kbd>
+            <kbd className="bg-foreground/10 rounded-full px-1.5 py-0.5 font-mono text-[10px]">
+              {shortcut}
+            </kbd>
           ) : null}
         </span>
       </TooltipContent>

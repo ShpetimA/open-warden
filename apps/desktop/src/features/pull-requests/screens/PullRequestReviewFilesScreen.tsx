@@ -21,7 +21,10 @@ import { setPullRequestFilesViewMode } from "@/features/pull-requests/pullReques
 import { PullRequestFilesSidebar } from "@/features/pull-requests/components/PullRequestFilesSidebar";
 import type { PullRequestReviewThread } from "@/platform/desktop";
 
-import { InactivePullRequestReviewPlaceholder, usePullRequestReviewSession } from "./PullRequestReviewShared";
+import {
+  InactivePullRequestReviewPlaceholder,
+  usePullRequestReviewSession,
+} from "./PullRequestReviewShared";
 
 const EMPTY_BRANCH_FILES: FileItem[] = [];
 

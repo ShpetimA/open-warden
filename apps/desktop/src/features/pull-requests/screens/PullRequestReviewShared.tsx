@@ -137,9 +137,11 @@ export function usePullRequestReviewSession() {
     currentReview.pullRequestNumber === activePullRequest.number;
 
   const compareBaseRef =
-    compareRefs?.compareBaseRef ?? (samePullRequestAsCurrentReview ? currentReview.compareBaseRef : "");
+    compareRefs?.compareBaseRef ??
+    (samePullRequestAsCurrentReview ? currentReview.compareBaseRef : "");
   const compareHeadRef =
-    compareRefs?.compareHeadRef ?? (samePullRequestAsCurrentReview ? currentReview.compareHeadRef : "");
+    compareRefs?.compareHeadRef ??
+    (samePullRequestAsCurrentReview ? currentReview.compareHeadRef : "");
 
   const nextResolvedReview =
     activeRepo && hostedRepo && activePullRequest
@@ -163,7 +165,8 @@ export function usePullRequestReviewSession() {
     currentReview.repoPath === activeRepo &&
     (loadingActivePullRequest || fetchingActivePullRequest);
 
-  const resolvedReview = nextResolvedReview ?? (keepCurrentReviewWhileLoading ? currentReview : null);
+  const resolvedReview =
+    nextResolvedReview ?? (keepCurrentReviewWhileLoading ? currentReview : null);
 
   useEffect(() => {
     if (!nextResolvedReview) {

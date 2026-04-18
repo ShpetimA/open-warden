@@ -15,4 +15,7 @@ export {
   setPullRequestThreadResolved,
   submitPullRequestReviewComments,
 } from "./hosted-repos/pullRequests";
-export { preparePullRequestCompareRefs, preparePullRequestWorkspace } from "./hosted-repos/workspace";
+export {
+  preparePullRequestCompareRefs,
+  preparePullRequestWorkspace,
+} from "./hosted-repos/workspace";

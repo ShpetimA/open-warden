@@ -52,26 +52,30 @@ export function useLspTokenNavigation(
   options?: UseLspTokenNavigationOptions,
 ) {
   const dispatch = useAppDispatch();
+  const getReturnToDiffTarget = options?.getReturnToDiffTarget;
 
-  function createPeekPayload(
-    kind: "definitions" | "references",
-    locations: Awaited<ReturnType<typeof desktop.getLspDefinition>>,
-    source: LspJumpSource,
-    returnToDiff: DiffReturnTarget | null,
-  ) {
-    return {
-      kind,
-      locations,
-      activeIndex: 0,
-      query: "",
-      sourceDocument: document!,
-      anchor: {
-        lineNumber: source.lineNumber,
-        lineIndex: source.lineIndex,
-      },
-      returnToDiff,
-    } as const;
-  }
+  const createPeekPayload = useCallback(
+    (
+      kind: "definitions" | "references",
+      locations: Awaited<ReturnType<typeof desktop.getLspDefinition>>,
+      source: LspJumpSource,
+      returnToDiff: DiffReturnTarget | null,
+    ) => {
+      return {
+        kind,
+        locations,
+        activeIndex: 0,
+        query: "",
+        sourceDocument: document!,
+        anchor: {
+          lineNumber: source.lineNumber,
+          lineIndex: source.lineIndex,
+        },
+        returnToDiff,
+      } as const;
+    },
+    [document],
+  );
 
   const onTokenClick = useCallback(
     (props: TokenPosition, event: MouseEvent) => {
@@ -98,7 +102,7 @@ export function useLspTokenNavigation(
         lineNumber: props.lineNumber,
         lineIndex: getTokenLineIndex(props.tokenElement),
       };
-      const returnToDiff = options?.getReturnToDiffTarget?.(source) ?? null;
+      const returnToDiff = getReturnToDiffTarget?.(source) ?? null;
 
       if (referencesClick) {
         void desktop
@@ -146,7 +150,7 @@ export function useLspTokenNavigation(
           });
         });
     },
-    [dispatch, document, options?.getReturnToDiffTarget],
+    [createPeekPayload, dispatch, document, getReturnToDiffTarget],
   );
 
   return {

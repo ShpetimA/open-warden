@@ -98,7 +98,7 @@ function conversationEntries(conversation: PullRequestConversation): Conversatio
     });
   }
 
-  return entries.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  return entries.toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
 }
 
 function EntryCard({
@@ -279,11 +279,11 @@ export function PullRequestConversationTab({
           ) : null}
         </EntryCard>
 
-        {entries.map((entry, index) => {
+        {entries.map((entry) => {
           if (entry.kind === "description") {
             const author = conversation.detail.author;
             return (
-              <EntryCard key={`description-${index}`}>
+              <EntryCard key={`description-${conversation.detail.createdAt}`}>
                 <div className="px-4 py-4">
                   <div className="flex items-start gap-3">
                     <Avatar login={author?.login ?? null} avatarUrl={author?.avatarUrl ?? null} />
@@ -375,7 +375,10 @@ export function PullRequestConversationTab({
                           size="sm"
                           className={compactButtonClass}
                           onClick={() =>
-                            void copyToClipboard(entry.comment.body, `${providerName} comment copied`)
+                            void copyToClipboard(
+                              entry.comment.body,
+                              `${providerName} comment copied`,
+                            )
                           }
                         >
                           <Copy className="h-3.5 w-3.5" />
@@ -419,7 +422,9 @@ export function PullRequestConversationTab({
                     >
                       {thread.path}
                     </button>
-                    <div className="text-muted-foreground text-[11px]">{threadLineLabel(thread)}</div>
+                    <div className="text-muted-foreground text-[11px]">
+                      {threadLineLabel(thread)}
+                    </div>
                     <div
                       className={`border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ${
                         thread.isResolved
@@ -565,7 +570,9 @@ export function PullRequestConversationTab({
                               variant="ghost"
                               size="sm"
                               className={compactButtonClass}
-                              onClick={() => void copyToClipboard(reply.body, "Review reply copied")}
+                              onClick={() =>
+                                void copyToClipboard(reply.body, "Review reply copied")
+                              }
                             >
                               <Copy className="h-3.5 w-3.5" />
                               Copy

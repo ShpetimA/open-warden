@@ -199,7 +199,7 @@ function makeFileItem(
 }
 
 function sortFiles(files: FileItem[]) {
-  return files.sort((a, b) => a.path.localeCompare(b.path));
+  return files.toSorted((a, b) => a.path.localeCompare(b.path));
 }
 
 function parseStatusOutput(
@@ -327,7 +327,7 @@ function parseRepoFilesOutput(output: Buffer): RepoFileItem[] {
     .filter(Boolean);
 
   return [...new Set(paths)]
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
+    .toSorted((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
     .map((path) => ({ path }));
 }
 
@@ -481,9 +481,9 @@ async function discardFileForBucket(repoPath: string, relPath: string, bucket: B
 
 async function readCommitParent(repoPath: string, commitId: string) {
   const output = await runGit(repoPath, ["show", "-s", "--format=%P", commitId]);
-  const parents = decodeUtf8(output, "commit parents").trim().split(/\s+/).filter(Boolean);
+  const firstParent = decodeUtf8(output, "commit parents").trim().split(/\s+/).find(Boolean);
 
-  return parents[0] ?? null;
+  return firstParent ?? null;
 }
 
 export async function getGitSnapshot(repoPath: string): Promise<GitSnapshot> {
@@ -540,7 +540,7 @@ export async function getBranches(repoPath: string): Promise<string[]> {
     .filter(Boolean)
     .filter((branch) => !branch.endsWith("/HEAD"));
 
-  return [...new Set(branches)].sort((a, b) => a.localeCompare(b));
+  return [...new Set(branches)].toSorted((a, b) => a.localeCompare(b));
 }
 
 export async function getBranchFiles(

@@ -9,7 +9,7 @@ import {
   selectFile,
   stageOrUnstageSelectionAction,
 } from "@/features/source-control/actions";
-import type { BucketedFile } from "@/features/source-control/types";
+import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
   openFileViewer,
@@ -27,6 +27,15 @@ import {
   useVerticalNavigationHotkeys,
 } from "./keyboardNavigation";
 import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
+
+function toBucketedFile(file: FileItem, bucket: Bucket) {
+  return {
+    path: file.path,
+    previousPath: file.previousPath,
+    status: file.status,
+    bucket,
+  } satisfies BucketedFile;
+}
 
 export function useChangesKeyboardNav(mode: "changes" | "files") {
   const dispatch = useAppDispatch();
@@ -123,13 +132,10 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     const unstaged = snapshot?.unstaged ?? [];
     const staged = snapshot?.staged ?? [];
     const untracked = snapshot?.untracked ?? [];
-    const stagedRows: BucketedFile[] = staged.map((file) => ({
-      ...file,
-      bucket: "staged",
-    }));
+    const stagedRows: BucketedFile[] = staged.map((file) => toBucketedFile(file, "staged"));
     const changedRows: BucketedFile[] = [
-      ...unstaged.map((file) => ({ ...file, bucket: "unstaged" as const })),
-      ...untracked.map((file) => ({ ...file, bucket: "untracked" as const })),
+      ...unstaged.map((file) => toBucketedFile(file, "unstaged")),
+      ...untracked.map((file) => toBucketedFile(file, "untracked")),
     ];
     const visibleChangeRowsFromDom = getVisibleBucketedFiles("changes-files");
     const visibleChangeRows: BucketedFile[] =

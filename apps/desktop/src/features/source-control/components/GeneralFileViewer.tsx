@@ -137,23 +137,23 @@ export function GeneralFileViewer(_props: GeneralFileViewerProps) {
       ) : null}
       <div key={file.name} ref={viewerRef} className="grid relative min-h-0 flex-1 overflow-auto">
         <Virtualizer className="relative min-h-0 flex-1 overflow-auto">
-            <PierreFile
-              file={file}
-              className="block min-w-0 max-w-full"
-              selectedLines={selectedLine ? { start: selectedLine, end: selectedLine } : null}
-              options={{
-                theme: getDiffTheme(),
-                themeType: getDiffThemeType(resolvedTheme),
-                unsafeCSS: FILE_VIEWER_CSS,
-                disableLineNumbers: false,
-                disableFileHeader: false,
-                onTokenClick,
-              }}
-            />
-            <LspSymbolPeekContainer
-              document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
-              containerRef={viewerRef}
-            />
+          <PierreFile
+            file={file}
+            className="block min-w-0 max-w-full"
+            selectedLines={selectedLine ? { start: selectedLine, end: selectedLine } : null}
+            options={{
+              theme: getDiffTheme(),
+              themeType: getDiffThemeType(resolvedTheme),
+              unsafeCSS: FILE_VIEWER_CSS,
+              disableLineNumbers: false,
+              disableFileHeader: false,
+              onTokenClick,
+            }}
+          />
+          <LspSymbolPeekContainer
+            document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
+            containerRef={viewerRef}
+          />
         </Virtualizer>
       </div>
     </section>

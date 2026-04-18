@@ -166,9 +166,12 @@ export function applyDiagnosticTokenDecorations(
       }
 
       const diagnostics = diagnosticsByLine.get(lineNumber);
-      const canRender = diagnostics != null && diagnostics.length > 0 && lineCanRenderDiagnostic(line);
+      const canRender =
+        diagnostics != null && diagnostics.length > 0 && lineCanRenderDiagnostic(line);
       if (!canRender) {
-        const markedTokens = line.querySelectorAll<HTMLElement>("[data-char][data-lsp-diagnostic-token]");
+        const markedTokens = line.querySelectorAll<HTMLElement>(
+          "[data-char][data-lsp-diagnostic-token]",
+        );
         for (const token of markedTokens) {
           token.removeAttribute("data-lsp-diagnostic-token");
         }

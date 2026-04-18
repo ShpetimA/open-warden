@@ -113,7 +113,7 @@ function findDiagnosticsForToken(
   const matches = diagnostics.filter((diagnostic) =>
     tokenOverlapsDiagnostic(lineNumber, charRange.start, charRange.end, diagnostic),
   );
-  return matches.sort(
+  return matches.toSorted(
     (left, right) =>
       DIAGNOSTIC_SEVERITY_PRIORITY[right.severity] - DIAGNOSTIC_SEVERITY_PRIORITY[left.severity],
   );
@@ -272,11 +272,11 @@ export function DiagnosticTokenPopover({
       >
         <div className="max-h-full overflow-auto p-3">
           <div className="flex flex-col gap-2">
-            {diagnostics.map((diagnostic, index) => {
+            {diagnostics.map((diagnostic) => {
               const metadata = [diagnostic.source, diagnostic.code].filter(Boolean).join(" ");
               return (
                 <div
-                  key={`${diagnostic.message}:${diagnostic.startLine}:${diagnostic.startCharacter}:${index}`}
+                  key={`${diagnostic.message}:${diagnostic.severity}:${diagnostic.startLine}:${diagnostic.startCharacter}:${diagnostic.endLine}:${diagnostic.endCharacter}:${diagnostic.source ?? ""}:${diagnostic.code ?? ""}`}
                   className="bg-muted/40 rounded border p-2"
                 >
                   <div className="mb-1 flex items-center gap-2">

@@ -27,24 +27,25 @@ export function PullRequestReviewConversationScreen() {
 
   const { resolvedReview } = usePullRequestReviewSession();
 
-  const { conversation, conversationError, loadingConversation } = useGetPullRequestConversationQuery(
-    resolvedReview
-      ? {
-          repoPath: resolvedReview.repoPath,
-          pullRequestNumber: resolvedReview.pullRequestNumber,
-        }
-      : skipToken,
-    {
-      selectFromResult: ({ data, error, isLoading }) => ({
-        conversation: data ?? null,
-        conversationError: data ? "" : errorMessageFrom(error, ""),
-        loadingConversation: isLoading,
-      }),
-      pollingInterval: 10000,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
-    },
-  );
+  const { conversation, conversationError, loadingConversation } =
+    useGetPullRequestConversationQuery(
+      resolvedReview
+        ? {
+            repoPath: resolvedReview.repoPath,
+            pullRequestNumber: resolvedReview.pullRequestNumber,
+          }
+        : skipToken,
+      {
+        selectFromResult: ({ data, error, isLoading }) => ({
+          conversation: data ?? null,
+          conversationError: data ? "" : errorMessageFrom(error, ""),
+          loadingConversation: isLoading,
+        }),
+        pollingInterval: 10000,
+        refetchOnFocus: true,
+        refetchOnReconnect: true,
+      },
+    );
 
   if (!resolvedReview) {
     return <InactivePullRequestReviewPlaceholder />;

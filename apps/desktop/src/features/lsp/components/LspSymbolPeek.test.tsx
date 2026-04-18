@@ -255,7 +255,7 @@ describe("LspSymbolPeek", () => {
     fireEvent.click(previewButton!);
 
     const enterHandler = [...mocks.useHotkey.mock.calls]
-      .reverse()
+      .toReversed()
       .find((call) => call[0] === "Enter")?.[1] as ((event: KeyboardEvent) => void) | undefined;
 
     expect(enterHandler).toBeTypeOf("function");

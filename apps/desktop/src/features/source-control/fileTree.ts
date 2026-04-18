@@ -70,7 +70,7 @@ function toTreeNodes<TFile>(
   const subdirectories: SourceControlTreeDirectoryNode<TFile>[] = [
     ...directory.directories.values(),
   ]
-    .sort(compareByName)
+    .toSorted(compareByName)
     .map<SourceControlTreeDirectoryNode<TFile>>((subdirectory) => ({
       kind: "directory",
       name: subdirectory.name,
@@ -80,7 +80,7 @@ function toTreeNodes<TFile>(
     }))
     .map((subdirectory) => compactDirectoryNode(subdirectory));
 
-  const files = [...directory.files].sort(compareByName);
+  const files = [...directory.files].toSorted(compareByName);
   return [...subdirectories, ...files];
 }
 

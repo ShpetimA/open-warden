@@ -27,7 +27,7 @@ type ParseResponseMessage =
       message: string;
     };
 
-self.onmessage = (event: MessageEvent<ParseRequestMessage>) => {
+self.addEventListener("message", (event: MessageEvent<ParseRequestMessage>) => {
   const message = event.data;
   if (message.type !== "parse") return;
 
@@ -38,6 +38,7 @@ self.onmessage = (event: MessageEvent<ParseRequestMessage>) => {
       requestId: message.requestId,
       data,
     };
+    // eslint-disable-next-line unicorn/require-post-message-target-origin -- WorkerGlobalScope.postMessage does not accept targetOrigin
     self.postMessage(response);
   } catch (error) {
     const response: ParseResponseMessage = {
@@ -45,8 +46,7 @@ self.onmessage = (event: MessageEvent<ParseRequestMessage>) => {
       requestId: message.requestId,
       message: error instanceof Error ? error.message : String(error),
     };
+    // eslint-disable-next-line unicorn/require-post-message-target-origin -- WorkerGlobalScope.postMessage does not accept targetOrigin
     self.postMessage(response);
   }
-};
-
-export {};
+});

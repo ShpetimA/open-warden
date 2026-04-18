@@ -85,12 +85,10 @@ export function SidebarPanelRegistryProvider({ children }: SidebarPanelRegistryP
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarPanelRegistryOptional() {
   return useContext(SidebarPanelRegistryContext);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarPanelRegistry() {
   const api = useContext(SidebarPanelRegistryContext);
   if (!api) {

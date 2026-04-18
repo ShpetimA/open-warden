@@ -19,7 +19,7 @@ import {
   setCollapseStaged,
   setCollapseUnstaged,
 } from "@/features/source-control/sourceControlSlice";
-import type { Bucket, BucketedFile } from "@/features/source-control/types";
+import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { CommitBox } from "./CommitBox";
 import { FileSection } from "./FileSection";
 
@@ -30,6 +30,15 @@ export function ChangesTab() {
       <ChangesFileList />
     </div>
   );
+}
+
+function toBucketedFile(file: FileItem, bucket: Bucket) {
+  return {
+    path: file.path,
+    previousPath: file.previousPath,
+    status: file.status,
+    bucket,
+  } satisfies BucketedFile;
 }
 
 function ChangesFileList() {
@@ -53,13 +62,10 @@ function ChangesFileList() {
   const untrackedFiles = snapshot?.untracked ?? [];
 
   const changedFiles: BucketedFile[] = [
-    ...unstagedFiles.map((file) => ({ ...file, bucket: "unstaged" as const })),
-    ...untrackedFiles.map((file) => ({ ...file, bucket: "untracked" as const })),
+    ...unstagedFiles.map((file) => toBucketedFile(file, "unstaged")),
+    ...untrackedFiles.map((file) => toBucketedFile(file, "untracked")),
   ];
-  const stagedRows: BucketedFile[] = stagedFiles.map((file) => ({
-    ...file,
-    bucket: "staged" as const,
-  }));
+  const stagedRows: BucketedFile[] = stagedFiles.map((file) => toBucketedFile(file, "staged"));
   const visibleRows: BucketedFile[] = [
     ...(collapseStaged ? [] : stagedRows),
     ...(collapseUnstaged ? [] : changedFiles),
