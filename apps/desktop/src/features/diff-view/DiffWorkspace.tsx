@@ -1,4 +1,4 @@
-import { type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -530,7 +530,7 @@ export function DiffWorkspace({
       <div
         ref={viewportRef}
         key={activeDiffIdentity}
-        className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
       >
         {currentFileDiff ? (
           <Virtualizer
@@ -538,7 +538,7 @@ export function DiffWorkspace({
               overscrollSize: 600,
               intersectionObserverMargin: 1200,
             }}
-            className="relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+            className="relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
             <PierreFileDiff
               className="block min-w-0 max-w-full"
               fileDiff={currentFileDiff}
