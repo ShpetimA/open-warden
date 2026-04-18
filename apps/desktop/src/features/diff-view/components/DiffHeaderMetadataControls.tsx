@@ -1,6 +1,7 @@
 import { BookOpenText, Columns2, Copy, FoldVertical, Rows3, UnfoldVertical } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { toast } from "sonner";
+import { useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function DiffHeaderMetadataControls({
   onToggleExpandUnchanged,
 }: Props) {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const comments = useAppSelector((state) => state.comments);
@@ -125,6 +127,7 @@ export function DiffHeaderMetadataControls({
                     return;
                   }
 
+                  navigate("/changes/files");
                   dispatch(
                     openFileViewer({
                       repoPath: activeRepo,

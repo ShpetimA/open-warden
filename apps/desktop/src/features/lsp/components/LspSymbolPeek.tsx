@@ -5,6 +5,7 @@ import { File as PierreFile } from "@pierre/diffs/react";
 import { Search, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { shallowEqual } from "react-redux";
+import { useLocation, useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { RootState } from "@/app/store";
@@ -82,6 +83,10 @@ function matchesSymbolPeekQuery(location: LspLocation, query: string) {
 function getSymbolPeekTitle(kind: SymbolPeekKind, count: number) {
   const noun = kind === "definitions" ? "Definitions" : "References";
   return `${noun} (${count})`;
+}
+
+function isRoute(pathname: string, target: string) {
+  return pathname === target || pathname.startsWith(`${target}/`);
 }
 
 function splitFileLines(contents: string | undefined) {
@@ -220,6 +225,8 @@ type LspSymbolPeekProps = {
 
 export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolPeekProps) {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
   const deferredQuery = useDeferredValue(symbolPeek.query);
   const [popoverTop, setPopoverTop] = useState<number | null>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
@@ -298,15 +305,19 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
   }
 
   function commitSelection(index: number) {
-    const location = locations[index];
-    if (!location) {
+    const selectedLocation = locations[index];
+    if (!selectedLocation) {
       return;
     }
     const returnToDiff = symbolPeek?.returnToDiff ?? null;
 
+    if (returnToDiff?.kind === "changes" && !isRoute(location.pathname, "/changes/files")) {
+      navigate("/changes/files");
+    }
+
     dispatch(
       openFileViewer(
-        createFocusedFileViewerTarget(location, {
+        createFocusedFileViewerTarget(selectedLocation, {
           returnToDiff,
         }),
       ),

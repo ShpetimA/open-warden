@@ -18,7 +18,6 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "@/components/ui/empty";
-import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetBranchesQuery,
@@ -26,8 +25,11 @@ import {
   useGetBranchFileVersionsQuery,
   useGetGitSnapshotQuery,
 } from "@/features/source-control/api";
+import {
+  ReviewFileList,
+  ReviewSelectionSync,
+} from "@/features/source-control/components/ReviewFileList";
 import { usePrefetchReviewDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
-import { useReviewKeyboardNav } from "@/features/source-control/hooks/useReviewKeyboardNav";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import {
   clearReviewSelection,
@@ -35,8 +37,6 @@ import {
   setReviewBaseRef,
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
-import { FileListRow } from "@/features/source-control/components/FileListRow";
-import { SourceControlFileBrowser } from "@/features/source-control/components/SourceControlFileBrowser";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { FileItem } from "@/features/source-control/types";
 
@@ -95,133 +95,6 @@ function BranchSelectField({
         </SelectContent>
       </Select>
     </div>
-  );
-}
-
-type ReviewSelectionSyncProps = {
-  readyForDiff: boolean;
-  branchFiles: FileItem[];
-  hasBranchFilesData: boolean;
-};
-
-function ReviewSelectionSync({
-  readyForDiff,
-  branchFiles,
-  hasBranchFilesData,
-}: ReviewSelectionSyncProps) {
-  const dispatch = useAppDispatch();
-  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
-
-  useEffect(() => {
-    if (!readyForDiff) {
-      if (reviewActivePath) dispatch(setReviewActivePath(""));
-      return;
-    }
-
-    if (!hasBranchFilesData) return;
-
-    if (branchFiles.length === 0) {
-      if (reviewActivePath) dispatch(setReviewActivePath(""));
-      return;
-    }
-
-    const existing = branchFiles.find((file) => file.path === reviewActivePath);
-    if (!existing) {
-      dispatch(setReviewActivePath(branchFiles[0].path));
-    }
-  }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath]);
-
-  return null;
-}
-
-type ReviewFileListProps = {
-  branchFiles: FileItem[];
-  activeRepo: string;
-  reviewBaseRef: string;
-  reviewHeadRef: string;
-};
-
-function ReviewFileList({
-  branchFiles,
-  activeRepo,
-  reviewBaseRef,
-  reviewHeadRef,
-}: ReviewFileListProps) {
-  const fileBrowserMode = useAppSelector(
-    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
-  );
-
-  useReviewKeyboardNav();
-
-  return (
-    <div data-nav-region="review-files" className="h-full overflow-auto">
-      <SourceControlFileBrowser
-        files={branchFiles}
-        mode={fileBrowserMode}
-        className="space-y-0.5 p-0.5"
-        renderFile={({ depth, file, mode, name, navIndex }) => (
-          <ReviewFileRow
-            key={file.path}
-            file={file}
-            activeRepo={activeRepo}
-            reviewBaseRef={reviewBaseRef}
-            reviewHeadRef={reviewHeadRef}
-            depth={mode === "tree" ? depth : 0}
-            label={mode === "tree" ? name : undefined}
-            navIndex={navIndex}
-            showDirectoryPath={mode !== "tree"}
-          />
-        )}
-      />
-    </div>
-  );
-}
-
-type ReviewFileRowProps = {
-  file: FileItem;
-  activeRepo: string;
-  reviewBaseRef: string;
-  reviewHeadRef: string;
-  depth: number;
-  label?: string;
-  navIndex: number;
-  showDirectoryPath: boolean;
-};
-
-function ReviewFileRow({
-  file,
-  activeRepo,
-  reviewBaseRef,
-  reviewHeadRef,
-  depth,
-  label,
-  navIndex,
-  showDirectoryPath,
-}: ReviewFileRowProps) {
-  const dispatch = useAppDispatch();
-  const commentCount = useAppSelector((state) =>
-    countCommentsForPathInRepoContext(state.comments, activeRepo, file.path, {
-      kind: "review",
-      baseRef: reviewBaseRef,
-      headRef: reviewHeadRef,
-    }),
-  );
-  const isActive = useAppSelector((state) => state.sourceControl.reviewActivePath === file.path);
-
-  return (
-    <FileListRow
-      path={file.path}
-      status={file.status}
-      commentCount={commentCount}
-      isActive={isActive}
-      navIndex={navIndex}
-      depth={depth}
-      label={label}
-      showDirectoryPath={showDirectoryPath}
-      onSelect={() => {
-        dispatch(setReviewActivePath(file.path));
-      }}
-    />
   );
 }
 
@@ -440,38 +313,45 @@ export function ReviewScreen() {
           />
 
           <div className="min-h-0 flex-1 overflow-hidden">
-            {!reviewBaseRef || !reviewHeadRef ? (
-              <Empty className="h-auto border-0 p-4">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <GitCompare className="h-5 w-5" />
-                  </EmptyMedia>
-                  <EmptyTitle>Select branches</EmptyTitle>
-                  <EmptyDescription>
-                    Select both base and compare branches to start review.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : branchFiles.length === 0 ? (
-              <Empty className="h-auto border-0 p-4">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <GitCompare className="h-5 w-5" />
-                  </EmptyMedia>
-                  <EmptyTitle>No changes</EmptyTitle>
-                  <EmptyDescription>
-                    No changed files between the selected branches.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            ) : (
-              <ReviewFileList
-                branchFiles={branchFiles}
-                activeRepo={activeRepo}
-                reviewBaseRef={reviewBaseRef}
-                reviewHeadRef={reviewHeadRef}
-              />
-            )}
+            <ReviewFileList
+              title="BRANCH REVIEW"
+              subtitle={undefined}
+              branchFiles={branchFiles}
+              activeRepo={activeRepo}
+              reviewBaseRef={reviewBaseRef}
+              reviewHeadRef={reviewHeadRef}
+              paneClassName="border-0 bg-transparent"
+              headerClassName="hidden"
+              bodyClassName="space-y-0.5 p-0.5"
+              scrollAreaClassName="min-h-0 flex-1 overflow-hidden"
+              emptyState={
+                !reviewBaseRef || !reviewHeadRef ? (
+                  <Empty className="h-auto border-0 p-4">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <GitCompare className="h-5 w-5" />
+                      </EmptyMedia>
+                      <EmptyTitle>Select branches</EmptyTitle>
+                      <EmptyDescription>
+                        Select both base and compare branches to start review.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                ) : (
+                  <Empty className="h-auto border-0 p-4">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <GitCompare className="h-5 w-5" />
+                      </EmptyMedia>
+                      <EmptyTitle>No changes</EmptyTitle>
+                      <EmptyDescription>
+                        No changed files between the selected branches.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                )
+              }
+            />
           </div>
         </aside>
       }

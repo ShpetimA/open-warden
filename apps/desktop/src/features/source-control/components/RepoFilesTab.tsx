@@ -1,19 +1,14 @@
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { useGetRepoFilesQuery } from "@/features/source-control/api";
 import {
   openFileViewer,
   setRepoTreeActivePath,
 } from "@/features/source-control/sourceControlSlice";
-import { useGetRepoFilesQuery } from "@/features/source-control/api";
-import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
 import type { RepoFileItem } from "@/features/source-control/types";
+import { FileListPane, type FileListPaneRowArgs } from "./FileListPane";
 
 type RepoTreeFileRowProps = {
-  file: RepoFileItem;
-  depth: number;
-  label?: string;
-  navIndex: number;
-  showDirectoryPath: boolean;
+  row: FileListPaneRowArgs<RepoFileItem>;
 };
 
 function splitPath(path: string) {
@@ -24,29 +19,24 @@ function splitPath(path: string) {
   return { fileName, directoryPath };
 }
 
-function RepoTreeFileRow({
-  file,
-  depth,
-  label,
-  navIndex,
-  showDirectoryPath,
-}: RepoTreeFileRowProps) {
+function RepoTreeFileRow({ row }: RepoTreeFileRowProps) {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const activePath = useAppSelector((state) => state.sourceControl.repoTreeActivePath);
-  const { fileName, directoryPath } = splitPath(file.path);
-  const primaryLabel = label ?? fileName;
-  const isActive = activePath === file.path;
+  const isActive = useAppSelector(
+    (state) => state.sourceControl.repoTreeActivePath === row.file.path,
+  );
+  const { fileName, directoryPath } = splitPath(row.file.path);
+  const primaryLabel = row.label ?? fileName;
 
   return (
     <div
-      data-nav-index={navIndex}
-      data-file-path={file.path}
+      data-nav-index={row.navIndex}
+      data-file-path={row.file.path}
       data-tree-file-row="true"
       className={`border-input flex min-w-0 items-center gap-2 overflow-hidden border-b py-1 pr-2 text-xs last:border-b-0 ${
         isActive ? "bg-surface-active" : "hover:bg-accent/60"
       }`}
-      style={{ paddingLeft: `${8 + depth * 14}px` }}
+      style={{ paddingLeft: `${8 + row.depth * 14}px` }}
     >
       <button
         type="button"
@@ -56,19 +46,19 @@ function RepoTreeFileRow({
             return;
           }
 
-          dispatch(setRepoTreeActivePath(file.path));
+          dispatch(setRepoTreeActivePath(row.file.path));
           dispatch(
             openFileViewer({
               repoPath: activeRepo,
-              relPath: file.path,
+              relPath: row.file.path,
             }),
           );
         }}
-        title={file.path}
+        title={row.file.path}
       >
         <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <span className="text-foreground shrink-0 font-medium">{primaryLabel}</span>
-          {showDirectoryPath && directoryPath ? (
+          {row.showDirectoryPath && directoryPath ? (
             <span className="text-muted-foreground block min-w-0 flex-1 truncate whitespace-nowrap">
               {` ${directoryPath}`}
             </span>
@@ -95,39 +85,19 @@ export function RepoFilesTab() {
   });
 
   return (
-    <div className="bg-surface-toolbar flex min-h-0 h-full flex-1 flex-col overflow-hidden">
-      <ScrollArea data-nav-region="repo-files" className="min-h-0 h-full flex-1 overflow-hidden">
-        <div className="px-3 py-1.5">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-            FILES
-          </div>
-        </div>
-
-        {isLoadingRepoFiles ? (
-          <div className="text-muted-foreground px-2 py-2 text-xs">Loading files...</div>
-        ) : null}
-
-        <SourceControlFileBrowser
-          files={repoFiles}
-          mode={fileBrowserMode}
-          className="space-y-0.5"
-          emptyState={
-            <div className="text-muted-foreground px-2 py-2 text-xs">
-              No repository files found.
-            </div>
-          }
-          renderFile={({ depth, file, mode, name, navIndex }) => (
-            <RepoTreeFileRow
-              key={file.path}
-              file={file}
-              depth={mode === "tree" ? depth : 0}
-              label={mode === "tree" ? name : undefined}
-              navIndex={navIndex}
-              showDirectoryPath={mode !== "tree"}
-            />
-          )}
-        />
-      </ScrollArea>
-    </div>
+    <FileListPane
+      title="FILES"
+      navRegion="repo-files"
+      files={repoFiles}
+      mode={fileBrowserMode}
+      isLoading={isLoadingRepoFiles}
+      loadingState={<div className="text-muted-foreground px-2 py-2 text-xs">Loading files...</div>}
+      emptyState={
+        <div className="text-muted-foreground px-2 py-2 text-xs">No repository files found.</div>
+      }
+      headerClassName="px-3 py-1.5"
+      bodyClassName="space-y-0.5"
+      renderRow={(row) => <RepoTreeFileRow key={row.file.path} row={row} />}
+    />
   );
 }

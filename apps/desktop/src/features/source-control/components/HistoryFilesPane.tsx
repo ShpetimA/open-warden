@@ -1,7 +1,6 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileText } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Empty,
   EmptyHeader,
@@ -14,8 +13,8 @@ import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from "@/features/sou
 import { selectHistoryFile } from "@/features/source-control/actions";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
 import type { FileItem } from "@/features/source-control/types";
+import { FileListPane, type FileListPaneRowArgs } from "./FileListPane";
 import { FileListRow } from "./FileListRow";
-import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
 
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
@@ -44,107 +43,83 @@ export function HistoryFilesPane() {
   const files = historyFiles as FileItem[];
 
   return (
-    <aside
+    <FileListPane
+      title="COMMIT FILES"
+      subtitle={
+        selectedCommit
+          ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? "" : "s"}`
+          : "No commit selected"
+      }
+      navRegion="history-files"
+      files={files}
+      mode={fileBrowserMode}
+      isLoading={loadingHistoryFiles}
+      loadingState={
+        <Empty className="h-auto border-0 p-4">
+          <EmptyHeader>
+            <EmptyDescription>Loading files...</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      }
+      emptyState={
+        <Empty className="h-auto border-0 p-4">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileText className="h-5 w-5" />
+            </EmptyMedia>
+            <EmptyTitle>No files</EmptyTitle>
+            <EmptyDescription>
+              {historyCommitId
+                ? "No changed files in this commit."
+                : "Select a commit to view files."}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      }
+      bodyClassName="space-y-0.5 p-0.5"
       onMouseDown={() => {
         dispatch(setHistoryNavTarget("files"));
       }}
-      className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r"
-    >
-      <div className="border-border border-b px-3 py-2">
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-          COMMIT FILES
-        </div>
-        <div className="text-muted-foreground mt-1 truncate text-xs">
-          {selectedCommit
-            ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? "" : "s"}`
-            : "No commit selected"}
-        </div>
-      </div>
-
-      <ScrollArea data-nav-region="history-files" className="min-h-0 flex-1 overflow-hidden">
-        {loadingHistoryFiles ? (
-          <Empty className="h-auto border-0 p-4">
-            <EmptyHeader>
-              <EmptyDescription>Loading files...</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : files.length === 0 ? (
-          <Empty className="h-auto border-0 p-4">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <FileText className="h-5 w-5" />
-              </EmptyMedia>
-              <EmptyTitle>No files</EmptyTitle>
-              <EmptyDescription>
-                {historyCommitId
-                  ? "No changed files in this commit."
-                  : "Select a commit to view files."}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <SourceControlFileBrowser
-            files={files}
-            mode={fileBrowserMode}
-            className="space-y-0.5 p-0.5"
-            renderFile={({ depth, file, mode, name, navIndex }) => (
-              <HistoryFileRow
-                key={`${file.path}:${file.status}`}
-                file={file}
-                depth={mode === "tree" ? depth : 0}
-                label={mode === "tree" ? name : undefined}
-                navIndex={navIndex}
-                showDirectoryPath={mode !== "tree"}
-                activeRepo={activeRepo}
-              />
-            )}
-          />
-        )}
-      </ScrollArea>
-    </aside>
+      renderRow={(row) => (
+        <HistoryFileRow
+          key={`${row.file.path}:${row.file.status}`}
+          row={row}
+          activeRepo={activeRepo}
+        />
+      )}
+    />
   );
 }
 
 type HistoryFileRowProps = {
-  file: FileItem;
-  depth: number;
-  label?: string;
-  navIndex: number;
-  showDirectoryPath: boolean;
+  row: FileListPaneRowArgs<FileItem>;
   activeRepo: string;
 };
 
-function HistoryFileRow({
-  file,
-  depth,
-  label,
-  navIndex,
-  showDirectoryPath,
-  activeRepo,
-}: HistoryFileRowProps) {
+function HistoryFileRow({ row, activeRepo }: HistoryFileRowProps) {
   const dispatch = useAppDispatch();
   const commentCount = useAppSelector((state) =>
-    countCommentsForPathInRepoContext(state.comments, activeRepo, file.path),
+    countCommentsForPathInRepoContext(state.comments, activeRepo, row.file.path),
   );
-  const isActive = useAppSelector((state) => state.sourceControl.activePath === file.path);
+  const isActive = useAppSelector((state) => state.sourceControl.activePath === row.file.path);
 
   return (
     <FileListRow
-      path={file.path}
-      status={file.status}
+      path={row.file.path}
+      status={row.file.status}
       commentCount={commentCount}
       isActive={isActive}
-      navIndex={navIndex}
-      depth={depth}
-      label={label}
-      showDirectoryPath={showDirectoryPath}
+      navIndex={row.navIndex}
+      depth={row.depth}
+      label={row.label}
+      showDirectoryPath={row.showDirectoryPath}
       onSelect={() => {
         dispatch(setHistoryNavTarget("files"));
-        void dispatch(selectHistoryFile(file.path));
+        void dispatch(selectHistoryFile(row.file.path));
       }}
       secondaryLabel={
-        file.previousPath && file.previousPath !== file.path
-          ? `from ${file.previousPath}`
+        row.file.previousPath && row.file.previousPath !== row.file.path
+          ? `from ${row.file.previousPath}`
           : undefined
       }
     />

@@ -1,12 +1,11 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileCode2, LoaderCircle } from "lucide-react";
-import { useEffect, useMemo } from "react";
-import { useQueryState } from "nuqs";
+import { useEffect } from "react";
 import { useParams } from "react-router";
 import { toast } from "sonner";
+
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
-import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   Empty,
   EmptyDescription,
@@ -14,6 +13,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { removeCommentsByIds } from "@/features/comments/commentsSlice";
+import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
@@ -21,18 +22,13 @@ import {
   useResolveHostedRepoQuery,
   useSubmitPullRequestReviewCommentsMutation,
 } from "@/features/hosted-repos/api";
-import { removeCommentsByIds } from "@/features/comments/commentsSlice";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
-import {
-  buildSubmitPullRequestReviewCommentsInput,
-  getPendingReviewCommentsForContext,
-} from "@/features/pull-requests/utils/pendingReviewComments";
-import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
-import {
-  buildPullRequestThreadAnnotations,
-  countPullRequestThreadsForFile,
-} from "@/features/pull-requests/utils/reviewThreadAnnotations";
+import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
+import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
+import { buildSubmitPullRequestReviewCommentsInput } from "@/features/pull-requests/utils/pendingReviewComments";
+import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
+import { buildPullRequestThreadAnnotations } from "@/features/pull-requests/utils/reviewThreadAnnotations";
 import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
@@ -42,17 +38,10 @@ import type {
   PullRequestConversation,
   PullRequestReviewThread,
 } from "@/platform/desktop";
-import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
-import { pullRequestPreviewSearchParsers } from "@/features/pull-requests/searchParams";
 
 export const PullRequestFiles = () => {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const { providerId, owner, repo, pullRequestNumber } = useParams();
-  const [selectedFileSearchParam, setSelectedFileSearchParam] = useQueryState(
-    "file",
-    pullRequestPreviewSearchParsers.file,
-  );
-  const selectedFilePath = selectedFileSearchParam ?? "";
 
   const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
   const hasValidRoute = Boolean(
@@ -113,48 +102,9 @@ export const PullRequestFiles = () => {
     refetchOnReconnect: true,
   });
 
-  useEffect(() => {
-    if (!selectedFilePath && files.length > 0) {
-      void setSelectedFileSearchParam(files[0].path);
-    }
-  }, [files, selectedFilePath, setSelectedFileSearchParam]);
-
-  const pendingReviewComments = useAppSelector((state) => {
-    if (!activeRepo || !compareRefs?.compareBaseRef || !compareRefs.compareHeadRef) {
-      return [] as CommentItem[];
-    }
-
-    return getPendingReviewCommentsForContext(state.comments, activeRepo, {
-      kind: "review",
-      baseRef: compareRefs.compareBaseRef,
-      headRef: compareRefs.compareHeadRef,
-    });
-  });
-
-  const commentCountByPath = useMemo(() => {
-    const counts: Record<string, number> = {};
-
-    for (const file of files) {
-      counts[file.path] = countPullRequestThreadsForFile({
-        path: file.path,
-        previousPath: file.previousPath,
-        reviewThreads,
-      });
-    }
-
-    for (const comment of pendingReviewComments) {
-      counts[comment.filePath] = (counts[comment.filePath] ?? 0) + 1;
-    }
-
-    return counts;
-  }, [files, pendingReviewComments, reviewThreads]);
-
-  function handleSelectFile(path: string) {
-    void setSelectedFileSearchParam(path);
-  }
-
   return (
     <>
+      <PullRequestPreviewActiveFileSync files={files} />
       <ResizableSidebarLayout
         sidebarDefaultSize={24}
         sidebarMinSize={16}
@@ -162,11 +112,12 @@ export const PullRequestFiles = () => {
         sidebar={
           <FilesSidebar
             files={files}
-            commentCountByPath={commentCountByPath}
-            selectedPath={selectedFilePath}
+            repoPath={activeRepo ?? ""}
+            pullRequestNumber={parsedPullRequestNumber}
+            compareBaseRef={compareRefs?.compareBaseRef ?? ""}
+            compareHeadRef={compareRefs?.compareHeadRef ?? ""}
             filesError={filesError}
             isLoading={isLoadingFiles}
-            onSelectFile={handleSelectFile}
           />
         }
         content={
@@ -181,8 +132,6 @@ export const PullRequestFiles = () => {
               files={files}
               conversation={conversation}
               reviewThreads={reviewThreads}
-              pendingReviewComments={pendingReviewComments}
-              selectedPath={selectedFilePath}
             />
           </div>
         }
@@ -190,6 +139,30 @@ export const PullRequestFiles = () => {
     </>
   );
 };
+
+function PullRequestPreviewActiveFileSync({ files }: { files: PullRequestChangedFile[] }) {
+  const dispatch = useAppDispatch();
+  const activeFilePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
+
+  useEffect(() => {
+    const hasMatchingActiveFile = Boolean(
+      activeFilePath && files.some((file) => file.path === activeFilePath),
+    );
+
+    if (files.length === 0) {
+      if (activeFilePath) {
+        dispatch(setPullRequestPreviewActiveFilePath(""));
+      }
+      return;
+    }
+
+    if (!hasMatchingActiveFile) {
+      dispatch(setPullRequestPreviewActiveFilePath(files[0].path));
+    }
+  }, [activeFilePath, dispatch, files]);
+
+  return null;
+}
 
 function FilesDiffViewer({
   repoPath,
@@ -201,8 +174,6 @@ function FilesDiffViewer({
   files,
   conversation,
   reviewThreads,
-  pendingReviewComments,
-  selectedPath,
 }: {
   repoPath: string;
   pullRequestNumber: number;
@@ -213,10 +184,20 @@ function FilesDiffViewer({
   files: PullRequestChangedFile[];
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
-  pendingReviewComments: CommentItem[];
-  selectedPath: string;
 }) {
   const dispatch = useAppDispatch();
+  const selectedPath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
+  const comments = useAppSelector((state) => state.comments);
+  const pendingReviewComments =
+    !repoPath || !compareBaseRef || !compareHeadRef
+      ? ([] as CommentItem[])
+      : comments.filter(
+          (comment) =>
+            comment.repoPath === repoPath &&
+            (comment.contextKind ?? "changes") === "review" &&
+            comment.baseRef === compareBaseRef &&
+            comment.headRef === compareHeadRef,
+        );
   const [submitPullRequestReviewComments, { isLoading: isSubmittingReviewComments }] =
     useSubmitPullRequestReviewCommentsMutation();
   const commentMentions = usePullRequestMentionCandidates(conversation);

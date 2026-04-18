@@ -15,15 +15,11 @@ import {
   buildPreviewTabPath,
   type PreviewTab,
 } from "@/features/pull-requests/screens/PullRequestPreviewLayout";
-import {
-  pullRequestPreviewSearchParsers,
-  serializePullRequestPreviewSearch,
-} from "@/features/pull-requests/searchParams";
+import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestsInboxPath } from "@/features/pull-requests/utils";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { GitProviderId, PullRequestOpenMode } from "@/platform/desktop/contracts";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { useQueryState } from "nuqs";
 import { useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -47,8 +43,8 @@ export const PullRequestOverview = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const activePreviewFilePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const { providerId, owner, repo, pullRequestNumber } = useParams();
-  const [selectedFilePath] = useQueryState("file", pullRequestPreviewSearchParsers.file);
   const [openingMode, setOpeningMode] = useState<PullRequestOpenMode | null>(null);
   const [openError, setOpenError] = useState("");
 
@@ -176,14 +172,14 @@ export const PullRequestOverview = () => {
       tab,
     });
 
-    const nextFilePath =
-      tab === "files" && files.length > 0 && !selectedFilePath ? files[0].path : selectedFilePath;
+    if (tab === "files" && files.length > 0) {
+      const hasMatchingActiveFile = files.some((file) => file.path === activePreviewFilePath);
+      if (!hasMatchingActiveFile) {
+        dispatch(setPullRequestPreviewActiveFilePath(files[0].path));
+      }
+    }
 
-    navigate(
-      serializePullRequestPreviewSearch(nextPath, {
-        file: nextFilePath ?? null,
-      }),
-    );
+    navigate(nextPath);
   }
 
   if (!conversation) return null;

@@ -16,15 +16,37 @@ import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMe
 
 export function HistoryScreen() {
   useHistoryKeyboardNav();
-  useHistorySync();
 
+  return (
+    <>
+      <HistorySelectionSync />
+      <ResizableSidebarLayout
+        panelId="history-files"
+        sidebarDefaultSize={24}
+        sidebarMinSize={16}
+        sidebarMaxSize={40}
+        sidebar={<HistoryFilesPane />}
+        content={<HistoryDiffPane />}
+      />
+    </>
+  );
+}
+
+function HistorySelectionSync() {
+  useHistorySync();
+  return null;
+}
+
+function HistoryDiffPane() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const { data: historyFiles } = useGetCommitFilesQuery(
     activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
   );
+
   usePrefetchHistoryDiffs(historyFiles ?? [], activeRepo, historyCommitId, activePath);
+
   const selectedHistoryFile = historyFiles?.find((file) => file.path === activePath);
   const previewSelection = useThrottledDiffSelection(
     historyCommitId && activePath
@@ -53,40 +75,31 @@ export function HistoryScreen() {
   const previewPath = previewSelection?.path ?? "";
 
   return (
-    <ResizableSidebarLayout
-      panelId="history-files"
-      sidebarDefaultSize={24}
-      sidebarMinSize={16}
-      sidebarMaxSize={40}
-      sidebar={<HistoryFilesPane />}
-      content={
-        <section className="flex h-full min-h-0 flex-col">
-          <div className="min-h-0 flex-1">
-            {errorMessage ? (
-              <div className="text-destructive p-3 text-sm">{errorMessage}</div>
-            ) : loadingPatch ? (
-              <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
-            ) : !activePath ? (
-              <div className="text-muted-foreground p-3 text-sm">
-                Select a commit file to view diff.
-              </div>
-            ) : !oldFile && !newFile ? (
-              <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
-            ) : (
-              <div className="flex h-full min-h-0 min-w-0 flex-col">
-                <DiffWorkspace
-                  oldFile={oldFile}
-                  newFile={newFile}
-                  activePath={previewPath}
-                  commentContext={{ kind: "changes" }}
-                  canComment={false}
-                  fileViewerRevision={historyCommitId}
-                />
-              </div>
-            )}
+    <section className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1">
+        {errorMessage ? (
+          <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+        ) : loadingPatch ? (
+          <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
+        ) : !activePath ? (
+          <div className="text-muted-foreground p-3 text-sm">
+            Select a commit file to view diff.
           </div>
-        </section>
-      }
-    />
+        ) : !oldFile && !newFile ? (
+          <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
+        ) : (
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            <DiffWorkspace
+              oldFile={oldFile}
+              newFile={newFile}
+              activePath={previewPath}
+              commentContext={{ kind: "changes" }}
+              canComment={false}
+              fileViewerRevision={historyCommitId}
+            />
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

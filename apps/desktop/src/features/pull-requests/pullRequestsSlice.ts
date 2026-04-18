@@ -33,6 +33,7 @@ type PullRequestsState = {
   filesViewMode: PullRequestFilesViewMode;
   activeConversationThreadId: string | null;
   fileJumpTarget: PullRequestFileJumpTarget | null;
+  previewActiveFilePath: string;
 };
 
 const initialState: PullRequestsState = {
@@ -41,6 +42,7 @@ const initialState: PullRequestsState = {
   filesViewMode: "review",
   activeConversationThreadId: null,
   fileJumpTarget: null,
+  previewActiveFilePath: "",
 };
 
 const pullRequestsSlice = createSlice({
@@ -53,6 +55,7 @@ const pullRequestsSlice = createSlice({
       state.filesViewMode = "review";
       state.activeConversationThreadId = null;
       state.fileJumpTarget = null;
+      state.previewActiveFilePath = "";
     },
     clearCurrentPullRequestReview(state) {
       state.currentReview = null;
@@ -60,6 +63,7 @@ const pullRequestsSlice = createSlice({
       state.filesViewMode = "review";
       state.activeConversationThreadId = null;
       state.fileJumpTarget = null;
+      state.previewActiveFilePath = "";
     },
     setPullRequestReviewTab(state, action: PayloadAction<PullRequestReviewTab>) {
       state.activeReviewTab = action.payload;
@@ -77,6 +81,11 @@ const pullRequestsSlice = createSlice({
     clearPullRequestFileJumpTarget(state) {
       state.fileJumpTarget = null;
     },
+    setPullRequestPreviewActiveFilePath(state, action: PayloadAction<string>) {
+      if (state.previewActiveFilePath !== action.payload) {
+        state.previewActiveFilePath = action.payload;
+      }
+    },
   },
 });
 
@@ -86,6 +95,7 @@ export const {
   setActiveConversationThreadId,
   setPullRequestFileJumpTarget,
   setCurrentPullRequestReview,
+  setPullRequestPreviewActiveFilePath,
   setPullRequestReviewTab,
   setPullRequestFilesViewMode,
 } = pullRequestsSlice.actions;

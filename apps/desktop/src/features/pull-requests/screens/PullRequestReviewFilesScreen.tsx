@@ -4,9 +4,7 @@ import { useEffect } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
-import {
-  useGetPullRequestConversationQuery,
-} from "@/features/hosted-repos/api";
+import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
@@ -20,9 +18,7 @@ import { useThrottledDiffSelection } from "@/features/source-control/hooks/useTh
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { DiffAnnotationItem, FileItem } from "@/features/source-control/types";
-import {
-  setPullRequestFilesViewMode,
-} from "@/features/pull-requests/pullRequestsSlice";
+import { setPullRequestFilesViewMode } from "@/features/pull-requests/pullRequestsSlice";
 import type { PullRequestReviewThread } from "@/platform/desktop";
 
 import {
@@ -195,13 +191,14 @@ export function PullRequestReviewFilesScreen() {
         }
       : skipToken,
     {
-    selectFromResult: ({ data }) => ({
-      reviewThreads: data?.reviewThreads ?? [],
-    }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
-  });
+      selectFromResult: ({ data }) => ({
+        reviewThreads: data?.reviewThreads ?? [],
+      }),
+      pollingInterval: 10000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    },
+  );
 
   const threadAnnotations = resolvedReview
     ? buildReviewThreadAnnotations(
@@ -220,9 +217,9 @@ export function PullRequestReviewFilesScreen() {
     fileJumpTarget && fileJumpTarget.path === reviewActivePath ? fileJumpTarget.focusKey : null;
 
   const showingPullRequestFileViewer =
-    filesViewMode === "files" &&
     fileViewerTarget?.returnToDiff?.kind === "pull-request" &&
-    fileViewerTarget.returnToDiff.repoPath === activeRepo;
+    (fileViewerTarget.returnToDiff.repoPath === activeRepo ||
+      fileViewerTarget.returnToDiff.repoPath === resolvedReview?.repoPath);
 
   useEffect(() => {
     if (!readyForDiff) return;

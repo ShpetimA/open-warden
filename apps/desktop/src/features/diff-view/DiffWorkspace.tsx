@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import { FileWarning } from "lucide-react";
 import { useTheme } from "next-themes";
+import { shallowEqual } from "react-redux";
 
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { fileComments, toLineAnnotations } from "@/features/comments/actions";
-import { compactComments } from "@/features/comments/selectors";
 import { useFirstCommentTip } from "@/features/comments/useFirstCommentTip";
 import type {
   CommentContext,
@@ -137,18 +137,35 @@ type FileCommentsResult = {
   annotations: ReturnType<typeof toLineAnnotations>;
 };
 
+const EMPTY_FILE_COMMENTS: CommentItem[] = [];
+const EMPTY_FILE_ANNOTATIONS: ReturnType<typeof toLineAnnotations> = [];
+
 function useCurrentFileComments(
   activeRepo: string,
   activePath: string,
   commentContext: CommentContext,
   canComment: boolean,
 ): FileCommentsResult {
-  return useAppSelector((state): FileCommentsResult => {
-    if (!canComment) return { comments: [], annotations: [] };
-    const allComments = compactComments(state.comments);
-    const filtered = fileComments(allComments, activeRepo, activePath, commentContext);
-    return { comments: filtered, annotations: toLineAnnotations(filtered) };
-  });
+  const comments = useAppSelector(
+    (state): CommentItem[] => {
+      if (!canComment || !activeRepo || !activePath) {
+        return EMPTY_FILE_COMMENTS;
+      }
+
+      return fileComments(state.comments, activeRepo, activePath, commentContext);
+    },
+    shallowEqual,
+  );
+
+  const annotations = useMemo(() => {
+    if (comments.length === 0) {
+      return EMPTY_FILE_ANNOTATIONS;
+    }
+
+    return toLineAnnotations(comments);
+  }, [comments]);
+
+  return { comments, annotations };
 }
 
 function buildReturnToDiffTarget(
