@@ -33,6 +33,7 @@ import {
   useDiagnosticTokenPopover,
 } from "@/features/diff-view/components/DiagnosticTokenPopover";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
+import { PullRequestInlineAnchorAnnotation } from "@/features/pull-requests/components/PullRequestInlineAnchorAnnotation";
 import { PullRequestInlineReviewThread } from "@/features/pull-requests/components/PullRequestInlineReviewThread";
 import {
   getDiffTheme,
@@ -53,7 +54,7 @@ import {
 import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { DIFF_LINE_FOCUS_CSS, useDiffLineFocus } from "@/features/source-control/diffLineFocus";
-import type { DiffLineAnnotation, FileDiffOptions } from "@pierre/diffs";
+import { type DiffLineAnnotation, type FileDiffOptions } from "@pierre/diffs";
 
 type Props = {
   oldFile: DiffFile | null;
@@ -70,6 +71,9 @@ type Props = {
   focusedLineKey?: number | string | null;
   annotationItems?: DiffLineAnnotation<DiffAnnotationItem>[];
   commentMentions?: MentionConfig;
+  includeCurrentFileComments?: boolean;
+  disableFileHeader?: boolean;
+  hideHeaderMetadataControls?: boolean;
 };
 
 const STICKY_HEADER_CSS = `
@@ -262,6 +266,9 @@ export function DiffWorkspace({
   focusedLineKey = null,
   annotationItems = [],
   commentMentions,
+  includeCurrentFileComments = true,
+  disableFileHeader = false,
+  hideHeaderMetadataControls = false,
 }: Props) {
   const { resolvedTheme } = useTheme();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -305,7 +312,7 @@ export function DiffWorkspace({
     activeRepo,
     activePath,
     commentContext,
-    canComment,
+    canComment && includeCurrentFileComments,
   );
   const repoCommentCount = useAppSelector((state) => {
     if (!canComment || !activeRepo) return 0;
@@ -354,6 +361,20 @@ export function DiffWorkspace({
             commentContext={commentContext}
             onClose={onCloseCommentComposer}
             onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
+            mentions={commentMentions}
+          />
+        );
+      }
+
+      if (data.type === "pull-request-anchor") {
+        return (
+          <PullRequestInlineAnchorAnnotation
+            providerId={data.providerId}
+            repoPath={data.repoPath}
+            pullRequestNumber={data.pullRequestNumber}
+            anchor={data.anchor}
+            compareBaseRef={data.compareBaseRef}
+            compareHeadRef={data.compareHeadRef}
             mentions={commentMentions}
           />
         );
@@ -412,8 +433,12 @@ export function DiffWorkspace({
     setExpandUnchanged((current) => !current);
   }, []);
 
-  const renderHeaderMetadata = useCallback(
-    () => (
+  const renderHeaderMetadata = useCallback(() => {
+    if (hideHeaderMetadataControls) {
+      return undefined;
+    }
+
+    return (
       <DiffHeaderMetadataControls
         activePath={activePath}
         canComment={canComment}
@@ -422,16 +447,16 @@ export function DiffWorkspace({
         fileViewerRevision={fileViewerRevision}
         onToggleExpandUnchanged={handleToggleExpandUnchanged}
       />
-    ),
-    [
-      activePath,
-      canComment,
-      commentContext,
-      expandUnchanged,
-      fileViewerRevision,
-      handleToggleExpandUnchanged,
-    ],
-  );
+    );
+  }, [
+    activePath,
+    canComment,
+    commentContext,
+    expandUnchanged,
+    fileViewerRevision,
+    handleToggleExpandUnchanged,
+    hideHeaderMetadataControls,
+  ]);
 
   const diffOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
     () => ({
@@ -439,6 +464,7 @@ export function DiffWorkspace({
       theme: diffTheme,
       themeType: diffThemeType,
       unsafeCSS: STICKY_HEADER_CSS,
+      disableFileHeader,
       disableLineNumbers: false,
       maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
       expandUnchanged,
@@ -457,6 +483,7 @@ export function DiffWorkspace({
       applySelectionRange,
       canComment,
       diagnosticPopover.onTokenEnter,
+      disableFileHeader,
       diagnosticPopover.onTokenLeave,
       diffStyle,
       diffTheme,

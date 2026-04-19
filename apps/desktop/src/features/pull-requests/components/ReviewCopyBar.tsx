@@ -1,27 +1,71 @@
+import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Copy, MessageSquarePlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { isTypingTarget } from "@/features/source-control/utils";
 import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
+import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
+import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
+import { isTypingTarget } from "@/features/source-control/utils";
+
+type ReviewCommentsCopyToolbarProps = {
+  repoPath: string;
+  pullRequestNumber: number;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  activePath: string;
+  activePreviousPath?: string;
+};
+
+function joinReviewCommentPayloads(...payloads: string[]) {
+  return payloads.filter(Boolean).join("\n");
+}
+
 function ReviewCommentsCopyToolbar({
-  filePayload,
-  allPayload,
-  filePendingCommentCount = 0,
-  totalPendingCommentCount = 0,
-  canSubmitComments = false,
-  isSubmittingComments = false,
-  onSubmitAllComments,
-}: {
-  filePayload: string;
-  allPayload: string;
-  filePendingCommentCount?: number;
-  totalPendingCommentCount?: number;
-  canSubmitComments?: boolean;
-  isSubmittingComments?: boolean;
-  onSubmitAllComments?: () => void;
-}) {
+  repoPath,
+  pullRequestNumber,
+  compareBaseRef,
+  compareHeadRef,
+  activePath,
+  activePreviousPath,
+}: ReviewCommentsCopyToolbarProps) {
+  const pendingActions = usePullRequestPendingReviewActions({
+    repoPath,
+    pullRequestNumber,
+    compareBaseRef,
+    compareHeadRef,
+  });
+  const conversationQueryArg =
+    repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
+  const { reviewThreads } = useGetPullRequestConversationQuery(conversationQueryArg, {
+    selectFromResult: ({ data }) => ({
+      reviewThreads: data?.reviewThreads ?? [],
+    }),
+    pollingInterval: 10000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+
+  const filePendingPayload = activePath ? pendingActions.getPendingPayloadForFile(activePath) : "";
+  const filePendingCommentCount = activePath
+    ? pendingActions.getPendingDraftsForFile(activePath).length
+    : 0;
+  const filePublishedPayload = activePath
+    ? buildPullRequestReviewCommentsPayload({
+        reviewThreads,
+        path: activePath,
+        previousPath: activePreviousPath,
+      })
+    : "";
+  const allPublishedPayload = buildPullRequestReviewCommentsPayload({ reviewThreads });
+  const filePayload = joinReviewCommentPayloads(filePublishedPayload, filePendingPayload);
+  const allPayload = joinReviewCommentPayloads(
+    allPublishedPayload,
+    pendingActions.allPendingPayload,
+  );
+  const totalPendingCommentCount = pendingActions.pendingDraftCount;
   const hasFileReviewComments = filePayload.length > 0;
   const hasAnyReviewComments = allPayload.length > 0;
 
@@ -46,7 +90,7 @@ function ReviewCommentsCopyToolbar({
       }
 
       event.preventDefault();
-      void copyReviewCommentsPayload(allPayload, "Copied all patch review comments");
+      void copyReviewCommentsPayload(allPayload, "Copied all review comments");
     },
     {
       enabled: hasAnyReviewComments,
@@ -61,7 +105,7 @@ function ReviewCommentsCopyToolbar({
       }
 
       event.preventDefault();
-      void copyReviewCommentsPayload(filePayload, "Copied file patch review comments");
+      void copyReviewCommentsPayload(filePayload, "Copied file review comments");
     },
     {
       enabled: hasFileReviewComments,
@@ -77,22 +121,24 @@ function ReviewCommentsCopyToolbar({
       </div>
       <div className="flex items-center gap-1">
         <TooltipProvider>
-          {onSubmitAllComments ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="xs"
-                  disabled={!canSubmitComments || isSubmittingComments}
-                  onClick={onSubmitAllComments}
-                  aria-label="Submit all pending review comments"
-                >
-                  <MessageSquarePlus />
-                  Submit all comments
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">Publish all pending inline comments</TooltipContent>
-            </Tooltip>
-          ) : null}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="xs"
+                disabled={
+                  totalPendingCommentCount === 0 || pendingActions.isSubmittingReviewComments
+                }
+                onClick={() => {
+                  void pendingActions.publishAllPendingDrafts();
+                }}
+                aria-label="Publish all pending review comments"
+              >
+                <MessageSquarePlus />
+                Publish all
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Publish all pending inline comments</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -100,7 +146,7 @@ function ReviewCommentsCopyToolbar({
                 variant="ghost"
                 disabled={!hasFileReviewComments}
                 onClick={() => {
-                  void copyReviewCommentsPayload(filePayload, "Copied file patch review comments");
+                  void copyReviewCommentsPayload(filePayload, "Copied file review comments");
                 }}
                 aria-label="Copy file review comments"
               >
@@ -117,7 +163,7 @@ function ReviewCommentsCopyToolbar({
                 variant="ghost"
                 disabled={!hasAnyReviewComments}
                 onClick={() => {
-                  void copyReviewCommentsPayload(allPayload, "Copied all patch review comments");
+                  void copyReviewCommentsPayload(allPayload, "Copied all review comments");
                 }}
                 aria-label="Copy all review comments"
               >

@@ -27,12 +27,20 @@ export type PullRequestFileJumpTarget = {
   threadId: string | null;
 };
 
+export type PullRequestPreviewFileJumpTarget = {
+  path: string;
+  lineNumber: number | null;
+  lineIndex: string | null;
+  focusKey: number;
+};
+
 type PullRequestsState = {
   currentReview: PullRequestReviewSession | null;
   activeReviewTab: PullRequestReviewTab;
   filesViewMode: PullRequestFilesViewMode;
   activeConversationThreadId: string | null;
   fileJumpTarget: PullRequestFileJumpTarget | null;
+  previewFileJumpTarget: PullRequestPreviewFileJumpTarget | null;
   previewActiveFilePath: string;
 };
 
@@ -42,6 +50,7 @@ const initialState: PullRequestsState = {
   filesViewMode: "review",
   activeConversationThreadId: null,
   fileJumpTarget: null,
+  previewFileJumpTarget: null,
   previewActiveFilePath: "",
 };
 
@@ -55,6 +64,7 @@ const pullRequestsSlice = createSlice({
       state.filesViewMode = "review";
       state.activeConversationThreadId = null;
       state.fileJumpTarget = null;
+      state.previewFileJumpTarget = null;
       state.previewActiveFilePath = "";
     },
     clearCurrentPullRequestReview(state) {
@@ -63,6 +73,7 @@ const pullRequestsSlice = createSlice({
       state.filesViewMode = "review";
       state.activeConversationThreadId = null;
       state.fileJumpTarget = null;
+      state.previewFileJumpTarget = null;
       state.previewActiveFilePath = "";
     },
     setPullRequestReviewTab(state, action: PayloadAction<PullRequestReviewTab>) {
@@ -81,6 +92,15 @@ const pullRequestsSlice = createSlice({
     clearPullRequestFileJumpTarget(state) {
       state.fileJumpTarget = null;
     },
+    setPullRequestPreviewFileJumpTarget(
+      state,
+      action: PayloadAction<PullRequestPreviewFileJumpTarget>,
+    ) {
+      state.previewFileJumpTarget = action.payload;
+    },
+    clearPullRequestPreviewFileJumpTarget(state) {
+      state.previewFileJumpTarget = null;
+    },
     setPullRequestPreviewActiveFilePath(state, action: PayloadAction<string>) {
       if (state.previewActiveFilePath !== action.payload) {
         state.previewActiveFilePath = action.payload;
@@ -92,10 +112,12 @@ const pullRequestsSlice = createSlice({
 export const {
   clearCurrentPullRequestReview,
   clearPullRequestFileJumpTarget,
+  clearPullRequestPreviewFileJumpTarget,
   setActiveConversationThreadId,
   setPullRequestFileJumpTarget,
   setCurrentPullRequestReview,
   setPullRequestPreviewActiveFilePath,
+  setPullRequestPreviewFileJumpTarget,
   setPullRequestReviewTab,
   setPullRequestFilesViewMode,
 } = pullRequestsSlice.actions;

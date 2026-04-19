@@ -1,28 +1,48 @@
+import { skipToken } from "@reduxjs/toolkit/query";
+import { Copy, MessageSquarePlus, Trash2 } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router";
+import { toast } from "sonner";
+
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
 import { openPullRequestReview } from "@/features/hosted-repos/actions";
 import {
   hostedReposApi,
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
+  usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import {
   CommentBody,
   copyToClipboard,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
+import { PullRequestDiscussionSection } from "@/features/pull-requests/components/PullRequestDiscussionSection";
+import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
 import { PullRequestPreviewHeader } from "@/features/pull-requests/components/PullRequestPreviewHeader";
+import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
+import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
+import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
 import {
   buildPreviewTabPath,
   type PreviewTab,
 } from "@/features/pull-requests/screens/PullRequestPreviewLayout";
-import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
+import {
+  setPullRequestPreviewActiveFilePath,
+  setPullRequestPreviewFileJumpTarget,
+} from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestsInboxPath } from "@/features/pull-requests/utils";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
+import type { PullRequestReviewAnchor } from "@/features/source-control/types";
+import type { PullRequestChangedFile, PullRequestConversation } from "@/platform/desktop";
 import type { GitProviderId, PullRequestOpenMode } from "@/platform/desktop/contracts";
-import { skipToken } from "@reduxjs/toolkit/query";
-import { useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
+
+type PullRequestQueryArg =
+  | {
+      repoPath: string;
+      pullRequestNumber: number;
+    }
+  | typeof skipToken;
 
 function providerTitle(providerId: string) {
   if (providerId === "github") return "GitHub";
@@ -39,6 +59,258 @@ function OverviewDetailRow({ label, value }: { label: string; value: ReactNode }
   );
 }
 
+function SectionHeader({
+  title,
+  count,
+  actions,
+}: {
+  title: string;
+  count?: number;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
+          {title}
+        </div>
+        {typeof count === "number" ? (
+          <div className="text-muted-foreground rounded-full border border-border/70 px-2 py-0.5 text-[11px]">
+            {count}
+          </div>
+        ) : null}
+      </div>
+      {actions}
+    </div>
+  );
+}
+
+function PullRequestSummarySection({ body }: { body: string }) {
+  return (
+    <section className="rounded-lg border bg-surface-0 p-5">
+      <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
+        Summary
+      </div>
+      <div className="mt-3 text-sm leading-6">
+        {body.trim() ? (
+          <div className="min-w-0 max-w-none">
+            <CommentBody body={body} />
+          </div>
+        ) : (
+          <div className="text-muted-foreground italic">No description provided.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+type PullRequestOverviewReviewSectionsProps = {
+  queryArg: PullRequestQueryArg;
+  activeRepo: string;
+  pullRequestNumber: number;
+  providerId?: GitProviderId;
+  files: PullRequestChangedFile[];
+  conversation: PullRequestConversation;
+  onOpenAnchorInFiles: (anchor: PullRequestReviewAnchor) => void;
+};
+
+function PullRequestOverviewReviewSections({
+  queryArg,
+  activeRepo,
+  pullRequestNumber,
+  providerId,
+  files,
+  conversation,
+  onOpenAnchorInFiles,
+}: PullRequestOverviewReviewSectionsProps) {
+  const { compareRefs } = usePreparePullRequestCompareRefsQuery(queryArg, {
+    selectFromResult: ({ data }) => ({
+      compareRefs: data ?? null,
+    }),
+  });
+  const compareBaseRef = compareRefs?.compareBaseRef ?? "";
+  const compareHeadRef = compareRefs?.compareHeadRef ?? "";
+  const commentMentions = usePullRequestMentionCandidates(conversation);
+  const pendingActions = usePullRequestPendingReviewActions({
+    repoPath: activeRepo,
+    pullRequestNumber,
+    compareBaseRef,
+    compareHeadRef,
+  });
+  const { pendingAnchors, remoteAnchors } = usePullRequestReviewAnchors({
+    repoPath: activeRepo,
+    compareBaseRef,
+    compareHeadRef,
+    files,
+    reviewThreads: conversation.reviewThreads,
+  });
+
+  return (
+    <>
+      {pendingAnchors.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <SectionHeader
+            title="Pending review drafts"
+            count={pendingAnchors.length}
+            actions={
+              <div className="flex flex-wrap items-center gap-1">
+                <Button
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={pendingActions.isSubmittingReviewComments}
+                  onClick={() => {
+                    void pendingActions.publishAllPendingDrafts();
+                  }}
+                >
+                  <MessageSquarePlus className="h-3.5 w-3.5" />
+                  Publish all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => {
+                    void pendingActions.copyAllPendingDrafts();
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => {
+                    pendingActions.clearAllPendingDrafts();
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear all
+                </Button>
+              </div>
+            }
+          />
+
+          <div className="flex flex-col gap-3">
+            {pendingAnchors.map((anchor) => (
+              <PullRequestOverviewAnchorCard
+                key={anchor.key}
+                providerId={providerId}
+                repoPath={activeRepo}
+                pullRequestNumber={pullRequestNumber}
+                compareBaseRef={compareBaseRef}
+                compareHeadRef={compareHeadRef}
+                anchor={anchor}
+                onOpenFile={() => onOpenAnchorInFiles(anchor)}
+                onPublishPending={() => {
+                  void pendingActions.publishAnchorPendingDrafts(anchor);
+                }}
+                onCopyPending={() => {
+                  void pendingActions.copyAnchorPendingDrafts(anchor);
+                }}
+                onClearPending={() => {
+                  pendingActions.clearAnchorPendingDrafts(anchor);
+                }}
+                commentMentions={commentMentions}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="flex flex-col gap-3">
+        <SectionHeader title="Commented code" count={remoteAnchors.length} />
+        {remoteAnchors.length > 0 ? (
+          <div className="flex flex-col gap-3">
+            {remoteAnchors.map((anchor) => (
+              <PullRequestOverviewAnchorCard
+                key={anchor.key}
+                providerId={providerId}
+                repoPath={activeRepo}
+                pullRequestNumber={pullRequestNumber}
+                compareBaseRef={compareBaseRef}
+                compareHeadRef={compareHeadRef}
+                anchor={anchor}
+                onOpenFile={() => onOpenAnchorInFiles(anchor)}
+                commentMentions={commentMentions}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="text-muted-foreground rounded-lg border border-border/70 bg-surface-0 px-4 py-3 text-sm">
+            No inline review threads yet.
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+type PullRequestOverviewDetailsSidebarProps = {
+  queryArg: PullRequestQueryArg;
+  activeRepo: string;
+  pullRequestNumber: number;
+  detail: PullRequestConversation["detail"];
+  files: PullRequestChangedFile[];
+  totalAdditions: number;
+  totalDeletions: number;
+  issueCommentCount: number;
+  reviewThreadCount: number;
+};
+
+function PullRequestOverviewDetailsSidebar({
+  queryArg,
+  activeRepo,
+  pullRequestNumber,
+  detail,
+  files,
+  totalAdditions,
+  totalDeletions,
+  issueCommentCount,
+  reviewThreadCount,
+}: PullRequestOverviewDetailsSidebarProps) {
+  const { compareRefs } = usePreparePullRequestCompareRefsQuery(queryArg, {
+    selectFromResult: ({ data }) => ({
+      compareRefs: data ?? null,
+    }),
+  });
+  const pendingActions = usePullRequestPendingReviewActions({
+    repoPath: activeRepo,
+    pullRequestNumber,
+    compareBaseRef: compareRefs?.compareBaseRef ?? "",
+    compareHeadRef: compareRefs?.compareHeadRef ?? "",
+  });
+
+  return (
+    <aside className="flex flex-col gap-4 xl:sticky xl:top-4">
+      <section className="rounded-lg border bg-surface-0 p-4">
+        <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
+          Details
+        </div>
+        <dl className="mt-2 divide-y divide-border/70">
+          <OverviewDetailRow label="Provider" value={providerTitle(detail.providerId)} />
+          <OverviewDetailRow
+            label="Conversation"
+            value={`${issueCommentCount} comments · ${reviewThreadCount} threads`}
+          />
+          <OverviewDetailRow
+            label="Changes"
+            value={
+              <span>
+                {files.length} files <span className="text-emerald-500">+{totalAdditions}</span>{" "}
+                <span className="text-red-500">-{totalDeletions}</span>
+              </span>
+            }
+          />
+          <OverviewDetailRow label="Pending drafts" value={pendingActions.pendingDraftCount} />
+          <OverviewDetailRow label="Base" value={detail.baseRef} />
+          <OverviewDetailRow label="Head" value={detail.headRef} />
+        </dl>
+      </section>
+    </aside>
+  );
+}
+
 export const PullRequestOverview = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -50,9 +322,8 @@ export const PullRequestOverview = () => {
 
   const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
+    selectFromResult: ({ data }) => ({
       hostedRepo: data ?? null,
-      resolvingHostedRepo: isLoading || isFetching,
     }),
   });
 
@@ -75,7 +346,7 @@ export const PullRequestOverview = () => {
     parsedPullRequestNumber > 0,
   );
 
-  const conversationQueryArg =
+  const queryArg: PullRequestQueryArg =
     activeRepo && hasValidRoute && routeMatchesActiveRepo
       ? {
           repoPath: activeRepo,
@@ -87,10 +358,9 @@ export const PullRequestOverview = () => {
     conversation,
     loadingConversation,
     refetch: refetchConversation,
-  } = useGetPullRequestConversationQuery(conversationQueryArg, {
-    selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+  } = useGetPullRequestConversationQuery(queryArg, {
+    selectFromResult: ({ data, isLoading, isFetching }) => ({
       conversation: data ?? null,
-      conversationError: data ? "" : errorMessageFrom(error, ""),
       loadingConversation: isLoading || isFetching,
     }),
     pollingInterval: 10000,
@@ -98,16 +368,9 @@ export const PullRequestOverview = () => {
     refetchOnReconnect: true,
   });
 
-  const filesQueryArg =
-    activeRepo && hasValidRoute && routeMatchesActiveRepo
-      ? { repoPath: activeRepo, pullRequestNumber: parsedPullRequestNumber }
-      : skipToken;
-
-  const { files } = useGetPullRequestFilesQuery(filesQueryArg, {
-    selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+  const { files } = useGetPullRequestFilesQuery(queryArg, {
+    selectFromResult: ({ data }) => ({
       files: data ?? [],
-      filesError: data ? "" : errorMessageFrom(error, ""),
-      isLoadingFiles: isLoading || isFetching,
     }),
   });
 
@@ -180,11 +443,39 @@ export const PullRequestOverview = () => {
     navigate(nextPath);
   }
 
-  if (!conversation) return null;
+  function openAnchorInFiles(anchor: PullRequestReviewAnchor) {
+    if (!hasValidRoute || !providerId || !owner || !repo) {
+      return;
+    }
+
+    dispatch(setPullRequestPreviewActiveFilePath(anchor.path));
+    dispatch(
+      setPullRequestPreviewFileJumpTarget({
+        path: anchor.path,
+        lineNumber: anchor.endLine,
+        lineIndex: null,
+        focusKey: Date.now(),
+      }),
+    );
+
+    navigate(
+      buildPreviewTabPath({
+        providerId: providerId as GitProviderId,
+        owner,
+        repo,
+        pullRequestNumber: parsedPullRequestNumber,
+        tab: "files",
+      }),
+    );
+  }
+
+  if (!conversation) {
+    return null;
+  }
 
   const { detail } = conversation;
-  const totalAdditions = files.reduce((sum, f) => sum + f.additions, 0);
-  const totalDeletions = files.reduce((sum, f) => sum + f.deletions, 0);
+  const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
+  const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
   const issueCommentCount = conversation.issueComments.length;
   const reviewThreadCount = conversation.reviewThreads.length;
 
@@ -217,49 +508,39 @@ export const PullRequestOverview = () => {
       />
 
       <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-4">
+        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6">
           {openError ? (
             <div className="text-destructive rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-2 text-sm">
               {openError}
             </div>
           ) : null}
 
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <section className="rounded-lg border bg-surface-0 p-5">
-              <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-                Description
-              </div>
-              <div className="mt-3 text-sm leading-6">
-                {detail.body.trim() ? (
-                  <CommentBody body={detail.body} />
-                ) : (
-                  <div className="text-muted-foreground italic">No description provided.</div>
-                )}
-              </div>
-            </section>
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
+            <div className="flex min-w-0 flex-col gap-6">
+              <PullRequestSummarySection body={detail.body} />
+              <PullRequestDiscussionSection conversation={conversation} />
+              <PullRequestOverviewReviewSections
+                queryArg={queryArg}
+                activeRepo={activeRepo ?? ""}
+                pullRequestNumber={parsedPullRequestNumber}
+                providerId={detail.providerId as GitProviderId}
+                files={files}
+                conversation={conversation}
+                onOpenAnchorInFiles={openAnchorInFiles}
+              />
+            </div>
 
-            <aside className="rounded-lg border bg-surface-0 p-4">
-              <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-                Details
-              </div>
-              <dl className="mt-2 divide-y divide-border/70">
-                <OverviewDetailRow label="Provider" value={providerTitle(detail.providerId)} />
-                <OverviewDetailRow
-                  label="Conversation"
-                  value={`${issueCommentCount} comments · ${reviewThreadCount} threads`}
-                />
-                <OverviewDetailRow
-                  label="Changes"
-                  value={
-                    <span>
-                      {files.length} files{" "}
-                      <span className="text-emerald-500">+{totalAdditions}</span>{" "}
-                      <span className="text-red-500">-{totalDeletions}</span>
-                    </span>
-                  }
-                />
-              </dl>
-            </aside>
+            <PullRequestOverviewDetailsSidebar
+              queryArg={queryArg}
+              activeRepo={activeRepo ?? ""}
+              pullRequestNumber={parsedPullRequestNumber}
+              detail={detail}
+              files={files}
+              totalAdditions={totalAdditions}
+              totalDeletions={totalDeletions}
+              issueCommentCount={issueCommentCount}
+              reviewThreadCount={reviewThreadCount}
+            />
           </div>
         </div>
       </div>

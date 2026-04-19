@@ -2,7 +2,6 @@ import { skipToken } from "@reduxjs/toolkit/query";
 import { FileCode2, LoaderCircle } from "lucide-react";
 import { useEffect } from "react";
 import { useParams } from "react-router";
-import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
@@ -13,27 +12,24 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { removeCommentsByIds } from "@/features/comments/commentsSlice";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
   usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
-  useSubmitPullRequestReviewCommentsMutation,
 } from "@/features/hosted-repos/api";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
+import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
 import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
-import { buildSubmitPullRequestReviewCommentsInput } from "@/features/pull-requests/utils/pendingReviewComments";
-import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
-import { buildPullRequestThreadAnnotations } from "@/features/pull-requests/utils/reviewThreadAnnotations";
+import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
 import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { CommentItem } from "@/features/source-control/types";
 import type {
+  GitProviderId,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestReviewThread,
@@ -54,9 +50,8 @@ export const PullRequestFiles = () => {
 
   const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
+    selectFromResult: ({ data }) => ({
       hostedRepo: data ?? null,
-      resolvingHostedRepo: isLoading || isFetching,
     }),
   });
 
@@ -121,8 +116,9 @@ export const PullRequestFiles = () => {
           />
         }
         content={
-          <div className="h-full min-h-0">
+          <div className="grid h-full min-h-0">
             <FilesDiffViewer
+              providerId={providerId}
               repoPath={activeRepo ?? ""}
               pullRequestNumber={parsedPullRequestNumber}
               compareBaseRef={compareRefs?.compareBaseRef ?? ""}
@@ -165,6 +161,7 @@ function PullRequestPreviewActiveFileSync({ files }: { files: PullRequestChanged
 }
 
 function FilesDiffViewer({
+  providerId,
   repoPath,
   pullRequestNumber,
   compareBaseRef,
@@ -175,6 +172,7 @@ function FilesDiffViewer({
   conversation,
   reviewThreads,
 }: {
+  providerId?: string;
   repoPath: string;
   pullRequestNumber: number;
   compareBaseRef: string;
@@ -185,35 +183,25 @@ function FilesDiffViewer({
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
 }) {
-  const dispatch = useAppDispatch();
   const selectedPath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
-  const comments = useAppSelector((state) => state.comments);
-  const pendingReviewComments =
-    !repoPath || !compareBaseRef || !compareHeadRef
-      ? ([] as CommentItem[])
-      : comments.filter(
-          (comment) =>
-            comment.repoPath === repoPath &&
-            (comment.contextKind ?? "changes") === "review" &&
-            comment.baseRef === compareBaseRef &&
-            comment.headRef === compareHeadRef,
-        );
-  const [submitPullRequestReviewComments, { isLoading: isSubmittingReviewComments }] =
-    useSubmitPullRequestReviewCommentsMutation();
+  const previewFileJumpTarget = useAppSelector((state) => state.pullRequests.previewFileJumpTarget);
+  const { anchorsByFile } = usePullRequestReviewAnchors({
+    repoPath,
+    compareBaseRef,
+    compareHeadRef,
+    files,
+    reviewThreads,
+  });
   const commentMentions = usePullRequestMentionCandidates(conversation);
   const selectedFile = files.find((file) => file.path === selectedPath) ?? null;
-  const previewPath = useThrottledDiffSelection(selectedFile?.path ?? null);
+  const previewSelection = useThrottledDiffSelection(
+    selectedFile
+      ? { path: selectedFile.path, previousPath: selectedFile.previousPath ?? undefined }
+      : null,
+  );
+  const previewPath = previewSelection?.path ?? selectedFile?.path ?? "";
   const previewFile = files.find((file) => file.path === previewPath) ?? selectedFile;
-  const allReviewCommentsPayload = buildPullRequestReviewCommentsPayload({ reviewThreads });
   const hasCompareRefs = Boolean(compareBaseRef && compareHeadRef);
-  const reviewCommentContext =
-    hasCompareRefs && compareBaseRef && compareHeadRef
-      ? { kind: "review" as const, baseRef: compareBaseRef, headRef: compareHeadRef }
-      : null;
-  const filePendingReviewComments = previewFile
-    ? pendingReviewComments.filter((comment) => comment.filePath === previewFile.path)
-    : [];
-  const pendingReviewCommentCount = pendingReviewComments.length;
 
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
     previewPath && hasCompareRefs && previewFile
@@ -240,22 +228,28 @@ function FilesDiffViewer({
       branchFileVersionsQuery.isLoading ||
       branchFileVersionsQuery.isFetching);
 
-  const threadAnnotations = previewFile
-    ? buildPullRequestThreadAnnotations({
+  const anchorAnnotations = previewFile
+    ? buildPullRequestAnchorAnnotations({
+        anchors: anchorsByFile[previewFile.path] ?? [],
         repoPath,
         pullRequestNumber,
-        path: previewFile.path,
-        previousPath: previewFile.previousPath,
-        reviewThreads,
+        compareBaseRef,
+        compareHeadRef,
+        providerId: providerId as GitProviderId | undefined,
       })
     : [];
-  const fileReviewCommentsPayload = previewFile
-    ? buildPullRequestReviewCommentsPayload({
-        reviewThreads,
-        path: previewFile.path,
-        previousPath: previewFile.previousPath,
-      })
-    : "";
+  const focusedLineNumber =
+    previewFileJumpTarget && previewFileJumpTarget.path === previewPath
+      ? previewFileJumpTarget.lineNumber
+      : null;
+  const focusedLineIndex =
+    previewFileJumpTarget && previewFileJumpTarget.path === previewPath
+      ? previewFileJumpTarget.lineIndex
+      : null;
+  const focusedLineKey =
+    previewFileJumpTarget && previewFileJumpTarget.path === previewPath
+      ? previewFileJumpTarget.focusKey
+      : null;
 
   if (files.length === 0) {
     return (
@@ -343,76 +337,30 @@ function FilesDiffViewer({
     );
   }
 
-  const submitAllComments = async () => {
-    if (!repoPath || pullRequestNumber <= 0 || pendingReviewComments.length === 0) {
-      return;
-    }
-
-    try {
-      const result = await submitPullRequestReviewComments(
-        buildSubmitPullRequestReviewCommentsInput({
-          repoPath,
-          pullRequestNumber,
-          comments: pendingReviewComments,
-        }),
-      ).unwrap();
-
-      if (result.submittedDraftIds.length > 0) {
-        dispatch(removeCommentsByIds(result.submittedDraftIds));
-      }
-
-      if (result.failedMessage) {
-        if (result.submittedDraftIds.length > 0) {
-          toast.error(
-            `Submitted ${result.submittedDraftIds.length} comment${result.submittedDraftIds.length === 1 ? "" : "s"}, then stopped: ${result.failedMessage}`,
-          );
-        } else {
-          toast.error(result.failedMessage);
-        }
-        return;
-      }
-
-      toast.success(
-        `Submitted ${result.submittedDraftIds.length} pending comment${result.submittedDraftIds.length === 1 ? "" : "s"}`,
-      );
-    } catch (error) {
-      toast.error(errorMessageFrom(error, "Failed to submit review comments"));
-    }
-  };
-
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
         <ReviewCommentsCopyToolbar
-          filePayload={fileReviewCommentsPayload}
-          allPayload={allReviewCommentsPayload}
-          filePendingCommentCount={filePendingReviewComments.length}
-          totalPendingCommentCount={pendingReviewCommentCount}
-          canSubmitComments={Boolean(reviewCommentContext) && pendingReviewCommentCount > 0}
-          isSubmittingComments={isSubmittingReviewComments}
-          onSubmitAllComments={
-            pendingReviewCommentCount > 0
-              ? () => {
-                  void submitAllComments();
-                }
-              : undefined
-          }
+          repoPath={repoPath}
+          pullRequestNumber={pullRequestNumber}
+          compareBaseRef={compareBaseRef}
+          compareHeadRef={compareHeadRef}
+          activePath={previewFile?.path ?? selectedFile.path}
+          activePreviousPath={previewFile?.previousPath ?? selectedFile.previousPath ?? undefined}
         />
         <DiffWorkspace
           oldFile={selectedOldFile}
           newFile={selectedNewFile}
           activePath={previewFile?.path ?? selectedFile.path}
-          commentContext={
-            reviewCommentContext ?? {
-              kind: "review",
-              baseRef: compareBaseRef,
-              headRef: compareHeadRef,
-            }
-          }
-          canComment={Boolean(reviewCommentContext)}
+          commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
+          canComment
+          includeCurrentFileComments={false}
           fileViewerRevision={compareHeadRef}
           lspJumpContextKind="pull-request"
-          annotationItems={threadAnnotations}
+          focusedLineNumber={focusedLineNumber}
+          focusedLineIndex={focusedLineIndex}
+          focusedLineKey={focusedLineKey}
+          annotationItems={anchorAnnotations}
           commentMentions={commentMentions}
         />
       </div>

@@ -11,6 +11,7 @@ import type {
   LspLocation as ContractLspLocation,
   RepoFileItem as ContractRepoFileItem,
   PullRequestReviewThread,
+  GitProviderId,
 } from "@/platform/desktop";
 
 export type Bucket = ContractBucket;
@@ -135,6 +136,17 @@ export type CommentItem = {
   headRef?: string;
 };
 
+export type PullRequestReviewAnchor = {
+  key: string;
+  path: string;
+  previousPath: string | null;
+  side: "deletions" | "additions";
+  startLine: number;
+  endLine: number;
+  remoteThreads: PullRequestReviewThread[];
+  pendingDrafts: CommentItem[];
+};
+
 export type ComposerAnnotation = {
   type: "composer";
   side: "deletions" | "additions";
@@ -155,11 +167,22 @@ export type PullRequestThreadAnnotation = {
   pullRequestNumber: number;
 };
 
+export type PullRequestAnchorAnnotation = {
+  type: "pull-request-anchor";
+  anchor: PullRequestReviewAnchor;
+  repoPath: string;
+  pullRequestNumber: number;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  providerId?: GitProviderId;
+};
+
 export type DiffAnnotationItem =
   | CommentItem
   | ComposerAnnotation
   | DiagnosticAnnotation
-  | PullRequestThreadAnnotation;
+  | PullRequestThreadAnnotation
+  | PullRequestAnchorAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;
 

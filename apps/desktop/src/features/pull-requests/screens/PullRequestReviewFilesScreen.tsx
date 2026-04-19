@@ -1,5 +1,4 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import type { DiffLineAnnotation } from "@pierre/diffs";
 import { useEffect } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -9,6 +8,15 @@ import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api"
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
+import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
+import { PullRequestFilesSidebar } from "@/features/pull-requests/components/PullRequestFilesSidebar";
+import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
+import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
+import {
+  clearPullRequestFileJumpTarget,
+  setPullRequestFilesViewMode,
+} from "@/features/pull-requests/pullRequestsSlice";
+import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
 import {
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
@@ -16,10 +24,8 @@ import {
 import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { DiffAnnotationItem, FileItem } from "@/features/source-control/types";
-import { setPullRequestFilesViewMode } from "@/features/pull-requests/pullRequestsSlice";
-import { PullRequestFilesSidebar } from "@/features/pull-requests/components/PullRequestFilesSidebar";
-import type { PullRequestReviewThread } from "@/platform/desktop";
+import type { FileItem } from "@/features/source-control/types";
+import type { GitProviderId, PullRequestConversation } from "@/platform/desktop";
 
 import {
   InactivePullRequestReviewPlaceholder,
@@ -28,57 +34,34 @@ import {
 
 const EMPTY_BRANCH_FILES: FileItem[] = [];
 
-function buildReviewThreadAnnotations(
-  repoPath: string,
-  pullRequestNumber: number,
-  activePath: string,
-  reviewThreads: PullRequestReviewThread[],
-): DiffLineAnnotation<DiffAnnotationItem>[] {
-  return reviewThreads
-    .filter((thread) => thread.path === activePath)
-    .flatMap((thread) => {
-      const lineNumber = thread.line ?? thread.startLine;
-      if (!lineNumber) {
-        return [];
-      }
-
-      return [
-        {
-          lineNumber,
-          side: thread.diffSide === "LEFT" ? "deletions" : "additions",
-          metadata: {
-            type: "pull-request-thread",
-            thread,
-            repoPath,
-            pullRequestNumber,
-          },
-        } satisfies DiffLineAnnotation<DiffAnnotationItem>,
-      ];
-    });
-}
-
 type PullRequestDiffPaneProps = {
   activeRepo: string;
+  reviewRepoPath: string;
+  reviewProviderId?: GitProviderId;
+  pullRequestNumber: number;
   reviewBaseRef: string;
   reviewHeadRef: string;
   readyForDiff: boolean;
   branchFiles: FileItem[];
+  conversation: PullRequestConversation | null;
   focusedLineNumber: number | null;
   focusedLineIndex: string | null;
   focusedLineKey: number | null;
-  annotationItems: DiffLineAnnotation<DiffAnnotationItem>[];
 };
 
 function PullRequestDiffPane({
   activeRepo,
+  reviewRepoPath,
+  reviewProviderId,
+  pullRequestNumber,
   reviewBaseRef,
   reviewHeadRef,
   readyForDiff,
   branchFiles,
+  conversation,
   focusedLineNumber,
   focusedLineIndex,
   focusedLineKey,
-  annotationItems,
 }: PullRequestDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
   const selectedReviewFile = branchFiles.find((file) => file.path === reviewActivePath);
@@ -90,6 +73,26 @@ function PullRequestDiffPane({
         }
       : null,
   );
+  const previewPath = previewSelection?.path ?? reviewActivePath;
+  const commentMentions = usePullRequestMentionCandidates(conversation);
+  const { anchorsByFile } = usePullRequestReviewAnchors({
+    repoPath: reviewRepoPath,
+    compareBaseRef: reviewBaseRef,
+    compareHeadRef: reviewHeadRef,
+    files: branchFiles,
+    reviewThreads: conversation?.reviewThreads ?? [],
+  });
+  const annotationItems = previewPath
+    ? buildPullRequestAnchorAnnotations({
+        anchors: anchorsByFile[previewPath] ?? [],
+        repoPath: reviewRepoPath,
+        pullRequestNumber,
+        compareBaseRef: reviewBaseRef,
+        compareHeadRef: reviewHeadRef,
+        providerId: reviewProviderId,
+      })
+    : [];
+
   const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
     readyForDiff && previewSelection
       ? {
@@ -107,19 +110,26 @@ function PullRequestDiffPane({
   const newFile = reviewVersions?.newFile ?? null;
   const loadingPatch = !reviewVersions && branchFileVersionsQuery.isLoading;
   const errorMessage = reviewVersions ? "" : errorMessageFrom(branchFileVersionsQuery.error, "");
-  const previewPath = previewSelection?.path ?? "";
   const lspText = !loadingPatch && newFile ? newFile.contents : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null
       ? { repoPath: activeRepo, relPath: previewPath }
       : undefined;
-  const lspDiagnostics = useDiffDiagnostics(activeRepo, previewPath);
+  const lspDiagnostics = useDiffDiagnostics(activeRepo, previewPath ?? "");
 
-  useCurrentLspDocument(activeRepo, previewPath, lspText);
+  useCurrentLspDocument(activeRepo, previewPath ?? "", lspText);
 
   return (
     <section className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1">
+      <ReviewCommentsCopyToolbar
+        repoPath={reviewRepoPath}
+        pullRequestNumber={pullRequestNumber}
+        compareBaseRef={reviewBaseRef}
+        compareHeadRef={reviewHeadRef}
+        activePath={previewPath ?? ""}
+        activePreviousPath={previewSelection?.previousPath}
+      />
+      <div className="grid min-h-0 flex-1">
         {errorMessage ? (
           <div className="text-destructive p-3 text-sm">{errorMessage}</div>
         ) : loadingPatch ? (
@@ -130,13 +140,14 @@ function PullRequestDiffPane({
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
           <div className="flex h-full min-h-0 min-w-0 flex-col">
-            <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
+            <LspStatusNotice repoPath={activeRepo} relPath={previewPath ?? ""} active />
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}
-              activePath={previewPath}
+              activePath={previewPath ?? ""}
               commentContext={{ kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }}
               canComment
+              includeCurrentFileComments={false}
               lspDiagnostics={lspDiagnostics}
               fileViewerRevision={reviewHeadRef}
               lspHoverDocument={lspHoverDocument}
@@ -145,6 +156,7 @@ function PullRequestDiffPane({
               focusedLineIndex={focusedLineIndex}
               focusedLineKey={focusedLineKey}
               annotationItems={annotationItems}
+              commentMentions={commentMentions}
             />
           </div>
         )}
@@ -181,7 +193,7 @@ export function PullRequestReviewFilesScreen() {
     },
   );
 
-  const { reviewThreads } = useGetPullRequestConversationQuery(
+  const { conversation } = useGetPullRequestConversationQuery(
     resolvedReview
       ? {
           repoPath: resolvedReview.repoPath,
@@ -190,22 +202,13 @@ export function PullRequestReviewFilesScreen() {
       : skipToken,
     {
       selectFromResult: ({ data }) => ({
-        reviewThreads: data?.reviewThreads ?? [],
+        conversation: data ?? null,
       }),
       pollingInterval: 10000,
       refetchOnFocus: true,
       refetchOnReconnect: true,
     },
   );
-
-  const threadAnnotations = resolvedReview
-    ? buildReviewThreadAnnotations(
-        resolvedReview.repoPath,
-        resolvedReview.pullRequestNumber,
-        reviewActivePath,
-        reviewThreads,
-      )
-    : [];
 
   const focusedLineNumber =
     fileJumpTarget && fileJumpTarget.path === reviewActivePath ? fileJumpTarget.lineNumber : null;
@@ -228,6 +231,14 @@ export function PullRequestReviewFilesScreen() {
       dispatch(setPullRequestFilesViewMode("files"));
     }
   }, [activeRepo, dispatch, fileViewerTarget, filesViewMode]);
+
+  useEffect(() => {
+    if (!fileJumpTarget || fileJumpTarget.path !== reviewActivePath) {
+      return;
+    }
+
+    dispatch(clearPullRequestFileJumpTarget());
+  }, [dispatch, fileJumpTarget, reviewActivePath]);
 
   if (!resolvedReview) {
     return <InactivePullRequestReviewPlaceholder />;
@@ -255,14 +266,17 @@ export function PullRequestReviewFilesScreen() {
         ) : (
           <PullRequestDiffPane
             activeRepo={activeRepo}
+            reviewRepoPath={resolvedReview.repoPath}
+            reviewProviderId={resolvedReview.providerId}
+            pullRequestNumber={resolvedReview.pullRequestNumber}
             reviewBaseRef={currentCompareBaseRef}
             reviewHeadRef={currentCompareHeadRef}
             readyForDiff={readyForDiff}
             branchFiles={branchFiles}
+            conversation={conversation}
             focusedLineNumber={focusedLineNumber}
             focusedLineIndex={focusedLineIndex}
             focusedLineKey={focusedLineKey}
-            annotationItems={threadAnnotations}
           />
         )
       }
