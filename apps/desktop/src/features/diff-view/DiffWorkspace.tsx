@@ -156,20 +156,6 @@ function renderUnrenderableDiffWarning() {
   );
 }
 
-function getDiffIdentity(
-  activePath: string,
-  oldFile: DiffFile | null,
-  newFile: DiffFile | null,
-): string {
-  return [
-    activePath,
-    oldFile?.name ?? "",
-    oldFile?.contents.length ?? 0,
-    newFile?.name ?? "",
-    newFile?.contents.length ?? 0,
-  ].join(":");
-}
-
 type FileCommentsResult = {
   comments: CommentItem[];
   annotations: ReturnType<typeof toLineAnnotations>;
@@ -276,11 +262,11 @@ export function DiffWorkspace({
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const jumpContext = lspJumpContextKind ?? commentContext.kind;
   const diffThemeType = getDiffThemeType(resolvedTheme);
-  const activeDiffIdentity = getDiffIdentity(activePath, oldFile, newFile);
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null);
   const [expandUnchanged, setExpandUnchanged] = useState(false);
+  const activeDiffIdentity = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? "expanded" : "collapsed"}`;
   const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
   const getReturnToDiffTarget = useCallback(
