@@ -15,9 +15,11 @@ import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek"
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { DiffReturnTarget } from "@/features/source-control/types";
+import type { DiffReturnTarget, FileViewerTarget } from "@/features/source-control/types";
 
-type GeneralFileViewerProps = Record<string, never>;
+type GeneralFileViewerProps = {
+  target?: FileViewerTarget | null;
+};
 
 const FILE_VIEWER_CSS = `
     :host {
@@ -59,11 +61,12 @@ function returnToDiffPath(target: DiffReturnTarget) {
   return "/changes/pull-request/files";
 }
 
-export function GeneralFileViewer(_props: GeneralFileViewerProps) {
+export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { resolvedTheme } = useTheme();
-  const target = useAppSelector((state) => state.sourceControl.fileViewerTarget);
+  const reduxTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
+  const target = props.target ?? reduxTarget;
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const returnToDiffTarget = target?.returnToDiff ?? null;
 

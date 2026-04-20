@@ -119,6 +119,8 @@ function PullRequestDiffPane({
 
   useCurrentLspDocument(activeRepo, previewPath ?? "", lspText);
 
+  const hasContent = oldFile || newFile;
+
   return (
     <section className="flex h-full min-h-0 flex-col">
       <ReviewCommentsCopyToolbar
@@ -130,16 +132,10 @@ function PullRequestDiffPane({
         activePreviousPath={previewSelection?.previousPath}
       />
       <div className="grid min-h-0 flex-1">
-        {errorMessage ? (
-          <div className="text-destructive p-3 text-sm">{errorMessage}</div>
-        ) : loadingPatch ? (
-          <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
-        ) : !reviewActivePath ? (
+        {!reviewActivePath ? (
           <div className="text-muted-foreground p-3 text-sm">Select a file to view diff.</div>
-        ) : !oldFile && !newFile ? (
-          <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
-          <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <div className="relative flex h-full min-h-0 min-w-0 flex-col" key="pr-diff-viewer">
             <LspStatusNotice repoPath={activeRepo} relPath={previewPath ?? ""} active />
             <DiffWorkspace
               oldFile={oldFile}
@@ -158,6 +154,19 @@ function PullRequestDiffPane({
               annotationItems={annotationItems}
               commentMentions={commentMentions}
             />
+            {errorMessage ? (
+              <div className="absolute inset-0 z-10 flex items-start justify-start bg-background/80 p-3">
+                <div className="text-destructive text-sm">{errorMessage}</div>
+              </div>
+            ) : loadingPatch ? (
+              <div className="absolute inset-0 z-10 flex items-start justify-start bg-background/80 p-3">
+                <div className="text-muted-foreground text-sm">Loading diff...</div>
+              </div>
+            ) : !hasContent ? (
+              <div className="absolute inset-0 z-10 flex items-start justify-start bg-background/80 p-3">
+                <div className="text-muted-foreground text-sm">No diff content.</div>
+              </div>
+            ) : null}
           </div>
         )}
       </div>

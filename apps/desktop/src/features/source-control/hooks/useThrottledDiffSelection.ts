@@ -1,7 +1,7 @@
 import { useRef } from "react";
-import { useThrottledValue } from "@tanstack/react-pacer";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 
-const DIFF_PREVIEW_THROTTLE_MS = 75;
+const DIFF_PREVIEW_DEBOUNCE_MS = 40;
 
 function isObjectLike(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -32,11 +32,9 @@ export function useThrottledDiffSelection<T>(value: T): T {
     stableValueRef.current = value;
   }
 
-  const [throttledValue] = useThrottledValue(stableValueRef.current, {
-    leading: true,
-    trailing: true,
-    wait: DIFF_PREVIEW_THROTTLE_MS,
+  const [debouncedValue] = useDebouncedValue(stableValueRef.current, {
+    wait: DIFF_PREVIEW_DEBOUNCE_MS,
   });
 
-  return throttledValue;
+  return debouncedValue;
 }
