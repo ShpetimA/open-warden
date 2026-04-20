@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -e
+
+echo "Running pre-commit checks..."
+
+pnpm lint
+pnpm fmt:check
+
+echo "Pre-commit checks passed."

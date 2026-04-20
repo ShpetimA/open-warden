@@ -20,10 +20,7 @@ import type {
   DiffReturnTarget,
   LspDiagnostic,
 } from "@/features/source-control/types";
-import {
-  DiffViewer,
-  type DiffViewerHandle,
-} from "@/features/diff-view/components/DiffViewer";
+import { DiffViewer, type DiffViewerHandle } from "@/features/diff-view/components/DiffViewer";
 import { useDiffCommentAnnotations } from "@/features/diff-view/hooks/useDiffCommentAnnotations";
 import { useDiffDiagnostics } from "@/features/diff-view/hooks/useDiffDiagnostics";
 import { useDiffAnnotationRenderer } from "@/features/diff-view/hooks/useDiffAnnotationRenderer";

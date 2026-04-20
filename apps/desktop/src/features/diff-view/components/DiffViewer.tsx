@@ -13,11 +13,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import type {
-  DiffAnnotationItem,
-  DiffFile,
-  SelectionRange,
-} from "@/features/source-control/types";
+import type { DiffAnnotationItem, DiffFile, SelectionRange } from "@/features/source-control/types";
 import {
   getDiffTheme,
   getDiffThemeCacheSalt,
@@ -130,140 +126,138 @@ function renderUnrenderableDiffWarning() {
   );
 }
 
-export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(
-  function DiffViewer(
-    {
-      oldFile,
-      newFile,
-      activePath,
-      options = {},
-      lineAnnotations = [],
-      renderAnnotation,
-      renderHeaderMetadata,
-      selectedLines,
-      focusedLineNumber = null,
-      focusedLineIndex = null,
-      focusedLineKey = null,
-      children,
-    },
-    ref,
-  ) {
-    const { resolvedTheme } = useTheme();
-    const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
-    const diffThemeType = getDiffThemeType(resolvedTheme);
-    const diffTheme = useMemo(() => getDiffTheme(), []);
-    const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType);
-    const viewportRef = useRef<HTMLDivElement | null>(null);
-
-    useImperativeHandle(ref, () => ({
-      getViewportElement: () => viewportRef.current,
-    }));
-
-    const [expandUnchanged, setExpandUnchanged] = useState(false);
-    const activeDiffIdentity = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? "expanded" : "collapsed"}`;
-    const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
-    const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
-
-    const onToggleExpandUnchanged = useCallback(() => {
-      setExpandUnchanged((prev) => !prev);
-    }, []);
-
-    const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
-      activePath,
-      oldFile,
-      newFile,
-      cacheSalt: diffThemeCacheSalt,
-      allowLargeDiff: forceShowLargeDiff,
-    });
-
-    useDiffLineFocus({
-      containerRef: viewportRef,
-      lineNumber: currentFileDiff ? focusedLineNumber : null,
-      lineIndex: currentFileDiff ? focusedLineIndex : null,
-      focusKey: focusedLineKey,
-      enabled: Boolean(currentFileDiff),
-    });
-
-    const mergedOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
-      () => ({
-        diffStyle,
-        theme: diffTheme,
-        themeType: diffThemeType,
-        unsafeCSS: STICKY_HEADER_CSS,
-        maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
-        expansionLineCount: 20,
-        hunkSeparators: "line-info-basic",
-        expandUnchanged,
-        ...options,
-      }),
-      [diffStyle, diffTheme, diffThemeType, expandUnchanged, options],
-    );
-
-    const headerMetadataNode = useMemo(() => {
-      if (!renderHeaderMetadata) return undefined;
-      return renderHeaderMetadata({
-        expandUnchanged,
-        onToggleExpandUnchanged,
-      });
-    }, [expandUnchanged, onToggleExpandUnchanged, renderHeaderMetadata]);
-
-    const renderLargeDiffWarning = () => {
-      return (
-        <Empty className="border-0 rounded-none h-full gap-4">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FileWarning />
-            </EmptyMedia>
-            <EmptyTitle>Diff too large</EmptyTitle>
-            <EmptyDescription>
-              The diff is too large to be displayed by default. You can show it anyway, but
-              performance may be negatively impacted.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={() => setForceShowLargeDiffIdentity(activeDiffIdentity)}>
-              Show diff
-            </Button>
-          </EmptyContent>
-        </Empty>
-      );
-    };
-
-    return (
-      <div
-        ref={viewportRef}
-        key={activeDiffIdentity}
-        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-      >
-        {currentFileDiff ? (
-          <Virtualizer
-            config={{
-              overscrollSize: 600,
-              intersectionObserverMargin: 1200,
-            }}
-            className="relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
-          >
-            <PierreFileDiff
-              className="block min-w-0 max-w-full"
-              fileDiff={currentFileDiff}
-              selectedLines={selectedLines}
-              lineAnnotations={lineAnnotations}
-              renderAnnotation={renderAnnotation}
-              renderHeaderMetadata={headerMetadataNode ? () => headerMetadataNode : undefined}
-              options={mergedOptions}
-            />
-          </Virtualizer>
-        ) : diffRenderGate === "unrenderable" ? (
-          renderUnrenderableDiffWarning()
-        ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
-          renderLargeDiffWarning()
-        ) : isParsingDiff ? (
-          <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
-        ) : (
-          <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
-        )}
-        {children}
-      </div>
-    );
+export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function DiffViewer(
+  {
+    oldFile,
+    newFile,
+    activePath,
+    options = {},
+    lineAnnotations = [],
+    renderAnnotation,
+    renderHeaderMetadata,
+    selectedLines,
+    focusedLineNumber = null,
+    focusedLineIndex = null,
+    focusedLineKey = null,
+    children,
   },
-);
+  ref,
+) {
+  const { resolvedTheme } = useTheme();
+  const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
+  const diffThemeType = getDiffThemeType(resolvedTheme);
+  const diffTheme = useMemo(() => getDiffTheme(), []);
+  const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    getViewportElement: () => viewportRef.current,
+  }));
+
+  const [expandUnchanged, setExpandUnchanged] = useState(false);
+  const activeDiffIdentity = `${oldFile?.name}-${newFile?.name}-${expandUnchanged ? "expanded" : "collapsed"}`;
+  const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
+  const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
+
+  const onToggleExpandUnchanged = useCallback(() => {
+    setExpandUnchanged((prev) => !prev);
+  }, []);
+
+  const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
+    activePath,
+    oldFile,
+    newFile,
+    cacheSalt: diffThemeCacheSalt,
+    allowLargeDiff: forceShowLargeDiff,
+  });
+
+  useDiffLineFocus({
+    containerRef: viewportRef,
+    lineNumber: currentFileDiff ? focusedLineNumber : null,
+    lineIndex: currentFileDiff ? focusedLineIndex : null,
+    focusKey: focusedLineKey,
+    enabled: Boolean(currentFileDiff),
+  });
+
+  const mergedOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
+    () => ({
+      diffStyle,
+      theme: diffTheme,
+      themeType: diffThemeType,
+      unsafeCSS: STICKY_HEADER_CSS,
+      maxLineDiffLength: MAX_DIFF_LINE_LENGTH,
+      expansionLineCount: 20,
+      hunkSeparators: "line-info-basic",
+      expandUnchanged,
+      ...options,
+    }),
+    [diffStyle, diffTheme, diffThemeType, expandUnchanged, options],
+  );
+
+  const headerMetadataNode = useMemo(() => {
+    if (!renderHeaderMetadata) return undefined;
+    return renderHeaderMetadata({
+      expandUnchanged,
+      onToggleExpandUnchanged,
+    });
+  }, [expandUnchanged, onToggleExpandUnchanged, renderHeaderMetadata]);
+
+  const renderLargeDiffWarning = () => {
+    return (
+      <Empty className="border-0 rounded-none h-full gap-4">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <FileWarning />
+          </EmptyMedia>
+          <EmptyTitle>Diff too large</EmptyTitle>
+          <EmptyDescription>
+            The diff is too large to be displayed by default. You can show it anyway, but
+            performance may be negatively impacted.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button onClick={() => setForceShowLargeDiffIdentity(activeDiffIdentity)}>
+            Show diff
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  };
+
+  return (
+    <div
+      ref={viewportRef}
+      key={activeDiffIdentity}
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+    >
+      {currentFileDiff ? (
+        <Virtualizer
+          config={{
+            overscrollSize: 600,
+            intersectionObserverMargin: 1200,
+          }}
+          className="relative h-full min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+        >
+          <PierreFileDiff
+            className="block min-w-0 max-w-full"
+            fileDiff={currentFileDiff}
+            selectedLines={selectedLines}
+            lineAnnotations={lineAnnotations}
+            renderAnnotation={renderAnnotation}
+            renderHeaderMetadata={headerMetadataNode ? () => headerMetadataNode : undefined}
+            options={mergedOptions}
+          />
+        </Virtualizer>
+      ) : diffRenderGate === "unrenderable" ? (
+        renderUnrenderableDiffWarning()
+      ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
+        renderLargeDiffWarning()
+      ) : isParsingDiff ? (
+        <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
+      ) : (
+        <div className="text-muted-foreground p-3 text-xs">No diff content.</div>
+      )}
+      {children}
+    </div>
+  );
+});

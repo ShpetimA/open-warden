@@ -8,10 +8,7 @@ import { useDiagnosticTokenPopover } from "@/features/diff-view/components/Diagn
 import type { LspDiagnostic } from "@/features/source-control/types";
 
 export function useDiffDiagnostics(lspDiagnostics: LspDiagnostic[] = []) {
-  const diagnosticsByLine = useMemo(
-    () => buildDiagnosticsByLine(lspDiagnostics),
-    [lspDiagnostics],
-  );
+  const diagnosticsByLine = useMemo(() => buildDiagnosticsByLine(lspDiagnostics), [lspDiagnostics]);
 
   const diagnosticPopover = useDiagnosticTokenPopover(diagnosticsByLine);
 
