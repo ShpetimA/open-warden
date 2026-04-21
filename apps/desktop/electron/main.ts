@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 
 import { watchAppSettings } from "./appSettings";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
@@ -68,6 +68,21 @@ function createMainWindow() {
 
   window.once("ready-to-show", () => {
     window.show();
+  });
+
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  window.webContents.on("will-navigate", (event, url) => {
+    const rendererUrl = resolveRendererUrl();
+    const currentUrl = window.webContents.getURL();
+
+    if (url !== currentUrl && !(rendererUrl && url.startsWith(rendererUrl))) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
   });
 
   window.on("closed", () => {
