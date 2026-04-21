@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import {
-  getDiffRenderGate,
-  type DiffRenderGate,
-} from "@/features/diff-view/services/diffRenderLimits";
+import { getDiffRenderGate } from "@/features/diff-view/services/diffRenderLimits";
 import {
   getCachedParsedDiff,
   getParsedDiffRequest,
@@ -34,32 +31,33 @@ export function useParsedDiff({
   const parseRequestTokenRef = useRef(0);
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null);
 
-  const diffRenderGate = useMemo<DiffRenderGate | null>(() => {
-    return getDiffRenderGate(activePath, oldFile, newFile);
-  }, [activePath, oldFile, newFile]);
-
-  const requestPayload = useMemo(() => {
-    return getParsedDiffRequest(activePath, oldFile, newFile, cacheSalt, { allowLargeDiff });
-  }, [activePath, oldFile, newFile, cacheSalt, allowLargeDiff]);
+  const diffRenderGate = getDiffRenderGate(activePath, oldFile, newFile);
+  const requestPayload = getParsedDiffRequest(activePath, oldFile, newFile, cacheSalt, {
+    allowLargeDiff,
+  });
 
   useEffect(() => {
     const requestToken = parseRequestTokenRef.current + 1;
     parseRequestTokenRef.current = requestToken;
 
-    if (!requestPayload) {
+    const nextRequestPayload = getParsedDiffRequest(activePath, oldFile, newFile, cacheSalt, {
+      allowLargeDiff,
+    });
+
+    if (!nextRequestPayload) {
       return;
     }
 
-    const cachedDiff = getCachedParsedDiff(requestPayload.key);
+    const cachedDiff = getCachedParsedDiff(nextRequestPayload.key);
     if (cachedDiff !== undefined) {
       return;
     }
 
-    void loadParsedDiff(requestPayload, "high").then((parsedDiff) => {
+    void loadParsedDiff(nextRequestPayload, "high").then((parsedDiff) => {
       if (parseRequestTokenRef.current !== requestToken) return;
-      setParsedState({ key: requestPayload.key, diff: parsedDiff });
+      setParsedState({ key: nextRequestPayload.key, diff: parsedDiff });
     });
-  }, [requestPayload]);
+  }, [activePath, allowLargeDiff, cacheSalt, newFile, oldFile]);
 
   const requestKey = requestPayload?.key ?? null;
   const cachedDiff = requestKey ? peekCachedParsedDiff(requestKey) : undefined;

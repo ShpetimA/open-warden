@@ -284,6 +284,58 @@ describe("electron git backend", () => {
     expect(existsSync(path.join(repo, "temp.txt"))).toBe(false);
   });
 
+  test("discards staged files that only exist in the index", async () => {
+    const repo = makeRepo();
+
+    writeFileSync(path.join(repo, "tracked.txt"), "one\n");
+    git(repo, ["add", "tracked.txt"]);
+    git(repo, ["commit", "-m", "init"]);
+
+    writeFileSync(path.join(repo, "added.txt"), "new file\n");
+    await stageFile(repo, "added.txt");
+
+    await discardFile(repo, "added.txt", "staged");
+
+    const snapshot = await getGitSnapshot(repo);
+    expect(snapshot.staged).toEqual([]);
+    expect(snapshot.unstaged).toEqual([]);
+    expect(snapshot.untracked).toEqual([]);
+    expect(existsSync(path.join(repo, "added.txt"))).toBe(false);
+  });
+
+  test("falls back to staged discard when an unstaged conflict path is unmerged", async () => {
+    const repo = makeRepo();
+    const defaultBranch = git(repo, ["branch", "--show-current"]);
+
+    writeFileSync(path.join(repo, "tracked.txt"), "base\n");
+    git(repo, ["add", "tracked.txt"]);
+    git(repo, ["commit", "-m", "init"]);
+
+    git(repo, ["checkout", "-b", "feature"]);
+    writeFileSync(path.join(repo, "tracked.txt"), "feature\n");
+    git(repo, ["add", "tracked.txt"]);
+    git(repo, ["commit", "-m", "feature change"]);
+
+    git(repo, ["checkout", defaultBranch]);
+    writeFileSync(path.join(repo, "tracked.txt"), "main\n");
+    git(repo, ["add", "tracked.txt"]);
+    git(repo, ["commit", "-m", "main change"]);
+
+    try {
+      git(repo, ["merge", "feature"]);
+    } catch {
+      // Expected conflict.
+    }
+
+    await discardFile(repo, "tracked.txt", "unstaged");
+
+    const snapshot = await getGitSnapshot(repo);
+    expect(snapshot.staged).toEqual([]);
+    expect(snapshot.unstaged).toEqual([]);
+    expect(snapshot.untracked).toEqual([]);
+    expect(readFileSync(path.join(repo, "tracked.txt"), "utf8")).toEqual("main\n");
+  });
+
   test("returns a clear error when git is unavailable", async () => {
     const repo = makeRepo();
     const previousPath = process.env.PATH;

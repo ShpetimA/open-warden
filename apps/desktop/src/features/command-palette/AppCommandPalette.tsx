@@ -23,6 +23,7 @@ import {
   closeRepo,
   commitAction,
   discardChangesGroupAction,
+  openRepo,
   refreshActiveRepo,
   selectFile,
   selectFolder,
@@ -69,6 +70,10 @@ function isMatchingContext(comment: CommentItem, context: CommentContext): boole
   }
 
   return true;
+}
+
+function repoLabelFromPath(repoPath: string) {
+  return repoPath.split("/").findLast(Boolean) ?? repoPath;
 }
 
 function flattenSnapshot(snapshot: {
@@ -167,6 +172,7 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
 
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const repos = useAppSelector((state) => state.sourceControl.repos);
+  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
@@ -265,17 +271,37 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       },
     })),
     {
+      id: "nav:settings",
+      label: "Open Settings",
+      subtitle: "/settings",
+      keywords: ["settings", "preferences", "config"],
+      onSelect: () => {
+        navigate("/settings");
+      },
+    },
+    {
       id: "repo:add",
-      label: "Add Repository",
-      shortcut: "⌘O",
+      label: "Open Folder",
       keywords: ["repo", "folder", "open"],
       onSelect: async () => {
         await dispatch(selectFolder());
       },
     },
+    ...recentRepos
+      .filter((repoPath) => !repos.includes(repoPath))
+      .map((repoPath) => ({
+        id: `repo:recent:${repoPath}`,
+        label: `Open Recent: ${repoLabelFromPath(repoPath)}`,
+        subtitle: repoPath,
+        keywords: ["repo", "recent", "project", "reopen"],
+        disabled: repoPath === activeRepo,
+        onSelect: async () => {
+          await dispatch(openRepo(repoPath));
+        },
+      })),
     ...repos.map((repoPath) => ({
       id: `repo:switch:${repoPath}`,
-      label: `Switch Repo: ${repoPath.split("/").filter(Boolean).pop() ?? repoPath}`,
+      label: `Switch Repo: ${repoLabelFromPath(repoPath)}`,
       subtitle: repoPath,
       keywords: ["repo", "switch"],
       disabled: repoPath === activeRepo,
@@ -290,7 +316,10 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
       keywords: ["repo", "close"],
       onSelect: async () => {
         if (!activeRepo) return;
-        await dispatch(closeRepo(activeRepo));
+        const result = await dispatch(closeRepo(activeRepo));
+        if (result.closedActiveRepo && location.pathname !== "/changes") {
+          navigate("/changes", { replace: true });
+        }
       },
     },
     {

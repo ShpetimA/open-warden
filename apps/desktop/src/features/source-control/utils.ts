@@ -6,6 +6,18 @@ export function repoLabel(path: string): string {
   return parts[parts.length - 1] ?? path;
 }
 
+export function repoParentPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/");
+  const parts = normalized.split("/").filter(Boolean);
+
+  if (parts.length <= 1) {
+    return normalized;
+  }
+
+  const parentPath = normalized.slice(0, normalized.lastIndexOf("/"));
+  return parentPath || normalized;
+}
+
 export function findExistingBucket(snapshot: GitSnapshot, path: string) {
   if (snapshot.unstaged.some((x) => x.path === path)) return "unstaged" as const;
   if (snapshot.staged.some((x) => x.path === path)) return "staged" as const;

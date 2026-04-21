@@ -1,143 +1,155 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { Outlet, useLocation } from "react-router";
+import { Outlet, useLocation, useNavigate } from "react-router";
+import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
-import { featureHasPrimarySidebar, featureKeyFromPath } from "@/app/featureNavigation";
+import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
+import { featureKeyFromPath } from "@/app/featureNavigation";
+import { RepoTabs } from "@/app/RepoTabs";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { SidebarPanelRegistryProvider } from "@/components/layout/SidebarPanelRegistry";
 import { AppCommandPalette } from "@/features/command-palette/AppCommandPalette";
+import { closeRepo, openRepo, selectFolder, selectRepo } from "@/features/source-control/actions";
+import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
 
-import { RepoTabs } from "@/app/RepoTabs";
-import { useGetGitSnapshotQuery } from "@/features/source-control/api";
-import { closeRepo, selectFolder, selectRepo } from "@/features/source-control/actions";
-import { SourceControlSidebar } from "@/features/source-control/components/SourceControlSidebar";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-
-function renderMainContent(activeRepo: string, errorMessage: string) {
-  if (errorMessage) {
-    return <div className="text-destructive p-3 text-sm">{errorMessage}</div>;
-  }
-
-  if (!activeRepo) {
-    return (
-      <div className="text-muted-foreground p-3 text-sm">
-        Select a repository tab or add one with +.
-      </div>
-    );
-  }
-
-  return <Outlet />;
-}
+export type AppShellOutletContext = {
+  openRecentProjectsPicker: () => void;
+};
 
 export function AppShell() {
+  const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const stateError = useAppSelector((state) => state.sourceControl.error);
+  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [headerCollapsed, setHeaderCollapsed] = useState(false);
-  const activeFeature = featureKeyFromPath(location.pathname);
-  const showPrimarySidebar = featureHasPrimarySidebar(activeFeature);
-  const sidebarFeature = activeFeature === "history" ? "history" : "changes";
-  const { snapshotError, activeBranch } = useGetGitSnapshotQuery(activeRepo, {
-    skip: !activeRepo,
-    selectFromResult: ({ error, data }) => ({
-      snapshotError: error,
-      activeBranch: data?.branch ?? "",
-    }),
-  });
-  const errorMessage = errorMessageFrom(snapshotError, stateError);
-  const mainContent = renderMainContent(activeRepo, errorMessage);
+  const [recentProjectsPickerOpen, setRecentProjectsPickerOpen] = useState(false);
+  const isSettingsRoute = location.pathname.startsWith("/settings");
+  const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
+
+  const openRecentProjectsPicker = () => {
+    setRecentProjectsPickerOpen(true);
+  };
+
+  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
+    if (!switchingRepo) {
+      return;
+    }
+
+    if (location.pathname === "/changes") {
+      return;
+    }
+
+    navigate("/changes", { replace: true });
+  }
+
+  useHotkey(
+    "Mod+O",
+    (event) => {
+      event.preventDefault();
+      openRecentProjectsPicker();
+    },
+    {
+      ignoreInputs: false,
+      preventDefault: false,
+      stopPropagation: false,
+    },
+  );
 
   return (
-    <SidebarPanelRegistryProvider>
-      <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-        <div
-          className="grid h-full"
-          style={{ gridTemplateRows: headerCollapsed ? "0px 1fr 34px" : "56px 1fr 34px" }}
-        >
-          <div className="overflow-hidden">
+    <NuqsAdapter>
+      <SidebarPanelRegistryProvider>
+        <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
+          <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
             <AppHeader
               activeFeature={activeFeature}
+              currentPath={location.pathname}
               onOpenCommandPalette={() => {
                 setCommandPaletteOpen(true);
               }}
             />
-          </div>
 
-          <div className="relative min-h-0">
-            <HeaderEdgeToggle
-              collapsed={headerCollapsed}
-              onToggle={() => {
-                setHeaderCollapsed((value) => !value);
-              }}
+            <div className="relative min-h-0">
+              <Outlet context={{ openRecentProjectsPicker }} />
+            </div>
+
+            <RepoTabsContainer
+              currentPath={location.pathname}
+              onShowRecentProjects={openRecentProjectsPicker}
             />
-
-            {showPrimarySidebar ? (
-              <ResizableSidebarLayout
-                panelId="primary"
-                sidebarDefaultSize={22}
-                sidebarMinSize={14}
-                sidebarMaxSize={34}
-                sidebar={
-                  <SourceControlSidebar feature={sidebarFeature} activeBranch={activeBranch} />
-                }
-                content={<main className="h-full min-h-0">{mainContent}</main>}
-              />
-            ) : (
-              <main className="h-full min-h-0">{mainContent}</main>
-            )}
           </div>
 
-          <RepoTabsContainer />
+          <RecentProjectsPicker
+            open={recentProjectsPickerOpen}
+            activeRepo={activeRepo}
+            recentRepos={recentRepos}
+            onOpenChange={setRecentProjectsPickerOpen}
+            onSelectRepo={(repoPath) => {
+              const switchingRepo = repoPath !== activeRepo;
+              void dispatch(openRepo(repoPath)).then(() => {
+                navigateToChangesAfterRepoSwitch(switchingRepo);
+              });
+            }}
+            onChooseFolder={() => {
+              void dispatch(selectFolder());
+            }}
+          />
+          <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
         </div>
-
-        <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
-      </div>
-    </SidebarPanelRegistryProvider>
+      </SidebarPanelRegistryProvider>
+    </NuqsAdapter>
   );
 }
 
-type HeaderEdgeToggleProps = {
-  collapsed: boolean;
-  onToggle: () => void;
+type RepoTabsContainerProps = {
+  currentPath: string;
+  onShowRecentProjects: () => void;
 };
 
-function HeaderEdgeToggle({ collapsed, onToggle }: HeaderEdgeToggleProps) {
-  return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-40">
-      <div className="flex h-6 w-full justify-center">
-        <button
-          type="button"
-          className="border-input bg-surface-alt text-muted-foreground hover:text-foreground pointer-events-auto inline-flex h-6 w-14 items-center justify-center rounded-b-md rounded-t-none border-t-0 opacity-0 shadow-sm transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100"
-          onClick={onToggle}
-          title={collapsed ? "Expand header" : "Collapse header"}
-          aria-label={collapsed ? "Expand header" : "Collapse header"}
-        >
-          {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RepoTabsContainer() {
+function RepoTabsContainer({ currentPath, onShowRecentProjects }: RepoTabsContainerProps) {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const repos = useAppSelector((state) => state.sourceControl.repos);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
+
+  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
+    if (!switchingRepo) {
+      return;
+    }
+
+    if (currentPath === "/changes") {
+      return;
+    }
+
+    navigate("/changes", { replace: true });
+  }
 
   return (
     <RepoTabs
       repos={repos}
       activeRepo={activeRepo}
+      recentRepos={recentRepos}
       onSelectRepo={(repo) => {
+        const switchingRepo = repo !== activeRepo;
         void dispatch(selectRepo(repo));
+        navigateToChangesAfterRepoSwitch(switchingRepo);
       }}
       onCloseRepo={(repo) => {
-        void dispatch(closeRepo(repo));
+        void dispatch(closeRepo(repo)).then((result) => {
+          if (result.closedActiveRepo && currentPath !== "/changes") {
+            navigate("/changes", { replace: true });
+          }
+        });
       }}
-      onAddRepo={() => {
+      onOpenRecentRepo={(repo) => {
+        const switchingRepo = repo !== activeRepo;
+        void dispatch(openRepo(repo)).then(() => {
+          navigateToChangesAfterRepoSwitch(switchingRepo);
+        });
+      }}
+      onShowAllRecentProjects={onShowRecentProjects}
+      onOpenFolder={() => {
         void dispatch(selectFolder());
       }}
     />

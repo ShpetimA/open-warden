@@ -153,12 +153,14 @@ function runParseTask(task: ParseTask): Promise<void> {
       cleanup,
     };
 
+    /* eslint-disable unicorn/require-post-message-target-origin -- Worker.postMessage does not accept targetOrigin */
     getWorker().postMessage({
       type: "parse",
       requestId: task.requestId,
       oldFile: task.oldFile,
       newFile: task.newFile,
     });
+    /* eslint-enable unicorn/require-post-message-target-origin */
   });
 }
 

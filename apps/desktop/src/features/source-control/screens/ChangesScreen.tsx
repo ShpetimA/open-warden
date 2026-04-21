@@ -1,40 +1,39 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppSelector } from "@/app/hooks";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
+import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
+import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
+import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
 import { useGetFileVersionsQuery } from "@/features/source-control/api";
+import { ChangesSidebar } from "@/features/source-control/components/ChangesSidebar";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
-import { usePrefetchChangesDiffs } from "@/features/source-control/hooks/usePrefetchNearbyDiffs";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import { useGetGitSnapshotQuery } from "@/features/source-control/api";
-import type { BucketedFile } from "@/features/source-control/types";
 
 export function ChangesScreen() {
-  useChangesKeyboardNav();
+  useChangesKeyboardNav("changes");
   useChangesSync();
 
+  return (
+    <ResizableSidebarLayout
+      panelId="primary"
+      sidebarDefaultSize={22}
+      sidebarMinSize={14}
+      sidebarMaxSize={34}
+      sidebar={<ChangesSidebar />}
+      content={<ChangesDiffPane />}
+    />
+  );
+}
+
+function ChangesDiffPane() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
-  const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
-  const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
-
-  const visibleRows: BucketedFile[] = [
-    ...(collapseStaged
-      ? []
-      : (snapshot?.staged ?? []).map((file) => ({ ...file, bucket: "staged" as const }))),
-    ...(collapseUnstaged
-      ? []
-      : [
-          ...(snapshot?.unstaged ?? []).map((file) => ({ ...file, bucket: "unstaged" as const })),
-          ...(snapshot?.untracked ?? []).map((file) => ({ ...file, bucket: "untracked" as const })),
-        ]),
-  ];
-
-  usePrefetchChangesDiffs(visibleRows, activeRepo, activeBucket, activePath);
+  const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
 
   const previewSelection = useThrottledDiffSelection(
     activePath
@@ -54,12 +53,33 @@ export function ChangesScreen() {
       refetchOnReconnect: true,
     },
   );
-  const fileVersions = workingFileVersions.data;
-  const loadingPatch = workingFileVersions.isFetching;
+  const fileVersions = workingFileVersions.currentData ?? workingFileVersions.data;
+  const loadingPatch = !fileVersions && workingFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
-  const errorMessage = errorMessageFrom(workingFileVersions.error, "");
+  const errorMessage = fileVersions ? "" : errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? "";
+  const lspText = !loadingPatch && newFile ? newFile.contents : null;
+  const lspHoverDocument =
+    activeRepo && previewPath && lspText !== null
+      ? { repoPath: activeRepo, relPath: previewPath }
+      : undefined;
+
+  useCurrentLspDocument(activeRepo, previewPath, lspText);
+
+  const lspDiagnostics = useDiffDiagnostics(activeRepo, previewPath);
+  const focusedLineNumber =
+    diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineNumber
+      : null;
+  const focusedLineIndex =
+    diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.lineIndex
+      : null;
+  const focusedLineKey =
+    diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
+      ? diffFocusTarget.focusKey
+      : null;
 
   return (
     <div className="grid h-full min-h-0 min-w-0">
@@ -74,13 +94,23 @@ export function ChangesScreen() {
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
-            <DiffWorkspace
-              oldFile={oldFile}
-              newFile={newFile}
-              activePath={previewPath}
-              commentContext={{ kind: "changes" }}
-              canComment
-            />
+            <div className="flex h-full min-h-0 min-w-0 flex-col">
+              <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
+              <DiffWorkspace
+                oldFile={oldFile}
+                newFile={newFile}
+                activePath={previewPath}
+                commentContext={{ kind: "changes" }}
+                canComment
+                lspDiagnostics={lspDiagnostics}
+                fileViewerRevision={null}
+                lspHoverDocument={lspHoverDocument}
+                lspJumpContextKind="changes"
+                focusedLineNumber={focusedLineNumber}
+                focusedLineIndex={focusedLineIndex}
+                focusedLineKey={focusedLineKey}
+              />
+            </div>
           )}
         </div>
       </section>

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Accordion as AccordionPrimitive } from "radix-ui";
 
 import { cn } from "@/lib/utils";
@@ -24,20 +24,23 @@ function AccordionItem({
 function AccordionTrigger({
   className,
   children,
+  hideChevron,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger> & { hideChevron?: boolean }) {
   return (
     <AccordionPrimitive.Header className="flex">
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          "focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180",
+          "focus-visible:border-ring items-center focus-visible:ring-ring/50 flex flex-1 justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-[transform,background-color] duration-200 ease-[var(--ease-out)] outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-90",
           className,
         )}
         {...props}
       >
+        {!hideChevron && (
+          <ChevronRight className="text-muted-foreground pointer-events-none size-4 shrink-0 transition-transform duration-200" />
+        )}
         {children}
-        <ChevronDownIcon className="text-muted-foreground pointer-events-none size-4 shrink-0 translate-y-0.5 transition-transform duration-200" />
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   );

@@ -1,4 +1,5 @@
 import type {
+  AppSettings as ContractAppSettings,
   Bucket as ContractBucket,
   DiffFile as ContractDiffFile,
   FileItem as ContractFileItem,
@@ -6,6 +7,11 @@ import type {
   FileVersions as ContractFileVersions,
   GitSnapshot as ContractGitSnapshot,
   HistoryCommit as ContractHistoryCommit,
+  LspDiagnostic as ContractLspDiagnostic,
+  LspLocation as ContractLspLocation,
+  RepoFileItem as ContractRepoFileItem,
+  PullRequestReviewThread,
+  GitProviderId,
 } from "@/platform/desktop";
 
 export type Bucket = ContractBucket;
@@ -16,7 +22,13 @@ export type HistoryNavTarget = "commits" | "files";
 
 export type DiffStyle = "split" | "unified";
 
+export type FileBrowserMode = ContractAppSettings["sourceControl"]["fileTreeRenderMode"];
+
 export type FileItem = ContractFileItem;
+
+export type RepoFileItem = ContractRepoFileItem;
+
+export type LspLocation = ContractLspLocation;
 
 export type BucketedFile = FileItem & { bucket: Bucket };
 
@@ -25,7 +37,77 @@ export type SelectedFile = {
   path: string;
 };
 
+export type DiffReturnTarget =
+  | {
+      kind: "changes";
+      repoPath: string;
+      path: string;
+      bucket: Bucket;
+      lineNumber: number;
+      lineIndex: string | null;
+    }
+  | {
+      kind: "review";
+      repoPath: string;
+      path: string;
+      baseRef: string;
+      headRef: string;
+      lineNumber: number;
+      lineIndex: string | null;
+    }
+  | {
+      kind: "pull-request";
+      repoPath: string;
+      path: string;
+      lineNumber: number;
+      lineIndex: string | null;
+    };
+
+export type DiffFocusTarget = {
+  kind: "changes" | "review";
+  path: string;
+  lineNumber: number;
+  lineIndex: string | null;
+  focusKey: number;
+};
+
+export type FileViewerTarget = {
+  repoPath: string;
+  relPath: string;
+  revision?: string | null;
+  line?: number | null;
+  column?: number | null;
+  focusKey?: number | null;
+  returnToDiff?: DiffReturnTarget | null;
+};
+
+export type SymbolPeekKind = "definitions" | "references";
+
+export type SymbolPeekSourceDocument = {
+  repoPath: string;
+  relPath: string;
+};
+
+export type SymbolPeekAnchor = {
+  lineNumber: number;
+  lineIndex: string | null;
+};
+
+export type SymbolPeekState = {
+  kind: SymbolPeekKind;
+  locations: LspLocation[];
+  activeIndex: number;
+  query: string;
+  sourceDocument: SymbolPeekSourceDocument;
+  anchor: SymbolPeekAnchor;
+  returnToDiff?: DiffReturnTarget | null;
+};
+
+export type ChangesSidebarMode = "changes" | "files" | "pull-requests" | "pull-request";
+
 export type HistoryCommit = ContractHistoryCommit;
+
+export type LspDiagnostic = ContractLspDiagnostic;
 
 export type SelectionRange = {
   start: number;
@@ -54,6 +136,17 @@ export type CommentItem = {
   headRef?: string;
 };
 
+export type PullRequestReviewAnchor = {
+  key: string;
+  path: string;
+  previousPath: string | null;
+  side: "deletions" | "additions";
+  startLine: number;
+  endLine: number;
+  remoteThreads: PullRequestReviewThread[];
+  pendingDrafts: CommentItem[];
+};
+
 export type ComposerAnnotation = {
   type: "composer";
   side: "deletions" | "additions";
@@ -62,7 +155,34 @@ export type ComposerAnnotation = {
   endLine: number;
 };
 
-export type DiffAnnotationItem = CommentItem | ComposerAnnotation;
+export type DiagnosticAnnotation = {
+  type: "diagnostic";
+  diagnostic: LspDiagnostic;
+};
+
+export type PullRequestThreadAnnotation = {
+  type: "pull-request-thread";
+  thread: PullRequestReviewThread;
+  repoPath: string;
+  pullRequestNumber: number;
+};
+
+export type PullRequestAnchorAnnotation = {
+  type: "pull-request-anchor";
+  anchor: PullRequestReviewAnchor;
+  repoPath: string;
+  pullRequestNumber: number;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  providerId?: GitProviderId;
+};
+
+export type DiffAnnotationItem =
+  | CommentItem
+  | ComposerAnnotation
+  | DiagnosticAnnotation
+  | PullRequestThreadAnnotation
+  | PullRequestAnchorAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;
 

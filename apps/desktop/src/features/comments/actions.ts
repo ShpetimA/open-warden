@@ -1,13 +1,15 @@
 import type { AppThunk } from "@/app/store";
 import { desktop } from "@/platform/desktop";
-import { setLastCopiedPayload } from "@/features/comments/commentsClipboardSlice";
+import {
+  setLastCopiedPayload,
+  clearLastCopiedPayload,
+} from "@/features/comments/commentsClipboardSlice";
 import {
   addComment as addCommentAction,
   removeComment as removeCommentAction,
   removeCommentsByIds as removeCommentsByIdsAction,
   updateComment as updateCommentAction,
 } from "@/features/comments/commentsSlice";
-import { setError } from "@/features/source-control/sourceControlSlice";
 import type {
   Bucket,
   CommentContext,
@@ -40,11 +42,17 @@ function isMatchingContext(comment: CommentItem, context?: CommentContext): bool
 }
 
 export const addComment =
-  (range: SelectionRange, text: string, context: CommentContext = { kind: "changes" }): AppThunk =>
+  (
+    range: SelectionRange,
+    text: string,
+    context: CommentContext = { kind: "changes" },
+    targetPathOverride?: string,
+  ): AppThunk =>
   (dispatch, getState) => {
     const trimmed = text.trim();
     const { activeRepo, activePath, activeBucket, reviewActivePath } = getState().sourceControl;
-    const targetPath = context.kind === "review" ? reviewActivePath : activePath;
+    const targetPath =
+      targetPathOverride ?? (context.kind === "review" ? reviewActivePath : activePath);
     if (!trimmed || !activeRepo || !targetPath) return;
 
     const side = range.side ?? "additions";
@@ -68,6 +76,7 @@ export const addComment =
     };
 
     dispatch(addCommentAction(next));
+    dispatch(clearLastCopiedPayload());
   };
 
 export const removeComment =
@@ -128,22 +137,20 @@ export const copyComments =
       dispatch(removeCommentsByIdsAction(sourceIds));
       dispatch(setLastCopiedPayload(payload));
       return { ok: true, copiedCount: source.length, clearedCount: source.length };
-    } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+    } catch {
       return { ok: false, copiedCount: 0, clearedCount: 0 };
     }
   };
 
 export const copyLastCommentsPayload =
-  (): AppThunk<Promise<{ ok: boolean }>> => async (dispatch, getState) => {
+  (): AppThunk<Promise<{ ok: boolean }>> => async (_dispatch, getState) => {
     const payload = getState().commentsClipboard.lastCopiedPayload;
     if (!payload) return { ok: false };
 
     try {
       await navigator.clipboard.writeText(payload);
       return { ok: true };
-    } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+    } catch {
       return { ok: false };
     }
   };

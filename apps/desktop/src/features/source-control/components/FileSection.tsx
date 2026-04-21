@@ -1,20 +1,19 @@
-import { ChevronDown, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
+import { Minus, Plus, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { useAppSelector } from "@/app/hooks";
-import { createCommentCountByPathForRepo } from "@/features/comments/selectors";
+import { AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import { FileRow } from "./FileRow";
+import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
 
 type Props = {
   sectionKey: "staged" | "unstaged";
   title: string;
   rows: BucketedFile[];
   startIndex: number;
-  collapsed: boolean;
   unstagedCount: number;
   untrackedCount: number;
-  onToggle: (key: "staged" | "unstaged") => void;
   onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
@@ -29,10 +28,8 @@ export function FileSection({
   title,
   rows,
   startIndex,
-  collapsed,
   unstagedCount,
   untrackedCount,
-  onToggle,
   onSelectFile,
   onStageFile,
   onUnstageFile,
@@ -42,35 +39,28 @@ export function FileSection({
   onDiscardChangesGroup,
 }: Props) {
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
-  const comments = useAppSelector((state) => state.comments);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const commentCounts = createCommentCountByPathForRepo(comments, activeRepo, { kind: "changes" });
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
   const isChanges = sectionKey === "unstaged";
 
   return (
-    <div className="overflow-hidden">
-      <div className="text-foreground/80 border-border group flex items-center gap-2 border-b px-3 py-2 text-[11px] font-semibold tracking-[0.14em]">
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={() => onToggle(sectionKey)}
-        >
-          {collapsed ? (
-            <ChevronRight className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
-          )}
-          <span className="min-w-0 truncate font-medium">{title}</span>
-          {isChanges ? (
-            <>
-              <span className="text-muted-foreground text-[10px]">M {unstagedCount}</span>
-              <span className="text-muted-foreground text-[10px]">A {untrackedCount}</span>
-            </>
-          ) : null}
-          <span className="text-muted-foreground ml-auto text-[10px]">{rows.length}</span>
-        </button>
+    <>
+      <AccordionTrigger className="text-foreground/80 border-border group flex items-center gap-2 rounded-none border-b px-3 py-2 text-[11px] font-semibold tracking-[0.14em] hover:no-underline">
+        <span className="min-w-0 truncate font-medium">{title}</span>
+        {isChanges ? (
+          <>
+            <span className="text-muted-foreground text-[10px]">M {unstagedCount}</span>
+            <span className="text-muted-foreground text-[10px]">A {untrackedCount}</span>
+          </>
+        ) : null}
+        <span className="text-muted-foreground ml-auto text-[10px]">{rows.length}</span>
 
-        <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+        <div
+          className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
           {isChanges ? (
             <>
               <button
@@ -78,7 +68,10 @@ export function FileSection({
                 className="text-muted-foreground hover:bg-success/20 hover:text-success p-1"
                 title="Stage all"
                 disabled={rows.length === 0 || !!runningAction}
-                onClick={onStageAll}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStageAll();
+                }}
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -87,7 +80,10 @@ export function FileSection({
                 className="text-muted-foreground hover:bg-destructive/20 hover:text-destructive p-1"
                 title="Discard changes"
                 disabled={rows.length === 0 || !!runningAction}
-                onClick={() => onDiscardChangesGroup(rows)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDiscardChangesGroup(rows);
+                }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -98,34 +94,43 @@ export function FileSection({
               className="text-muted-foreground hover:bg-secondary hover:text-secondary-foreground p-1"
               title="Unstage all"
               disabled={rows.length === 0 || !!runningAction}
-              onClick={onUnstageAll}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnstageAll();
+              }}
             >
               <Minus className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-      </div>
+      </AccordionTrigger>
 
-      {!collapsed ? (
-        <div>
-          {rows.length > 0 ? (
-            rows.map((file, index) => (
+      <AccordionContent className="pb-0">
+        {rows.length > 0 ? (
+          <SourceControlFileBrowser
+            files={rows}
+            mode={fileBrowserMode}
+            className="space-y-0.5 py-0.5"
+            renderFile={({ depth, file, mode, name, navIndex }) => (
               <FileRow
                 key={`${file.bucket}-${file.path}`}
                 file={file}
-                navIndex={startIndex + index}
+                depth={mode === "tree" ? depth : 0}
+                label={mode === "tree" ? name : undefined}
+                navIndex={startIndex + navIndex}
+                showDirectoryPath={mode !== "tree"}
                 onSelectFile={onSelectFile}
                 onStageFile={onStageFile}
                 onUnstageFile={onUnstageFile}
                 onDiscardFile={onDiscardFile}
-                commentCounts={commentCounts}
+                activeRepo={activeRepo}
               />
-            ))
-          ) : (
-            <div className="text-muted-foreground px-3 py-2 text-xs">No files.</div>
-          )}
-        </div>
-      ) : null}
-    </div>
+            )}
+          />
+        ) : (
+          <div className="text-muted-foreground px-3 py-2 text-xs">No files.</div>
+        )}
+      </AccordionContent>
+    </>
   );
 }

@@ -2,27 +2,34 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
 import { useAppSelector } from "@/app/hooks";
+import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import { FileListRow } from "./FileListRow";
 
 type Props = {
   file: BucketedFile;
   navIndex?: number;
+  depth?: number;
+  label?: string;
+  showDirectoryPath?: boolean;
   onSelectFile: (bucket: Bucket, path: string, event: MouseEvent<HTMLButtonElement>) => void;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
   onDiscardFile: (bucket: Bucket, path: string) => void;
-  commentCounts: Map<string, number>;
+  activeRepo: string;
 };
 
 export function FileRow({
   file,
   navIndex,
+  depth,
+  label,
+  showDirectoryPath,
   onSelectFile,
   onStageFile,
   onUnstageFile,
   onDiscardFile,
-  commentCounts,
+  activeRepo,
 }: Props) {
   const isActive = useAppSelector(
     (state) =>
@@ -43,7 +50,9 @@ export function FileRow({
       (selected) => selected.bucket === file.bucket && selected.path === file.path,
     ),
   );
-  const commentCount = commentCounts.get(file.path) ?? 0;
+  const commentCount = useAppSelector((state) =>
+    countCommentsForPathInRepoContext(state.comments, activeRepo, file.path, { kind: "changes" }),
+  );
 
   return (
     <FileListRow
@@ -53,6 +62,10 @@ export function FileRow({
       isActive={isActive}
       isSelected={isSelected}
       navIndex={navIndex}
+      depth={depth}
+      label={label}
+      showDirectoryPath={showDirectoryPath}
+      dataBucket={file.bucket}
       onSelect={(event) => onSelectFile(file.bucket, file.path, event)}
       actions={
         file.bucket === "staged" ? (

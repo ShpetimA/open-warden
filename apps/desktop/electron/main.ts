@@ -2,9 +2,12 @@ import path from "node:path";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
-import { desktopApi } from "./desktop-api";
+import { watchAppSettings } from "./appSettings";
+import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
+  APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
+  LSP_DIAGNOSTICS_CHANNEL,
   UPDATE_CHECK_CHANNEL,
   UPDATE_DOWNLOAD_CHANNEL,
   UPDATE_GET_STATE_CHANNEL,
@@ -15,8 +18,24 @@ import { createUpdateManager } from "./updateManager";
 
 type DesktopMethod = keyof typeof desktopApi;
 let mainWindow: BrowserWindow | null = null;
+let disposeAppSettingsWatcher: (() => void) | null = null;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
+});
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!gotSingleInstanceLock) {
+  app.quit();
+}
+
+configureDesktopApi({
+  onDiagnostics(event) {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    mainWindow.webContents.send(LSP_DIAGNOSTICS_CHANNEL, event);
+  },
 });
 
 function resolveRendererUrl() {
@@ -68,10 +87,30 @@ function createMainWindow() {
   return window;
 }
 
+app.on("second-instance", () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.show();
+    mainWindow.focus();
+    return;
+  }
+
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+  }
+});
+
 ipcMain.removeHandler(DESKTOP_INVOKE_CHANNEL);
 ipcMain.handle(
   DESKTOP_INVOKE_CHANNEL,
   async (_event, method: DesktopMethod, ...args: unknown[]) => {
+    if (!(method in desktopApi)) {
+      throw new Error(`Unknown desktop method: ${String(method)}`);
+    }
+
     const handler = desktopApi[method] as (...params: unknown[]) => unknown;
     return handler(...args);
   },
@@ -88,6 +127,20 @@ ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => updateManager.installUpdate()
 app.whenReady().then(() => {
   createMainWindow();
   updateManager.initialize();
+  void watchAppSettings({
+    onChange(settings) {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+
+      mainWindow.webContents.send(APP_SETTINGS_CHANGED_CHANNEL, settings);
+    },
+    onError(error) {
+      console.error("Failed to reload app settings", error);
+    },
+  }).then((dispose) => {
+    disposeAppSettingsWatcher = dispose;
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -98,6 +151,9 @@ app.whenReady().then(() => {
 
 app.on("before-quit", () => {
   updateManager.dispose();
+  disposeAppSettingsWatcher?.();
+  disposeAppSettingsWatcher = null;
+  void disposeDesktopApi();
 });
 
 app.on("window-all-closed", () => {

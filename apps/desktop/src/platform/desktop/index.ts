@@ -1,3 +1,4 @@
+import { createDesktopApiForwarder } from "./createDesktopApi";
 import type { DesktopBridge } from "./contracts";
 import { browserDesktopApi, unavailableDesktopApi } from "./browser";
 
@@ -32,43 +33,26 @@ function resolveDesktopApi(): DesktopBridge {
   return unavailableDesktopApi;
 }
 
+const desktopApi = createDesktopApiForwarder(() => resolveDesktopApi());
+
 export const desktop: DesktopBridge = {
-  selectFolder: () => resolveDesktopApi().selectFolder(),
-  confirm: (message, options) => resolveDesktopApi().confirm(message, options),
-  checkAppExists: (appName) => resolveDesktopApi().checkAppExists(appName),
-  openPath: (targetPath, appName) => resolveDesktopApi().openPath(targetPath, appName),
-  getGitSnapshot: (repoPath) => resolveDesktopApi().getGitSnapshot(repoPath),
-  getCommitHistory: (repoPath, limit) => resolveDesktopApi().getCommitHistory(repoPath, limit),
-  getBranches: (repoPath) => resolveDesktopApi().getBranches(repoPath),
-  getBranchFiles: (repoPath, baseRef, headRef) =>
-    resolveDesktopApi().getBranchFiles(repoPath, baseRef, headRef),
-  getCommitFiles: (repoPath, commitId) => resolveDesktopApi().getCommitFiles(repoPath, commitId),
-  getCommitFileVersions: (repoPath, commitId, relPath, previousPath) =>
-    resolveDesktopApi().getCommitFileVersions(repoPath, commitId, relPath, previousPath),
-  getFileVersions: (repoPath, relPath, bucket) =>
-    resolveDesktopApi().getFileVersions(repoPath, relPath, bucket),
-  getBranchFileVersions: (repoPath, baseRef, headRef, relPath, previousPath) =>
-    resolveDesktopApi().getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
-  stageFile: (repoPath, relPath) => resolveDesktopApi().stageFile(repoPath, relPath),
-  unstageFile: (repoPath, relPath) => resolveDesktopApi().unstageFile(repoPath, relPath),
-  stageAll: (repoPath) => resolveDesktopApi().stageAll(repoPath),
-  unstageAll: (repoPath) => resolveDesktopApi().unstageAll(repoPath),
-  discardFile: (repoPath, relPath, bucket) =>
-    resolveDesktopApi().discardFile(repoPath, relPath, bucket),
-  discardFiles: (repoPath, files) => resolveDesktopApi().discardFiles(repoPath, files),
-  discardAll: (repoPath) => resolveDesktopApi().discardAll(repoPath),
-  commitStaged: (repoPath, message) => resolveDesktopApi().commitStaged(repoPath, message),
+  ...desktopApi,
   getUpdateState: () => resolveDesktopApi().getUpdateState(),
   checkForUpdates: () => resolveDesktopApi().checkForUpdates(),
   downloadUpdate: () => resolveDesktopApi().downloadUpdate(),
   installUpdate: () => resolveDesktopApi().installUpdate(),
   onUpdateState: (listener) => resolveDesktopApi().onUpdateState(listener),
+  onLspDiagnostics: (listener) => resolveDesktopApi().onLspDiagnostics(listener),
+  onAppSettingsChanged: (listener) => resolveDesktopApi().onAppSettingsChanged(listener),
 };
 
 export type {
+  AppSettings,
+  AddPullRequestCommentInput,
   ApiError,
   Bucket,
   ConfirmOptions,
+  ConnectProviderInput,
   DesktopApi,
   DesktopBridge,
   DesktopUpdateActionResult,
@@ -81,6 +65,48 @@ export type {
   FileItem,
   FileStatus,
   FileVersions,
+  GitProviderId,
+  RepoFileItem,
+  GetRepoFileInput,
   GitSnapshot,
+  HostedRepoRef,
   HistoryCommit,
+  LspDiagnostic,
+  LspDiagnosticSeverity,
+  LspDiagnosticsEvent,
+  DesktopLspApi,
+  DesktopSettingsApi,
+  SyncLspDocumentInput,
+  CloseLspDocumentInput,
+  FileTreeRenderMode,
+  GetLspHoverInput,
+  GetLspReferencesInput,
+  LspLocation,
+  LspHoverResult,
+  PreparedPullRequestWorkspace,
+  PreparePullRequestWorkspaceInput,
+  ProviderConnection,
+  PullRequestChangedFile,
+  PullRequestCompareRefs,
+  PullRequestConversation,
+  PullRequestDetail,
+  PullRequestIssueComment,
+  PullRequestLocatorInput,
+  PullRequestOpenMode,
+  PullRequestPerson,
+  PullRequestReviewComment,
+  PullRequestReviewDraftCommentInput,
+  PullRequestReviewThread,
+  ProviderAuthType,
+  ProviderConnectionMethod,
+  ListPullRequestsInput,
+  ResolveActivePullRequestForBranchInput,
+  PullRequestPage,
+  PullRequestSummary,
+  PullRequestState,
+  ReplyToPullRequestThreadInput,
+  SetPullRequestThreadResolvedInput,
+  SubmitPullRequestReviewCommentsInput,
+  SubmitPullRequestReviewCommentsResult,
+  WorkspaceSession,
 } from "./contracts";

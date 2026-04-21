@@ -6,13 +6,23 @@ import type { RootState } from "@/app/store";
 import { gitApi } from "@/features/source-control/api";
 import { selectHistoryCommit, selectHistoryFile } from "@/features/source-control/actions";
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
-import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import {
+  setHistoryNavTarget,
+  setSymbolPeekActiveIndex,
+} from "@/features/source-control/sourceControlSlice";
 import type { FileItem, HistoryCommit } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
+import {
+  focusInputById,
+  getVisibleFilePaths,
+  SOURCE_CONTROL_HOTKEY_OPTIONS,
+  useVerticalNavigationHotkeys,
+} from "./keyboardNavigation";
+import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 export function useHistoryKeyboardNav() {
   const dispatch = useAppDispatch();
@@ -44,6 +54,14 @@ export function useHistoryKeyboardNav() {
 
   const navigateHistory = (event: KeyboardEvent, nextKey: boolean) => {
     if (isTypingTarget(event.target)) return;
+
+    const symbolPeekIndex = getNextSymbolPeekIndex(store.getState(), nextKey);
+    if (symbolPeekIndex !== null) {
+      event.preventDefault();
+      dispatch(setSymbolPeekActiveIndex(symbolPeekIndex));
+      return;
+    }
+
     event.preventDefault();
 
     const {
@@ -56,16 +74,19 @@ export function useHistoryKeyboardNav() {
     } = getNavigationData();
 
     if (historyNavTarget === "files") {
-      if (allHistoryFiles.length === 0) return;
+      const visibleFilePaths = getVisibleFilePaths("history-files");
+      const filePaths =
+        visibleFilePaths.length > 0 ? visibleFilePaths : allHistoryFiles.map((file) => file.path);
+      if (filePaths.length === 0) return;
 
-      const activeIndex = allHistoryFiles.findIndex((file) => file.path === activePath);
+      const activeIndex = filePaths.findIndex((pathValue) => pathValue === activePath);
 
-      const targetIndex = getWrappedNavigationIndex(activeIndex, allHistoryFiles.length, nextKey);
+      const targetIndex = getWrappedNavigationIndex(activeIndex, filePaths.length, nextKey);
 
-      const targetFile = allHistoryFiles[targetIndex];
-      if (!targetFile) return;
+      const targetPath = filePaths[targetIndex];
+      if (!targetPath) return;
       scrollKeyboardNavItemIntoView("history-files", targetIndex);
-      void dispatch(selectHistoryFile(targetFile.path));
+      void dispatch(selectHistoryFile(targetPath));
       return;
     }
 
@@ -103,11 +124,7 @@ export function useHistoryKeyboardNav() {
     if (isTypingTarget(event.target)) return;
     event.preventDefault();
     dispatch(setHistoryNavTarget("commits"));
-    const filterInput = document.getElementById(HISTORY_FILTER_INPUT_ID);
-    if (filterInput instanceof HTMLInputElement) {
-      filterInput.focus();
-      filterInput.select();
-    }
+    focusInputById(HISTORY_FILTER_INPUT_ID);
   };
 
   useHotkey(
@@ -117,7 +134,7 @@ export function useHistoryKeyboardNav() {
       event.preventDefault();
       dispatch(setHistoryNavTarget("commits"));
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
   useHotkey(
@@ -127,7 +144,7 @@ export function useHistoryKeyboardNav() {
       event.preventDefault();
       dispatch(setHistoryNavTarget("files"));
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
   useHotkey(
@@ -135,7 +152,7 @@ export function useHistoryKeyboardNav() {
     (event) => {
       focusHistoryFilter(event);
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
   useHotkey(
@@ -143,38 +160,11 @@ export function useHistoryKeyboardNav() {
     (event) => {
       focusHistoryFilter(event);
     },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
+    SOURCE_CONTROL_HOTKEY_OPTIONS,
   );
 
-  useHotkey(
-    "ArrowDown",
-    (event) => {
-      navigateHistory(event, true);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "J",
-    (event) => {
-      navigateHistory(event, true);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "ArrowUp",
-    (event) => {
-      navigateHistory(event, false);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
-
-  useHotkey(
-    "K",
-    (event) => {
-      navigateHistory(event, false);
-    },
-    { ignoreInputs: false, preventDefault: false, stopPropagation: false },
-  );
+  useVerticalNavigationHotkeys({
+    onNext: (event) => navigateHistory(event, true),
+    onPrevious: (event) => navigateHistory(event, false),
+  });
 }

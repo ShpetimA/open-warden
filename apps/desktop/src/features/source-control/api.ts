@@ -1,6 +1,14 @@
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
-import type { Bucket, FileItem, FileVersions, GitSnapshot, HistoryCommit } from "./types";
+import type {
+  Bucket,
+  DiffFile,
+  FileItem,
+  FileVersions,
+  GitSnapshot,
+  HistoryCommit,
+  RepoFileItem,
+} from "./types";
 import {
   getBranches,
   getBranchFiles,
@@ -12,6 +20,8 @@ import {
   getCommitFileVersions,
   getCommitHistory,
   getFileVersions,
+  getRepoFiles,
+  getRepoFile,
   getGitSnapshot,
   stageAll,
   stageFile,
@@ -24,6 +34,7 @@ type ErrorResult = { message: string };
 type CommitHistoryArgs = { repoPath: string; limit?: number };
 type BranchFilesArgs = { repoPath: string; baseRef: string; headRef: string };
 type CommitFilesArgs = { repoPath: string; commitId: string };
+type RepoFileArgs = { repoPath: string; relPath: string; revision?: string | null };
 type CommitFileVersionsArgs = {
   repoPath: string;
   commitId: string;
@@ -54,6 +65,7 @@ export const gitApi = createApi({
   baseQuery: fakeBaseQuery<ErrorResult>(),
   tagTypes: [
     "Snapshot",
+    "RepoFiles",
     "HistoryCommits",
     "HistoryFiles",
     "Branches",
@@ -70,6 +82,16 @@ export const gitApi = createApi({
         }
       },
       providesTags: (_result, _error, repoPath) => [{ type: "Snapshot", id: repoPath }],
+    }),
+    getRepoFiles: builder.query<RepoFileItem[], string>({
+      async queryFn(repoPath) {
+        try {
+          return { data: await getRepoFiles(repoPath) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, repoPath) => [{ type: "RepoFiles", id: repoPath }],
     }),
     getCommitHistory: builder.query<HistoryCommit[], CommitHistoryArgs>({
       async queryFn({ repoPath, limit }) {
@@ -113,6 +135,18 @@ export const gitApi = createApi({
       },
       providesTags: (_result, _error, { repoPath, commitId }) => [
         { type: "HistoryFiles", id: `${repoPath}:${commitId}` },
+      ],
+    }),
+    getRepoFile: builder.query<DiffFile | null, RepoFileArgs>({
+      async queryFn({ repoPath, relPath, revision }) {
+        try {
+          return { data: await getRepoFile(repoPath, relPath, revision) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, relPath, revision }) => [
+        { type: "FileVersions", id: `file:${repoPath}:${revision ?? "worktree"}:${relPath}` },
       ],
     }),
     getCommitFileVersions: builder.query<FileVersions, CommitFileVersionsArgs>({
@@ -246,10 +280,12 @@ export const gitApi = createApi({
 
 export const {
   useGetGitSnapshotQuery,
+  useGetRepoFilesQuery,
   useGetCommitHistoryQuery,
   useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetCommitFilesQuery,
+  useGetRepoFileQuery,
   useGetCommitFileVersionsQuery,
   useGetFileVersionsQuery,
   useGetBranchFileVersionsQuery,

@@ -1,4 +1,4 @@
-import { createContext, useContext, useCallback, useState, useSyncExternalStore } from "react";
+import { createContext, useContext, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 
@@ -85,23 +85,17 @@ export function SidebarPanelRegistryProvider({ children }: SidebarPanelRegistryP
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarPanelRegistryOptional() {
   return useContext(SidebarPanelRegistryContext);
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarPanelRegistry() {
   const api = useContext(SidebarPanelRegistryContext);
   if (!api) {
     throw new Error("useSidebarPanelRegistry must be used within a SidebarPanelRegistryProvider");
   }
 
-  const subscribe = useCallback((callback: () => void) => api.subscribe(callback), [api]);
-
-  const getSnapshot = useCallback(() => api.getSnapshot(), [api]);
-
-  const panels = useSyncExternalStore(subscribe, getSnapshot);
+  const panels = useSyncExternalStore(api.subscribe, api.getSnapshot);
 
   return {
     panels,

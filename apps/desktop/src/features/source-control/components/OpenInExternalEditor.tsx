@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { desktop } from "@/platform/desktop";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -239,31 +240,50 @@ export function OpenInExternalEditor({
 
   if (compact) {
     return (
-      <div className="flex items-center gap-0.5">
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground inline-flex h-6 w-6 items-center justify-center"
-          title={`Open ${noun} in ${current.label}`}
-          aria-label={`Open ${noun} in ${current.label}`}
-          disabled={openDisabled}
-          onClick={() => {
-            void openPathInApp(current.id);
-          }}
-        >
-          {opening ? <Spinner className="size-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
-        </button>
-
+      <TooltipProvider>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground inline-flex h-6 w-5 items-center justify-center"
-              aria-label={`Choose app for opening ${noun}`}
-              disabled={openDisabled}
-            >
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-          </DropdownMenuTrigger>
+          <div className="border-border/70 bg-surface-alt/50 flex h-6 items-center overflow-hidden rounded-md border">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground inline-flex h-full w-6 items-center justify-center px-1"
+                  aria-label={`Open ${noun} in ${current.label}`}
+                  disabled={openDisabled}
+                  onClick={() => {
+                    void openPathInApp(current.id);
+                  }}
+                >
+                  {opening ? (
+                    <Spinner className="size-3.5" />
+                  ) : (
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Open {noun} in {current.label}
+              </TooltipContent>
+            </Tooltip>
+
+            <div className="bg-border/70 h-full w-px" />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground inline-flex h-full w-5 items-center justify-center"
+                    aria-label={`Choose app for opening ${noun}`}
+                    disabled={openDisabled}
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Open in...</TooltipContent>
+            </Tooltip>
+          </div>
 
           <DropdownMenuContent align="end" className="w-52">
             <DropdownMenuLabel>Open in</DropdownMenuLabel>
@@ -302,7 +322,7 @@ export function OpenInExternalEditor({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </TooltipProvider>
     );
   }
 

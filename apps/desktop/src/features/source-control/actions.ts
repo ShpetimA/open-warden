@@ -1,24 +1,41 @@
-import type { AppThunk } from "@/app/store";
+import type { AppThunk, RootState } from "@/app/store";
+import { toast } from "sonner";
 import { desktop } from "@/platform/desktop";
+import {
+  addRecentRepo,
+  buildWorkspaceSession,
+  createWorkspaceSession,
+  normalizeRepoPaths,
+} from "@/platform/desktop/workspaceSession";
 import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
+import {
+  clearCurrentPullRequestReview,
+  setPullRequestFilesViewMode,
+  setPullRequestFileJumpTarget,
+} from "@/features/pull-requests/pullRequestsSlice";
+import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
 import { gitApi } from "./api";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
+import { findExistingBucket } from "./utils";
 import {
-  addRepo,
-  clearDiffSelection,
-  clearError,
-  clearHistorySelection,
-  clearReviewSelection,
+  closeFileViewer,
+  hydrateWorkspaceSession as hydrateWorkspaceSessionState,
   removeRepo,
+  resetRepoViewState,
   setActiveBucket,
   setActivePath,
   setActiveRepo,
   setCommitMessage,
+  setDiffFocusTarget,
   setDiffStyle,
-  setError,
   setHistoryCommitId,
   setHistoryNavTarget,
   setLastCommitId,
+  setRecentRepos,
+  setRepos,
+  setReviewActivePath,
+  setReviewBaseRef,
+  setReviewHeadRef,
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
@@ -59,46 +76,151 @@ function dedupeSelection(files: SelectedFile[]): SelectedFile[] {
   });
 }
 
+type DiscardInput = { path: string; bucket: Bucket };
+type DiscardPayload = { relPath: string; bucket: Bucket };
+
+function discardBucketPriority(bucket: Bucket) {
+  if (bucket === "staged") return 3;
+  if (bucket === "unstaged") return 2;
+  return 1;
+}
+
+function pickPreferredDiscardBucket(current: Bucket | undefined, next: Bucket): Bucket {
+  if (!current) return next;
+  return discardBucketPriority(next) > discardBucketPriority(current) ? next : current;
+}
+
+function resolveDiscardBucket(
+  snapshot: GitSnapshot | null | undefined,
+  filePath: string,
+  fallback: Bucket,
+): Bucket | null {
+  if (!snapshot) return fallback;
+  return findExistingBucket(snapshot, filePath);
+}
+
+function buildDiscardPayload(
+  snapshot: GitSnapshot | null | undefined,
+  files: DiscardInput[],
+): DiscardPayload[] {
+  const byPath = new Map<string, Bucket>();
+
+  for (const file of files) {
+    const resolvedBucket = resolveDiscardBucket(snapshot, file.path, file.bucket);
+    if (!resolvedBucket) continue;
+
+    const existing = byPath.get(file.path);
+    byPath.set(file.path, pickPreferredDiscardBucket(existing, resolvedBucket));
+  }
+
+  return [...byPath.entries()].map(([relPath, bucket]) => ({ relPath, bucket }));
+}
+
+const resetRepoScopedState = (): AppThunk => (dispatch) => {
+  dispatch(resetRepoViewState());
+  dispatch(clearCurrentPullRequestReview());
+};
+
+async function persistWorkspaceSession(getState: () => RootState) {
+  const { sourceControl } = getState();
+  await desktop.saveWorkspaceSession(buildWorkspaceSession(sourceControl));
+}
+
+async function resolveRepoPath(repoPath: string): Promise<string | null> {
+  try {
+    const snapshot = await desktop.getGitSnapshot(repoPath);
+    return snapshot.repoRoot.trim() || repoPath;
+  } catch {
+    return null;
+  }
+}
+
+async function restoreRepoPaths(repoPaths: string[]): Promise<string[]> {
+  const normalizedPaths = normalizeRepoPaths(repoPaths);
+  const resolvedPaths = await Promise.all(
+    normalizedPaths.map((repoPath) => resolveRepoPath(repoPath)),
+  );
+
+  return normalizeRepoPaths(resolvedPaths);
+}
+
+export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dispatch) => {
+  try {
+    const storedSession = await desktop.loadWorkspaceSession();
+    const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
+    const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
+    const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
+    const workspaceSession = createWorkspaceSession({
+      openRepos: restoredOpenRepos,
+      activeRepo: restoredActiveRepo ?? undefined,
+      recentRepos: restoredRecentRepos,
+    });
+
+    dispatch(hydrateWorkspaceSessionState(workspaceSession));
+
+    if (!workspaceSession.activeRepo) {
+      dispatch(resetRepoScopedState());
+    }
+
+    await desktop.saveWorkspaceSession(workspaceSession);
+  } catch (error) {
+    dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(`Failed to restore workspace session: ${message}`);
+  }
+};
+
+export const openRepo =
+  (repoPath: string): AppThunk<Promise<void>> =>
+  async (dispatch, getState) => {
+    const resolvedRepoPath = await resolveRepoPath(repoPath);
+
+    if (!resolvedRepoPath) {
+      toast.error(`Could not open repository: ${repoPath}`);
+      return;
+    }
+
+    const { activeRepo, repos, recentRepos } = getState().sourceControl;
+    const nextRepos = normalizeRepoPaths([...repos, resolvedRepoPath]);
+    const nextRecentRepos = addRecentRepo(recentRepos, resolvedRepoPath);
+
+    if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
+      dispatch(setRecentRepos(nextRecentRepos));
+      await persistWorkspaceSession(getState);
+      return;
+    }
+
+    dispatch(setRepos(nextRepos));
+    dispatch(setActiveRepo(resolvedRepoPath));
+    dispatch(setRecentRepos(nextRecentRepos));
+    dispatch(resetRepoScopedState());
+    await persistWorkspaceSession(getState);
+  };
+
 export const selectFolder = (): AppThunk => async (dispatch) => {
   let selected: string | null;
 
   try {
     selected = await desktop.selectFolder();
   } catch (error) {
-    dispatch(setError(error instanceof Error ? error.message : String(error)));
+    const message = error instanceof Error ? error.message : String(error);
+    toast.error(`Failed to select folder: ${message}`);
     return;
   }
 
   if (!selected) return;
 
-  dispatch(addRepo(selected));
-  dispatch(setActiveRepo(selected));
-  dispatch(clearError());
-  dispatch(clearHistorySelection());
-  dispatch(clearDiffSelection());
-  dispatch(clearReviewSelection());
-  dispatch(setActiveBucket("unstaged"));
-  dispatch(setSelectedFiles([]));
-  dispatch(setSelectionAnchor(null));
+  await dispatch(openRepo(selected));
 };
 
 export const selectRepo =
   (repo: string): AppThunk =>
-  async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
-    if (repo === activeRepo) return;
-    dispatch(setActiveRepo(repo));
-    dispatch(clearError());
-    dispatch(clearHistorySelection());
-    dispatch(clearDiffSelection());
-    dispatch(clearReviewSelection());
-    dispatch(setActiveBucket("unstaged"));
-    dispatch(setSelectedFiles([]));
-    dispatch(setSelectionAnchor(null));
+  async (dispatch) => {
+    await dispatch(openRepo(repo));
   };
 
 export const closeRepo =
-  (repo: string): AppThunk =>
+  (repo: string): AppThunk<Promise<{ closedActiveRepo: boolean; nextActiveRepo: string }>> =>
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     const closingActiveRepo = repo === activeRepo;
@@ -106,14 +228,15 @@ export const closeRepo =
     dispatch(removeCommentsForRepo(repo));
 
     if (closingActiveRepo) {
-      dispatch(clearError());
-      dispatch(clearHistorySelection());
-      dispatch(clearDiffSelection());
-      dispatch(clearReviewSelection());
-      dispatch(setActiveBucket("unstaged"));
-      dispatch(setSelectedFiles([]));
-      dispatch(setSelectionAnchor(null));
+      dispatch(resetRepoScopedState());
     }
+
+    await persistWorkspaceSession(getState);
+
+    return {
+      closedActiveRepo: closingActiveRepo,
+      nextActiveRepo: getState().sourceControl.activeRepo,
+    };
   };
 
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
@@ -232,17 +355,83 @@ export const setDiffStyleValue =
     dispatch(setDiffStyle(value));
   };
 
+export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getState) => {
+  const returnToDiff = getState().sourceControl.fileViewerTarget?.returnToDiff;
+  if (!returnToDiff) {
+    return;
+  }
+
+  dispatch(closeFileViewer());
+
+  if (returnToDiff.kind === "changes") {
+    const selection = { bucket: returnToDiff.bucket, path: returnToDiff.path };
+    dispatch(setActiveBucket(returnToDiff.bucket));
+    dispatch(setActivePath(returnToDiff.path));
+    dispatch(setSelectedFiles([selection]));
+    dispatch(setSelectionAnchor(selection));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "changes",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  if (returnToDiff.kind === "review") {
+    dispatch(setReviewBaseRef(returnToDiff.baseRef));
+    dispatch(setReviewHeadRef(returnToDiff.headRef));
+    dispatch(setReviewActivePath(returnToDiff.path));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "review",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  dispatch(setPullRequestFilesViewMode("review"));
+  dispatch(setReviewActivePath(returnToDiff.path));
+  dispatch(
+    setPullRequestFileJumpTarget({
+      path: returnToDiff.path,
+      lineNumber: returnToDiff.lineNumber,
+      lineIndex: returnToDiff.lineIndex,
+      focusKey: createFileViewerFocusKey(),
+      threadId: null,
+    }),
+  );
+};
+
+function repoActionLabel(action: RunningAction): string {
+  if (action === "stage-all") return "stage all files";
+  if (action === "unstage-all") return "unstage all files";
+  if (action === "discard-changes") return "discard selected changes";
+  if (action === "commit") return "create commit";
+  if (action.startsWith("file:stage:")) return "stage file";
+  if (action.startsWith("file:unstage:")) return "unstage file";
+  if (action.startsWith("file:discard:")) return "discard file changes";
+  return "run repository action";
+}
+
 const runRepoAction =
   (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
   async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
-    if (!activeRepo) return;
+    const { activeRepo, runningAction } = getState().sourceControl;
+    if (!activeRepo || runningAction) return;
     dispatch(setRunningAction(action));
-    dispatch(clearError());
     try {
       await dispatch(thunk);
     } catch (error) {
-      dispatch(setError(error instanceof Error ? error.message : String(error)));
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
     } finally {
       dispatch(setRunningAction(""));
     }
@@ -293,16 +482,22 @@ export const unstageFileAction =
 export const discardFileAction =
   (bucket: Bucket, filePath: string): AppThunk =>
   async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
+    const state = getState();
+    const { activeRepo } = state.sourceControl;
     if (!activeRepo) return;
+
+    const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data;
+    const payload = buildDiscardPayload(snapshot, [{ path: filePath, bucket }]);
+    const target = payload[0];
+    if (!target) return;
 
     await dispatch(
       runRepoAction(`file:discard:${filePath}`, async (innerDispatch) => {
         const result = innerDispatch(
           gitApi.endpoints.discardFile.initiate({
             repoPath: activeRepo,
-            relPath: filePath,
-            bucket,
+            relPath: target.relPath,
+            bucket: target.bucket,
           }),
         );
         await result.unwrap();
@@ -362,12 +557,19 @@ export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
 export const discardChangesGroupAction =
   (files: BucketedFile[]): AppThunk =>
   async (dispatch, getState) => {
-    const { activeRepo } = getState().sourceControl;
+    const state = getState();
+    const { activeRepo } = state.sourceControl;
     if (!activeRepo) return;
+
+    const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data;
+    const payload = buildDiscardPayload(
+      snapshot,
+      files.map((file) => ({ path: file.path, bucket: file.bucket })),
+    );
+    if (payload.length === 0) return;
 
     await dispatch(
       runRepoAction("discard-changes", async (innerDispatch) => {
-        const payload = files.map((file) => ({ relPath: file.path, bucket: file.bucket }));
         const result = innerDispatch(
           gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
         );
