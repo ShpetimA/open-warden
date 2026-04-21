@@ -86,7 +86,6 @@ export function RepoFilesTab() {
 
   return (
     <FileListPane
-      title="FILES"
       navRegion="repo-files"
       files={repoFiles}
       mode={fileBrowserMode}

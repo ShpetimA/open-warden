@@ -13,7 +13,7 @@ export type FileListPaneRowArgs<TFile> = {
 };
 
 type FileListPaneProps<TFile extends { path: string }> = {
-  title: ReactNode;
+  title?: ReactNode;
   subtitle?: ReactNode;
   toolbar?: ReactNode;
   navRegion: string;
@@ -54,14 +54,17 @@ export function FileListPane<TFile extends { path: string }>({
       onMouseDown={onMouseDown}
       className={`bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r ${paneClassName}`.trim()}
     >
-      <div className={`border-border border-b ${headerClassName}`.trim()}>
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-          {title}
+      {title || subtitle || toolbar ? (
+        <div className={`border-border border-b ${headerClassName}`.trim()}>
+          {title ? (
+            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+              {title}
+            </div>
+          ) : null}
+          {subtitle ? <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div> : null}
+          {toolbar ? <div className="mt-2">{toolbar}</div> : null}
         </div>
-        {subtitle ? <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div> : null}
-        {toolbar ? <div className="mt-2">{toolbar}</div> : null}
-      </div>
-
+      ) : null}
       <ScrollArea data-nav-region={navRegion} className={scrollAreaClassName}>
         {error ? (
           <div className="text-destructive px-3 py-4 text-sm">{error}</div>

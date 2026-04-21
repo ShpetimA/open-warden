@@ -20,8 +20,8 @@ function CurrentRepositoryHeader({
   return (
     <div className="border-border border-b px-3 py-1.5">
       <div className="flex items-center gap-2">
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-          CURRENT REPOSITORY
+        <div className="text-foreground/80 text-[13px] font-normal">
+          <span>{activeRepo ? repoLabel(activeRepo) : "No repo selected"}</span>
         </div>
         <div className="ml-auto flex items-center gap-0.5">
           <OpenInExternalEditor
@@ -42,11 +42,9 @@ function CurrentRepositoryHeader({
           </button>
         </div>
       </div>
-      <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1 text-xs">
-        <span className="truncate">{activeRepo ? repoLabel(activeRepo) : "No repo selected"}</span>
+      <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
         {activeRepo ? (
           <>
-            <span aria-hidden>·</span>
             <GitBranch className="h-3 w-3 shrink-0" />
             <span className="truncate">{branchLabel}</span>
           </>
