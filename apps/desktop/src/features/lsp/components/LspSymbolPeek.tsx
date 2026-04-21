@@ -182,6 +182,7 @@ function SymbolPeekPreview({
       </div>
       <div ref={previewRef} className="min-h-0 flex-1 overflow-auto">
         <PierreFile
+          key={location.relPath}
           file={{
             name: location.relPath,
             contents,
@@ -250,7 +251,7 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
     },
   );
 
-  const previewFile = previewQuery.data;
+  const previewFile = previewQuery.currentData;
   const previewError = errorMessageFrom(previewQuery.error, "");
   const locationPaths = useMemo(
     () => Array.from(new Set(locations.map((location) => location.relPath))),

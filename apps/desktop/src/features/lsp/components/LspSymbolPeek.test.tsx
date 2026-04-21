@@ -110,6 +110,7 @@ describe("LspSymbolPeek", () => {
       if (arg.relPath === "src/a.ts") {
         return {
           data: { name: "src/a.ts", contents: "alpha\nbeta hit\ngamma second" },
+          currentData: { name: "src/a.ts", contents: "alpha\nbeta hit\ngamma second" },
           isFetching: false,
           error: undefined,
         };
@@ -118,6 +119,7 @@ describe("LspSymbolPeek", () => {
       if (arg.relPath === "src/b.ts") {
         return {
           data: { name: "src/b.ts", contents: "zero\nomega target\nlast" },
+          currentData: { name: "src/b.ts", contents: "zero\nomega target\nlast" },
           isFetching: false,
           error: undefined,
         };

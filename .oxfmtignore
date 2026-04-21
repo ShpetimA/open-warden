@@ -9,3 +9,5 @@ out
 playwright-report
 test-results
 *.tsbuildinfo
+api-ref
+api-ref/*
