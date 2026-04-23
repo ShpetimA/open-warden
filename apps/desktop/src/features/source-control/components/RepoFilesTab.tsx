@@ -6,6 +6,7 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import type { RepoFileItem } from "@/features/source-control/types";
 import { FileListPane, type FileListPaneRowArgs } from "./FileListPane";
+import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 
 type RepoTreeFileRowProps = {
   row: FileListPaneRowArgs<RepoFileItem>;
@@ -70,7 +71,9 @@ function RepoTreeFileRow({ row }: RepoTreeFileRowProps) {
 }
 
 export function RepoFilesTab() {
+  const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const activePath = useAppSelector((state) => state.sourceControl.repoTreeActivePath);
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
@@ -83,6 +86,43 @@ export function RepoFilesTab() {
       isLoadingRepoFiles: isLoading,
     }),
   });
+  const openRepoFilePath = (path: string) => {
+    if (!activeRepo) {
+      dispatch(setRepoTreeActivePath(path));
+      return;
+    }
+
+    dispatch(
+      openFileViewer({
+        repoPath: activeRepo,
+        relPath: path,
+      }),
+    );
+  };
+
+  if (fileBrowserMode === "tree") {
+    return (
+      <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
+        {isLoadingRepoFiles && repoFiles.length === 0 ? (
+          <div className="text-muted-foreground px-2 py-2 text-xs">Loading files...</div>
+        ) : repoFiles.length === 0 ? (
+          <div className="text-muted-foreground px-2 py-2 text-xs">No repository files found.</div>
+        ) : (
+          <PierreFileTreeBrowser
+            files={repoFiles}
+            initialSelectedPath={activePath}
+            navRegion="repo-files"
+            onSelectPath={(path) => {
+              openRepoFilePath(path);
+            }}
+            onActivatePath={(path) => {
+              openRepoFilePath(path);
+            }}
+          />
+        )}
+      </aside>
+    );
+  }
 
   return (
     <FileListPane

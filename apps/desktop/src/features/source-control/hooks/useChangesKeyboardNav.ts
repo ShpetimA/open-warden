@@ -9,6 +9,7 @@ import {
   selectFile,
   stageOrUnstageSelectionAction,
 } from "@/features/source-control/actions";
+import { movePeerFileTreeFocus } from "@/features/source-control/peerFileTreeNavigation";
 import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
@@ -52,6 +53,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       repoTreeActivePath,
       runningAction,
     } = state.sourceControl;
+    const fileBrowserMode = state.settings.appSettings.sourceControl.fileTreeRenderMode;
     const snapshot = activeRepo
       ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
       : undefined;
@@ -67,6 +69,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       collapseUnstaged,
       repoTreeActivePath,
       runningAction,
+      fileBrowserMode,
       repoFiles,
       snapshot,
     };
@@ -90,6 +93,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       activeRepo,
       collapseStaged,
       collapseUnstaged,
+      fileBrowserMode,
       repoFiles,
       repoTreeActivePath,
       snapshot,
@@ -97,6 +101,11 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     if (mode === "files") {
       if (!activeRepo) {
+        return;
+      }
+
+      if (fileBrowserMode === "tree") {
+        movePeerFileTreeFocus("repo-files", nextKey);
         return;
       }
 
@@ -120,6 +129,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
       scrollKeyboardNavItemIntoView("repo-files", targetIndex);
       dispatch(setRepoTreeActivePath(targetPath));
+
       dispatch(
         openFileViewer({
           repoPath: activeRepo,
