@@ -6,6 +6,7 @@ import type { RootState } from "@/app/store";
 import { gitApi } from "@/features/source-control/api";
 import { selectHistoryCommit, selectHistoryFile } from "@/features/source-control/actions";
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
+import { movePierreFileTreeFocus } from "@/features/source-control/pierreFileTreeNavigation";
 import {
   setHistoryNavTarget,
   setSymbolPeekActiveIndex,
@@ -32,6 +33,7 @@ export function useHistoryKeyboardNav() {
     const state = store.getState();
     const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } =
       state.sourceControl;
+    const fileBrowserMode = state.settings.appSettings.sourceControl.fileTreeRenderMode;
     const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null;
     const historyFilesArgs =
       activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null;
@@ -46,6 +48,7 @@ export function useHistoryKeyboardNav() {
       historyCommitId,
       historyNavTarget,
       historyFilter,
+      fileBrowserMode,
       activePath,
       allHistoryCommits: (historyCommits ?? []) as HistoryCommit[],
       allHistoryFiles: (historyFiles ?? []) as FileItem[],
@@ -68,12 +71,18 @@ export function useHistoryKeyboardNav() {
       historyCommitId,
       historyNavTarget,
       historyFilter,
+      fileBrowserMode,
       activePath,
       allHistoryCommits,
       allHistoryFiles,
     } = getNavigationData();
 
     if (historyNavTarget === "files") {
+      if (fileBrowserMode === "tree") {
+        movePierreFileTreeFocus("history-files", nextKey);
+        return;
+      }
+
       const visibleFilePaths = getVisibleFilePaths("history-files");
       const filePaths =
         visibleFilePaths.length > 0 ? visibleFilePaths : allHistoryFiles.map((file) => file.path);

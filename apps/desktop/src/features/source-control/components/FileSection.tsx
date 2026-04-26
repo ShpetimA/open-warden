@@ -4,6 +4,7 @@ import type { MouseEvent } from "react";
 import { useAppSelector } from "@/app/hooks";
 import { AccordionContent, AccordionTrigger } from "@/components/ui/accordion";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
+import { ChangesPierreFileTree } from "./ChangesPierreFileTree";
 import { FileRow } from "./FileRow";
 import { SourceControlFileBrowser } from "./SourceControlFileBrowser";
 
@@ -106,7 +107,16 @@ export function FileSection({
       </AccordionTrigger>
 
       <AccordionContent className="pb-0">
-        {rows.length > 0 ? (
+        {rows.length > 0 && fileBrowserMode === "tree" ? (
+          <ChangesPierreFileTree
+            rows={rows}
+            sectionKey={sectionKey}
+            activeRepo={activeRepo}
+            onStageFile={onStageFile}
+            onUnstageFile={onUnstageFile}
+            onDiscardFile={onDiscardFile}
+          />
+        ) : rows.length > 0 ? (
           <SourceControlFileBrowser
             files={rows}
             mode={fileBrowserMode}

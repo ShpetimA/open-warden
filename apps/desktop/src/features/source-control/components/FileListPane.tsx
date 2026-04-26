@@ -2,7 +2,7 @@ import type { MouseEventHandler, ReactNode } from "react";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SourceControlFileBrowser } from "@/features/source-control/components/SourceControlFileBrowser";
-import type { FileBrowserMode } from "@/features/source-control/types";
+import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
 
 export type FileListPaneRowArgs<TFile> = {
   file: TFile;
@@ -20,6 +20,11 @@ type FileListPaneProps<TFile extends { path: string }> = {
   files: ReadonlyArray<TFile>;
   mode: FileBrowserMode;
   renderRow: (args: FileListPaneRowArgs<TFile>) => ReactNode;
+  activePath?: string;
+  onSelectFile?: (file: TFile) => void;
+  onActivateFile?: (file: TFile) => void;
+  getCommentCount?: (file: TFile) => number;
+  getFileStatus?: (file: TFile) => FileStatus | undefined;
   isLoading?: boolean;
   error?: string;
   loadingState?: ReactNode;
@@ -39,6 +44,11 @@ export function FileListPane<TFile extends { path: string }>({
   files,
   mode,
   renderRow,
+  activePath = "",
+  onSelectFile,
+  onActivateFile,
+  getCommentCount,
+  getFileStatus,
   isLoading = false,
   error = "",
   loadingState = null,
@@ -49,6 +59,47 @@ export function FileListPane<TFile extends { path: string }>({
   scrollAreaClassName = "min-h-0 flex-1 overflow-hidden",
   onMouseDown,
 }: FileListPaneProps<TFile>) {
+  const content = error ? (
+    <div className="text-destructive px-3 py-4 text-sm">{error}</div>
+  ) : isLoading && files.length === 0 ? (
+    loadingState
+  ) : files.length === 0 ? (
+    emptyState
+  ) : (
+    <SourceControlFileBrowser
+      files={files}
+      mode={mode}
+      className={bodyClassName}
+      navRegion={navRegion}
+      selectedPath={activePath}
+      onSelectPath={
+        onSelectFile
+          ? (_path, file) => {
+              onSelectFile(file);
+            }
+          : undefined
+      }
+      onActivatePath={
+        onActivateFile
+          ? (_path, file) => {
+              onActivateFile(file);
+            }
+          : undefined
+      }
+      getCommentCount={getCommentCount}
+      getFileStatus={getFileStatus}
+      renderFile={({ depth, file, mode: currentMode, name, navIndex }) =>
+        renderRow({
+          file,
+          depth: currentMode === "tree" ? depth : 0,
+          label: currentMode === "tree" ? name : undefined,
+          navIndex,
+          showDirectoryPath: currentMode !== "tree",
+        })
+      }
+    />
+  );
+
   return (
     <aside
       onMouseDown={onMouseDown}
@@ -65,30 +116,13 @@ export function FileListPane<TFile extends { path: string }>({
           {toolbar ? <div className="mt-2">{toolbar}</div> : null}
         </div>
       ) : null}
-      <ScrollArea data-nav-region={navRegion} className={scrollAreaClassName}>
-        {error ? (
-          <div className="text-destructive px-3 py-4 text-sm">{error}</div>
-        ) : isLoading && files.length === 0 ? (
-          loadingState
-        ) : files.length === 0 ? (
-          emptyState
-        ) : (
-          <SourceControlFileBrowser
-            files={files}
-            mode={mode}
-            className={bodyClassName}
-            renderFile={({ depth, file, mode: currentMode, name, navIndex }) =>
-              renderRow({
-                file,
-                depth: currentMode === "tree" ? depth : 0,
-                label: currentMode === "tree" ? name : undefined,
-                navIndex,
-                showDirectoryPath: currentMode !== "tree",
-              })
-            }
-          />
-        )}
-      </ScrollArea>
+      {mode === "tree" && !error && !(isLoading && files.length === 0) && files.length > 0 ? (
+        content
+      ) : (
+        <ScrollArea data-nav-region={navRegion} className={scrollAreaClassName}>
+          {content}
+        </ScrollArea>
+      )}
     </aside>
   );
 }

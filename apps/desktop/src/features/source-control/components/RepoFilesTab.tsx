@@ -1,4 +1,7 @@
+import type { FileTreeRowDecoration } from "@pierre/trees";
+
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import { useGetRepoFilesQuery } from "@/features/source-control/api";
 import {
   openFileViewer,
@@ -74,6 +77,7 @@ export function RepoFilesTab() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activePath = useAppSelector((state) => state.sourceControl.repoTreeActivePath);
+  const comments = useAppSelector((state) => state.comments);
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
@@ -99,6 +103,7 @@ export function RepoFilesTab() {
       }),
     );
   };
+  const filesByPath = new Map(repoFiles.map((file) => [file.path, file]));
 
   if (fileBrowserMode === "tree") {
     return (
@@ -110,13 +115,32 @@ export function RepoFilesTab() {
         ) : (
           <PierreFileTreeBrowser
             files={repoFiles}
-            initialSelectedPath={activePath}
+            selectedPath={activePath}
             navRegion="repo-files"
-            onSelectPath={(path) => {
-              openRepoFilePath(path);
-            }}
             onActivatePath={(path) => {
               openRepoFilePath(path);
+            }}
+            renderRowDecoration={({ item }): FileTreeRowDecoration | null => {
+              if (item.kind === "directory") {
+                return null;
+              }
+
+              const file = filesByPath.get(item.path);
+              if (!file) {
+                return null;
+              }
+
+              const commentCount = countCommentsForPathInRepoContext(
+                comments,
+                activeRepo,
+                file.path,
+              );
+              return commentCount > 0
+                ? {
+                    text: String(commentCount),
+                    title: `${commentCount} comment${commentCount === 1 ? "" : "s"}`,
+                  }
+                : null;
             }}
           />
         )}

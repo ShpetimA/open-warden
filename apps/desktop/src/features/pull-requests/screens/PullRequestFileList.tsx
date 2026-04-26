@@ -60,6 +60,7 @@ export default function PullRequestFileList({
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
+  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const [searchQuery, setSearchQuery] = useState("");
   const [commentFilter, setCommentFilter] = useState<FileCommentFilter>("all");
   const { reviewThreads } = useGetPullRequestConversationQuery(
@@ -183,6 +184,15 @@ export default function PullRequestFileList({
         navRegion="pull-request-files"
         files={visibleFiles}
         mode={fileBrowserMode}
+        activePath={activePath}
+        onSelectFile={(file) => {
+          dispatch(setPullRequestPreviewActiveFilePath(file.path));
+        }}
+        onActivateFile={(file) => {
+          dispatch(setPullRequestPreviewActiveFilePath(file.path));
+        }}
+        getCommentCount={(file) => commentCountByPath[file.path] ?? 0}
+        getFileStatus={(file) => file.status}
         error={filesError}
         isLoading={isLoading}
         loadingState={loadingState()}

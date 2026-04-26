@@ -82,9 +82,12 @@ export function ReviewFileList({
   bodyClassName,
   scrollAreaClassName,
 }: ReviewFileListProps) {
+  const dispatch = useAppDispatch();
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
+  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
+  const comments = useAppSelector((state) => state.comments);
 
   useReviewKeyboardNav(navRegion);
 
@@ -95,6 +98,21 @@ export function ReviewFileList({
       navRegion={navRegion}
       files={branchFiles}
       mode={fileBrowserMode}
+      activePath={reviewActivePath}
+      onSelectFile={(file) => {
+        dispatch(setReviewActivePath(file.path));
+      }}
+      onActivateFile={(file) => {
+        dispatch(setReviewActivePath(file.path));
+      }}
+      getCommentCount={(file) =>
+        countCommentsForPathInRepoContext(comments, activeRepo, file.path, {
+          kind: "review",
+          baseRef: reviewBaseRef,
+          headRef: reviewHeadRef,
+        })
+      }
+      getFileStatus={(file) => file.status}
       emptyState={emptyState}
       paneClassName={paneClassName}
       headerClassName={headerClassName}

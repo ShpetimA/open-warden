@@ -19,6 +19,8 @@ import { FileListRow } from "./FileListRow";
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const activePath = useAppSelector((state) => state.sourceControl.activePath);
+  const comments = useAppSelector((state) => state.comments);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
@@ -53,6 +55,17 @@ export function HistoryFilesPane() {
       navRegion="history-files"
       files={files}
       mode={fileBrowserMode}
+      activePath={activePath}
+      onSelectFile={(file) => {
+        dispatch(setHistoryNavTarget("files"));
+        void dispatch(selectHistoryFile(file.path));
+      }}
+      onActivateFile={(file) => {
+        dispatch(setHistoryNavTarget("files"));
+        void dispatch(selectHistoryFile(file.path));
+      }}
+      getCommentCount={(file) => countCommentsForPathInRepoContext(comments, activeRepo, file.path)}
+      getFileStatus={(file) => file.status}
       isLoading={loadingHistoryFiles}
       loadingState={
         <Empty className="h-auto border-0 p-4">

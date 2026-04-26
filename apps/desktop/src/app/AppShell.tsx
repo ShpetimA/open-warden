@@ -96,6 +96,7 @@ export function AppShell() {
           />
           <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
         </div>
+        <div id="modal-root" />
       </SidebarPanelRegistryProvider>
     </NuqsAdapter>
   );

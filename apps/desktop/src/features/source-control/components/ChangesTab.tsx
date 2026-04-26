@@ -11,7 +11,7 @@ import {
   selectFile,
   stageAllAction,
   stageFileAction,
-  toggleSelectFile,
+  toggleFileSelection,
   unstageAllAction,
   unstageFileAction,
 } from "@/features/source-control/actions";
@@ -21,6 +21,7 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { CommitBox } from "./CommitBox";
+import { ChangesUnifiedPierreFileTree } from "./ChangesUnifiedPierreFileTree";
 import { FileSection } from "./FileSection";
 
 export function ChangesTab() {
@@ -46,6 +47,9 @@ function ChangesFileList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const collapseStaged = useAppSelector((state) => state.sourceControl.collapseStaged);
   const collapseUnstaged = useAppSelector((state) => state.sourceControl.collapseUnstaged);
+  const fileBrowserMode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
   const { snapshot: snapshotData, isLoadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
@@ -103,7 +107,7 @@ function ChangesFileList() {
       return;
     }
     if (event.metaKey || event.ctrlKey) {
-      void dispatch(toggleSelectFile(bucket, relPath));
+      void dispatch(toggleFileSelection(bucket, relPath));
       return;
     }
     void dispatch(selectFile(bucket, relPath));
@@ -132,45 +136,62 @@ function ChangesFileList() {
           {isLoadingSnapshot ? (
             <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
           ) : null}
-          <Accordion type="multiple" value={openSections} onValueChange={handleAccordionChange}>
-            <AccordionItem value="staged" className="border-border rounded-none border-t border-b">
-              <FileSection
-                sectionKey="staged"
-                title="STAGED CHANGES"
-                rows={stagedRows}
-                startIndex={0}
-                unstagedCount={unstagedFiles.length}
-                untrackedCount={untrackedFiles.length}
-                onSelectFile={onSelectFile}
-                onStageFile={onStageFile}
-                onUnstageFile={onUnstageFile}
-                onDiscardFile={onDiscardFile}
-                onStageAll={onStageAll}
-                onUnstageAll={onUnstageAll}
-                onDiscardChangesGroup={onDiscardChangesGroup}
-              />
-            </AccordionItem>
-            <AccordionItem
-              value="unstaged"
-              className="border-border rounded-none border-t-0 border-b"
-            >
-              <FileSection
-                sectionKey="unstaged"
-                title="CHANGES"
-                rows={changedFiles}
-                startIndex={collapseStaged ? 0 : stagedRows.length}
-                unstagedCount={unstagedFiles.length}
-                untrackedCount={untrackedFiles.length}
-                onSelectFile={onSelectFile}
-                onStageFile={onStageFile}
-                onUnstageFile={onUnstageFile}
-                onDiscardFile={onDiscardFile}
-                onStageAll={onStageAll}
-                onUnstageAll={onUnstageAll}
-                onDiscardChangesGroup={onDiscardChangesGroup}
-              />
-            </AccordionItem>
-          </Accordion>
+          {fileBrowserMode === "tree" ? (
+            <ChangesUnifiedPierreFileTree
+              stagedRows={stagedRows}
+              changedRows={changedFiles}
+              activeRepo={activeRepo}
+              onStageAll={onStageAll}
+              onUnstageAll={onUnstageAll}
+              onStageFile={onStageFile}
+              onUnstageFile={onUnstageFile}
+              onDiscardFile={onDiscardFile}
+              onDiscardChangesGroup={onDiscardChangesGroup}
+            />
+          ) : (
+            <Accordion type="multiple" value={openSections} onValueChange={handleAccordionChange}>
+              <AccordionItem
+                value="staged"
+                className="border-border rounded-none border-t border-b"
+              >
+                <FileSection
+                  sectionKey="staged"
+                  title="STAGED CHANGES"
+                  rows={stagedRows}
+                  startIndex={0}
+                  unstagedCount={unstagedFiles.length}
+                  untrackedCount={untrackedFiles.length}
+                  onSelectFile={onSelectFile}
+                  onStageFile={onStageFile}
+                  onUnstageFile={onUnstageFile}
+                  onDiscardFile={onDiscardFile}
+                  onStageAll={onStageAll}
+                  onUnstageAll={onUnstageAll}
+                  onDiscardChangesGroup={onDiscardChangesGroup}
+                />
+              </AccordionItem>
+              <AccordionItem
+                value="unstaged"
+                className="border-border rounded-none border-t-0 border-b"
+              >
+                <FileSection
+                  sectionKey="unstaged"
+                  title="CHANGES"
+                  rows={changedFiles}
+                  startIndex={collapseStaged ? 0 : stagedRows.length}
+                  unstagedCount={unstagedFiles.length}
+                  untrackedCount={untrackedFiles.length}
+                  onSelectFile={onSelectFile}
+                  onStageFile={onStageFile}
+                  onUnstageFile={onUnstageFile}
+                  onDiscardFile={onDiscardFile}
+                  onStageAll={onStageAll}
+                  onUnstageAll={onUnstageAll}
+                  onDiscardChangesGroup={onDiscardChangesGroup}
+                />
+              </AccordionItem>
+            </Accordion>
+          )}
         </div>
       </ScrollArea>
     </div>

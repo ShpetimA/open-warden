@@ -65,6 +65,31 @@ describe("buildSourceControlFileTree", () => {
     ]);
   });
 
+  it("can keep single-child directory chains unflattened", () => {
+    const tree = buildSourceControlFileTree(
+      [
+        { path: "Staged Changes/apps/desktop/src/App.tsx" },
+        { path: "Staged Changes/apps/desktop/src/main.tsx" },
+      ],
+      { flattenEmptyDirectories: false },
+    );
+
+    expect(tree).toMatchObject([
+      {
+        kind: "directory",
+        name: "Staged Changes",
+        path: "Staged Changes",
+        children: [
+          {
+            kind: "directory",
+            name: "apps",
+            path: "Staged Changes/apps",
+          },
+        ],
+      },
+    ]);
+  });
+
   it("normalizes windows-style paths when building directories", () => {
     const tree = buildSourceControlFileTree([{ path: "src\\nested\\file.ts" }]);
 

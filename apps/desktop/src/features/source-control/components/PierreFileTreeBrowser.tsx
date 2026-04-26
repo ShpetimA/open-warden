@@ -1,31 +1,57 @@
-import { prepareFileTreeInput, type FileTree as PierreFileTreeModel } from "@pierre/trees";
-import { FileTree as PeerFileTree, useFileTree } from "@pierre/trees/react";
+import {
+  prepareFileTreeInput,
+  type FileTree as PierreFileTreeModel,
+  type FileTreeRowDecorationRenderer,
+  type FileTreeSortComparator,
+  type GitStatusEntry,
+} from "@pierre/trees";
+import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import {
   useEffect,
   useRef,
-  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
 } from "react";
 
-import { buildSourceControlFileTree } from "@/features/source-control/fileTree";
 import {
-  registerPeerFileTreeNav,
-  unregisterPeerFileTreeNav,
-} from "@/features/source-control/peerFileTreeNavigation";
+  buildSourceControlFileTree,
+  collectDirectoryPaths,
+  type BuildSourceControlFileTreeOptions,
+  type SourceControlTreeDirectoryNode,
+} from "@/features/source-control/fileTree";
+import {
+  registerPierreFileTreeNav,
+  unregisterPierreFileTreeNav,
+} from "@/features/source-control/pierreFileTreeNavigation";
+import type { Bucket } from "@/features/source-control/types";
+import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
 
-type PeerFileTreeBrowserFile = {
+type PierreFileTreeBrowserFile = {
   path: string;
 };
 
-type PeerFileTreeBrowserProps<TFile extends PeerFileTreeBrowserFile> = {
+type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
-  initialSelectedPath: string;
+  selectedPath: string;
+  selectedPaths?: readonly string[];
   navRegion: string;
-  onSelectPath: (path: string) => void;
+  className?: string;
+  style?: CSSProperties;
+  disableInternalScroll?: boolean;
+  flattenEmptyDirectories?: boolean;
+  sort?: "default" | FileTreeSortComparator;
+  compareTreeDirectories?: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"];
   onActivatePath: (path: string) => void;
+  onTogglePathSelection?: (path: string) => void;
+  onRangeSelectPath?: (path: string) => void;
+  gitStatus?: readonly GitStatusEntry[];
+  renderRowDecoration?: FileTreeRowDecorationRenderer;
+  renderContextMenu?: Parameters<typeof PierreFileTree>[0]["renderContextMenu"];
 };
+
+export const PIERRE_FILE_TREE_ITEM_HEIGHT = 22;
 
 const TREE_HOST_STYLE: CSSProperties = {
   height: "100%",
@@ -37,9 +63,13 @@ const TREE_HOST_STYLE: CSSProperties = {
   ["--trees-fg-muted-override" as string]: "var(--muted-foreground)",
   ["--trees-fg-override" as string]: "var(--foreground)",
   ["--trees-focus-ring-color-override" as string]: "var(--ring)",
+  ["--trees-font-size-override" as string]: "12px",
+  ["--trees-git-lane-width-override" as string]: "20px",
+  ["--trees-icon-width-override" as string]: "14px",
   ["--trees-item-margin-x-override" as string]: "0px",
-  ["--trees-item-padding-x-override" as string]: "8px",
-  ["--trees-level-gap-override" as string]: "8px",
+  ["--trees-item-padding-x-override" as string]: "6px",
+  ["--trees-item-row-gap-override" as string]: "0px",
+  ["--trees-level-gap-override" as string]: "4px",
   ["--trees-padding-inline-override" as string]: "0px",
   ["--trees-scrollbar-gutter-override" as string]: "8px",
   ["--trees-selected-bg-override" as string]: "var(--surface-active)",
@@ -54,16 +84,44 @@ const TREE_UNSAFE_CSS = `
   [data-type='item'] {
     border-radius: 0;
   }
+
+  [data-item-section='decoration'] {
+    flex: 1 0 max-content;
+    min-width: max-content;
+    padding-inline: 4px 2px;
+    overflow: visible;
+  }
+
+  [data-item-section='decoration'] > span {
+    min-width: max-content;
+    max-width: none;
+    overflow: visible;
+    text-overflow: clip;
+    font-variant-numeric: tabular-nums;
+  }
+`;
+
+const TREE_DISABLE_INTERNAL_SCROLL_CSS = `
+  [data-file-tree-virtualized-scroll='true'] {
+    overflow: hidden !important;
+    scrollbar-width: none;
+  }
+
+  [data-file-tree-virtualized-scroll='true']::-webkit-scrollbar {
+    display: none;
+  }
 `;
 
 const TREE_ROOT_SELECTOR = "[data-file-tree-virtualized-root='true']";
 const TREE_SCROLL_SELECTOR = "[data-file-tree-virtualized-scroll='true']";
+const INITIAL_SCROLL_MAX_ATTEMPTS = 20;
 
-function findExpandedInitialRowIndex<TFile extends PeerFileTreeBrowserFile>(
+function findExpandedInitialRowIndex<TFile extends PierreFileTreeBrowserFile>(
   files: ReadonlyArray<TFile>,
   path: string,
+  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
 ) {
-  const pendingNodes = [...buildSourceControlFileTree(files)].reverse();
+  const pendingNodes = [...buildSourceControlFileTree(files, treeOptions)].reverse();
 
   for (let rowIndex = 0; pendingNodes.length > 0; rowIndex += 1) {
     const node = pendingNodes.pop();
@@ -80,128 +138,214 @@ function findExpandedInitialRowIndex<TFile extends PeerFileTreeBrowserFile>(
   return null;
 }
 
-function usePierreFocusedPathChange(
-  model: PierreFileTreeModel,
-  onFocusedPathChange: (path: string | null) => void,
+function areFilePathsEqual(
+  left: ReadonlyArray<PierreFileTreeBrowserFile>,
+  right: ReadonlyArray<PierreFileTreeBrowserFile>,
 ) {
-  const onFocusedPathChangeRef = useRef(onFocusedPathChange);
-  onFocusedPathChangeRef.current = onFocusedPathChange;
+  if (left.length !== right.length) {
+    return false;
+  }
 
-  useSyncExternalStore(
-    (notify) =>
-      model.subscribe(() => {
-        console.log("Focused path changed:", model.getFocusedPath());
-        onFocusedPathChangeRef.current(model.getFocusedPath());
-        notify();
-      }),
-    () => model.getFocusedPath(),
-    () => model.getFocusedPath(),
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index]?.path !== right[index]?.path) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function collectCollapsedDirectoryPaths<TFile extends PierreFileTreeBrowserFile>(
+  files: ReadonlyArray<TFile>,
+  model: PierreFileTreeModel,
+  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
+) {
+  const treeNodes = buildSourceControlFileTree(files, treeOptions);
+  const collapsedPaths: string[] = [];
+
+  for (const directoryPath of collectDirectoryPaths(treeNodes)) {
+    const directoryItem = model.getItem(directoryPath);
+    if (directoryItem && "isExpanded" in directoryItem && !directoryItem.isExpanded()) {
+      collapsedPaths.push(directoryPath);
+    }
+  }
+
+  return collapsedPaths;
+}
+
+function collapseDirectoryPaths(model: PierreFileTreeModel, directoryPaths: ReadonlyArray<string>) {
+  for (const directoryPath of directoryPaths) {
+    const directoryItem = model.getItem(directoryPath);
+    if (directoryItem && "collapse" in directoryItem) {
+      directoryItem.collapse();
+    }
+  }
+}
+
+function getPierreFileTreeRowElement(model: PierreFileTreeModel, path: string) {
+  const shadowRoot = model.getFileTreeContainer()?.shadowRoot;
+  if (!shadowRoot) {
+    return null;
+  }
+
+  return (
+    Array.from(shadowRoot.querySelectorAll<HTMLElement>("[data-type='item'][data-item-path]")).find(
+      (item) => item.dataset.itemPath === path,
+    ) ?? null
   );
 }
 
-export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
+export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   files,
-  initialSelectedPath,
+  selectedPath,
+  selectedPaths,
   navRegion,
-  onSelectPath,
+  className = "",
+  style,
+  disableInternalScroll = false,
+  flattenEmptyDirectories = true,
+  sort = "default",
+  compareTreeDirectories,
   onActivatePath,
-}: PeerFileTreeBrowserProps<TFile>) {
+  onTogglePathSelection,
+  onRangeSelectPath,
+  gitStatus,
+  renderRowDecoration,
+  renderContextMenu,
+}: PierreFileTreeBrowserProps<TFile>) {
   const onActivatePathRef = useRef(onActivatePath);
-  const onSelectPathRef = useRef(onSelectPath);
+  const onTogglePathSelectionRef = useRef(onTogglePathSelection);
+  const onRangeSelectPathRef = useRef(onRangeSelectPath);
   const filesRef = useRef(files);
   const filePathSetRef = useRef(new Set(files.map((file) => file.path)));
   const didApplyInitialScrollRef = useRef(false);
-  const pierreSelectedPathRef = useRef<string | null>(initialSelectedPath || null);
-  const selectedPathRef = useRef(initialSelectedPath);
+  const pierreSelectedPathRef = useRef<string | null>(selectedPath || null);
+  const pierreSelectedPathsRef = useRef<ReadonlySet<string>>(
+    new Set(selectedPaths ?? (selectedPath ? [selectedPath] : [])),
+  );
+  const renderRowDecorationRef = useRef(renderRowDecoration);
+  const selectedPathRef = useRef(selectedPath);
+  const suppressClickPathRef = useRef<string | null>(null);
+  const suppressPierreSelectionChangeRef = useRef(false);
   const syncingSelectionRef = useRef(false);
 
   onActivatePathRef.current = onActivatePath;
-  onSelectPathRef.current = onSelectPath;
-  selectedPathRef.current = initialSelectedPath;
+  onTogglePathSelectionRef.current = onTogglePathSelection;
+  onRangeSelectPathRef.current = onRangeSelectPath;
+  renderRowDecorationRef.current = renderRowDecoration;
+  selectedPathRef.current = selectedPath;
 
   const filePaths = files.map((file) => file.path);
   const initialPreparedInput = prepareFileTreeInput(filePaths, {
-    flattenEmptyDirectories: true,
+    flattenEmptyDirectories,
+    sort,
   });
 
   const { model } = useFileTree({
-    density: "compact",
+    density: 0.5,
+    flattenEmptyDirectories,
+    gitStatus,
     icons: "complete",
     initialExpansion: "open",
-    initialSelectedPaths: initialSelectedPath ? [initialSelectedPath] : [],
+    initialSelectedPaths: selectedPaths ?? (selectedPath ? [selectedPath] : []),
+    itemHeight: PIERRE_FILE_TREE_ITEM_HEIGHT,
     onSelectionChange: (selectedPaths) => {
+      if (suppressPierreSelectionChangeRef.current) {
+        return;
+      }
+
       if (syncingSelectionRef.current) {
         return;
       }
 
-      const selectedPath = selectedPaths[0];
-      if (!selectedPath) {
+      const nextSelectedPaths = selectedPaths.filter((path) => filePathSetRef.current.has(path));
+      if (nextSelectedPaths.length === 0) {
         pierreSelectedPathRef.current = null;
+        pierreSelectedPathsRef.current = new Set();
         return;
       }
 
-      if (!filePathSetRef.current.has(selectedPath)) {
-        return;
-      }
-
-      pierreSelectedPathRef.current = selectedPath;
-
-      if (selectedPath === selectedPathRef.current) {
-        return;
-      }
-
-      selectedPathRef.current = selectedPath;
-      onSelectPathRef.current(selectedPath);
+      pierreSelectedPathRef.current = nextSelectedPaths[0] ?? null;
+      pierreSelectedPathsRef.current = new Set(nextSelectedPaths);
     },
     preparedInput: initialPreparedInput,
+    renderRowDecoration: (context) => renderRowDecorationRef.current?.(context) ?? null,
+    sort,
     stickyFolders: false,
-    unsafeCSS: TREE_UNSAFE_CSS,
+    unsafeCSS: `${TREE_UNSAFE_CSS}${disableInternalScroll ? TREE_DISABLE_INTERNAL_SCROLL_CSS : ""}`,
+    composition: renderContextMenu
+      ? {
+          contextMenu: {
+            buttonVisibility: "when-needed",
+            enabled: true,
+            triggerMode: "both",
+          },
+        }
+      : undefined,
   });
 
-  const setPierreSelectedPath = (path: string | null) => {
-    if (path === pierreSelectedPathRef.current) {
+  const setPierreSelectedPaths = (paths: ReadonlyArray<string>) => {
+    const nextPaths = paths.filter((path) => filePathSetRef.current.has(path));
+    const nextPathSet = new Set(nextPaths);
+    const previousPathSet = pierreSelectedPathsRef.current;
+    const sameSelection =
+      nextPathSet.size === previousPathSet.size &&
+      nextPaths.every((path) => previousPathSet.has(path));
+
+    if (sameSelection) {
       return;
     }
 
     syncingSelectionRef.current = true;
     try {
-      if (pierreSelectedPathRef.current) {
-        model.getItem(pierreSelectedPathRef.current)?.deselect();
+      for (const previousPath of previousPathSet) {
+        if (!nextPathSet.has(previousPath)) {
+          model.getItem(previousPath)?.deselect();
+        }
       }
-      if (path) {
+      for (const path of nextPathSet) {
         model.getItem(path)?.select();
       }
-      pierreSelectedPathRef.current = path;
+      pierreSelectedPathsRef.current = nextPathSet;
+      pierreSelectedPathRef.current = nextPaths[0] ?? null;
     } finally {
       syncingSelectionRef.current = false;
     }
   };
 
-  usePierreFocusedPathChange(model, (focusedPath) => {
-    if (syncingSelectionRef.current) {
-      return;
-    }
-
-    if (!focusedPath || !filePathSetRef.current.has(focusedPath)) {
-      setPierreSelectedPath(null);
-      return;
-    }
-
-    setPierreSelectedPath(focusedPath);
-
-    if (focusedPath === selectedPathRef.current) return;
-
-    selectedPathRef.current = focusedPath;
-    onSelectPathRef.current(focusedPath);
-  });
+  const setPierreSelectedPath = (path: string | null) => {
+    setPierreSelectedPaths(path ? [path] : []);
+  };
 
   useEffect(() => {
-    if (didApplyInitialScrollRef.current || !initialSelectedPath) {
+    const nextSelectedPaths = selectedPaths ?? (selectedPath ? [selectedPath] : []);
+    setPierreSelectedPaths(nextSelectedPaths);
+  }, [model, selectedPath, selectedPaths]);
+
+  useEffect(() => {
+    if (!selectedPath || !filePathSetRef.current.has(selectedPath)) {
+      return;
+    }
+
+    if (model.getFocusedPath() === selectedPath) {
+      return;
+    }
+
+    model.focusPath(selectedPath);
+  }, [model, selectedPath]);
+
+  useEffect(() => {
+    model.setGitStatus(gitStatus);
+  }, [gitStatus, model, renderRowDecoration]);
+
+  useEffect(() => {
+    if (didApplyInitialScrollRef.current || !selectedPath) {
       return;
     }
 
     let canceled = false;
     let animationFrameId: number | null = null;
+    let attemptCount = 0;
 
     const applyInitialScroll = () => {
       if (canceled || didApplyInitialScrollRef.current) {
@@ -214,11 +358,18 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
       const scrollTarget = shadowRoot?.querySelector<HTMLElement>(TREE_SCROLL_SELECTOR);
 
       if (!focusTarget || !scrollTarget || scrollTarget.clientHeight === 0) {
+        attemptCount += 1;
+        if (attemptCount < INITIAL_SCROLL_MAX_ATTEMPTS) {
+          animationFrameId = window.requestAnimationFrame(applyInitialScroll);
+        }
         return;
       }
 
       didApplyInitialScrollRef.current = true;
-      const initialRowIndex = findExpandedInitialRowIndex(filesRef.current, initialSelectedPath);
+      const initialRowIndex = findExpandedInitialRowIndex(filesRef.current, selectedPath, {
+        compareDirectories: compareTreeDirectories,
+        flattenEmptyDirectories,
+      });
 
       if (initialRowIndex !== null) {
         const itemHeight = model.getItemHeight();
@@ -227,9 +378,10 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
       }
 
       syncingSelectionRef.current = true;
-      model.focusPath(initialSelectedPath);
+      model.focusPath(selectedPath);
       syncingSelectionRef.current = false;
       focusTarget.focus({ preventScroll: true });
+      getPierreFileTreeRowElement(model, selectedPath)?.scrollIntoView({ block: "nearest" });
     };
 
     animationFrameId = window.requestAnimationFrame(applyInitialScroll);
@@ -240,34 +392,69 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
         window.cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [initialSelectedPath, model]);
+  }, [compareTreeDirectories, flattenEmptyDirectories, selectedPath, model]);
 
   useEffect(() => {
-    const pathsChanged = filesRef.current !== files;
+    const pathsChanged = !areFilePathsEqual(filesRef.current, files);
+    filePathSetRef.current = new Set(files.map((file) => file.path));
+
     if (pathsChanged) {
       const focusedPath = model.getFocusedPath();
-      filesRef.current = files;
-      filePathSetRef.current = new Set(files.map((file) => file.path));
+      const collapsedDirectoryPaths = collectCollapsedDirectoryPaths(filesRef.current, model, {
+        compareDirectories: compareTreeDirectories,
+        flattenEmptyDirectories,
+      });
       const nextPaths = files.map((file) => file.path);
       const nextPreparedInput = prepareFileTreeInput(nextPaths, {
-        flattenEmptyDirectories: true,
+        flattenEmptyDirectories,
+        sort,
       });
       syncingSelectionRef.current = true;
       model.resetPaths(nextPaths, { preparedInput: nextPreparedInput });
+      collapseDirectoryPaths(model, collapsedDirectoryPaths);
       model.focusNearestPath(focusedPath);
+      setPierreSelectedPaths(selectedPaths ?? (selectedPath ? [selectedPath] : []));
       syncingSelectionRef.current = false;
     }
+    filesRef.current = files;
 
-    registerPeerFileTreeNav(
+    registerPierreFileTreeNav(
       navRegion,
-      files.map((file) => ({ path: file.path })),
+      files.map((file) => ({
+        bucket: "bucket" in file ? (file.bucket as Bucket | undefined) : undefined,
+        path: file.path,
+        realPath: "realPath" in file ? (file.realPath as string | undefined) : undefined,
+      })),
       model,
+      {
+        selectedPath,
+        treeOptions: {
+          compareDirectories: compareTreeDirectories
+            ? (left, right, depth) =>
+                compareTreeDirectories(
+                  left as SourceControlTreeDirectoryNode<TFile>,
+                  right as SourceControlTreeDirectoryNode<TFile>,
+                  depth,
+                )
+            : undefined,
+          flattenEmptyDirectories,
+        },
+      },
     );
 
     return () => {
-      unregisterPeerFileTreeNav(navRegion, model);
+      unregisterPierreFileTreeNav(navRegion, model);
     };
-  }, [files, model, navRegion]);
+  }, [
+    compareTreeDirectories,
+    files,
+    flattenEmptyDirectories,
+    model,
+    navRegion,
+    selectedPath,
+    selectedPaths,
+    sort,
+  ]);
 
   const activatePath = (path: string) => {
     if (!filePathSetRef.current.has(path)) {
@@ -277,6 +464,59 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
     selectedPathRef.current = path;
     setPierreSelectedPath(path);
     onActivatePathRef.current(path);
+  };
+
+  const togglePathSelection = (path: string) => {
+    if (!filePathSetRef.current.has(path)) {
+      return;
+    }
+
+    onTogglePathSelectionRef.current?.(path);
+  };
+
+  const rangeSelectPath = (path: string) => {
+    if (!filePathSetRef.current.has(path)) {
+      return;
+    }
+
+    onRangeSelectPathRef.current?.(path);
+  };
+
+  const clearSuppressedPierreSelectionChange = () => {
+    window.setTimeout(() => {
+      suppressPierreSelectionChangeRef.current = false;
+    }, 0);
+  };
+
+  const handleHostPointerDownCapture = (event: PointerEvent<HTMLElement>) => {
+    if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
+      return;
+    }
+
+    const path = getFilePathFromComposedPath(event.nativeEvent.composedPath());
+    if (!path) {
+      return;
+    }
+
+    const shouldRangeSelect = event.shiftKey && !!onRangeSelectPathRef.current;
+    const shouldToggleSelection =
+      (event.metaKey || event.ctrlKey) && !!onTogglePathSelectionRef.current;
+    if (!shouldRangeSelect && !shouldToggleSelection) {
+      return;
+    }
+
+    suppressPierreSelectionChangeRef.current = true;
+    clearSuppressedPierreSelectionChange();
+
+    suppressClickPathRef.current = path;
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (shouldRangeSelect) {
+      rangeSelectPath(path);
+    } else {
+      togglePathSelection(path);
+    }
   };
 
   const handleHostClick = (event: MouseEvent<HTMLElement>) => {
@@ -295,6 +535,29 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
 
       const path = target.dataset.itemPath;
       if (path && path.length > 0) {
+        if (suppressClickPathRef.current === path) {
+          suppressClickPathRef.current = null;
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        const shouldRangeSelect = event.shiftKey && !!onRangeSelectPathRef.current;
+        const shouldToggleSelection =
+          (event.metaKey || event.ctrlKey) && !!onTogglePathSelectionRef.current;
+        if (shouldRangeSelect || shouldToggleSelection) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (shouldRangeSelect) {
+            rangeSelectPath(path);
+          } else {
+            togglePathSelection(path);
+          }
+          clearSuppressedPierreSelectionChange();
+          suppressClickPathRef.current = null;
+          return;
+        }
+
         activatePath(path);
         return;
       }
@@ -302,7 +565,29 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
   };
 
   const handleHostKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (event.key !== "Enter") {
+    if (event.shiftKey && isRangeNavigationKey(event)) {
+      const targetPath = getShiftNavigationTargetPath(model, filesRef.current, event, {
+        compareDirectories: compareTreeDirectories,
+        flattenEmptyDirectories,
+      });
+      if (!targetPath) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      model.focusPath(targetPath);
+
+      rangeSelectPath(targetPath);
+      return;
+    }
+
+    const isActivationKey = event.key === "Enter" || event.key === " " || event.key === "Spacebar";
+    if (!isActivationKey) {
+      return;
+    }
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) {
       return;
     }
 
@@ -328,14 +613,97 @@ export function PierreFileTreeBrowser<TFile extends PeerFileTreeBrowserFile>({
   };
 
   return (
-    <div data-nav-region={navRegion} className="min-h-0 flex-1 overflow-hidden">
-      <PeerFileTree
+    <div
+      data-nav-region={navRegion}
+      className={`min-h-0 flex-1 overflow-hidden ${className}`.trim()}
+      style={style}
+    >
+      <PierreFileTree
         model={model}
         className="block h-full min-h-0"
-        style={TREE_HOST_STYLE}
+        style={{
+          ...TREE_HOST_STYLE,
+          ...(renderContextMenu
+            ? { ["--trees-action-lane-width-override" as string]: "24px" }
+            : null),
+        }}
         onClick={handleHostClick}
+        onPointerDownCapture={handleHostPointerDownCapture}
         onKeyDown={handleHostKeyDown}
+        renderContextMenu={renderContextMenu}
       />
     </div>
   );
+}
+
+function getFilePathFromComposedPath(path: EventTarget[]) {
+  for (const target of path) {
+    if (!(target instanceof HTMLElement)) {
+      continue;
+    }
+
+    if (target.dataset.type === "item" && target.dataset.itemType === "file") {
+      const filePath = target.dataset.itemPath;
+      return filePath && filePath.length > 0 ? filePath : null;
+    }
+  }
+
+  return null;
+}
+
+function isRangeNavigationKey(event: KeyboardEvent<HTMLElement>) {
+  return (
+    event.key === "ArrowDown" ||
+    event.key === "ArrowUp" ||
+    event.key.toLowerCase() === "j" ||
+    event.key.toLowerCase() === "k"
+  );
+}
+
+function getShiftNavigationTargetPath<TFile extends PierreFileTreeBrowserFile>(
+  model: PierreFileTreeModel,
+  files: ReadonlyArray<TFile>,
+  event: KeyboardEvent<HTMLElement>,
+  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
+) {
+  const visibleFilePaths = collectVisibleFilePaths(files, model, treeOptions);
+  if (visibleFilePaths.length === 0) {
+    return null;
+  }
+
+  const next = event.key === "ArrowDown" || event.key.toLowerCase() === "j";
+  const activePath = model.getFocusedPath();
+  const activeIndex = activePath ? visibleFilePaths.findIndex((path) => path === activePath) : -1;
+  const targetIndex = getWrappedNavigationIndex(activeIndex, visibleFilePaths.length, next);
+  return visibleFilePaths[targetIndex] ?? null;
+}
+
+function collectVisibleFilePaths<TFile extends PierreFileTreeBrowserFile>(
+  files: ReadonlyArray<TFile>,
+  model: PierreFileTreeModel,
+  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
+) {
+  const visiblePaths: string[] = [];
+  const pendingNodes = [...buildSourceControlFileTree(files, treeOptions)].reverse();
+
+  while (pendingNodes.length > 0) {
+    const node = pendingNodes.pop();
+    if (!node) {
+      continue;
+    }
+
+    if (node.kind === "file") {
+      visiblePaths.push(node.file.path);
+      continue;
+    }
+
+    const directoryItem = model.getItem(node.path);
+    const isExpanded =
+      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
+    if (isExpanded) {
+      pendingNodes.push(...node.children.toReversed());
+    }
+  }
+
+  return visiblePaths;
 }
