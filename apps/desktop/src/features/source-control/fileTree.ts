@@ -32,6 +32,11 @@ export type BuildSourceControlFileTreeOptions<TFile> = {
     right: SourceControlTreeDirectoryNode<TFile>,
     depth: number,
   ) => number;
+  compareFiles?: (
+    left: SourceControlTreeFileNode<TFile>,
+    right: SourceControlTreeFileNode<TFile>,
+    depth: number,
+  ) => number;
 };
 
 const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
@@ -94,7 +99,9 @@ function toTreeNodes<TFile>(
     )
     .toSorted((left, right) => options.compareDirectories?.(left, right, depth) ?? 0);
 
-  const files = [...directory.files].toSorted(compareByName);
+  const files = [...directory.files].toSorted(
+    (left, right) => options.compareFiles?.(left, right, depth) ?? compareByName(left, right),
+  );
   return [...subdirectories, ...files];
 }
 

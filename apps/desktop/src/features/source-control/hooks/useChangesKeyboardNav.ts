@@ -15,6 +15,7 @@ import {
   getPierreFileTreeFocusedBucketedFile,
   getPierreFileTreeVisibleBucketedFiles,
   movePierreFileTreeFocus,
+  movePierreFileTreeFocusFile,
   scrollPierreFileTreeBucketedFileIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
@@ -24,16 +25,8 @@ import {
   setRepoTreeActivePath,
   setSymbolPeekActiveIndex,
 } from "@/features/source-control/sourceControlSlice";
-import {
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from "@/lib/keyboard-navigation";
-import {
-  getVisibleBucketedFiles,
-  getVisibleFilePaths,
-  SOURCE_CONTROL_HOTKEY_OPTIONS,
-  useVerticalNavigationHotkeys,
-} from "./keyboardNavigation";
+import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
+import { SOURCE_CONTROL_HOTKEY_OPTIONS, useVerticalNavigationHotkeys } from "./keyboardNavigation";
 import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 function toBucketedFile(file: FileItem, bucket: Bucket) {
@@ -57,16 +50,11 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       activeRepo,
       collapseStaged,
       collapseUnstaged,
-      repoTreeActivePath,
       runningAction,
       selectedFiles,
     } = state.sourceControl;
-    const fileBrowserMode = state.settings.appSettings.sourceControl.fileTreeRenderMode;
     const snapshot = activeRepo
       ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
-      : undefined;
-    const repoFiles = activeRepo
-      ? gitApi.endpoints.getRepoFiles.select(activeRepo)(state).data
       : undefined;
 
     return {
@@ -75,11 +63,8 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       activeRepo,
       collapseStaged,
       collapseUnstaged,
-      repoTreeActivePath,
       runningAction,
       selectedFiles,
-      fileBrowserMode,
-      repoFiles,
       snapshot,
     };
   };
@@ -96,60 +81,21 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     event.preventDefault();
 
-    const {
-      activeBucket,
-      activePath,
-      activeRepo,
-      collapseStaged,
-      collapseUnstaged,
-      fileBrowserMode,
-      repoFiles,
-      repoTreeActivePath,
-      snapshot,
-    } = getNavigationData();
+    const { activeBucket, activePath, activeRepo, collapseStaged, collapseUnstaged, snapshot } =
+      getNavigationData();
 
     if (mode === "files") {
       if (!activeRepo) {
         return;
       }
 
-      if (fileBrowserMode === "tree") {
-        const targetPath = movePierreFileTreeFocus("repo-files", nextKey);
-        if (!targetPath) {
-          return;
-        }
-
-        dispatch(setRepoTreeActivePath(targetPath));
-        dispatch(
-          openFileViewer({
-            repoPath: activeRepo,
-            relPath: targetPath,
-          }),
-        );
-        return;
-      }
-
-      const visibleFilePathsFromDom = getVisibleFilePaths("repo-files");
-      const visibleFilePaths =
-        visibleFilePathsFromDom.length > 0
-          ? visibleFilePathsFromDom
-          : (repoFiles ?? []).map((file: { path: string }) => file.path);
-
-      if (visibleFilePaths.length === 0) {
-        return;
-      }
-
-      const activeIndex = visibleFilePaths.findIndex((path) => path === repoTreeActivePath);
-      const targetIndex = getWrappedNavigationIndex(activeIndex, visibleFilePaths.length, nextKey);
-      const targetPath = visibleFilePaths[targetIndex];
-
+      const targetFile = movePierreFileTreeFocusFile("repo-files", nextKey);
+      const targetPath = targetFile?.realPath ?? targetFile?.path;
       if (!targetPath) {
         return;
       }
 
-      scrollKeyboardNavItemIntoView("repo-files", targetIndex);
       dispatch(setRepoTreeActivePath(targetPath));
-
       dispatch(
         openFileViewer({
           repoPath: activeRepo,
@@ -168,60 +114,23 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       ...untracked.map((file) => toBucketedFile(file, "untracked")),
     ];
 
-    if (fileBrowserMode === "tree") {
-      if (!extendSelection) {
-        const targetPath = movePierreFileTreeFocus("changes-files", nextKey);
-        if (!targetPath) {
-          return;
-        }
-
-        const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
-        if (focusedFile) {
-          void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
-        }
+    if (!extendSelection) {
+      const targetPath = movePierreFileTreeFocus("changes-files", nextKey);
+      if (!targetPath) {
         return;
       }
 
-      const visibleTreeRows = getPierreFileTreeVisibleBucketedFiles("changes-files");
-      const visibleChangeRows: BucketedFile[] =
-        visibleTreeRows.length > 0
-          ? visibleTreeRows
-          : (() => {
-              const fallbackRows: BucketedFile[] = [];
-              if (!collapseStaged) fallbackRows.push(...stagedRows);
-              if (!collapseUnstaged) fallbackRows.push(...changedRows);
-              return fallbackRows;
-            })();
-
-      if (visibleChangeRows.length === 0) return;
-
       const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
-      const activeIndex = visibleChangeRows.findIndex((file) =>
-        focusedFile
-          ? file.bucket === focusedFile.bucket && file.path === focusedFile.path
-          : file.bucket === activeBucket && file.path === activePath,
-      );
-      const targetIndex = getWrappedNavigationIndex(activeIndex, visibleChangeRows.length, nextKey);
-      const targetFile = visibleChangeRows[targetIndex];
-      if (!targetFile) return;
-
-      scrollPierreFileTreeBucketedFileIntoView("changes-files", targetFile.bucket, targetFile.path);
-      void dispatch(
-        rangeSelectFile(
-          {
-            bucket: targetFile.bucket,
-            path: targetFile.path,
-          },
-          visibleChangeRows,
-        ),
-      );
+      if (focusedFile) {
+        void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
+      }
       return;
     }
 
-    const visibleChangeRowsFromDom = getVisibleBucketedFiles("changes-files");
+    const visibleTreeRows = getPierreFileTreeVisibleBucketedFiles("changes-files");
     const visibleChangeRows: BucketedFile[] =
-      visibleChangeRowsFromDom.length > 0
-        ? visibleChangeRowsFromDom
+      visibleTreeRows.length > 0
+        ? visibleTreeRows
         : (() => {
             const fallbackRows: BucketedFile[] = [];
             if (!collapseStaged) fallbackRows.push(...stagedRows);
@@ -231,31 +140,27 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     if (visibleChangeRows.length === 0) return;
 
-    const activeIndex = visibleChangeRows.findIndex(
-      (file) => file.bucket === activeBucket && file.path === activePath,
+    const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+    const activeIndex = visibleChangeRows.findIndex((file) =>
+      focusedFile
+        ? file.bucket === focusedFile.bucket && file.path === focusedFile.path
+        : file.bucket === activeBucket && file.path === activePath,
     );
-
     const targetIndex = getWrappedNavigationIndex(activeIndex, visibleChangeRows.length, nextKey);
-
     const targetFile = visibleChangeRows[targetIndex];
     if (!targetFile) return;
 
-    scrollKeyboardNavItemIntoView("changes-files", targetIndex);
-
-    if (extendSelection) {
-      void dispatch(
-        rangeSelectFile(
-          {
-            bucket: targetFile.bucket,
-            path: targetFile.path,
-          },
-          visibleChangeRows,
-        ),
-      );
-      return;
-    }
-
-    void dispatch(selectFile(targetFile.bucket, targetFile.path));
+    scrollPierreFileTreeBucketedFileIntoView("changes-files", targetFile.bucket, targetFile.path);
+    void dispatch(
+      rangeSelectFile(
+        {
+          bucket: targetFile.bucket,
+          path: targetFile.path,
+        },
+        visibleChangeRows,
+      ),
+    );
+    return;
   };
 
   const stageOrUnstageSelection = (event: KeyboardEvent) => {

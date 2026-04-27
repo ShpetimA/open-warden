@@ -18,7 +18,13 @@ import {
   type SourceControlTreeDirectoryNode,
 } from "@/features/source-control/fileTree";
 import { getPierreFileTreeVisibleBucketedFiles } from "@/features/source-control/pierreFileTreeNavigation";
-import type { Bucket, BucketedFile, FileStatus } from "@/features/source-control/types";
+import type {
+  Bucket,
+  BucketedFile,
+  FileBrowserMode,
+  FileStatus,
+} from "@/features/source-control/types";
+import { getFlatPierrePathIndex, toFlatPierreLeafPath } from "./flatPierrePaths";
 import { PIERRE_FILE_TREE_ITEM_HEIGHT, PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 import {
   ChangesSectionContextMenu,
@@ -36,6 +42,7 @@ const SECTION_SORT_ORDER = new Map([
 const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
 
 type ChangesUnifiedPierreFileTreeProps = {
+  mode: FileBrowserMode;
   stagedRows: BucketedFile[];
   changedRows: BucketedFile[];
   activeRepo: string;
@@ -54,6 +61,7 @@ type UnifiedChangeTreeFile = BucketedFile & {
 };
 
 export function ChangesUnifiedPierreFileTree({
+  mode,
   stagedRows,
   changedRows,
   activeRepo,
@@ -71,8 +79,8 @@ export function ChangesUnifiedPierreFileTree({
   const comments = useAppSelector((state) => state.comments);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
   const files = [
-    ...stagedRows.map((file) => toUnifiedFile(file, "staged")),
-    ...changedRows.map((file) => toUnifiedFile(file, "unstaged")),
+    ...stagedRows.map((file, index) => toUnifiedFile(file, "staged", mode, index)),
+    ...changedRows.map((file, index) => toUnifiedFile(file, "unstaged", mode, index)),
   ];
   const filesByTreePath = new Map(files.map((file) => [file.path, file]));
   const treePathBySelectionKey = new Map(files.map((file) => [selectionKey(file), file.path]));
@@ -118,7 +126,7 @@ export function ChangesUnifiedPierreFileTree({
       style={{ height: `${treeHeight}px` }}
       disableInternalScroll
       flattenEmptyDirectories={false}
-      sort={compareChangeTreeEntries}
+      sort={mode === "list" ? compareChangeListEntries : compareChangeTreeEntries}
       compareTreeDirectories={compareChangeTreeDirectories}
       onActivatePath={activatePath}
       onTogglePathSelection={togglePathSelection}
@@ -193,11 +201,13 @@ export function ChangesUnifiedPierreFileTree({
 function toUnifiedFile(
   file: BucketedFile,
   sectionKey: "staged" | "unstaged",
+  mode: FileBrowserMode,
+  index: number,
 ): UnifiedChangeTreeFile {
   const root = sectionKey === "staged" ? STAGED_ROOT : CHANGES_ROOT;
   return {
     ...file,
-    path: `${root}/${file.path}`,
+    path: `${root}/${mode === "list" ? toFlatPierreLeafPath(file.path, index) : file.path}`,
     realPath: file.path,
     sectionKey,
   };
@@ -207,6 +217,19 @@ function selectionKey(file: Pick<BucketedFile, "bucket" | "path"> & { realPath?:
   const path = file.realPath ?? file.path;
   return `${file.bucket}\u0000${path}`;
 }
+
+const compareChangeListEntries: FileTreeSortComparator = (left, right) => {
+  const sectionComparison = compareSectionNames(left.segments[0], right.segments[0]);
+  if (sectionComparison !== 0) {
+    return sectionComparison;
+  }
+
+  if (left.isDirectory !== right.isDirectory) {
+    return left.isDirectory ? -1 : 1;
+  }
+
+  return getFlatPierrePathIndex(left.path) - getFlatPierrePathIndex(right.path);
+};
 
 const compareChangeTreeEntries: FileTreeSortComparator = (left, right) => {
   const sectionComparison = compareSectionNames(left.segments[0], right.segments[0]);

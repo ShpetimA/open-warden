@@ -2,14 +2,12 @@ import { useEffect, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
-import {
-  FileListPane,
-  type FileListPaneRowArgs,
-} from "@/features/source-control/components/FileListPane";
-import { FileListRow } from "@/features/source-control/components/FileListRow";
+import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
+import { FileList } from "@/features/source-control/components/FileList";
 import { useReviewKeyboardNav } from "@/features/source-control/hooks/useReviewKeyboardNav";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
 import type { FileItem } from "@/features/source-control/types";
+import type { PullRequestReviewThread } from "@/platform/desktop";
 
 type ReviewSelectionSyncProps = {
   readyForDiff: boolean;
@@ -66,6 +64,7 @@ type ReviewFileListProps = {
   headerClassName?: string;
   bodyClassName?: string;
   scrollAreaClassName?: string;
+  reviewThreads?: PullRequestReviewThread[];
 };
 
 export function ReviewFileList({
@@ -79,8 +78,7 @@ export function ReviewFileList({
   emptyState = null,
   paneClassName,
   headerClassName,
-  bodyClassName,
-  scrollAreaClassName,
+  reviewThreads = [],
 }: ReviewFileListProps) {
   const dispatch = useAppDispatch();
   const fileBrowserMode = useAppSelector(
@@ -91,79 +89,47 @@ export function ReviewFileList({
 
   useReviewKeyboardNav(navRegion);
 
-  return (
-    <FileListPane
-      title={title}
-      subtitle={subtitle}
-      navRegion={navRegion}
-      files={branchFiles}
-      mode={fileBrowserMode}
-      activePath={reviewActivePath}
-      onSelectFile={(file) => {
-        dispatch(setReviewActivePath(file.path));
-      }}
-      onActivateFile={(file) => {
-        dispatch(setReviewActivePath(file.path));
-      }}
-      getCommentCount={(file) =>
-        countCommentsForPathInRepoContext(comments, activeRepo, file.path, {
-          kind: "review",
-          baseRef: reviewBaseRef,
-          headRef: reviewHeadRef,
-        })
-      }
-      getFileStatus={(file) => file.status}
-      emptyState={emptyState}
-      paneClassName={paneClassName}
-      headerClassName={headerClassName}
-      bodyClassName={bodyClassName}
-      scrollAreaClassName={scrollAreaClassName}
-      renderRow={(row) => (
-        <ReviewFileRow
-          key={row.file.path}
-          row={row}
-          activeRepo={activeRepo}
-          reviewBaseRef={reviewBaseRef}
-          reviewHeadRef={reviewHeadRef}
-        />
-      )}
-    />
-  );
-}
-
-type ReviewFileRowProps = {
-  row: FileListPaneRowArgs<FileItem>;
-  activeRepo: string;
-  reviewBaseRef: string;
-  reviewHeadRef: string;
-};
-
-function ReviewFileRow({ row, activeRepo, reviewBaseRef, reviewHeadRef }: ReviewFileRowProps) {
-  const dispatch = useAppDispatch();
-  const commentCount = useAppSelector((state) =>
-    countCommentsForPathInRepoContext(state.comments, activeRepo, row.file.path, {
+  const getCommentCount = (file: FileItem) =>
+    countPullRequestThreadsForFile({
+      path: file.path,
+      previousPath: file.previousPath,
+      reviewThreads,
+    }) +
+    countCommentsForPathInRepoContext(comments, activeRepo, file.path, {
       kind: "review",
       baseRef: reviewBaseRef,
       headRef: reviewHeadRef,
-    }),
-  );
-  const isActive = useAppSelector(
-    (state) => state.sourceControl.reviewActivePath === row.file.path,
-  );
+    });
 
   return (
-    <FileListRow
-      path={row.file.path}
-      status={row.file.status}
-      commentCount={commentCount}
-      isActive={isActive}
-      navIndex={row.navIndex}
-      depth={row.depth}
-      label={row.label}
-      showDirectoryPath={row.showDirectoryPath}
-      onSelect={() => {
-        dispatch(setReviewActivePath(row.file.path));
-      }}
-    />
+    <aside
+      className={`bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r ${paneClassName ?? ""}`.trim()}
+    >
+      {title || subtitle ? (
+        <div className={`border-border border-b ${headerClassName ?? "px-3 py-2"}`.trim()}>
+          {title ? (
+            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+              {title}
+            </div>
+          ) : null}
+          {subtitle ? <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div> : null}
+        </div>
+      ) : null}
+      {branchFiles.length === 0 ? (
+        emptyState
+      ) : (
+        <FileList
+          files={branchFiles}
+          mode={fileBrowserMode}
+          selectedPath={reviewActivePath}
+          navRegion={navRegion}
+          onActivatePath={(path) => {
+            dispatch(setReviewActivePath(path));
+          }}
+          getCommentCount={getCommentCount}
+          getFileStatus={(file) => file.status}
+        />
+      )}
+    </aside>
   );
 }

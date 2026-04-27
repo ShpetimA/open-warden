@@ -13,11 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
-import {
-  FileListPane,
-  type FileListPaneRowArgs,
-} from "@/features/source-control/components/FileListPane";
-import { FileListRow } from "@/features/source-control/components/FileListRow";
+import { FileList } from "@/features/source-control/components/FileList";
 import { useSimpleFileListKeyboardNav } from "@/features/source-control/hooks/useSimpleFileListKeyboardNav";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
@@ -61,6 +57,7 @@ export default function PullRequestFileList({
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
   const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
+  const comments = useAppSelector((state) => state.comments);
   const [searchQuery, setSearchQuery] = useState("");
   const [commentFilter, setCommentFilter] = useState<FileCommentFilter>("all");
   const { reviewThreads } = useGetPullRequestConversationQuery(
@@ -69,9 +66,11 @@ export default function PullRequestFileList({
       selectFromResult: ({ data }) => ({
         reviewThreads: data?.reviewThreads ?? EMPTY_REVIEW_THREADS,
       }),
+      pollingInterval: 10000,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
     },
   );
-  const comments = useAppSelector((state) => state.comments);
   const pendingCommentCountByPath = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -140,11 +139,13 @@ export default function PullRequestFileList({
   return (
     <>
       <PullRequestVisibleSelectionSync visibleFiles={visibleFiles} />
-      <FileListPane
-        title="PR FILES"
-        subtitle={subtitle}
-        toolbar={
-          <div className="flex items-center gap-2">
+      <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
+        <div className="border-border border-b px-3 py-2">
+          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+            PR FILES
+          </div>
+          <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div>
+          <div className="mt-2 flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -180,23 +181,12 @@ export default function PullRequestFileList({
               className="h-7 text-xs"
             />
           </div>
-        }
-        navRegion="pull-request-files"
-        files={visibleFiles}
-        mode={fileBrowserMode}
-        activePath={activePath}
-        onSelectFile={(file) => {
-          dispatch(setPullRequestPreviewActiveFilePath(file.path));
-        }}
-        onActivateFile={(file) => {
-          dispatch(setPullRequestPreviewActiveFilePath(file.path));
-        }}
-        getCommentCount={(file) => commentCountByPath[file.path] ?? 0}
-        getFileStatus={(file) => file.status}
-        error={filesError}
-        isLoading={isLoading}
-        loadingState={loadingState()}
-        emptyState={
+        </div>
+        {isLoading && visibleFiles.length === 0 ? (
+          loadingState()
+        ) : filesError ? (
+          <div className="text-destructive px-3 py-4 text-sm">{filesError}</div>
+        ) : visibleFiles.length === 0 ? (
           files.length === 0 ? (
             <div className="text-muted-foreground px-3 py-4 text-sm">
               No changed files were reported for this pull request.
@@ -206,19 +196,20 @@ export default function PullRequestFileList({
               No files match the current filter.
             </div>
           )
-        }
-        bodyClassName="border-border/70 border-b"
-        renderRow={(row) => (
-          <PullRequestFileRow
-            key={`${row.file.path}:${row.file.previousPath ?? ""}`}
-            row={row}
-            repoPath={repoPath}
-            pullRequestNumber={pullRequestNumber}
-            compareBaseRef={compareBaseRef}
-            compareHeadRef={compareHeadRef}
+        ) : (
+          <FileList
+            files={visibleFiles}
+            mode={fileBrowserMode}
+            selectedPath={activePath}
+            navRegion="pull-request-files"
+            onActivatePath={(path) => {
+              dispatch(setPullRequestPreviewActiveFilePath(path));
+            }}
+            getCommentCount={(file) => commentCountByPath[file.path] ?? 0}
+            getFileStatus={(file) => file.status}
           />
         )}
-      />
+      </aside>
     </>
   );
 }
@@ -243,68 +234,4 @@ function PullRequestVisibleSelectionSync({
   }, [activePath, dispatch, visibleFiles]);
 
   return null;
-}
-
-type PullRequestFileRowProps = {
-  row: FileListPaneRowArgs<PullRequestChangedFile>;
-  repoPath: string;
-  pullRequestNumber: number;
-  compareBaseRef: string;
-  compareHeadRef: string;
-};
-
-function PullRequestFileRow({
-  row,
-  repoPath,
-  pullRequestNumber,
-  compareBaseRef,
-  compareHeadRef,
-}: PullRequestFileRowProps) {
-  const dispatch = useAppDispatch();
-  const isActive = useAppSelector(
-    (state) => state.pullRequests.previewActiveFilePath === row.file.path,
-  );
-  const { reviewThreads } = useGetPullRequestConversationQuery(
-    repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken,
-    {
-      selectFromResult: ({ data }) => ({
-        reviewThreads: data?.reviewThreads ?? EMPTY_REVIEW_THREADS,
-      }),
-    },
-  );
-  const pendingCommentCount = useAppSelector((state) =>
-    countCommentsForPathInRepoContext(state.comments, repoPath, row.file.path, {
-      kind: "review",
-      baseRef: compareBaseRef,
-      headRef: compareHeadRef,
-    }),
-  );
-  const reviewThreadCount = countPullRequestThreadsForFile({
-    path: row.file.path,
-    previousPath: row.file.previousPath,
-    reviewThreads,
-  });
-  const commentCount = reviewThreadCount + pendingCommentCount;
-
-  return (
-    <FileListRow
-      path={row.file.path}
-      status={row.file.status}
-      commentCount={commentCount}
-      isActive={isActive}
-      navIndex={row.navIndex}
-      depth={row.depth}
-      label={row.label}
-      showDirectoryPath={row.showDirectoryPath}
-      onSelect={(event) => {
-        event.preventDefault();
-        dispatch(setPullRequestPreviewActiveFilePath(row.file.path));
-      }}
-      secondaryLabel={
-        row.file.previousPath && row.file.previousPath !== row.file.path
-          ? `from ${row.file.previousPath}`
-          : undefined
-      }
-    />
-  );
 }

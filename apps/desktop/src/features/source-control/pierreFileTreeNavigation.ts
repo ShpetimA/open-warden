@@ -131,6 +131,25 @@ export function scrollPierreFileTreePathIntoView(regionId: string, path: string)
   scrollPierreFileTreeRowIntoView(entry.model, path);
 }
 
+export function scrollPierreFileTreeRealPathIntoView(regionId: string, realPath: string) {
+  const entries = pierreTreeNavRegistry.get(regionId);
+  const entry = entries?.find((candidate) =>
+    candidate.files.some((file) => (file.realPath ?? file.path) === realPath),
+  );
+  if (!entry || !realPath) {
+    return;
+  }
+
+  const treePath = entry.files.find((file) => (file.realPath ?? file.path) === realPath)?.path;
+  if (!treePath) {
+    return;
+  }
+
+  ensurePierreFileTreeOwnsFocus(entry.model, treePath);
+  entry.model.focusPath(treePath);
+  scrollPierreFileTreeRowIntoView(entry.model, treePath);
+}
+
 export function scrollPierreFileTreeBucketedFileIntoView(
   regionId: string,
   bucket: Bucket,

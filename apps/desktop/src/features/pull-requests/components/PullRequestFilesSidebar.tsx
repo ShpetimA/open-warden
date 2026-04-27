@@ -8,6 +8,7 @@ import {
 } from "@/features/source-control/components/ReviewFileList";
 import type { FileItem } from "@/features/source-control/types";
 import type { PullRequestReviewSession } from "@/features/pull-requests/pullRequestsSlice";
+import type { PullRequestReviewThread } from "@/platform/desktop";
 import { PullRequestSidebarSummary } from "@/features/pull-requests/components/PullRequestSidebarSummary";
 
 type PullRequestFilesSidebarProps = {
@@ -17,6 +18,7 @@ type PullRequestFilesSidebarProps = {
   branchFiles: FileItem[];
   hasBranchFilesData: boolean;
   isLoadingBranchFiles: boolean;
+  reviewThreads?: PullRequestReviewThread[];
 };
 
 export function PullRequestFilesSidebar({
@@ -26,6 +28,7 @@ export function PullRequestFilesSidebar({
   branchFiles,
   hasBranchFilesData,
   isLoadingBranchFiles,
+  reviewThreads = [],
 }: PullRequestFilesSidebarProps) {
   const dispatch = useAppDispatch();
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
@@ -82,6 +85,7 @@ export function PullRequestFilesSidebar({
               headerClassName="hidden"
               bodyClassName="space-y-0.5 p-0.5"
               scrollAreaClassName="min-h-0 flex-1 overflow-hidden"
+              reviewThreads={reviewThreads}
             />
           )}
         </div>

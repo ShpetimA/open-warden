@@ -437,6 +437,26 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
                   depth,
                 )
             : undefined,
+          compareFiles:
+            sort === "default"
+              ? undefined
+              : (left, right) =>
+                  sort(
+                    {
+                      basename: left.name,
+                      depth: left.path.split("/").filter(Boolean).length - 1,
+                      isDirectory: false,
+                      path: left.path,
+                      segments: left.path.split("/").filter(Boolean),
+                    },
+                    {
+                      basename: right.name,
+                      depth: right.path.split("/").filter(Boolean).length - 1,
+                      isDirectory: false,
+                      path: right.path,
+                      segments: right.path.split("/").filter(Boolean),
+                    },
+                  ),
           flattenEmptyDirectories,
         },
       },
@@ -568,6 +588,14 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     if (event.shiftKey && isRangeNavigationKey(event)) {
       const targetPath = getShiftNavigationTargetPath(model, filesRef.current, event, {
         compareDirectories: compareTreeDirectories,
+        compareFiles:
+          sort === "default"
+            ? undefined
+            : (left, right) =>
+                sort(
+                  toPierreSortEntry(left.path, left.name, false),
+                  toPierreSortEntry(right.path, right.name, false),
+                ),
         flattenEmptyDirectories,
       });
       if (!targetPath) {
@@ -649,6 +677,17 @@ function getFilePathFromComposedPath(path: EventTarget[]) {
   }
 
   return null;
+}
+
+function toPierreSortEntry(path: string, basename: string, isDirectory: boolean) {
+  const segments = path.split("/").filter(Boolean);
+  return {
+    basename,
+    depth: Math.max(0, segments.length - 1),
+    isDirectory,
+    path,
+    segments,
+  };
 }
 
 function isRangeNavigationKey(event: KeyboardEvent<HTMLElement>) {
