@@ -27,8 +27,9 @@ import {
 } from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket } from "@/features/source-control/types";
 import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
+import useOnLayoutScrollToFocusedPath from "@/features/source-control/components/useOnLayoutScrollToFocusedPath";
 
-type PierreFileTreeBrowserFile = {
+export type PierreFileTreeBrowserFile = {
   path: string;
 };
 
@@ -112,32 +113,6 @@ const TREE_DISABLE_INTERNAL_SCROLL_CSS = `
   }
 `;
 
-const TREE_ROOT_SELECTOR = "[data-file-tree-virtualized-root='true']";
-const TREE_SCROLL_SELECTOR = "[data-file-tree-virtualized-scroll='true']";
-const INITIAL_SCROLL_MAX_ATTEMPTS = 20;
-
-function findExpandedInitialRowIndex<TFile extends PierreFileTreeBrowserFile>(
-  files: ReadonlyArray<TFile>,
-  path: string,
-  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
-) {
-  const pendingNodes = [...buildSourceControlFileTree(files, treeOptions)].reverse();
-
-  for (let rowIndex = 0; pendingNodes.length > 0; rowIndex += 1) {
-    const node = pendingNodes.pop();
-    if (!node) continue;
-
-    if (node.kind === "file") {
-      if (node.file.path === path) return rowIndex;
-      continue;
-    }
-
-    pendingNodes.push(...node.children.toReversed());
-  }
-
-  return null;
-}
-
 function areFilePathsEqual(
   left: ReadonlyArray<PierreFileTreeBrowserFile>,
   right: ReadonlyArray<PierreFileTreeBrowserFile>,
@@ -182,19 +157,6 @@ function collapseDirectoryPaths(model: PierreFileTreeModel, directoryPaths: Read
   }
 }
 
-function getPierreFileTreeRowElement(model: PierreFileTreeModel, path: string) {
-  const shadowRoot = model.getFileTreeContainer()?.shadowRoot;
-  if (!shadowRoot) {
-    return null;
-  }
-
-  return (
-    Array.from(shadowRoot.querySelectorAll<HTMLElement>("[data-type='item'][data-item-path]")).find(
-      (item) => item.dataset.itemPath === path,
-    ) ?? null
-  );
-}
-
 export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   files,
   selectedPath,
@@ -218,13 +180,10 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   const onRangeSelectPathRef = useRef(onRangeSelectPath);
   const filesRef = useRef(files);
   const filePathSetRef = useRef(new Set(files.map((file) => file.path)));
-  const didApplyInitialScrollRef = useRef(false);
-  const pierreSelectedPathRef = useRef<string | null>(selectedPath || null);
   const pierreSelectedPathsRef = useRef<ReadonlySet<string>>(
     new Set(selectedPaths ?? (selectedPath ? [selectedPath] : [])),
   );
   const renderRowDecorationRef = useRef(renderRowDecoration);
-  const selectedPathRef = useRef(selectedPath);
   const suppressClickPathRef = useRef<string | null>(null);
   const suppressPierreSelectionChangeRef = useRef(false);
   const syncingSelectionRef = useRef(false);
@@ -233,7 +192,6 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   onTogglePathSelectionRef.current = onTogglePathSelection;
   onRangeSelectPathRef.current = onRangeSelectPath;
   renderRowDecorationRef.current = renderRowDecoration;
-  selectedPathRef.current = selectedPath;
 
   const filePaths = files.map((file) => file.path);
   const initialPreparedInput = prepareFileTreeInput(filePaths, {
@@ -260,12 +218,10 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
       const nextSelectedPaths = selectedPaths.filter((path) => filePathSetRef.current.has(path));
       if (nextSelectedPaths.length === 0) {
-        pierreSelectedPathRef.current = null;
         pierreSelectedPathsRef.current = new Set();
         return;
       }
 
-      pierreSelectedPathRef.current = nextSelectedPaths[0] ?? null;
       pierreSelectedPathsRef.current = new Set(nextSelectedPaths);
     },
     preparedInput: initialPreparedInput,
@@ -283,6 +239,8 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
         }
       : undefined,
   });
+
+  const treeOptions = buildTreeOptions(compareTreeDirectories, flattenEmptyDirectories, sort);
 
   const setPierreSelectedPaths = (paths: ReadonlyArray<string>) => {
     const nextPaths = paths.filter((path) => filePathSetRef.current.has(path));
@@ -307,14 +265,9 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
         model.getItem(path)?.select();
       }
       pierreSelectedPathsRef.current = nextPathSet;
-      pierreSelectedPathRef.current = nextPaths[0] ?? null;
     } finally {
       syncingSelectionRef.current = false;
     }
-  };
-
-  const setPierreSelectedPath = (path: string | null) => {
-    setPierreSelectedPaths(path ? [path] : []);
   };
 
   useEffect(() => {
@@ -336,63 +289,17 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   useEffect(() => {
     model.setGitStatus(gitStatus);
-  }, [gitStatus, model, renderRowDecoration]);
+  }, [gitStatus, model]);
 
-  useEffect(() => {
-    if (didApplyInitialScrollRef.current || !selectedPath) {
-      return;
-    }
-
-    let canceled = false;
-    let animationFrameId: number | null = null;
-    let attemptCount = 0;
-
-    const applyInitialScroll = () => {
-      if (canceled || didApplyInitialScrollRef.current) {
-        return;
-      }
-
-      const hostElement = model.getFileTreeContainer();
-      const shadowRoot = hostElement?.shadowRoot;
-      const focusTarget = shadowRoot?.querySelector<HTMLElement>(TREE_ROOT_SELECTOR);
-      const scrollTarget = shadowRoot?.querySelector<HTMLElement>(TREE_SCROLL_SELECTOR);
-
-      if (!focusTarget || !scrollTarget || scrollTarget.clientHeight === 0) {
-        attemptCount += 1;
-        if (attemptCount < INITIAL_SCROLL_MAX_ATTEMPTS) {
-          animationFrameId = window.requestAnimationFrame(applyInitialScroll);
-        }
-        return;
-      }
-
-      didApplyInitialScrollRef.current = true;
-      const initialRowIndex = findExpandedInitialRowIndex(filesRef.current, selectedPath, {
-        compareDirectories: compareTreeDirectories,
-        flattenEmptyDirectories,
-      });
-
-      if (initialRowIndex !== null) {
-        const itemHeight = model.getItemHeight();
-        const targetOffset = Math.max(0, Math.floor((scrollTarget.clientHeight - itemHeight) / 2));
-        scrollTarget.scrollTop = Math.max(0, initialRowIndex * itemHeight - targetOffset);
-      }
-
-      syncingSelectionRef.current = true;
-      model.focusPath(selectedPath);
-      syncingSelectionRef.current = false;
-      focusTarget.focus({ preventScroll: true });
-      getPierreFileTreeRowElement(model, selectedPath)?.scrollIntoView({ block: "nearest" });
-    };
-
-    animationFrameId = window.requestAnimationFrame(applyInitialScroll);
-
-    return () => {
-      canceled = true;
-      if (animationFrameId !== null) {
-        window.cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [compareTreeDirectories, flattenEmptyDirectories, selectedPath, model]);
+  useOnLayoutScrollToFocusedPath({
+    model,
+    selectedPath,
+    filesRef,
+    syncingSelectionRef,
+    compareTreeDirectories,
+    flattenEmptyDirectories,
+    sort,
+  });
 
   useEffect(() => {
     const pathsChanged = !areFilePathsEqual(filesRef.current, files);
@@ -400,10 +307,11 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
     if (pathsChanged) {
       const focusedPath = model.getFocusedPath();
-      const collapsedDirectoryPaths = collectCollapsedDirectoryPaths(filesRef.current, model, {
-        compareDirectories: compareTreeDirectories,
-        flattenEmptyDirectories,
-      });
+      const collapsedDirectoryPaths = collectCollapsedDirectoryPaths(
+        filesRef.current,
+        model,
+        treeOptions,
+      );
       const nextPaths = files.map((file) => file.path);
       const nextPreparedInput = prepareFileTreeInput(nextPaths, {
         flattenEmptyDirectories,
@@ -428,37 +336,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       model,
       {
         selectedPath,
-        treeOptions: {
-          compareDirectories: compareTreeDirectories
-            ? (left, right, depth) =>
-                compareTreeDirectories(
-                  left as SourceControlTreeDirectoryNode<TFile>,
-                  right as SourceControlTreeDirectoryNode<TFile>,
-                  depth,
-                )
-            : undefined,
-          compareFiles:
-            sort === "default"
-              ? undefined
-              : (left, right) =>
-                  sort(
-                    {
-                      basename: left.name,
-                      depth: left.path.split("/").filter(Boolean).length - 1,
-                      isDirectory: false,
-                      path: left.path,
-                      segments: left.path.split("/").filter(Boolean),
-                    },
-                    {
-                      basename: right.name,
-                      depth: right.path.split("/").filter(Boolean).length - 1,
-                      isDirectory: false,
-                      path: right.path,
-                      segments: right.path.split("/").filter(Boolean),
-                    },
-                  ),
-          flattenEmptyDirectories,
-        },
+        treeOptions: buildNavTreeOptions(compareTreeDirectories, flattenEmptyDirectories, sort),
       },
     );
 
@@ -481,8 +359,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       return;
     }
 
-    selectedPathRef.current = path;
-    setPierreSelectedPath(path);
+    setPierreSelectedPaths([path]);
     onActivatePathRef.current(path);
   };
 
@@ -586,18 +463,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   const handleHostKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.shiftKey && isRangeNavigationKey(event)) {
-      const targetPath = getShiftNavigationTargetPath(model, filesRef.current, event, {
-        compareDirectories: compareTreeDirectories,
-        compareFiles:
-          sort === "default"
-            ? undefined
-            : (left, right) =>
-                sort(
-                  toPierreSortEntry(left.path, left.name, false),
-                  toPierreSortEntry(right.path, right.name, false),
-                ),
-        flattenEmptyDirectories,
-      });
+      const targetPath = getShiftNavigationTargetPath(model, filesRef.current, event, treeOptions);
       if (!targetPath) {
         return;
       }
@@ -687,6 +553,55 @@ function toPierreSortEntry(path: string, basename: string, isDirectory: boolean)
     isDirectory,
     path,
     segments,
+  };
+}
+
+function buildTreeOptions<TFile extends PierreFileTreeBrowserFile>(
+  compareTreeDirectories: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"],
+  flattenEmptyDirectories: boolean,
+  sort: "default" | FileTreeSortComparator,
+): BuildSourceControlFileTreeOptions<TFile> {
+  return {
+    compareDirectories: compareTreeDirectories,
+    compareFiles:
+      sort === "default"
+        ? undefined
+        : (left, right) =>
+            sort(
+              toPierreSortEntry(left.path, left.name, false),
+              toPierreSortEntry(right.path, right.name, false),
+            ),
+    flattenEmptyDirectories,
+  };
+}
+
+function buildNavTreeOptions<TFile extends PierreFileTreeBrowserFile>(
+  compareTreeDirectories: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"],
+  flattenEmptyDirectories: boolean,
+  sort: "default" | FileTreeSortComparator,
+): BuildSourceControlFileTreeOptions<{
+  path: string;
+  bucket?: Bucket;
+  realPath?: string;
+}> {
+  return {
+    compareDirectories: compareTreeDirectories
+      ? (left, right, depth) =>
+          compareTreeDirectories(
+            left as SourceControlTreeDirectoryNode<TFile>,
+            right as SourceControlTreeDirectoryNode<TFile>,
+            depth,
+          )
+      : undefined,
+    compareFiles:
+      sort === "default"
+        ? undefined
+        : (left, right) =>
+            sort(
+              toPierreSortEntry(left.path, left.name, false),
+              toPierreSortEntry(right.path, right.name, false),
+            ),
+    flattenEmptyDirectories,
   };
 }
 
