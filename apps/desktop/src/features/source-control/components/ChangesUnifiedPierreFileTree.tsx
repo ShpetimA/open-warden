@@ -1,9 +1,4 @@
-import type {
-  FileTreeRowDecoration,
-  FileTreeSortComparator,
-  GitStatus,
-  GitStatusEntry,
-} from "@pierre/trees";
+import type { FileTreeRowDecoration, FileTreeSortComparator } from "@pierre/trees";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
@@ -18,13 +13,9 @@ import {
   type SourceControlTreeDirectoryNode,
 } from "@/features/source-control/fileTree";
 import { getPierreFileTreeVisibleBucketedFiles } from "@/features/source-control/pierreFileTreeNavigation";
-import type {
-  Bucket,
-  BucketedFile,
-  FileBrowserMode,
-  FileStatus,
-} from "@/features/source-control/types";
-import { getFlatPierrePathIndex, toFlatPierreLeafPath } from "./flatPierrePaths";
+import type { Bucket, BucketedFile, FileBrowserMode } from "@/features/source-control/types";
+import { getFlatPierrePathIndex, toDisplayPath } from "./pierreFileTreeDisplay";
+import { buildPierreGitStatusEntries } from "./pierreGitStatus";
 import { PIERRE_FILE_TREE_ITEM_HEIGHT, PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 import {
   ChangesSectionContextMenu,
@@ -88,7 +79,11 @@ export function ChangesUnifiedPierreFileTree({
   const selectedPaths = selectedFiles
     .map((file) => treePathBySelectionKey.get(`${file.bucket}\u0000${file.path}`))
     .filter((path): path is string => !!path);
-  const gitStatus = buildPierreGitStatus(files);
+  const gitStatus = buildPierreGitStatusEntries(
+    files,
+    (file) => file.path,
+    (file) => file.status,
+  );
   const treeHeight = getExpandedTreeHeight(files);
   const hasRunningAction = runningAction !== "";
 
@@ -207,7 +202,7 @@ function toUnifiedFile(
   const root = sectionKey === "staged" ? STAGED_ROOT : CHANGES_ROOT;
   return {
     ...file,
-    path: `${root}/${mode === "list" ? toFlatPierreLeafPath(file.path, index) : file.path}`,
+    path: `${root}/${toDisplayPath(mode, file.path, index)}`,
     realPath: file.path,
     sectionKey,
   };
@@ -302,29 +297,4 @@ function getExpandedTreeHeight(rows: ReadonlyArray<UnifiedChangeTreeFile>) {
   });
   const rowCount = rows.length + collectDirectoryPaths(treeNodes).length;
   return Math.max(PIERRE_FILE_TREE_ITEM_HEIGHT, rowCount * PIERRE_FILE_TREE_ITEM_HEIGHT + 4);
-}
-
-function buildPierreGitStatus(files: ReadonlyArray<UnifiedChangeTreeFile>): GitStatusEntry[] {
-  const entries: GitStatusEntry[] = [];
-
-  for (const file of files) {
-    const status = toPierreGitStatus(file.status);
-    if (status) entries.push({ path: file.path, status });
-  }
-
-  return entries;
-}
-
-function toPierreGitStatus(status: FileStatus): GitStatus {
-  if (
-    status === "added" ||
-    status === "deleted" ||
-    status === "modified" ||
-    status === "renamed" ||
-    status === "untracked"
-  ) {
-    return status;
-  }
-
-  return "modified";
 }

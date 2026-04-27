@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
-import type { FileTreeRowDecoration } from "@pierre/trees";
 
 import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
-import { FlatPierreFileBrowser } from "./FlatPierreFileBrowser";
-import { buildPierreGitStatusEntries } from "./pierreGitStatus";
+import {
+  buildCommentCountDecoration,
+  buildDisplayFiles,
+  buildGitStatusForDisplayFiles,
+  compareFlatPierreEntries,
+} from "./pierreFileTreeDisplay";
 import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 
 export type FileListContextMenuItem = {
@@ -32,6 +35,8 @@ type FileListProps<TFile extends { path: string }> = {
   ) => ReactNode;
 };
 
+const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
+
 export function FileList<TFile extends { path: string }>({
   files,
   mode,
@@ -43,57 +48,42 @@ export function FileList<TFile extends { path: string }>({
   getFileStatus,
   renderContextMenu,
 }: FileListProps<TFile>) {
-  if (mode === "list") {
-    return (
-      <FlatPierreFileBrowser
-        files={files}
-        selectedPath={selectedPath}
-        navRegion={navRegion}
-        className={className}
-        onActivatePath={onActivatePath}
-        getCommentCount={getCommentCount}
-        getFileStatus={getFileStatus}
-        renderTreeContextMenu={renderContextMenu}
-      />
-    );
-  }
+  const isList = mode === "list";
 
-  const filesByPath = new Map(files.map((file) => [file.path, file]));
+  const displayFiles = buildDisplayFiles(mode, files, {
+    sort: isList
+      ? (left, right) => left.path.localeCompare(right.path, undefined, SORT_LOCALE_OPTIONS)
+      : undefined,
+  });
+
+  const sourceByDisplayPath = new Map(displayFiles.map((file) => [file.path, file.source]));
+
+  const pierreSelectedPath = isList
+    ? (displayFiles.find((file) => file.source.path === selectedPath)?.path ?? "")
+    : selectedPath;
+
   const gitStatus = getFileStatus
-    ? buildPierreGitStatusEntries(files, (file) => file.path, getFileStatus)
+    ? buildGitStatusForDisplayFiles(displayFiles, getFileStatus)
     : undefined;
 
   return (
     <PierreFileTreeBrowser
-      files={files}
-      selectedPath={selectedPath}
+      files={displayFiles}
+      selectedPath={pierreSelectedPath}
       navRegion={navRegion}
       className={className}
+      flattenEmptyDirectories={!isList}
+      sort={isList ? compareFlatPierreEntries : "default"}
       onActivatePath={(path) => {
-        const file = filesByPath.get(path);
+        const file = sourceByDisplayPath.get(path);
         if (file) {
-          onActivatePath(path, file);
+          onActivatePath(file.path, file);
         }
       }}
       gitStatus={gitStatus}
       renderRowDecoration={
         getCommentCount
-          ? ({ item }): FileTreeRowDecoration | null => {
-              if (item.kind === "directory") {
-                return null;
-              }
-              const file = filesByPath.get(item.path);
-              if (!file) {
-                return null;
-              }
-              const commentCount = getCommentCount(file);
-              return commentCount > 0
-                ? {
-                    text: String(commentCount),
-                    title: `${commentCount} comment${commentCount === 1 ? "" : "s"}`,
-                  }
-                : null;
-            }
+          ? buildCommentCountDecoration((path) => sourceByDisplayPath.get(path), getCommentCount)
           : undefined
       }
       renderContextMenu={
@@ -102,7 +92,7 @@ export function FileList<TFile extends { path: string }>({
               if (item.kind === "directory") {
                 return null;
               }
-              const file = filesByPath.get(item.path);
+              const file = sourceByDisplayPath.get(item.path);
               return file ? renderContextMenu(file, item, context) : null;
             }
           : undefined
