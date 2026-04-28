@@ -6,7 +6,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STAGED_ROOT_PATH } from "@/features/source-control/components/ChangesUnifiedPierreFileTree";
+import { STAGED_ROOT_PATH } from "@/features/source-control/components/changesUnifiedPierreTree";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import type { ContextMenuItem, ContextMenuOpenContext } from "@pierre/trees";
 import { Minus, Plus, Trash2 } from "lucide-react";

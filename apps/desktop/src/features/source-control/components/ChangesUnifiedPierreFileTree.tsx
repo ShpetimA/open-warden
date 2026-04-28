@@ -1,4 +1,4 @@
-import type { FileTreeRowDecoration, FileTreeSortComparator } from "@pierre/trees";
+import type { FileTreeRowDecoration } from "@pierre/trees";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
@@ -7,30 +7,24 @@ import {
   selectFile,
   toggleFileSelection,
 } from "@/features/source-control/actions";
-import {
-  buildSourceControlFileTree,
-  collectDirectoryPaths,
-  type SourceControlTreeDirectoryNode,
-} from "@/features/source-control/fileTree";
 import { getPierreFileTreeVisibleBucketedFiles } from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket, BucketedFile, FileBrowserMode } from "@/features/source-control/types";
-import { getFlatPierrePathIndex, toDisplayPath } from "./flatPierreTree";
+import {
+  buildUnifiedChangeTreeFiles,
+  CHANGES_ROOT_PATH,
+  compareUnifiedChangeListEntries,
+  compareUnifiedChangeTreeDirectories,
+  compareUnifiedChangeTreeEntries,
+  getUnifiedChangeTreeHeight,
+  STAGED_ROOT_PATH,
+} from "./changesUnifiedPierreTree";
 import { buildPierreGitStatusEntries } from "./pierreFileTree";
-import { PIERRE_FILE_TREE_ITEM_HEIGHT, PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
+import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 import {
   ChangesSectionContextMenu,
   ChangesFileContextMenu,
 } from "@/features/source-control/components/ChangesContextMenu";
 
-const STAGED_ROOT = "Staged Changes";
-export const STAGED_ROOT_PATH = `${STAGED_ROOT}/`;
-const CHANGES_ROOT = "Changes";
-export const CHANGES_ROOT_PATH = `${CHANGES_ROOT}/`;
-const SECTION_SORT_ORDER = new Map([
-  [STAGED_ROOT, 0],
-  [CHANGES_ROOT, 1],
-]);
-const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
 const SELECTION_KEY_SEPARATOR = "\u0000";
 
 type ChangesUnifiedPierreFileTreeProps = {
@@ -44,12 +38,6 @@ type ChangesUnifiedPierreFileTreeProps = {
   onUnstageFile: (path: string) => void;
   onDiscardFile: (bucket: Bucket, path: string) => void;
   onDiscardChangesGroup: (files: BucketedFile[]) => void;
-};
-
-type UnifiedChangeTreeFile = BucketedFile & {
-  path: string;
-  realPath: string;
-  sectionKey: "staged" | "unstaged";
 };
 
 export function ChangesUnifiedPierreFileTree({
@@ -70,10 +58,7 @@ export function ChangesUnifiedPierreFileTree({
   const selectedFiles = useAppSelector((state) => state.sourceControl.selectedFiles);
   const comments = useAppSelector((state) => state.comments);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
-  const files = [
-    ...stagedRows.map((file, index) => toUnifiedFile(file, "staged", mode, index)),
-    ...changedRows.map((file, index) => toUnifiedFile(file, "unstaged", mode, index)),
-  ];
+  const files = buildUnifiedChangeTreeFiles(stagedRows, changedRows, mode);
   const filesByTreePath = new Map(files.map((file) => [file.path, file]));
   const treePathBySelectionKey = new Map(files.map((file) => [selectionKey(file), file.path]));
   const selectedPath = treePathBySelectionKey.get(toBucketPathKey(activeBucket, activePath)) ?? "";
@@ -85,7 +70,7 @@ export function ChangesUnifiedPierreFileTree({
     (file) => file.path,
     (file) => file.status,
   );
-  const treeHeight = getExpandedTreeHeight(files);
+  const treeHeight = getUnifiedChangeTreeHeight(files);
   const hasRunningAction = runningAction !== "";
 
   if (files.length === 0) {
@@ -122,8 +107,8 @@ export function ChangesUnifiedPierreFileTree({
       style={{ height: `${treeHeight}px` }}
       disableInternalScroll
       flattenEmptyDirectories={false}
-      sort={mode === "list" ? compareChangeListEntries : compareChangeTreeEntries}
-      compareTreeDirectories={compareChangeTreeDirectories}
+      sort={mode === "list" ? compareUnifiedChangeListEntries : compareUnifiedChangeTreeEntries}
+      compareTreeDirectories={compareUnifiedChangeTreeDirectories}
       onActivatePath={activatePath}
       onTogglePathSelection={togglePathSelection}
       onRangeSelectPath={rangeSelectPath}
@@ -194,21 +179,6 @@ export function ChangesUnifiedPierreFileTree({
   );
 }
 
-function toUnifiedFile(
-  file: BucketedFile,
-  sectionKey: "staged" | "unstaged",
-  mode: FileBrowserMode,
-  index: number,
-): UnifiedChangeTreeFile {
-  const root = sectionKey === "staged" ? STAGED_ROOT : CHANGES_ROOT;
-  return {
-    ...file,
-    path: `${root}/${toDisplayPath(mode, file.path, index)}`,
-    realPath: file.path,
-    sectionKey,
-  };
-}
-
 function selectionKey(file: Pick<BucketedFile, "bucket" | "path"> & { realPath?: string }) {
   return toBucketPathKey(file.bucket, file.realPath ?? file.path);
 }
@@ -216,90 +186,4 @@ function selectionKey(file: Pick<BucketedFile, "bucket" | "path"> & { realPath?:
 function toBucketPathKey(bucket: Bucket, path: string) {
   // NUL is not valid in filesystem paths, so it is safe as a collision-free bucket/path delimiter.
   return `${bucket}${SELECTION_KEY_SEPARATOR}${path}`;
-}
-
-const compareChangeListEntries: FileTreeSortComparator = (left, right) => {
-  const sectionComparison = compareSectionNames(left.segments[0], right.segments[0]);
-  if (sectionComparison !== 0) {
-    return sectionComparison;
-  }
-
-  if (left.isDirectory !== right.isDirectory) {
-    return left.isDirectory ? -1 : 1;
-  }
-
-  return getFlatPierrePathIndex(left.path) - getFlatPierrePathIndex(right.path);
-};
-
-const compareChangeTreeEntries: FileTreeSortComparator = (left, right) => {
-  const sectionComparison = compareSectionNames(left.segments[0], right.segments[0]);
-  if (sectionComparison !== 0) {
-    return sectionComparison;
-  }
-
-  const sharedDepth = Math.min(left.segments.length, right.segments.length);
-  for (let depth = 0; depth < sharedDepth; depth += 1) {
-    const leftSegment = left.segments[depth];
-    const rightSegment = right.segments[depth];
-    if (leftSegment === rightSegment) {
-      continue;
-    }
-
-    const leftIsDirectoryAtDepth = depth < left.segments.length - 1 || left.isDirectory;
-    const rightIsDirectoryAtDepth = depth < right.segments.length - 1 || right.isDirectory;
-    if (leftIsDirectoryAtDepth !== rightIsDirectoryAtDepth) {
-      return leftIsDirectoryAtDepth ? -1 : 1;
-    }
-
-    return compareNames(leftSegment ?? "", rightSegment ?? "");
-  }
-
-  if (left.segments.length !== right.segments.length) {
-    return left.segments.length < right.segments.length ? -1 : 1;
-  }
-
-  if (left.isDirectory === right.isDirectory) {
-    return 0;
-  }
-
-  return left.isDirectory ? -1 : 1;
-};
-
-function compareChangeTreeDirectories(
-  left: SourceControlTreeDirectoryNode<UnifiedChangeTreeFile>,
-  right: SourceControlTreeDirectoryNode<UnifiedChangeTreeFile>,
-  depth: number,
-) {
-  if (depth === 0) {
-    const sectionComparison = compareSectionNames(left.name, right.name);
-    if (sectionComparison !== 0) {
-      return sectionComparison;
-    }
-  }
-
-  return compareNames(left.name, right.name);
-}
-
-function compareSectionNames(left: string | undefined, right: string | undefined) {
-  const leftOrder = left ? SECTION_SORT_ORDER.get(left) : undefined;
-  const rightOrder = right ? SECTION_SORT_ORDER.get(right) : undefined;
-
-  if (leftOrder !== undefined || rightOrder !== undefined) {
-    return (leftOrder ?? Number.MAX_SAFE_INTEGER) - (rightOrder ?? Number.MAX_SAFE_INTEGER);
-  }
-
-  return 0;
-}
-
-function compareNames(left: string, right: string) {
-  return left.localeCompare(right, undefined, SORT_LOCALE_OPTIONS);
-}
-
-function getExpandedTreeHeight(rows: ReadonlyArray<UnifiedChangeTreeFile>) {
-  const treeNodes = buildSourceControlFileTree(rows, {
-    compareDirectories: compareChangeTreeDirectories,
-    flattenEmptyDirectories: false,
-  });
-  const rowCount = rows.length + collectDirectoryPaths(treeNodes).length;
-  return Math.max(PIERRE_FILE_TREE_ITEM_HEIGHT, rowCount * PIERRE_FILE_TREE_ITEM_HEIGHT + 4);
 }
