@@ -194,6 +194,8 @@ export type RunningAction =
   | ""
   | "stage-all"
   | "unstage-all"
+  | "stage-files"
+  | "unstage-files"
   | "discard-changes"
   | "commit"
   | `file:stage:${string}`

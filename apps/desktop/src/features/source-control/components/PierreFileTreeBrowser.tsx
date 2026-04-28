@@ -15,12 +15,7 @@ import {
   type PointerEvent,
 } from "react";
 
-import {
-  buildSourceControlFileTree,
-  collectDirectoryPaths,
-  type BuildSourceControlFileTreeOptions,
-  type SourceControlTreeDirectoryNode,
-} from "@/features/source-control/fileTree";
+import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
 import {
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
@@ -28,10 +23,16 @@ import {
 import type { Bucket } from "@/features/source-control/types";
 import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
 import useOnLayoutScrollToFocusedPath from "@/features/source-control/components/useOnLayoutScrollToFocusedPath";
+import {
+  buildNavTreeOptions,
+  buildTreeOptions,
+  collectCollapsedDirectoryPaths,
+  collectVisibleFilePaths,
+  collapseDirectoryPaths,
+  type PierreFileTreeBrowserFile,
+} from "./pierreFileTree";
 
-export type PierreFileTreeBrowserFile = {
-  path: string;
-};
+export type { PierreFileTreeBrowserFile } from "./pierreFileTree";
 
 type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
@@ -128,33 +129,6 @@ function areFilePathsEqual(
   }
 
   return true;
-}
-
-function collectCollapsedDirectoryPaths<TFile extends PierreFileTreeBrowserFile>(
-  files: ReadonlyArray<TFile>,
-  model: PierreFileTreeModel,
-  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
-) {
-  const treeNodes = buildSourceControlFileTree(files, treeOptions);
-  const collapsedPaths: string[] = [];
-
-  for (const directoryPath of collectDirectoryPaths(treeNodes)) {
-    const directoryItem = model.getItem(directoryPath);
-    if (directoryItem && "isExpanded" in directoryItem && !directoryItem.isExpanded()) {
-      collapsedPaths.push(directoryPath);
-    }
-  }
-
-  return collapsedPaths;
-}
-
-function collapseDirectoryPaths(model: PierreFileTreeModel, directoryPaths: ReadonlyArray<string>) {
-  for (const directoryPath of directoryPaths) {
-    const directoryItem = model.getItem(directoryPath);
-    if (directoryItem && "collapse" in directoryItem) {
-      directoryItem.collapse();
-    }
-  }
 }
 
 export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
@@ -545,66 +519,6 @@ function getFilePathFromComposedPath(path: EventTarget[]) {
   return null;
 }
 
-function toPierreSortEntry(path: string, basename: string, isDirectory: boolean) {
-  const segments = path.split("/").filter(Boolean);
-  return {
-    basename,
-    depth: Math.max(0, segments.length - 1),
-    isDirectory,
-    path,
-    segments,
-  };
-}
-
-function buildTreeOptions<TFile extends PierreFileTreeBrowserFile>(
-  compareTreeDirectories: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"],
-  flattenEmptyDirectories: boolean,
-  sort: "default" | FileTreeSortComparator,
-): BuildSourceControlFileTreeOptions<TFile> {
-  return {
-    compareDirectories: compareTreeDirectories,
-    compareFiles:
-      sort === "default"
-        ? undefined
-        : (left, right) =>
-            sort(
-              toPierreSortEntry(left.path, left.name, false),
-              toPierreSortEntry(right.path, right.name, false),
-            ),
-    flattenEmptyDirectories,
-  };
-}
-
-function buildNavTreeOptions<TFile extends PierreFileTreeBrowserFile>(
-  compareTreeDirectories: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"],
-  flattenEmptyDirectories: boolean,
-  sort: "default" | FileTreeSortComparator,
-): BuildSourceControlFileTreeOptions<{
-  path: string;
-  bucket?: Bucket;
-  realPath?: string;
-}> {
-  return {
-    compareDirectories: compareTreeDirectories
-      ? (left, right, depth) =>
-          compareTreeDirectories(
-            left as SourceControlTreeDirectoryNode<TFile>,
-            right as SourceControlTreeDirectoryNode<TFile>,
-            depth,
-          )
-      : undefined,
-    compareFiles:
-      sort === "default"
-        ? undefined
-        : (left, right) =>
-            sort(
-              toPierreSortEntry(left.path, left.name, false),
-              toPierreSortEntry(right.path, right.name, false),
-            ),
-    flattenEmptyDirectories,
-  };
-}
-
 function isRangeNavigationKey(event: KeyboardEvent<HTMLElement>) {
   return (
     event.key === "ArrowDown" ||
@@ -630,34 +544,4 @@ function getShiftNavigationTargetPath<TFile extends PierreFileTreeBrowserFile>(
   const activeIndex = activePath ? visibleFilePaths.findIndex((path) => path === activePath) : -1;
   const targetIndex = getWrappedNavigationIndex(activeIndex, visibleFilePaths.length, next);
   return visibleFilePaths[targetIndex] ?? null;
-}
-
-function collectVisibleFilePaths<TFile extends PierreFileTreeBrowserFile>(
-  files: ReadonlyArray<TFile>,
-  model: PierreFileTreeModel,
-  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
-) {
-  const visiblePaths: string[] = [];
-  const pendingNodes = [...buildSourceControlFileTree(files, treeOptions)].reverse();
-
-  while (pendingNodes.length > 0) {
-    const node = pendingNodes.pop();
-    if (!node) {
-      continue;
-    }
-
-    if (node.kind === "file") {
-      visiblePaths.push(node.file.path);
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (isExpanded) {
-      pendingNodes.push(...node.children.toReversed());
-    }
-  }
-
-  return visiblePaths;
 }

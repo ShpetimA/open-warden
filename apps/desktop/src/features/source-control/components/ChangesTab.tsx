@@ -7,8 +7,10 @@ import {
   discardFileAction,
   stageAllAction,
   stageFileAction,
+  stageFilesAction,
   unstageAllAction,
   unstageFileAction,
+  unstageFilesAction,
 } from "@/features/source-control/actions";
 import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { CommitBox } from "./CommitBox";
@@ -79,6 +81,14 @@ function ChangesFileList() {
     void dispatch(unstageFileAction(path));
   };
 
+  const onStageFiles = (files: BucketedFile[]) => {
+    void dispatch(stageFilesAction(files));
+  };
+
+  const onUnstageFiles = (files: BucketedFile[]) => {
+    void dispatch(unstageFilesAction(files));
+  };
+
   const onDiscardFile = async (bucket: Bucket, path: string) => {
     if (!(await confirmDiscard(`Discard changes for ${path}?`))) return;
     void dispatch(discardFileAction(bucket, path));
@@ -100,6 +110,8 @@ function ChangesFileList() {
             onUnstageAll={onUnstageAll}
             onStageFile={onStageFile}
             onUnstageFile={onUnstageFile}
+            onStageFiles={onStageFiles}
+            onUnstageFiles={onUnstageFiles}
             onDiscardFile={onDiscardFile}
             onDiscardChangesGroup={onDiscardChangesGroup}
           />

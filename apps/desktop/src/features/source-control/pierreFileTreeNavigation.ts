@@ -1,35 +1,33 @@
 import type { FileTree as PierreFileTreeModel } from "@pierre/trees";
 
 import {
+  collectVisibleFiles,
+  collectVisibleRowPaths,
+  type PierreFileTreeNavFile,
+} from "@/features/source-control/components/pierreFileTree";
+import {
   buildSourceControlFileTree,
   type BuildSourceControlFileTreeOptions,
-  type SourceControlTreeNode,
 } from "@/features/source-control/fileTree";
-import type { Bucket, BucketedFile } from "@/features/source-control/types";
-
-type PierreTreeNavFile = {
-  bucket?: Bucket;
-  path: string;
-  realPath?: string;
-};
+import type { Bucket, SelectedFile } from "@/features/source-control/types";
 
 type PierreTreeNavEntry = {
-  files: ReadonlyArray<PierreTreeNavFile>;
+  files: ReadonlyArray<PierreFileTreeNavFile>;
   model: PierreFileTreeModel;
   selectedPath?: string;
-  treeOptions?: BuildSourceControlFileTreeOptions<PierreTreeNavFile>;
+  treeOptions?: BuildSourceControlFileTreeOptions<PierreFileTreeNavFile>;
 };
 
 type PierreTreeNavOptions = {
   selectedPath?: string;
-  treeOptions?: BuildSourceControlFileTreeOptions<PierreTreeNavFile>;
+  treeOptions?: BuildSourceControlFileTreeOptions<PierreFileTreeNavFile>;
 };
 
 const pierreTreeNavRegistry = new Map<string, PierreTreeNavEntry[]>();
 
 export function registerPierreFileTreeNav(
   regionId: string,
-  files: ReadonlyArray<PierreTreeNavFile>,
+  files: ReadonlyArray<PierreFileTreeNavFile>,
   model: PierreFileTreeModel,
   options: PierreTreeNavOptions = {},
 ) {
@@ -75,24 +73,43 @@ export function getPierreFileTreeVisiblePaths(regionId: string) {
   return entries.flatMap((entry) => collectVisibleFilesForEntry(entry).map((file) => file.path));
 }
 
-export function getPierreFileTreeVisibleBucketedFiles(regionId: string): BucketedFile[] {
+export function getPierreFileTreeVisibleSelectedFiles(regionId: string): SelectedFile[] {
   const entries = pierreTreeNavRegistry.get(regionId);
   if (!entries) {
     return [];
   }
 
-  const files: BucketedFile[] = [];
+  const files: SelectedFile[] = [];
   for (const entry of entries) {
     for (const file of collectVisibleFilesForEntry(entry)) {
       if (file.bucket) {
-        files.push({ bucket: file.bucket, path: file.realPath ?? file.path } as BucketedFile);
+        files.push({ bucket: file.bucket, path: file.realPath ?? file.path });
       }
     }
   }
   return files;
 }
 
-export function getPierreFileTreeFocusedBucketedFile(regionId: string): BucketedFile | null {
+export function getPierreFileTreeFocusedPath(regionId: string): string | null {
+  const entries = pierreTreeNavRegistry.get(regionId);
+  if (!entries) {
+    return null;
+  }
+
+  const focusedEntry = entries.find((entry) => pierreFileTreeHasDomFocus(entry.model));
+  if (focusedEntry) {
+    return focusedEntry.model.getFocusedPath() ?? null;
+  }
+
+  for (const entry of entries) {
+    const focusedPath = entry.model.getFocusedPath();
+    if (focusedPath) return focusedPath;
+  }
+
+  return null;
+}
+
+export function getPierreFileTreeFocusedSelectedFile(regionId: string): SelectedFile | null {
   const entries = pierreTreeNavRegistry.get(regionId);
   if (!entries) {
     return null;
@@ -286,7 +303,7 @@ function pierreFileTreeHasDomFocus(model: PierreFileTreeModel) {
   return shadowRoot?.activeElement instanceof HTMLElement;
 }
 
-function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): BucketedFile | null {
+function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): SelectedFile | null {
   const focusedPath = entry.model.getFocusedPath();
   if (!focusedPath) {
     return null;
@@ -300,7 +317,7 @@ function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): BucketedFile | 
   return {
     bucket: focusedFile.bucket,
     path: focusedFile.realPath ?? focusedFile.path,
-  } as BucketedFile;
+  };
 }
 
 function findFileInEntry(entry: PierreTreeNavEntry, path: string) {
@@ -384,55 +401,4 @@ function getPierreFileTreeRowElement(model: PierreFileTreeModel, path: string) {
       (item) => item.dataset.itemPath === path,
     ) ?? null
   );
-}
-
-function collectVisibleFiles(
-  nodes: ReadonlyArray<SourceControlTreeNode<PierreTreeNavFile>>,
-  model: PierreFileTreeModel,
-): PierreTreeNavFile[] {
-  const visibleFiles: PierreTreeNavFile[] = [];
-
-  for (const node of nodes) {
-    if (node.kind === "file") {
-      visibleFiles.push(node.file);
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (!isExpanded) {
-      continue;
-    }
-
-    visibleFiles.push(...collectVisibleFiles(node.children, model));
-  }
-
-  return visibleFiles;
-}
-
-function collectVisibleRowPaths(
-  nodes: ReadonlyArray<SourceControlTreeNode<PierreTreeNavFile>>,
-  model: PierreFileTreeModel,
-): string[] {
-  const visiblePaths: string[] = [];
-
-  for (const node of nodes) {
-    visiblePaths.push(node.path);
-
-    if (node.kind === "file") {
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (!isExpanded) {
-      continue;
-    }
-
-    visiblePaths.push(...collectVisibleRowPaths(node.children, model));
-  }
-
-  return visiblePaths;
 }

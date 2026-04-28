@@ -6,11 +6,11 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STAGED_ROOT_PATH } from "@/features/source-control/components/ChangesUnifiedPierreFileTree";
+import { getUnifiedChangeDirectoryContext } from "@/features/source-control/components/changesUnifiedPierreTree";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 import type { ContextMenuItem, ContextMenuOpenContext } from "@pierre/trees";
 import { Minus, Plus, Trash2 } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { ComponentProps, CSSProperties } from "react";
 
 function getFloatingContextMenuTriggerStyle(
   anchorRect: ContextMenuOpenContext["anchorRect"],
@@ -30,6 +30,37 @@ function getFloatingContextMenuTriggerStyle(
 
 export function getContextMenuSideOffset(anchorRect: ContextMenuOpenContext["anchorRect"]): number {
   return anchorRect.width === 0 && anchorRect.height === 0 ? 0 : 4;
+}
+
+function ChangesMenuContent(props: ComponentProps<typeof DropdownMenuContent>) {
+  return (
+    <DropdownMenuContent
+      className="min-w-[154px] rounded-md border-border/70 bg-popover/98 p-0.5 shadow-lg shadow-black/12"
+      {...props}
+    />
+  );
+}
+
+function ChangesMenuItem(props: ComponentProps<typeof DropdownMenuItem>) {
+  return (
+    <DropdownMenuItem
+      className="h-6 gap-1.5 rounded-[4px] px-1.5 py-0 text-[11px] leading-none"
+      {...props}
+    />
+  );
+}
+
+function ChangesMenuSeparator(props: ComponentProps<typeof DropdownMenuSeparator>) {
+  return <DropdownMenuSeparator className="-mx-0.5 my-0.5" {...props} />;
+}
+
+function ChangesMenuShortcut(props: ComponentProps<typeof DropdownMenuShortcut>) {
+  return (
+    <DropdownMenuShortcut
+      className="ml-3 rounded-[4px] border border-input bg-surface-alt px-1.5 py-0.5 text-[10px] font-medium leading-none tracking-normal"
+      {...props}
+    />
+  );
 }
 
 type ChangesFileContextMenuProps = {
@@ -70,7 +101,7 @@ export function ChangesFileContextMenu({
           style={getFloatingContextMenuTriggerStyle(context.anchorRect)}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent
+      <ChangesMenuContent
         data-file-tree-context-menu-root="true"
         align="start"
         side="bottom"
@@ -82,19 +113,19 @@ export function ChangesFileContextMenu({
       >
         {sectionKey === "staged" ? (
           <>
-            <DropdownMenuItem
+            <ChangesMenuItem
               disabled={hasRunningAction}
               onSelect={() => {
                 context.close({ restoreFocus: false });
                 onUnstageFile(file.path);
               }}
             >
-              <Minus className="size-4" />
+              <Minus className="size-3.5" />
               Unstage
-              <DropdownMenuShortcut>Cmd+Enter</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
+              <ChangesMenuShortcut>⌘↵</ChangesMenuShortcut>
+            </ChangesMenuItem>
+            <ChangesMenuSeparator />
+            <ChangesMenuItem
               variant="destructive"
               disabled={hasRunningAction}
               onSelect={() => {
@@ -102,26 +133,26 @@ export function ChangesFileContextMenu({
                 onDiscardFile(file.bucket, file.path);
               }}
             >
-              <Trash2 className="size-4" />
+              <Trash2 className="size-3.5" />
               Discard
-              <DropdownMenuShortcut>Cmd+Esc</DropdownMenuShortcut>
-            </DropdownMenuItem>
+              <ChangesMenuShortcut>⌘⎋</ChangesMenuShortcut>
+            </ChangesMenuItem>
           </>
         ) : (
           <>
-            <DropdownMenuItem
+            <ChangesMenuItem
               disabled={hasRunningAction}
               onSelect={() => {
                 context.close({ restoreFocus: false });
                 onStageFile(file.path);
               }}
             >
-              <Plus className="size-4" />
+              <Plus className="size-3.5" />
               Stage
-              <DropdownMenuShortcut>Cmd+Enter</DropdownMenuShortcut>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
+              <ChangesMenuShortcut>⌘↵</ChangesMenuShortcut>
+            </ChangesMenuItem>
+            <ChangesMenuSeparator />
+            <ChangesMenuItem
               variant="destructive"
               disabled={hasRunningAction}
               onSelect={() => {
@@ -129,13 +160,13 @@ export function ChangesFileContextMenu({
                 onDiscardFile(file.bucket, file.path);
               }}
             >
-              <Trash2 className="size-4" />
+              <Trash2 className="size-3.5" />
               Discard
-              <DropdownMenuShortcut>Cmd+Esc</DropdownMenuShortcut>
-            </DropdownMenuItem>
+              <ChangesMenuShortcut>⌘⎋</ChangesMenuShortcut>
+            </ChangesMenuItem>
           </>
         )}
-      </DropdownMenuContent>
+      </ChangesMenuContent>
     </DropdownMenu>
   );
 }
@@ -148,6 +179,8 @@ type ChangesSectionContextMenuProps = {
   hasRunningAction: boolean;
   onStageAll: () => void;
   onUnstageAll: () => void;
+  onStageFiles: (files: BucketedFile[]) => void;
+  onUnstageFiles: (files: BucketedFile[]) => void;
   onDiscardChangesGroup: (files: BucketedFile[]) => void;
 };
 
@@ -159,10 +192,17 @@ export function ChangesSectionContextMenu({
   hasRunningAction,
   onStageAll,
   onUnstageAll,
+  onStageFiles,
+  onUnstageFiles,
   onDiscardChangesGroup,
 }: ChangesSectionContextMenuProps) {
-  const isStagedSection = sectionPath === STAGED_ROOT_PATH;
-  const rows = isStagedSection ? stagedRows : changedRows;
+  const directoryContext = getUnifiedChangeDirectoryContext(sectionPath, stagedRows, changedRows);
+  if (!directoryContext) {
+    return null;
+  }
+
+  const { isRoot, rows, sectionKey } = directoryContext;
+  const isStagedSection = sectionKey === "staged";
 
   return (
     <DropdownMenu
@@ -180,7 +220,7 @@ export function ChangesSectionContextMenu({
           style={getFloatingContextMenuTriggerStyle(context.anchorRect)}
         />
       </DropdownMenuTrigger>
-      <DropdownMenuContent
+      <ChangesMenuContent
         data-file-tree-context-menu-root="true"
         align="start"
         side="bottom"
@@ -191,30 +231,38 @@ export function ChangesSectionContextMenu({
         }}
       >
         {isStagedSection ? (
-          <DropdownMenuItem
+          <ChangesMenuItem
             disabled={hasRunningAction || rows.length === 0}
             onSelect={() => {
               context.close({ restoreFocus: false });
-              onUnstageAll();
+              if (isRoot) {
+                onUnstageAll();
+              } else {
+                onUnstageFiles(rows);
+              }
             }}
           >
-            <Minus className="size-4" />
-            Unstage all
-          </DropdownMenuItem>
+            <Minus className="size-3.5" />
+            {isRoot ? "Unstage all" : "Unstage folder"}
+          </ChangesMenuItem>
         ) : (
           <>
-            <DropdownMenuItem
+            <ChangesMenuItem
               disabled={hasRunningAction || rows.length === 0}
               onSelect={() => {
                 context.close({ restoreFocus: false });
-                onStageAll();
+                if (isRoot) {
+                  onStageAll();
+                } else {
+                  onStageFiles(rows);
+                }
               }}
             >
-              <Plus className="size-4" />
-              Stage all
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
+              <Plus className="size-3.5" />
+              {isRoot ? "Stage all" : "Stage folder"}
+            </ChangesMenuItem>
+            <ChangesMenuSeparator />
+            <ChangesMenuItem
               variant="destructive"
               disabled={hasRunningAction || rows.length === 0}
               onSelect={() => {
@@ -222,12 +270,12 @@ export function ChangesSectionContextMenu({
                 onDiscardChangesGroup(rows);
               }}
             >
-              <Trash2 className="size-4" />
-              Discard changes
-            </DropdownMenuItem>
+              <Trash2 className="size-3.5" />
+              {isRoot ? "Discard changes" : "Discard folder"}
+            </ChangesMenuItem>
           </>
         )}
-      </DropdownMenuContent>
+      </ChangesMenuContent>
     </DropdownMenu>
   );
 }

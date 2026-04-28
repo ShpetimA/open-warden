@@ -9,15 +9,19 @@ import {
   discardChangesGroupAction,
   rangeSelectFile,
   selectFile,
+  stageFilesAction,
   stageOrUnstageSelectionAction,
+  unstageFilesAction,
 } from "@/features/source-control/actions";
 import {
-  getPierreFileTreeFocusedBucketedFile,
-  getPierreFileTreeVisibleBucketedFiles,
+  getPierreFileTreeFocusedSelectedFile,
+  getPierreFileTreeFocusedPath,
+  getPierreFileTreeVisibleSelectedFiles,
   movePierreFileTreeFocus,
   movePierreFileTreeFocusFile,
   scrollPierreFileTreeBucketedFileIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
+import { getUnifiedChangeDirectoryContext } from "@/features/source-control/components/changesUnifiedPierreTree";
 import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
@@ -120,15 +124,15 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
         return;
       }
 
-      const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+      const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
       if (focusedFile) {
         void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
       }
       return;
     }
 
-    const visibleTreeRows = getPierreFileTreeVisibleBucketedFiles("changes-files");
-    const visibleChangeRows: BucketedFile[] =
+    const visibleTreeRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
+    const visibleChangeRows =
       visibleTreeRows.length > 0
         ? visibleTreeRows
         : (() => {
@@ -140,7 +144,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     if (visibleChangeRows.length === 0) return;
 
-    const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+    const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
     const activeIndex = visibleChangeRows.findIndex((file) =>
       focusedFile
         ? file.bucket === focusedFile.bucket && file.path === focusedFile.path
@@ -165,9 +169,36 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
   const stageOrUnstageSelection = (event: KeyboardEvent) => {
     if (isTypingTarget(event.target)) return;
-    const { runningAction } = getNavigationData();
+    const { runningAction, snapshot } = getNavigationData();
     if (mode !== "changes") return;
     if (runningAction) return;
+
+    const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
+    const focusedPath = getPierreFileTreeFocusedPath("changes-files");
+    if (!focusedFile && focusedPath) {
+      const stagedRows: BucketedFile[] = (snapshot?.staged ?? []).map((file) =>
+        toBucketedFile(file, "staged"),
+      );
+      const changedRows: BucketedFile[] = [
+        ...(snapshot?.unstaged ?? []).map((file) => toBucketedFile(file, "unstaged")),
+        ...(snapshot?.untracked ?? []).map((file) => toBucketedFile(file, "untracked")),
+      ];
+      const directoryContext = getUnifiedChangeDirectoryContext(
+        focusedPath,
+        stagedRows,
+        changedRows,
+      );
+      if (directoryContext && directoryContext.rows.length > 0) {
+        event.preventDefault();
+        void dispatch(
+          directoryContext.sectionKey === "staged"
+            ? unstageFilesAction(directoryContext.rows)
+            : stageFilesAction(directoryContext.rows),
+        );
+        return;
+      }
+    }
+
     event.preventDefault();
     void dispatch(stageOrUnstageSelectionAction());
   };
