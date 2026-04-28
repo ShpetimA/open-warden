@@ -278,7 +278,7 @@ export const toggleFileSelection =
   };
 
 export const rangeSelectFile =
-  (target: SelectedFile, visibleRows: BucketedFile[]): AppThunk =>
+  (target: SelectedFile, visibleRows: SelectedFile[]): AppThunk =>
   async (dispatch, getState) => {
     if (!getState().sourceControl.activeRepo) return;
 

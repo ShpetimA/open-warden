@@ -9,7 +9,7 @@ import {
   buildSourceControlFileTree,
   type BuildSourceControlFileTreeOptions,
 } from "@/features/source-control/fileTree";
-import type { Bucket, BucketedFile } from "@/features/source-control/types";
+import type { Bucket, SelectedFile } from "@/features/source-control/types";
 
 type PierreTreeNavEntry = {
   files: ReadonlyArray<PierreFileTreeNavFile>;
@@ -73,17 +73,17 @@ export function getPierreFileTreeVisiblePaths(regionId: string) {
   return entries.flatMap((entry) => collectVisibleFilesForEntry(entry).map((file) => file.path));
 }
 
-export function getPierreFileTreeVisibleBucketedFiles(regionId: string): BucketedFile[] {
+export function getPierreFileTreeVisibleSelectedFiles(regionId: string): SelectedFile[] {
   const entries = pierreTreeNavRegistry.get(regionId);
   if (!entries) {
     return [];
   }
 
-  const files: BucketedFile[] = [];
+  const files: SelectedFile[] = [];
   for (const entry of entries) {
     for (const file of collectVisibleFilesForEntry(entry)) {
       if (file.bucket) {
-        files.push({ bucket: file.bucket, path: file.realPath ?? file.path } as BucketedFile);
+        files.push({ bucket: file.bucket, path: file.realPath ?? file.path });
       }
     }
   }
@@ -109,7 +109,7 @@ export function getPierreFileTreeFocusedPath(regionId: string): string | null {
   return null;
 }
 
-export function getPierreFileTreeFocusedBucketedFile(regionId: string): BucketedFile | null {
+export function getPierreFileTreeFocusedSelectedFile(regionId: string): SelectedFile | null {
   const entries = pierreTreeNavRegistry.get(regionId);
   if (!entries) {
     return null;
@@ -303,7 +303,7 @@ function pierreFileTreeHasDomFocus(model: PierreFileTreeModel) {
   return shadowRoot?.activeElement instanceof HTMLElement;
 }
 
-function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): BucketedFile | null {
+function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): SelectedFile | null {
   const focusedPath = entry.model.getFocusedPath();
   if (!focusedPath) {
     return null;
@@ -317,7 +317,7 @@ function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): BucketedFile | 
   return {
     bucket: focusedFile.bucket,
     path: focusedFile.realPath ?? focusedFile.path,
-  } as BucketedFile;
+  };
 }
 
 function findFileInEntry(entry: PierreTreeNavEntry, path: string) {

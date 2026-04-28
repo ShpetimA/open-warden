@@ -1,6 +1,6 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-import type { BucketedFile } from "@/features/source-control/types";
+import type { Bucket, SelectedFile } from "@/features/source-control/types";
 
 type DirectionHandler = (event: KeyboardEvent) => void;
 
@@ -67,13 +67,20 @@ export function getVisibleFilePaths(regionId: string) {
   });
 }
 
-export function getVisibleBucketedFiles(regionId: string): BucketedFile[] {
+export function getVisibleBucketedFiles(regionId: string): SelectedFile[] {
   return getVisibleNavItems(regionId, (element) => {
     const path = element.dataset.filePath;
-    const bucket = element.dataset.bucket;
+    const bucket = toBucket(element.dataset.bucket);
     if (!path || !bucket) return null;
-    return { path, bucket } as BucketedFile;
+    return { path, bucket };
   });
+}
+
+function toBucket(value: string | undefined): Bucket | null {
+  if (value === "staged" || value === "unstaged" || value === "untracked") {
+    return value;
+  }
+  return null;
 }
 
 export function focusInputById(inputId: string) {

@@ -7,7 +7,7 @@ import {
   selectFile,
   toggleFileSelection,
 } from "@/features/source-control/actions";
-import { getPierreFileTreeVisibleBucketedFiles } from "@/features/source-control/pierreFileTreeNavigation";
+import { getPierreFileTreeVisibleSelectedFiles } from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket, BucketedFile, FileBrowserMode } from "@/features/source-control/types";
 import {
   buildUnifiedChangeTreeFiles,
@@ -97,7 +97,7 @@ export function ChangesUnifiedPierreFileTree({
     const file = filesByTreePath.get(treePath);
     if (!file) return;
 
-    const visibleRows = getPierreFileTreeVisibleBucketedFiles("changes-files");
+    const visibleRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
     void dispatch(rangeSelectFile({ bucket: file.bucket, path: file.realPath }, visibleRows));
   };
 

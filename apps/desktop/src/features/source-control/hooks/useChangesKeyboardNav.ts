@@ -14,9 +14,9 @@ import {
   unstageFilesAction,
 } from "@/features/source-control/actions";
 import {
-  getPierreFileTreeFocusedBucketedFile,
+  getPierreFileTreeFocusedSelectedFile,
   getPierreFileTreeFocusedPath,
-  getPierreFileTreeVisibleBucketedFiles,
+  getPierreFileTreeVisibleSelectedFiles,
   movePierreFileTreeFocus,
   movePierreFileTreeFocusFile,
   scrollPierreFileTreeBucketedFileIntoView,
@@ -124,15 +124,15 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
         return;
       }
 
-      const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+      const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
       if (focusedFile) {
         void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
       }
       return;
     }
 
-    const visibleTreeRows = getPierreFileTreeVisibleBucketedFiles("changes-files");
-    const visibleChangeRows: BucketedFile[] =
+    const visibleTreeRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
+    const visibleChangeRows =
       visibleTreeRows.length > 0
         ? visibleTreeRows
         : (() => {
@@ -144,7 +144,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     if (visibleChangeRows.length === 0) return;
 
-    const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+    const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
     const activeIndex = visibleChangeRows.findIndex((file) =>
       focusedFile
         ? file.bucket === focusedFile.bucket && file.path === focusedFile.path
@@ -173,7 +173,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     if (mode !== "changes") return;
     if (runningAction) return;
 
-    const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+    const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
     const focusedPath = getPierreFileTreeFocusedPath("changes-files");
     if (!focusedFile && focusedPath) {
       const stagedRows: BucketedFile[] = (snapshot?.staged ?? []).map((file) =>

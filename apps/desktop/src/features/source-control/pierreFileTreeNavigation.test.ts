@@ -2,8 +2,8 @@ import type { FileTree as PierreFileTreeModel } from "@pierre/trees";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  getPierreFileTreeFocusedBucketedFile,
-  getPierreFileTreeVisibleBucketedFiles,
+  getPierreFileTreeFocusedSelectedFile,
+  getPierreFileTreeVisibleSelectedFiles,
   getPierreFileTreeVisiblePaths,
   movePierreFileTreeFocus,
   movePierreFileTreeFocusFile,
@@ -37,7 +37,7 @@ function createModel(expansionState: Record<string, boolean> = {}) {
   } as unknown as PierreFileTreeModel;
 }
 
-describe("peerFileTreeNavigation", () => {
+describe("pierreFileTreeNavigation", () => {
   it("returns visible paths based on expanded directories", () => {
     const model = createModel({ src: true, "src/utils": true });
     const regionId = "repo-files-test-visible";
@@ -72,7 +72,7 @@ describe("peerFileTreeNavigation", () => {
     unregisterPierreFileTreeNav(regionId, model);
   });
 
-  it("focuses the peer tree path when scrolling into view", () => {
+  it("focuses the Pierre tree path when scrolling into view", () => {
     const model = createModel();
     const regionId = "repo-files-test-scroll";
 
@@ -121,7 +121,7 @@ describe("peerFileTreeNavigation", () => {
     registerPierreFileTreeNav(regionId, [{ bucket: "staged", path: "src/main.ts" }], stagedModel);
     registerPierreFileTreeNav(regionId, [{ bucket: "unstaged", path: "README.md" }], unstagedModel);
 
-    expect(getPierreFileTreeVisibleBucketedFiles(regionId)).toEqual([
+    expect(getPierreFileTreeVisibleSelectedFiles(regionId)).toEqual([
       { bucket: "staged", path: "src/main.ts" },
       { bucket: "unstaged", path: "README.md" },
     ]);
@@ -146,7 +146,7 @@ describe("peerFileTreeNavigation", () => {
       model,
     );
 
-    expect(getPierreFileTreeVisibleBucketedFiles(regionId)).toEqual([
+    expect(getPierreFileTreeVisibleSelectedFiles(regionId)).toEqual([
       { bucket: "staged", path: "src/main.ts" },
     ]);
 
@@ -175,7 +175,7 @@ describe("peerFileTreeNavigation", () => {
       unstagedModel,
     );
 
-    expect(getPierreFileTreeFocusedBucketedFile(regionId)).toEqual({
+    expect(getPierreFileTreeFocusedSelectedFile(regionId)).toEqual({
       bucket: "unstaged",
       path: "unstaged.ts",
     });
