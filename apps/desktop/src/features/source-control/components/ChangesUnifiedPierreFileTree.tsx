@@ -14,8 +14,8 @@ import {
 } from "@/features/source-control/fileTree";
 import { getPierreFileTreeVisibleBucketedFiles } from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket, BucketedFile, FileBrowserMode } from "@/features/source-control/types";
-import { getFlatPierrePathIndex, toDisplayPath } from "./pierreFileTreeDisplay";
-import { buildPierreGitStatusEntries } from "./pierreGitStatus";
+import { getFlatPierrePathIndex, toDisplayPath } from "./flatPierreTree";
+import { buildPierreGitStatusEntries } from "./pierreFileTree";
 import { PIERRE_FILE_TREE_ITEM_HEIGHT, PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 import {
   ChangesSectionContextMenu,
@@ -31,6 +31,7 @@ const SECTION_SORT_ORDER = new Map([
   [CHANGES_ROOT, 1],
 ]);
 const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
+const SELECTION_KEY_SEPARATOR = "\u0000";
 
 type ChangesUnifiedPierreFileTreeProps = {
   mode: FileBrowserMode;
@@ -75,9 +76,9 @@ export function ChangesUnifiedPierreFileTree({
   ];
   const filesByTreePath = new Map(files.map((file) => [file.path, file]));
   const treePathBySelectionKey = new Map(files.map((file) => [selectionKey(file), file.path]));
-  const selectedPath = treePathBySelectionKey.get(`${activeBucket}\u0000${activePath}`) ?? "";
+  const selectedPath = treePathBySelectionKey.get(toBucketPathKey(activeBucket, activePath)) ?? "";
   const selectedPaths = selectedFiles
-    .map((file) => treePathBySelectionKey.get(`${file.bucket}\u0000${file.path}`))
+    .map((file) => treePathBySelectionKey.get(toBucketPathKey(file.bucket, file.path)))
     .filter((path): path is string => !!path);
   const gitStatus = buildPierreGitStatusEntries(
     files,
@@ -209,8 +210,12 @@ function toUnifiedFile(
 }
 
 function selectionKey(file: Pick<BucketedFile, "bucket" | "path"> & { realPath?: string }) {
-  const path = file.realPath ?? file.path;
-  return `${file.bucket}\u0000${path}`;
+  return toBucketPathKey(file.bucket, file.realPath ?? file.path);
+}
+
+function toBucketPathKey(bucket: Bucket, path: string) {
+  // NUL is not valid in filesystem paths, so it is safe as a collision-free bucket/path delimiter.
+  return `${bucket}${SELECTION_KEY_SEPARATOR}${path}`;
 }
 
 const compareChangeListEntries: FileTreeSortComparator = (left, right) => {

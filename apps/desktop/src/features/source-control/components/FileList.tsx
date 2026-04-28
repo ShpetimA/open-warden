@@ -1,12 +1,8 @@
 import type { ReactNode } from "react";
 
 import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
-import {
-  buildCommentCountDecoration,
-  buildDisplayFiles,
-  buildGitStatusForDisplayFiles,
-  compareFlatPierreEntries,
-} from "./pierreFileTreeDisplay";
+import { buildDisplayFiles, compareFlatPierreEntries } from "./flatPierreTree";
+import { buildCommentCountDecoration, buildGitStatusForDisplayFiles } from "./pierreFileTree";
 import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 
 export type FileListContextMenuItem = {

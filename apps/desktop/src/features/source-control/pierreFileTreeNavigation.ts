@@ -1,35 +1,33 @@
 import type { FileTree as PierreFileTreeModel } from "@pierre/trees";
 
 import {
+  collectVisibleFiles,
+  collectVisibleRowPaths,
+  type PierreFileTreeNavFile,
+} from "@/features/source-control/components/pierreFileTree";
+import {
   buildSourceControlFileTree,
   type BuildSourceControlFileTreeOptions,
-  type SourceControlTreeNode,
 } from "@/features/source-control/fileTree";
 import type { Bucket, BucketedFile } from "@/features/source-control/types";
 
-type PierreTreeNavFile = {
-  bucket?: Bucket;
-  path: string;
-  realPath?: string;
-};
-
 type PierreTreeNavEntry = {
-  files: ReadonlyArray<PierreTreeNavFile>;
+  files: ReadonlyArray<PierreFileTreeNavFile>;
   model: PierreFileTreeModel;
   selectedPath?: string;
-  treeOptions?: BuildSourceControlFileTreeOptions<PierreTreeNavFile>;
+  treeOptions?: BuildSourceControlFileTreeOptions<PierreFileTreeNavFile>;
 };
 
 type PierreTreeNavOptions = {
   selectedPath?: string;
-  treeOptions?: BuildSourceControlFileTreeOptions<PierreTreeNavFile>;
+  treeOptions?: BuildSourceControlFileTreeOptions<PierreFileTreeNavFile>;
 };
 
 const pierreTreeNavRegistry = new Map<string, PierreTreeNavEntry[]>();
 
 export function registerPierreFileTreeNav(
   regionId: string,
-  files: ReadonlyArray<PierreTreeNavFile>,
+  files: ReadonlyArray<PierreFileTreeNavFile>,
   model: PierreFileTreeModel,
   options: PierreTreeNavOptions = {},
 ) {
@@ -384,55 +382,4 @@ function getPierreFileTreeRowElement(model: PierreFileTreeModel, path: string) {
       (item) => item.dataset.itemPath === path,
     ) ?? null
   );
-}
-
-function collectVisibleFiles(
-  nodes: ReadonlyArray<SourceControlTreeNode<PierreTreeNavFile>>,
-  model: PierreFileTreeModel,
-): PierreTreeNavFile[] {
-  const visibleFiles: PierreTreeNavFile[] = [];
-
-  for (const node of nodes) {
-    if (node.kind === "file") {
-      visibleFiles.push(node.file);
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (!isExpanded) {
-      continue;
-    }
-
-    visibleFiles.push(...collectVisibleFiles(node.children, model));
-  }
-
-  return visibleFiles;
-}
-
-function collectVisibleRowPaths(
-  nodes: ReadonlyArray<SourceControlTreeNode<PierreTreeNavFile>>,
-  model: PierreFileTreeModel,
-): string[] {
-  const visiblePaths: string[] = [];
-
-  for (const node of nodes) {
-    visiblePaths.push(node.path);
-
-    if (node.kind === "file") {
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (!isExpanded) {
-      continue;
-    }
-
-    visiblePaths.push(...collectVisibleRowPaths(node.children, model));
-  }
-
-  return visiblePaths;
 }

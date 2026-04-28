@@ -1,5 +1,7 @@
 import type { FileTreeSortComparator } from "@pierre/trees";
 
+import type { FileBrowserMode } from "@/features/source-control/types";
+
 const INVISIBLE_INDEX_PREFIX = "\u2060";
 const INVISIBLE_DIGIT_BY_DIGIT: Record<string, string> = {
   "0": "\u200b",
@@ -20,9 +22,36 @@ const DIGIT_BY_INVISIBLE_DIGIT = new Map(
   ]),
 );
 
+export type DisplayFile<TSource = unknown> = {
+  path: string;
+  realPath: string;
+  source: TSource;
+};
+
 export const compareFlatPierreEntries: FileTreeSortComparator = (left, right) => {
   return getFlatPierrePathIndex(left.path) - getFlatPierrePathIndex(right.path);
 };
+
+export function toDisplayPath(mode: FileBrowserMode, realPath: string, index: number): string {
+  return mode === "list" ? toFlatPierreLeafPath(realPath, index) : realPath;
+}
+
+export function buildDisplayFiles<TSource extends { path: string }>(
+  mode: FileBrowserMode,
+  files: ReadonlyArray<TSource>,
+  options?: {
+    sort?: (left: TSource, right: TSource) => number;
+  },
+): Array<DisplayFile<TSource>> {
+  const isList = mode === "list";
+  const sorted = isList && options?.sort ? files.toSorted(options.sort) : [...files];
+
+  return sorted.map((file, index) => ({
+    path: toDisplayPath(mode, file.path, index),
+    realPath: file.path,
+    source: file,
+  }));
+}
 
 export function toFlatPierreLeafPath(path: string, index: number) {
   const normalizedPath = path.replaceAll("\\", "/").replace(/^\/+/, "");
@@ -58,6 +87,9 @@ export function getFlatPierrePathIndex(path: string) {
 }
 
 function encodeInvisibleIndex(index: number) {
+  // In flat/list mode we display only the leaf name, but Pierre tree paths must remain unique.
+  // Encode the original sorted index with invisible unicode chars before the extension so
+  // duplicate basenames do not collide and sorting can recover the original list order.
   return `${INVISIBLE_INDEX_PREFIX}${String(index)
     .padStart(6, "0")
     .replace(/[0-9]/g, (digit) => INVISIBLE_DIGIT_BY_DIGIT[digit] ?? digit)}`;
