@@ -183,10 +183,7 @@ export function useHistoryKeyboardNav() {
   };
 
   useHotkey("H", handleFocusHistoryCommits, SOURCE_CONTROL_HOTKEY_OPTIONS);
-  useHotkey("h", handleFocusHistoryCommits, SOURCE_CONTROL_HOTKEY_OPTIONS);
-
   useHotkey("L", handleFocusHistoryFiles, SOURCE_CONTROL_HOTKEY_OPTIONS);
-  useHotkey("l", handleFocusHistoryFiles, SOURCE_CONTROL_HOTKEY_OPTIONS);
 
   useHotkey(
     "/",

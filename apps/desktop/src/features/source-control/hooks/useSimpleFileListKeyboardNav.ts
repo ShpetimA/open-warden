@@ -22,8 +22,6 @@ type UseSimpleFileListKeyboardNavOptions = {
 
 export function useSimpleFileListKeyboardNav({
   regionId,
-  getAllFilePaths,
-  getActivePath,
   onSelectPath,
   enabled,
   includeSymbolPeek = true,
