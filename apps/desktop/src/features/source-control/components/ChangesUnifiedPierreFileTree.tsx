@@ -36,6 +36,8 @@ type ChangesUnifiedPierreFileTreeProps = {
   onUnstageAll: () => void;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
+  onStageFiles: (files: BucketedFile[]) => void;
+  onUnstageFiles: (files: BucketedFile[]) => void;
   onDiscardFile: (bucket: Bucket, path: string) => void;
   onDiscardChangesGroup: (files: BucketedFile[]) => void;
 };
@@ -49,6 +51,8 @@ export function ChangesUnifiedPierreFileTree({
   onUnstageAll,
   onStageFile,
   onUnstageFile,
+  onStageFiles,
+  onUnstageFiles,
   onDiscardFile,
   onDiscardChangesGroup,
 }: ChangesUnifiedPierreFileTreeProps) {
@@ -154,6 +158,8 @@ export function ChangesUnifiedPierreFileTree({
               hasRunningAction={hasRunningAction}
               onStageAll={onStageAll}
               onUnstageAll={onUnstageAll}
+              onStageFiles={onStageFiles}
+              onUnstageFiles={onUnstageFiles}
               onDiscardChangesGroup={onDiscardChangesGroup}
             />
           );

@@ -90,6 +90,25 @@ export function getPierreFileTreeVisibleBucketedFiles(regionId: string): Buckete
   return files;
 }
 
+export function getPierreFileTreeFocusedPath(regionId: string): string | null {
+  const entries = pierreTreeNavRegistry.get(regionId);
+  if (!entries) {
+    return null;
+  }
+
+  const focusedEntry = entries.find((entry) => pierreFileTreeHasDomFocus(entry.model));
+  if (focusedEntry) {
+    return focusedEntry.model.getFocusedPath() ?? null;
+  }
+
+  for (const entry of entries) {
+    const focusedPath = entry.model.getFocusedPath();
+    if (focusedPath) return focusedPath;
+  }
+
+  return null;
+}
+
 export function getPierreFileTreeFocusedBucketedFile(regionId: string): BucketedFile | null {
   const entries = pierreTreeNavRegistry.get(regionId);
   if (!entries) {

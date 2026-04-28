@@ -124,6 +124,51 @@ export function getUnifiedChangeTreeHeight(rows: ReadonlyArray<UnifiedChangeTree
   return Math.max(PIERRE_FILE_TREE_ITEM_HEIGHT, rowCount * PIERRE_FILE_TREE_ITEM_HEIGHT + 4);
 }
 
+export function getUnifiedChangeDirectoryContext(
+  sectionPath: string,
+  stagedRows: ReadonlyArray<BucketedFile>,
+  changedRows: ReadonlyArray<BucketedFile>,
+) {
+  const normalizedSectionPath = normalizeTreePath(sectionPath);
+  const stagedRoot = normalizeTreePath(STAGED_ROOT_PATH);
+  const changesRoot = normalizeTreePath(CHANGES_ROOT_PATH);
+
+  const sectionKey = getSectionKey(normalizedSectionPath, stagedRoot, changesRoot);
+  if (!sectionKey) {
+    return null;
+  }
+
+  const rootPath = sectionKey === "staged" ? stagedRoot : changesRoot;
+  const sectionRows = sectionKey === "staged" ? stagedRows : changedRows;
+  const directoryPath = normalizedSectionPath.slice(rootPath.length).replace(/^\/+/, "");
+  const rows =
+    directoryPath.length === 0
+      ? [...sectionRows]
+      : sectionRows.filter((file) => normalizeTreePath(file.path).startsWith(`${directoryPath}/`));
+
+  return {
+    isRoot: directoryPath.length === 0,
+    rows,
+    sectionKey,
+  };
+}
+
+function getSectionKey(sectionPath: string, stagedRoot: string, changesRoot: string) {
+  if (sectionPath === stagedRoot || sectionPath.startsWith(`${stagedRoot}/`)) {
+    return "staged";
+  }
+
+  if (sectionPath === changesRoot || sectionPath.startsWith(`${changesRoot}/`)) {
+    return "unstaged";
+  }
+
+  return null;
+}
+
+function normalizeTreePath(path: string) {
+  return path.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+}
+
 function compareSectionNames(left: string | undefined, right: string | undefined) {
   const leftOrder = left ? SECTION_SORT_ORDER.get(left) : undefined;
   const rightOrder = right ? SECTION_SORT_ORDER.get(right) : undefined;

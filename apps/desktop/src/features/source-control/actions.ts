@@ -407,6 +407,8 @@ export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getSt
 function repoActionLabel(action: RunningAction): string {
   if (action === "stage-all") return "stage all files";
   if (action === "unstage-all") return "unstage all files";
+  if (action === "stage-files") return "stage files";
+  if (action === "unstage-files") return "unstage files";
   if (action === "discard-changes") return "discard selected changes";
   if (action === "commit") return "create commit";
   if (action.startsWith("file:stage:")) return "stage file";
@@ -473,6 +475,44 @@ export const unstageFileAction =
     );
   };
 
+export const stageFilesAction =
+  (files: ReadonlyArray<{ path: string }>): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl;
+    if (!activeRepo || files.length === 0) return;
+
+    const paths = [...new Set(files.map((file) => file.path))];
+    await dispatch(
+      runRepoAction("stage-files", async (innerDispatch) => {
+        for (const path of paths) {
+          const result = innerDispatch(
+            gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: path }),
+          );
+          await result.unwrap();
+        }
+      }),
+    );
+  };
+
+export const unstageFilesAction =
+  (files: ReadonlyArray<{ path: string }>): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl;
+    if (!activeRepo || files.length === 0) return;
+
+    const paths = [...new Set(files.map((file) => file.path))];
+    await dispatch(
+      runRepoAction("unstage-files", async (innerDispatch) => {
+        for (const path of paths) {
+          const result = innerDispatch(
+            gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: path }),
+          );
+          await result.unwrap();
+        }
+      }),
+    );
+  };
+
 export const discardFileAction =
   (bucket: Bucket, filePath: string): AppThunk =>
   async (dispatch, getState) => {
@@ -516,12 +556,8 @@ export const stageOrUnstageSelectionAction = (): AppThunk => async (dispatch, ge
   const toUnstage = uniqueCandidates.filter((file) => file.bucket === "staged");
   const toStage = uniqueCandidates.filter((file) => file.bucket !== "staged");
 
-  for (const file of toUnstage) {
-    await dispatch(unstageFileAction(file.path));
-  }
-  for (const file of toStage) {
-    await dispatch(stageFileAction(file.path));
-  }
+  await dispatch(unstageFilesAction(toUnstage));
+  await dispatch(stageFilesAction(toStage));
 };
 
 export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
