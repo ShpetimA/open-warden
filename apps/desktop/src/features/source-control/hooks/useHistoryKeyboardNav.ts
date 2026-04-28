@@ -7,18 +7,24 @@ import { gitApi } from "@/features/source-control/api";
 import { selectHistoryCommit, selectHistoryFile } from "@/features/source-control/actions";
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
 import {
+  movePierreFileTreeFocus,
+  movePierreFileTreeFocusFile,
+  scrollPierreFileTreePathIntoView,
+  scrollPierreFileTreeRealPathIntoView,
+} from "@/features/source-control/pierreFileTreeNavigation";
+import {
   setHistoryNavTarget,
   setSymbolPeekActiveIndex,
 } from "@/features/source-control/sourceControlSlice";
-import type { FileItem, HistoryCommit } from "@/features/source-control/types";
+import type { HistoryCommit } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
+  focusKeyboardNavItem,
   getWrappedNavigationIndex,
   scrollKeyboardNavItemIntoView,
 } from "@/lib/keyboard-navigation";
 import {
   focusInputById,
-  getVisibleFilePaths,
   SOURCE_CONTROL_HOTKEY_OPTIONS,
   useVerticalNavigationHotkeys,
 } from "./keyboardNavigation";
@@ -32,23 +38,19 @@ export function useHistoryKeyboardNav() {
     const state = store.getState();
     const { historyCommitId, historyNavTarget, historyFilter, activePath, activeRepo } =
       state.sourceControl;
+    const fileBrowserMode = state.settings.appSettings.sourceControl.fileTreeRenderMode;
     const historyCommitsArgs = activeRepo ? { repoPath: activeRepo } : null;
-    const historyFilesArgs =
-      activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : null;
     const historyCommits = historyCommitsArgs
       ? gitApi.endpoints.getCommitHistory.select(historyCommitsArgs)(state).data
-      : undefined;
-    const historyFiles = historyFilesArgs
-      ? gitApi.endpoints.getCommitFiles.select(historyFilesArgs)(state).data
       : undefined;
 
     return {
       historyCommitId,
       historyNavTarget,
       historyFilter,
+      fileBrowserMode,
       activePath,
       allHistoryCommits: (historyCommits ?? []) as HistoryCommit[],
-      allHistoryFiles: (historyFiles ?? []) as FileItem[],
     };
   };
 
@@ -64,29 +66,18 @@ export function useHistoryKeyboardNav() {
 
     event.preventDefault();
 
-    const {
-      historyCommitId,
-      historyNavTarget,
-      historyFilter,
-      activePath,
-      allHistoryCommits,
-      allHistoryFiles,
-    } = getNavigationData();
+    const { historyCommitId, historyNavTarget, historyFilter, fileBrowserMode, allHistoryCommits } =
+      getNavigationData();
 
     if (historyNavTarget === "files") {
-      const visibleFilePaths = getVisibleFilePaths("history-files");
-      const filePaths =
-        visibleFilePaths.length > 0 ? visibleFilePaths : allHistoryFiles.map((file) => file.path);
-      if (filePaths.length === 0) return;
+      if (fileBrowserMode === "tree") {
+        movePierreFileTreeFocus("history-files", nextKey);
+        return;
+      }
 
-      const activeIndex = filePaths.findIndex((pathValue) => pathValue === activePath);
-
-      const targetIndex = getWrappedNavigationIndex(activeIndex, filePaths.length, nextKey);
-
-      const targetPath = filePaths[targetIndex];
-      if (!targetPath) return;
-      scrollKeyboardNavItemIntoView("history-files", targetIndex);
-      void dispatch(selectHistoryFile(targetPath));
+      const targetFile = movePierreFileTreeFocusFile("history-files", nextKey);
+      if (!targetFile) return;
+      void dispatch(selectHistoryFile(targetFile.realPath ?? targetFile.path));
       return;
     }
 
@@ -120,6 +111,56 @@ export function useHistoryKeyboardNav() {
     void dispatch(selectHistoryCommit(targetCommit.commitId));
   };
 
+  const getFilteredHistoryCommits = () => {
+    const { historyFilter, allHistoryCommits } = getNavigationData();
+    const query = historyFilter.trim().toLowerCase();
+    return !query
+      ? allHistoryCommits
+      : allHistoryCommits.filter((commit) => {
+          return (
+            commit.summary.toLowerCase().includes(query) ||
+            commit.shortId.toLowerCase().includes(query) ||
+            commit.commitId.toLowerCase().includes(query) ||
+            commit.author.toLowerCase().includes(query)
+          );
+        });
+  };
+
+  const focusHistoryCommitList = () => {
+    const { historyCommitId } = getNavigationData();
+    const filteredHistoryCommits = getFilteredHistoryCommits();
+    const activeIndex = filteredHistoryCommits.findIndex(
+      (commit) => commit.commitId === historyCommitId,
+    );
+    const targetIndex = activeIndex >= 0 ? activeIndex : 0;
+
+    window.requestAnimationFrame(() => {
+      focusKeyboardNavItem("history-commits", targetIndex);
+    });
+  };
+
+  const focusHistoryFileList = () => {
+    const { activePath, fileBrowserMode } = getNavigationData();
+
+    window.requestAnimationFrame(() => {
+      if (fileBrowserMode === "tree") {
+        if (activePath) {
+          scrollPierreFileTreePathIntoView("history-files", activePath);
+        } else {
+          movePierreFileTreeFocus("history-files", true);
+        }
+        return;
+      }
+
+      if (activePath) {
+        scrollPierreFileTreeRealPathIntoView("history-files", activePath);
+        return;
+      }
+
+      movePierreFileTreeFocus("history-files", true);
+    });
+  };
+
   const focusHistoryFilter = (event: KeyboardEvent) => {
     if (isTypingTarget(event.target)) return;
     event.preventDefault();
@@ -127,25 +168,22 @@ export function useHistoryKeyboardNav() {
     focusInputById(HISTORY_FILTER_INPUT_ID);
   };
 
-  useHotkey(
-    "H",
-    (event) => {
-      if (isTypingTarget(event.target)) return;
-      event.preventDefault();
-      dispatch(setHistoryNavTarget("commits"));
-    },
-    SOURCE_CONTROL_HOTKEY_OPTIONS,
-  );
+  const handleFocusHistoryCommits = (event: KeyboardEvent) => {
+    if (isTypingTarget(event.target)) return;
+    event.preventDefault();
+    dispatch(setHistoryNavTarget("commits"));
+    focusHistoryCommitList();
+  };
 
-  useHotkey(
-    "L",
-    (event) => {
-      if (isTypingTarget(event.target)) return;
-      event.preventDefault();
-      dispatch(setHistoryNavTarget("files"));
-    },
-    SOURCE_CONTROL_HOTKEY_OPTIONS,
-  );
+  const handleFocusHistoryFiles = (event: KeyboardEvent) => {
+    if (isTypingTarget(event.target)) return;
+    event.preventDefault();
+    dispatch(setHistoryNavTarget("files"));
+    focusHistoryFileList();
+  };
+
+  useHotkey("H", handleFocusHistoryCommits, SOURCE_CONTROL_HOTKEY_OPTIONS);
+  useHotkey("L", handleFocusHistoryFiles, SOURCE_CONTROL_HOTKEY_OPTIONS);
 
   useHotkey(
     "/",

@@ -10,11 +10,20 @@ export function getWrappedNavigationIndex(
 }
 
 export function scrollKeyboardNavItemIntoView(region: string, targetIndex: number): void {
-  if (targetIndex < 0) return;
+  getKeyboardNavItem(region, targetIndex)?.scrollIntoView({ block: "nearest" });
+}
+
+export function focusKeyboardNavItem(region: string, targetIndex: number): void {
+  const targetItem = getKeyboardNavItem(region, targetIndex);
+  targetItem?.scrollIntoView({ block: "nearest" });
+  targetItem?.focus({ preventScroll: true });
+}
+
+function getKeyboardNavItem(region: string, targetIndex: number): HTMLElement | null {
+  if (targetIndex < 0) return null;
 
   const regionElement = document.querySelector<HTMLElement>(`[data-nav-region="${region}"]`);
-  if (!regionElement) return;
+  if (!regionElement) return null;
 
-  const targetItem = regionElement.querySelector<HTMLElement>(`[data-nav-index="${targetIndex}"]`);
-  targetItem?.scrollIntoView({ block: "nearest" });
+  return regionElement.querySelector<HTMLElement>(`[data-nav-index="${targetIndex}"]`);
 }

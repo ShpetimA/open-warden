@@ -260,7 +260,7 @@ export const selectFile =
     dispatch(setSelectionAnchor({ bucket, path: relPath }));
   };
 
-export const toggleSelectFile =
+export const toggleFileSelection =
   (bucket: Bucket, relPath: string): AppThunk =>
   async (dispatch, getState) => {
     if (!getState().sourceControl.activeRepo) return;
@@ -273,8 +273,6 @@ export const toggleSelectFile =
       ? selectedFiles.filter((file) => fileSelectionKey(file) !== targetKey)
       : [...selectedFiles, target];
 
-    dispatch(setActiveBucket(bucket));
-    dispatch(setActivePath(relPath));
     dispatch(setSelectedFiles(dedupeSelection(nextSelection)));
     dispatch(setSelectionAnchor(target));
   };
@@ -296,8 +294,6 @@ export const rangeSelectFile =
     );
 
     if (baseIndex < 0 || targetIndex < 0) {
-      dispatch(setActiveBucket(target.bucket));
-      dispatch(setActivePath(target.path));
       dispatch(setSelectedFiles([target]));
       dispatch(setSelectionAnchor(base));
       return;
@@ -315,8 +311,6 @@ export const rangeSelectFile =
         visibleRows.findIndex((row) => row.bucket === file.bucket && row.path === file.path) < 0,
     );
 
-    dispatch(setActiveBucket(target.bucket));
-    dispatch(setActivePath(target.path));
     dispatch(setSelectedFiles(dedupeSelection([...carryForward, ...rangeSelection])));
     dispatch(setSelectionAnchor(base));
   };

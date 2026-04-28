@@ -1,7 +1,7 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import type { FileBrowserMode } from "@/features/source-control/types";
-import { SourceControlFileTree } from "./SourceControlFileTree";
+import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
+import { FileList } from "./FileList";
 
 type RenderFileArgs<TFile> = {
   depth: number;
@@ -12,12 +12,33 @@ type RenderFileArgs<TFile> = {
   path: string;
 };
 
+type TreeContextMenuItem = {
+  kind: "directory" | "file";
+  name: string;
+  path: string;
+};
+
+type TreeContextMenuOpenContext = {
+  close: (options?: { restoreFocus?: boolean }) => void;
+};
+
 type SourceControlFileBrowserProps<TFile extends { path: string }> = {
   files: ReadonlyArray<TFile>;
   mode: FileBrowserMode;
   className?: string;
   emptyState?: ReactNode;
   renderFile: (args: RenderFileArgs<TFile>) => ReactNode;
+  navRegion?: string;
+  selectedPath?: string;
+  onSelectPath?: (path: string, file: TFile) => void;
+  onActivatePath?: (path: string, file: TFile) => void;
+  getCommentCount?: (file: TFile) => number;
+  getFileStatus?: (file: TFile) => FileStatus | undefined;
+  renderTreeContextMenu?: (
+    file: TFile,
+    item: TreeContextMenuItem,
+    context: TreeContextMenuOpenContext,
+  ) => ReactNode;
 };
 
 export function SourceControlFileBrowser<TFile extends { path: string }>({
@@ -26,68 +47,34 @@ export function SourceControlFileBrowser<TFile extends { path: string }>({
   className,
   emptyState = null,
   renderFile,
+  navRegion,
+  selectedPath = "",
+  onActivatePath,
+  getCommentCount,
+  getFileStatus,
+  renderTreeContextMenu,
 }: SourceControlFileBrowserProps<TFile>) {
-  const flatRows = useMemo(() => buildFlatRows(files), [files]);
+  void renderFile;
 
   if (files.length === 0) {
     return <>{emptyState}</>;
   }
 
-  if (mode === "list") {
-    return (
-      <div className={className}>
-        {flatRows.map((row, index) =>
-          renderFile({
-            depth: 0,
-            file: row.file,
-            mode,
-            name: row.name,
-            navIndex: index,
-            path: row.path,
-          }),
-        )}
-      </div>
-    );
+  if (!navRegion || !onActivatePath) {
+    return null;
   }
 
   return (
-    <SourceControlFileTree
+    <FileList
       files={files}
+      mode={mode}
+      selectedPath={selectedPath}
+      navRegion={navRegion}
       className={className}
-      emptyState={emptyState}
-      renderFile={({ depth, file, name, navIndex, path }) =>
-        renderFile({
-          depth,
-          file,
-          mode,
-          name,
-          navIndex,
-          path,
-        })
-      }
+      onActivatePath={onActivatePath}
+      getCommentCount={getCommentCount}
+      getFileStatus={getFileStatus}
+      renderContextMenu={renderTreeContextMenu}
     />
   );
-}
-
-function buildFlatRows<TFile extends { path: string }>(files: ReadonlyArray<TFile>) {
-  const rows = files.map((file) => ({
-    file,
-    path: normalizePath(file.path),
-    name: leafName(file.path),
-  }));
-
-  rows.sort((a, b) =>
-    a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: "base" }),
-  );
-  return rows;
-}
-
-function normalizePath(pathValue: string): string {
-  return pathValue.replaceAll("\\", "/").replace(/^\/+/, "");
-}
-
-function leafName(pathValue: string): string {
-  const normalized = normalizePath(pathValue);
-  const segments = normalized.split("/").filter(Boolean);
-  return segments[segments.length - 1] ?? normalized;
 }

@@ -60,6 +60,31 @@ function toErrorResult(error: unknown): ErrorResult {
   return { message: error instanceof Error ? error.message : String(error) };
 }
 
+function normalizeFilePath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\/+/, "");
+}
+
+function normalizeFileItem(file: FileItem): FileItem {
+  return {
+    ...file,
+    path: normalizeFilePath(file.path),
+    previousPath: file.previousPath ? normalizeFilePath(file.previousPath) : file.previousPath,
+  };
+}
+
+function normalizeRepoFileItem(file: RepoFileItem): RepoFileItem {
+  return { ...file, path: normalizeFilePath(file.path) };
+}
+
+function normalizeGitSnapshot(snapshot: GitSnapshot): GitSnapshot {
+  return {
+    ...snapshot,
+    unstaged: snapshot.unstaged.map(normalizeFileItem),
+    staged: snapshot.staged.map(normalizeFileItem),
+    untracked: snapshot.untracked.map(normalizeFileItem),
+  };
+}
+
 export const gitApi = createApi({
   reducerPath: "gitApi",
   baseQuery: fakeBaseQuery<ErrorResult>(),
@@ -76,7 +101,7 @@ export const gitApi = createApi({
     getGitSnapshot: builder.query<GitSnapshot, string>({
       async queryFn(repoPath) {
         try {
-          return { data: await getGitSnapshot(repoPath) };
+          return { data: normalizeGitSnapshot(await getGitSnapshot(repoPath)) };
         } catch (error) {
           return { error: toErrorResult(error) };
         }
@@ -86,7 +111,7 @@ export const gitApi = createApi({
     getRepoFiles: builder.query<RepoFileItem[], string>({
       async queryFn(repoPath) {
         try {
-          return { data: await getRepoFiles(repoPath) };
+          return { data: (await getRepoFiles(repoPath)).map(normalizeRepoFileItem) };
         } catch (error) {
           return { error: toErrorResult(error) };
         }
@@ -116,7 +141,9 @@ export const gitApi = createApi({
     getBranchFiles: builder.query<FileItem[], BranchFilesArgs>({
       async queryFn({ repoPath, baseRef, headRef }) {
         try {
-          return { data: await getBranchFiles(repoPath, baseRef, headRef) };
+          return {
+            data: (await getBranchFiles(repoPath, baseRef, headRef)).map(normalizeFileItem),
+          };
         } catch (error) {
           return { error: toErrorResult(error) };
         }
@@ -128,7 +155,7 @@ export const gitApi = createApi({
     getCommitFiles: builder.query<FileItem[], CommitFilesArgs>({
       async queryFn({ repoPath, commitId }) {
         try {
-          return { data: await getCommitFiles(repoPath, commitId) };
+          return { data: (await getCommitFiles(repoPath, commitId)).map(normalizeFileItem) };
         } catch (error) {
           return { error: toErrorResult(error) };
         }

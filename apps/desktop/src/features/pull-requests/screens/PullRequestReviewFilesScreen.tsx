@@ -202,7 +202,7 @@ export function PullRequestReviewFilesScreen() {
     },
   );
 
-  const { conversation } = useGetPullRequestConversationQuery(
+  const { conversation, reviewThreads } = useGetPullRequestConversationQuery(
     resolvedReview
       ? {
           repoPath: resolvedReview.repoPath,
@@ -212,6 +212,7 @@ export function PullRequestReviewFilesScreen() {
     {
       selectFromResult: ({ data }) => ({
         conversation: data ?? null,
+        reviewThreads: data?.reviewThreads ?? [],
       }),
       pollingInterval: 10000,
       refetchOnFocus: true,
@@ -267,6 +268,7 @@ export function PullRequestReviewFilesScreen() {
           branchFiles={branchFiles}
           hasBranchFilesData={hasBranchFilesData}
           isLoadingBranchFiles={isLoadingBranchFiles}
+          reviewThreads={reviewThreads}
         />
       }
       content={

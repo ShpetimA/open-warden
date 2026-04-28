@@ -3,12 +3,21 @@ import { useStore } from "react-redux";
 
 import { useAppDispatch } from "@/app/hooks";
 import type { RootState } from "@/app/store";
+import { confirmDiscard } from "@/features/comments/actions";
 import { gitApi } from "@/features/source-control/api";
 import {
+  discardChangesGroupAction,
   rangeSelectFile,
   selectFile,
   stageOrUnstageSelectionAction,
 } from "@/features/source-control/actions";
+import {
+  getPierreFileTreeFocusedBucketedFile,
+  getPierreFileTreeVisibleBucketedFiles,
+  movePierreFileTreeFocus,
+  movePierreFileTreeFocusFile,
+  scrollPierreFileTreeBucketedFileIntoView,
+} from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
@@ -16,16 +25,8 @@ import {
   setRepoTreeActivePath,
   setSymbolPeekActiveIndex,
 } from "@/features/source-control/sourceControlSlice";
-import {
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from "@/lib/keyboard-navigation";
-import {
-  getVisibleBucketedFiles,
-  getVisibleFilePaths,
-  SOURCE_CONTROL_HOTKEY_OPTIONS,
-  useVerticalNavigationHotkeys,
-} from "./keyboardNavigation";
+import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
+import { SOURCE_CONTROL_HOTKEY_OPTIONS, useVerticalNavigationHotkeys } from "./keyboardNavigation";
 import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 function toBucketedFile(file: FileItem, bucket: Bucket) {
@@ -49,14 +50,11 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       activeRepo,
       collapseStaged,
       collapseUnstaged,
-      repoTreeActivePath,
       runningAction,
+      selectedFiles,
     } = state.sourceControl;
     const snapshot = activeRepo
       ? gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data
-      : undefined;
-    const repoFiles = activeRepo
-      ? gitApi.endpoints.getRepoFiles.select(activeRepo)(state).data
       : undefined;
 
     return {
@@ -65,9 +63,8 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       activeRepo,
       collapseStaged,
       collapseUnstaged,
-      repoTreeActivePath,
       runningAction,
-      repoFiles,
+      selectedFiles,
       snapshot,
     };
   };
@@ -84,41 +81,20 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     event.preventDefault();
 
-    const {
-      activeBucket,
-      activePath,
-      activeRepo,
-      collapseStaged,
-      collapseUnstaged,
-      repoFiles,
-      repoTreeActivePath,
-      snapshot,
-    } = getNavigationData();
+    const { activeBucket, activePath, activeRepo, collapseStaged, collapseUnstaged, snapshot } =
+      getNavigationData();
 
     if (mode === "files") {
       if (!activeRepo) {
         return;
       }
 
-      const visibleFilePathsFromDom = getVisibleFilePaths("repo-files");
-      const visibleFilePaths =
-        visibleFilePathsFromDom.length > 0
-          ? visibleFilePathsFromDom
-          : (repoFiles ?? []).map((file: { path: string }) => file.path);
-
-      if (visibleFilePaths.length === 0) {
-        return;
-      }
-
-      const activeIndex = visibleFilePaths.findIndex((path) => path === repoTreeActivePath);
-      const targetIndex = getWrappedNavigationIndex(activeIndex, visibleFilePaths.length, nextKey);
-      const targetPath = visibleFilePaths[targetIndex];
-
+      const targetFile = movePierreFileTreeFocusFile("repo-files", nextKey);
+      const targetPath = targetFile?.realPath ?? targetFile?.path;
       if (!targetPath) {
         return;
       }
 
-      scrollKeyboardNavItemIntoView("repo-files", targetIndex);
       dispatch(setRepoTreeActivePath(targetPath));
       dispatch(
         openFileViewer({
@@ -137,10 +113,24 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       ...unstaged.map((file) => toBucketedFile(file, "unstaged")),
       ...untracked.map((file) => toBucketedFile(file, "untracked")),
     ];
-    const visibleChangeRowsFromDom = getVisibleBucketedFiles("changes-files");
+
+    if (!extendSelection) {
+      const targetPath = movePierreFileTreeFocus("changes-files", nextKey);
+      if (!targetPath) {
+        return;
+      }
+
+      const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+      if (focusedFile) {
+        void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
+      }
+      return;
+    }
+
+    const visibleTreeRows = getPierreFileTreeVisibleBucketedFiles("changes-files");
     const visibleChangeRows: BucketedFile[] =
-      visibleChangeRowsFromDom.length > 0
-        ? visibleChangeRowsFromDom
+      visibleTreeRows.length > 0
+        ? visibleTreeRows
         : (() => {
             const fallbackRows: BucketedFile[] = [];
             if (!collapseStaged) fallbackRows.push(...stagedRows);
@@ -150,31 +140,27 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     if (visibleChangeRows.length === 0) return;
 
-    const activeIndex = visibleChangeRows.findIndex(
-      (file) => file.bucket === activeBucket && file.path === activePath,
+    const focusedFile = getPierreFileTreeFocusedBucketedFile("changes-files");
+    const activeIndex = visibleChangeRows.findIndex((file) =>
+      focusedFile
+        ? file.bucket === focusedFile.bucket && file.path === focusedFile.path
+        : file.bucket === activeBucket && file.path === activePath,
     );
-
     const targetIndex = getWrappedNavigationIndex(activeIndex, visibleChangeRows.length, nextKey);
-
     const targetFile = visibleChangeRows[targetIndex];
     if (!targetFile) return;
 
-    scrollKeyboardNavItemIntoView("changes-files", targetIndex);
-
-    if (extendSelection) {
-      void dispatch(
-        rangeSelectFile(
-          {
-            bucket: targetFile.bucket,
-            path: targetFile.path,
-          },
-          visibleChangeRows,
-        ),
-      );
-      return;
-    }
-
-    void dispatch(selectFile(targetFile.bucket, targetFile.path));
+    scrollPierreFileTreeBucketedFileIntoView("changes-files", targetFile.bucket, targetFile.path);
+    void dispatch(
+      rangeSelectFile(
+        {
+          bucket: targetFile.bucket,
+          path: targetFile.path,
+        },
+        visibleChangeRows,
+      ),
+    );
+    return;
   };
 
   const stageOrUnstageSelection = (event: KeyboardEvent) => {
@@ -186,6 +172,43 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     void dispatch(stageOrUnstageSelectionAction());
   };
 
+  const discardSelection = async (event: KeyboardEvent) => {
+    if (isTypingTarget(event.target)) return;
+    if (mode !== "changes") return;
+
+    const { activeBucket, activePath, activeRepo, runningAction, selectedFiles, snapshot } =
+      getNavigationData();
+    if (!activeRepo || runningAction) return;
+
+    const candidates =
+      selectedFiles.length > 0
+        ? selectedFiles
+        : activePath
+          ? [{ bucket: activeBucket, path: activePath }]
+          : [];
+    if (candidates.length === 0) return;
+
+    const snapshotRows: BucketedFile[] = [
+      ...(snapshot?.staged ?? []).map((file) => toBucketedFile(file, "staged")),
+      ...(snapshot?.unstaged ?? []).map((file) => toBucketedFile(file, "unstaged")),
+      ...(snapshot?.untracked ?? []).map((file) => toBucketedFile(file, "untracked")),
+    ];
+    const discardTargets = candidates
+      .map((candidate) =>
+        snapshotRows.find((row) => row.bucket === candidate.bucket && row.path === candidate.path),
+      )
+      .filter((row): row is BucketedFile => !!row);
+    if (discardTargets.length === 0) return;
+
+    event.preventDefault();
+    const confirmed = await confirmDiscard(
+      `Discard changes for ${discardTargets.length} file${discardTargets.length === 1 ? "" : "s"}?`,
+    );
+    if (!confirmed) return;
+
+    void dispatch(discardChangesGroupAction(discardTargets));
+  };
+
   useVerticalNavigationHotkeys({
     onNext: (event) => navigateChanges(event, true, false),
     onPrevious: (event) => navigateChanges(event, false, false),
@@ -194,4 +217,5 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
   });
 
   useHotkey("Mod+Enter", stageOrUnstageSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
+  useHotkey("Mod+Escape", discardSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
 }
