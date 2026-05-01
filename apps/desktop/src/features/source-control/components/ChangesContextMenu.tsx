@@ -67,7 +67,7 @@ type ChangesFileContextMenuProps = {
   item: ContextMenuItem;
   context: ContextMenuOpenContext;
   file: BucketedFile;
-  sectionKey: "staged" | "unstaged";
+  sectionKey: "staged" | "unstaged" | "conflicts";
   hasRunningAction: boolean;
   onStageFile: (path: string) => void;
   onUnstageFile: (path: string) => void;
@@ -111,7 +111,20 @@ export function ChangesFileContextMenu({
           context.restoreFocus();
         }}
       >
-        {sectionKey === "staged" ? (
+        {sectionKey === "conflicts" ? (
+          <ChangesMenuItem
+            variant="destructive"
+            disabled={hasRunningAction}
+            onSelect={() => {
+              context.close({ restoreFocus: false });
+              onDiscardFile(file.bucket, file.path);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            Discard
+            <ChangesMenuShortcut>⌘⎋</ChangesMenuShortcut>
+          </ChangesMenuItem>
+        ) : sectionKey === "staged" ? (
           <>
             <ChangesMenuItem
               disabled={hasRunningAction}
@@ -176,6 +189,7 @@ type ChangesSectionContextMenuProps = {
   sectionPath: string;
   stagedRows: BucketedFile[];
   changedRows: BucketedFile[];
+  conflictRows: BucketedFile[];
   hasRunningAction: boolean;
   onStageAll: () => void;
   onUnstageAll: () => void;
@@ -189,6 +203,7 @@ export function ChangesSectionContextMenu({
   sectionPath,
   stagedRows,
   changedRows,
+  conflictRows,
   hasRunningAction,
   onStageAll,
   onUnstageAll,
@@ -196,13 +211,19 @@ export function ChangesSectionContextMenu({
   onUnstageFiles,
   onDiscardChangesGroup,
 }: ChangesSectionContextMenuProps) {
-  const directoryContext = getUnifiedChangeDirectoryContext(sectionPath, stagedRows, changedRows);
+  const directoryContext = getUnifiedChangeDirectoryContext(
+    sectionPath,
+    stagedRows,
+    changedRows,
+    conflictRows,
+  );
   if (!directoryContext) {
     return null;
   }
 
   const { isRoot, rows, sectionKey } = directoryContext;
   const isStagedSection = sectionKey === "staged";
+  const isConflictSection = sectionKey === "conflicts";
 
   return (
     <DropdownMenu
@@ -230,7 +251,19 @@ export function ChangesSectionContextMenu({
           context.restoreFocus();
         }}
       >
-        {isStagedSection ? (
+        {isConflictSection ? (
+          <ChangesMenuItem
+            variant="destructive"
+            disabled={hasRunningAction || rows.length === 0}
+            onSelect={() => {
+              context.close({ restoreFocus: false });
+              onDiscardChangesGroup(rows);
+            }}
+          >
+            <Trash2 className="size-3.5" />
+            {isRoot ? "Discard all conflicts" : "Discard folder"}
+          </ChangesMenuItem>
+        ) : isStagedSection ? (
           <ChangesMenuItem
             disabled={hasRunningAction || rows.length === 0}
             onSelect={() => {

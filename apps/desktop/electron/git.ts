@@ -1,5 +1,6 @@
 import { execFile as nodeExecFile } from "node:child_process";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
@@ -669,6 +670,61 @@ export async function stageFile(repoPath: string, relPath: string) {
 
 export async function unstageFile(repoPath: string, relPath: string) {
   await runGitWrite(repoPath, ["reset", "--", normalizeGitPath(relPath)]);
+}
+
+async function readIndexMode(repoPath: string, relPath: string) {
+  try {
+    const output = await runGit(repoPath, ["ls-files", "-s", "--", relPath], {
+      allowFailure: true,
+    });
+    const firstLine = decodeUtf8(output, `index mode for ${relPath}`).split("\n")[0] ?? "";
+    const mode = firstLine.trim().split(/\s+/)[0];
+    return mode && /^\d{6}$/.test(mode) ? mode : "100644";
+  } catch (error) {
+    if (isMissingGitObjectError(error)) {
+      return "100644";
+    }
+
+    throw error;
+  }
+}
+
+export async function updateIndexFileContents(repoPath: string, relPath: string, contents: string) {
+  const normalizedPath = normalizeGitPath(relPath);
+  const mode = await readIndexMode(repoPath, normalizedPath);
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "open-warden-index-"));
+  const tempPath = path.join(tempDir, "contents");
+
+  try {
+    await fs.writeFile(tempPath, contents, "utf8");
+    const blobOutput = await runGit(repoPath, ["hash-object", "-w", tempPath]);
+    const blobSha = decodeUtf8(blobOutput, `index blob for ${normalizedPath}`).trim();
+    if (!blobSha) {
+      throw new Error("failed to write git blob for hunk operation");
+    }
+
+    await runGitWrite(repoPath, [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      mode,
+      blobSha,
+      normalizedPath,
+    ]);
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+export async function updateWorktreeFileContents(
+  repoPath: string,
+  relPath: string,
+  contents: string,
+) {
+  const normalizedPath = normalizeGitPath(relPath);
+  const fullPath = path.join(repoPath, normalizedPath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, contents, "utf8");
 }
 
 export async function stageAll(repoPath: string) {

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
+import { Minus, Plus, Trash2 } from "lucide-react";
 
 import { useAppSelector } from "@/app/hooks";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
@@ -20,6 +21,11 @@ import type {
   DiffReturnTarget,
   LspDiagnostic,
 } from "@/features/source-control/types";
+import type {
+  DiffHunkActionAnnotation,
+  DiffHunkActionPayload,
+  DiffHunkOperation,
+} from "@/features/source-control/hunkOperations";
 import { DiffViewer, type DiffViewerHandle } from "@/features/diff-view/components/DiffViewer";
 import { useDiffCommentAnnotations } from "@/features/diff-view/hooks/useDiffCommentAnnotations";
 import { useDiffDiagnostics } from "@/features/diff-view/hooks/useDiffDiagnostics";
@@ -44,6 +50,8 @@ type Props = {
   includeCurrentFileComments?: boolean;
   disableFileHeader?: boolean;
   hideHeaderMetadataControls?: boolean;
+  hunkOperations?: DiffHunkOperation[];
+  onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
 };
 
 function buildReturnToDiffTarget(
@@ -112,6 +120,8 @@ export function DiffWorkspace({
   includeCurrentFileComments = true,
   disableFileHeader = false,
   hideHeaderMetadataControls = false,
+  hunkOperations = [],
+  onHunkAction,
 }: Props) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
@@ -169,6 +179,38 @@ export function DiffWorkspace({
   );
 
   const renderAnnotation = useDiffAnnotationRenderer({
+    "hunk-action": (data: DiffHunkActionAnnotation) => {
+      const actionMeta = {
+        stage: { label: "Stage hunk", Icon: Plus },
+        unstage: { label: "Unstage hunk", Icon: Minus },
+        discard: { label: "Discard hunk", Icon: Trash2 },
+      } as const;
+
+      return (
+        <div className="flex justify-end gap-1 px-2 py-0">
+          {data.operations.map((operation) => {
+            const { label, Icon } = actionMeta[operation];
+
+            return (
+              <button
+                key={operation}
+                type="button"
+                title={label}
+                aria-label={label}
+                className="inline-flex h-5 w-5 items-center justify-center rounded-xs border border-border/60 bg-background/90 text-muted-foreground shadow-sm transition-[background-color,color,scale] hover:bg-surface-1 hover:text-foreground active:scale-[0.96]"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  data.onAction(operation, { fileDiff: data.fileDiff, hunkIndex: data.hunkIndex });
+                }}
+              >
+                <Icon className="h-3 w-3" />
+              </button>
+            );
+          })}
+        </div>
+      );
+    },
     composer: comments.renderCommentAnnotation,
     "pull-request-anchor": (data) => (
       <PullRequestInlineAnchorAnnotation
@@ -263,6 +305,8 @@ export function DiffWorkspace({
         focusedLineNumber={focusedLineNumber}
         focusedLineIndex={focusedLineIndex}
         focusedLineKey={focusedLineKey}
+        hunkOperations={hunkOperations}
+        onHunkAction={onHunkAction}
       >
         <LspSymbolPeekContainer
           document={lspHoverDocument}

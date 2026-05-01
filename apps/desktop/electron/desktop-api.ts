@@ -36,6 +36,8 @@ import {
   stageFile,
   unstageAll,
   unstageFile,
+  updateIndexFileContents,
+  updateWorktreeFileContents,
 } from "./git";
 import { LspSessionManager } from "./lsp/sessionManager";
 import { checkAppExists, confirm, openPath, selectFolder } from "./system";
@@ -82,6 +84,8 @@ export const desktopApi: DesktopApi = {
   getBranchFileVersions,
   stageFile,
   unstageFile,
+  updateIndexFileContents,
+  updateWorktreeFileContents,
   stageAll,
   unstageAll,
   discardFile,

@@ -188,6 +188,10 @@ export function toPierreGitStatus(status: FileStatus | undefined): GitStatus | n
     return status;
   }
 
+  if (status === "unmerged") {
+    return "modified";
+  }
+
   return "modified";
 }
 

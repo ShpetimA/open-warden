@@ -1,6 +1,7 @@
 import type { AppThunk, RootState } from "@/app/store";
 import { toast } from "sonner";
 import { desktop } from "@/platform/desktop";
+import type { DiffHunkOperation } from "@/features/source-control/hunkOperations";
 import {
   addRecentRepo,
   buildWorkspaceSession,
@@ -472,6 +473,45 @@ export const unstageFileAction =
         );
         await result.unwrap();
       }),
+    );
+  };
+
+export const applyHunkToIndexAction =
+  (input: { filePath: string; contents: string; operation: DiffHunkOperation }): AppThunk =>
+  async (dispatch, getState) => {
+    const { activeRepo } = getState().sourceControl;
+    if (!activeRepo) return;
+
+    if (input.operation === "discard") {
+      await dispatch(
+        runRepoAction("discard-hunk", async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.updateWorktreeFileContents.initiate({
+              repoPath: activeRepo,
+              relPath: input.filePath,
+              contents: input.contents,
+            }),
+          );
+          await result.unwrap();
+        }),
+      );
+      return;
+    }
+
+    await dispatch(
+      runRepoAction(
+        input.operation === "stage" ? "stage-hunk" : "unstage-hunk",
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.updateIndexFileContents.initiate({
+              repoPath: activeRepo,
+              relPath: input.filePath,
+              contents: input.contents,
+            }),
+          );
+          await result.unwrap();
+        },
+      ),
     );
   };
 

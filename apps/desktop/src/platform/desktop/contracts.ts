@@ -429,6 +429,8 @@ export type DesktopApi = {
   ): Promise<FileVersions>;
   stageFile(repoPath: string, relPath: string): Promise<void>;
   unstageFile(repoPath: string, relPath: string): Promise<void>;
+  updateIndexFileContents(repoPath: string, relPath: string, contents: string): Promise<void>;
+  updateWorktreeFileContents(repoPath: string, relPath: string, contents: string): Promise<void>;
   stageAll(repoPath: string): Promise<void>;
   unstageAll(repoPath: string): Promise<void>;
   discardFile(repoPath: string, relPath: string, bucket: Bucket): Promise<void>;

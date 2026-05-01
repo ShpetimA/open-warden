@@ -85,6 +85,18 @@ export async function unstageFile(repoPath: string, relPath: string) {
   await desktop.unstageFile(repoPath, relPath);
 }
 
+export async function updateIndexFileContents(repoPath: string, relPath: string, contents: string) {
+  await desktop.updateIndexFileContents(repoPath, relPath, contents);
+}
+
+export async function updateWorktreeFileContents(
+  repoPath: string,
+  relPath: string,
+  contents: string,
+) {
+  await desktop.updateWorktreeFileContents(repoPath, relPath, contents);
+}
+
 export async function discardFile(repoPath: string, relPath: string, bucket: Bucket) {
   await desktop.discardFile(repoPath, relPath, bucket);
 }

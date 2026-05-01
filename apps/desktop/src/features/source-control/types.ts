@@ -1,3 +1,4 @@
+import type { DiffHunkActionAnnotation } from "@/features/source-control/hunkOperations";
 import type {
   AppSettings as ContractAppSettings,
   Bucket as ContractBucket,
@@ -182,7 +183,8 @@ export type DiffAnnotationItem =
   | ComposerAnnotation
   | DiagnosticAnnotation
   | PullRequestThreadAnnotation
-  | PullRequestAnchorAnnotation;
+  | PullRequestAnchorAnnotation
+  | DiffHunkActionAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;
 
@@ -196,6 +198,9 @@ export type RunningAction =
   | "unstage-all"
   | "stage-files"
   | "unstage-files"
+  | "stage-hunk"
+  | "unstage-hunk"
+  | "discard-hunk"
   | "discard-changes"
   | "commit"
   | `file:stage:${string}`

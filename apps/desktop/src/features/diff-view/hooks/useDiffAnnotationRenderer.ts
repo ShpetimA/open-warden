@@ -12,6 +12,7 @@ type AnnotationRenderers = {
   ) => React.ReactNode;
   diagnostic?: (data: Extract<DiffAnnotationItem, { type: "diagnostic" }>) => React.ReactNode;
   annotation?: (data: Extract<DiffAnnotationItem, { type: "annotation" }>) => React.ReactNode;
+  "hunk-action"?: (data: Extract<DiffAnnotationItem, { type: "hunk-action" }>) => React.ReactNode;
 };
 
 export function useDiffAnnotationRenderer(renderers: AnnotationRenderers) {
@@ -31,6 +32,8 @@ export function useDiffAnnotationRenderer(renderers: AnnotationRenderers) {
           return renderers.diagnostic?.(data) ?? null;
         case "annotation":
           return renderers.annotation?.(data) ?? null;
+        case "hunk-action":
+          return renderers["hunk-action"]?.(data) ?? null;
         default:
           return null;
       }

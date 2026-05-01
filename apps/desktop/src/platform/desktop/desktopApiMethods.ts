@@ -38,6 +38,8 @@ export const DESKTOP_API_METHODS = [
   "getBranchFileVersions",
   "stageFile",
   "unstageFile",
+  "updateIndexFileContents",
+  "updateWorktreeFileContents",
   "stageAll",
   "unstageAll",
   "discardFile",

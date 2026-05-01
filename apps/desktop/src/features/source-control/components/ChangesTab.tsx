@@ -55,11 +55,19 @@ function ChangesFileList() {
   const stagedFiles = snapshot?.staged ?? [];
   const untrackedFiles = snapshot?.untracked ?? [];
 
+  const conflictFiles = unstagedFiles.filter((file) => file.status === "unmerged");
+  const nonConflictUnstaged = unstagedFiles.filter((file) => file.status !== "unmerged");
+
   const changedFiles: BucketedFile[] = [
-    ...unstagedFiles.map((file) => toBucketedFile(file, "unstaged")),
+    ...nonConflictUnstaged.map((file) => toBucketedFile(file, "unstaged")),
     ...untrackedFiles.map((file) => toBucketedFile(file, "untracked")),
   ];
-  const stagedRows: BucketedFile[] = stagedFiles.map((file) => toBucketedFile(file, "staged"));
+  const stagedRows: BucketedFile[] = stagedFiles
+    .filter((file) => file.status !== "unmerged")
+    .map((file) => toBucketedFile(file, "staged"));
+  const conflictRows: BucketedFile[] = conflictFiles.map((file) =>
+    toBucketedFile(file, "unstaged"),
+  );
   const onStageAll = () => {
     void dispatch(stageAllAction());
   };
@@ -105,6 +113,7 @@ function ChangesFileList() {
             mode={fileBrowserMode}
             stagedRows={stagedRows}
             changedRows={changedFiles}
+            conflictRows={conflictRows}
             activeRepo={activeRepo}
             onStageAll={onStageAll}
             onUnstageAll={onUnstageAll}
