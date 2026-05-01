@@ -8,12 +8,10 @@ import { HistoryRouteLayout } from "@/app/routes/HistoryRouteLayout";
 import { RepoRequiredLayout } from "@/app/routes/RepoRequiredLayout";
 import { Toaster } from "@/components/ui/sonner";
 import { PullRequestChecks } from "@/features/pull-requests/screens/PullRequestChecks";
-import { PullRequestConversation } from "@/features/pull-requests/screens/PullRequestConversation";
 import { PullRequestFiles } from "@/features/pull-requests/screens/PullRequestFiles";
 import { PullRequestOverview } from "@/features/pull-requests/screens/PullRequestOverview";
 import { PullRequestPreviewLayout } from "@/features/pull-requests/screens/PullRequestPreviewLayout";
 import { PullRequestReviewChecksScreen } from "@/features/pull-requests/screens/PullRequestReviewChecksScreen";
-import { PullRequestReviewConversationScreen } from "@/features/pull-requests/screens/PullRequestReviewConversationScreen";
 import { PullRequestReviewFilesScreen } from "@/features/pull-requests/screens/PullRequestReviewFilesScreen";
 import { PullRequestsScreen } from "@/features/pull-requests/screens/PullRequestsScreen";
 import { SettingsScreen } from "@/features/settings/screens/SettingsScreen";
@@ -62,10 +60,7 @@ const router = createHashRouter([
                     path: "files",
                     element: <PullRequestReviewFilesScreen />,
                   },
-                  {
-                    path: "conversation",
-                    element: <PullRequestReviewConversationScreen />,
-                  },
+
                   {
                     path: "checks",
                     element: <PullRequestReviewChecksScreen />,
@@ -100,10 +95,7 @@ const router = createHashRouter([
                 path: "overview",
                 element: <PullRequestOverview />,
               },
-              {
-                path: "conversation",
-                element: <PullRequestConversation />,
-              },
+
               {
                 path: "files",
                 element: <PullRequestFiles />,

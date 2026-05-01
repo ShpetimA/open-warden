@@ -2,7 +2,7 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type { GitProviderId } from "@/platform/desktop";
 
-export type PullRequestReviewTab = "files" | "conversation" | "checks";
+export type PullRequestReviewTab = "files" | "checks";
 export type PullRequestFilesViewMode = "review" | "files";
 
 export type PullRequestReviewSession = {

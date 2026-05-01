@@ -1,10 +1,4 @@
-import {
-  Files,
-  GitPullRequest,
-  GitPullRequestArrow,
-  MessagesSquare,
-  ShieldCheck,
-} from "lucide-react";
+import { Files, GitPullRequest, GitPullRequestArrow, ShieldCheck } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import SidebarTabButton from "@/components/ui/sidebar-tab";
@@ -48,10 +42,7 @@ function PullRequestRailTabs({
     Boolean(activePullRequest) || keepPullRequestTabsVisibleWhileLoading;
 
   const isPullRequestFilesRoute = isRoute(location.pathname, "/changes/pull-request/files");
-  const isPullRequestConversationRoute = isRoute(
-    location.pathname,
-    "/changes/pull-request/conversation",
-  );
+
   const isPullRequestChecksRoute = isRoute(location.pathname, "/changes/pull-request/checks");
 
   if (!shouldShowPullRequestTabs) {
@@ -65,11 +56,7 @@ function PullRequestRailTabs({
         isActive={isPullRequestFilesRoute}
         onClick={() => navigate("/changes/pull-request/files")}
       />
-      <SidebarTabButton
-        icon={<MessagesSquare className="h-4 w-4" />}
-        isActive={isPullRequestConversationRoute}
-        onClick={() => navigate("/changes/pull-request/conversation")}
-      />
+
       <SidebarTabButton
         icon={<ShieldCheck className="h-4 w-4" />}
         isActive={isPullRequestChecksRoute}

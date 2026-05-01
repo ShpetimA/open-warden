@@ -154,7 +154,7 @@ export function PullRequestInlineReviewThread({
 
   const openConversation = () => {
     dispatch(setActiveConversationThreadId(thread.id));
-    navigate("../conversation", { relative: "path" });
+    navigate("../files", { relative: "path" });
   };
 
   return (
