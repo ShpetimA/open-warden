@@ -1,9 +1,9 @@
-import { FileCode2, GitPullRequest, MessagesSquare, ShieldCheck } from "lucide-react";
+import { FileCode2, GitPullRequest, ShieldCheck } from "lucide-react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router";
 import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
 import type { GitProviderId } from "@/platform/desktop";
 
-export type PreviewTab = "overview" | "conversation" | "files" | "checks";
+export type PreviewTab = "overview" | "files" | "checks";
 
 type PreviewTabPathInput = {
   providerId: GitProviderId;
@@ -24,7 +24,6 @@ export function buildPreviewTabPath({
 }
 
 function parsePreviewTabFromPathname(pathname: string): PreviewTab {
-  if (pathname.endsWith("/conversation")) return "conversation";
   if (pathname.endsWith("/files")) return "files";
   if (pathname.endsWith("/checks")) return "checks";
   return "overview";
@@ -86,12 +85,7 @@ function PullRequestPreviewModeRail({
         title="Overview"
         onClick={() => onTabChange("overview")}
       />
-      <PreviewModeRailButton
-        active={activeTab === "conversation"}
-        icon={MessagesSquare}
-        title="Conversation"
-        onClick={() => onTabChange("conversation")}
-      />
+
       <PreviewModeRailButton
         active={activeTab === "files"}
         icon={FileCode2}
