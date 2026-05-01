@@ -100,7 +100,7 @@ function PullRequestRow({
       data-pull-request-number={String(pullRequest.number)}
       data-nav-index={String(index)}
       aria-current={selected ? "true" : undefined}
-      className={`block w-full rounded-lg px-3 py-2.5 text-left transition-colors ${
+      className={`block w-full px-3 py-2.5 text-left transition-colors ${
         selected
           ? "bg-primary/10 text-foreground shadow-[0_0_0_1px_hsl(var(--primary)/0.24)_inset]"
           : "hover:bg-surface-1"
@@ -165,7 +165,7 @@ function PullRequestPreviewPane({
 
   if (!pullRequest) {
     return (
-      <aside className="flex h-full min-h-0 items-center justify-center rounded-xl border border-border/70 bg-surface-0 p-6 text-center text-sm text-muted-foreground">
+      <aside className="flex h-full min-h-0 items-center justify-center bg-surface-0 p-6 text-center text-sm text-muted-foreground">
         Select a pull request to preview it.
       </aside>
     );
@@ -176,7 +176,7 @@ function PullRequestPreviewPane({
   const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
 
   return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-surface-0 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
       <div className="border-b border-border/70 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -657,8 +657,8 @@ export function PullRequestsScreen() {
     const pageEnd = pageStart + pullRequests.length;
 
     return (
-      <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)]">
-        <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/70 bg-surface-0 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
+      <div className="grid h-full min-h-0 lg:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)]">
+        <section className="flex min-h-0 flex-col overflow-hidden border-r border-border/70 bg-surface-0 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
           <div className="border-b border-border/70 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -672,7 +672,7 @@ export function PullRequestsScreen() {
               </div>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {pullRequests.map((pullRequest, index) => (
               <PullRequestRow
                 key={pullRequest.id}
@@ -705,8 +705,8 @@ export function PullRequestsScreen() {
       <ConnectGitHubDialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen} />
       <ConnectBitbucketDialog open={bitbucketDialogOpen} onOpenChange={setBitbucketDialogOpen} />
 
-      <div className="h-full overflow-hidden py-6">
-        <div className="mx-auto flex h-full min-h-0 w-full px-6 flex-col gap-4">
+      <div className="h-full overflow-hidden pt-6">
+        <div className="mx-auto flex h-full min-h-0 w-full px-6 flex-col">
           <header className="border-border/70 flex flex-wrap items-start justify-between gap-3 border-b pb-3">
             <div>
               <h1 className="text-xl font-semibold tracking-[-0.02em]">Pull Requests</h1>
