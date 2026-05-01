@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { File as PierreFile, UnresolvedFile, Virtualizer } from "@pierre/diffs/react";
+import type { UnresolvedFileProps } from "@pierre/diffs/react";
 import type { FileContents } from "@pierre/diffs";
-import type { MergeConflictDiffAction } from "@pierre/diffs/utils/parseMergeConflictDiffFromFile";
 import { useTheme } from "next-themes";
 
 import { useAppDispatch } from "@/app/hooks";
@@ -34,6 +34,10 @@ type MergeConflictViewerProps = {
   repoPath: string;
   relPath: string;
 };
+
+type MergeConflictDiffAction = Parameters<
+  NonNullable<UnresolvedFileProps<unknown>["renderMergeConflictUtility"]>
+>[0];
 
 type PendingResolution = "current" | "incoming" | "both";
 

@@ -140,7 +140,7 @@ export function isMergeConflictPath(
   treePath: string,
 ): boolean {
   const file = rows.find((row) => row.path === treePath);
-  return file?.sectionKey === "conflicts" ?? false;
+  return file?.sectionKey === "conflicts";
 }
 
 export function getUnifiedChangeDirectoryContext(
