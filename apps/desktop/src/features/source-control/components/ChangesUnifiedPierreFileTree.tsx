@@ -15,6 +15,7 @@ import {
   compareUnifiedChangeListEntries,
   compareUnifiedChangeTreeDirectories,
   compareUnifiedChangeTreeEntries,
+  CONFLICTS_ROOT_PATH,
   getUnifiedChangeTreeHeight,
   STAGED_ROOT_PATH,
 } from "./changesUnifiedPierreTree";
@@ -31,6 +32,7 @@ type ChangesUnifiedPierreFileTreeProps = {
   mode: FileBrowserMode;
   stagedRows: BucketedFile[];
   changedRows: BucketedFile[];
+  conflictRows: BucketedFile[];
   activeRepo: string;
   onStageAll: () => void;
   onUnstageAll: () => void;
@@ -46,6 +48,7 @@ export function ChangesUnifiedPierreFileTree({
   mode,
   stagedRows,
   changedRows,
+  conflictRows,
   activeRepo,
   onStageAll,
   onUnstageAll,
@@ -62,7 +65,7 @@ export function ChangesUnifiedPierreFileTree({
   const selectedFiles = useAppSelector((state) => state.sourceControl.selectedFiles);
   const comments = useAppSelector((state) => state.comments);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
-  const files = buildUnifiedChangeTreeFiles(stagedRows, changedRows, mode);
+  const files = buildUnifiedChangeTreeFiles(stagedRows, changedRows, conflictRows, mode);
   const filesByTreePath = new Map(files.map((file) => [file.path, file]));
   const treePathBySelectionKey = new Map(files.map((file) => [selectionKey(file), file.path]));
   const selectedPath = treePathBySelectionKey.get(toBucketPathKey(activeBucket, activePath)) ?? "";
@@ -128,6 +131,12 @@ export function ChangesUnifiedPierreFileTree({
               title: `${changedRows.length} changed files`,
             };
           }
+          if (item.path === CONFLICTS_ROOT_PATH) {
+            return {
+              text: String(conflictRows.length),
+              title: `${conflictRows.length} merge conflict${conflictRows.length === 1 ? "" : "s"}`,
+            };
+          }
           return null;
         }
 
@@ -155,6 +164,7 @@ export function ChangesUnifiedPierreFileTree({
               sectionPath={item.path}
               stagedRows={stagedRows}
               changedRows={changedRows}
+              conflictRows={conflictRows}
               hasRunningAction={hasRunningAction}
               onStageAll={onStageAll}
               onUnstageAll={onUnstageAll}

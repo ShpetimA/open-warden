@@ -7,8 +7,9 @@ import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
 import { applyHunkToIndexAction } from "@/features/source-control/actions";
-import { useGetFileVersionsQuery } from "@/features/source-control/api";
+import { useGetFileVersionsQuery, useGetGitSnapshotQuery } from "@/features/source-control/api";
 import { ChangesSidebar } from "@/features/source-control/components/ChangesSidebar";
+import { MergeConflictViewer } from "@/features/source-control/components/MergeConflictViewer";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
@@ -42,8 +43,18 @@ function ChangesDiffPane() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
 
+  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo ?? "", {
+    skip: !activeRepo,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+
+  const isMergeConflict =
+    activePath &&
+    (snapshot?.unstaged.some((f) => f.path === activePath && f.status === "unmerged") ?? false);
+
   const previewSelection = useThrottledDiffSelection(
-    activePath
+    activePath && !isMergeConflict
       ? {
           bucket: activeBucket,
           path: activePath,
@@ -65,10 +76,10 @@ function ChangesDiffPane() {
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
   const errorMessage = fileVersions ? "" : errorMessageFrom(workingFileVersions.error, "");
-  const previewPath = previewSelection?.path ?? "";
+  const previewPath = previewSelection?.path ?? activePath ?? "";
   const lspText = !loadingPatch && newFile ? newFile.contents : null;
   const lspHoverDocument =
-    activeRepo && previewPath && lspText !== null
+    activeRepo && previewPath && lspText !== null && !isMergeConflict
       ? { repoPath: activeRepo, relPath: previewPath }
       : undefined;
 
@@ -124,6 +135,10 @@ function ChangesDiffPane() {
             <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
           ) : !activePath ? (
             <div className="text-muted-foreground p-3 text-sm">Select a file to view diff.</div>
+          ) : isMergeConflict && activeRepo ? (
+            <div className="flex h-full min-h-0 min-w-0 flex-col">
+              <MergeConflictViewer repoPath={activeRepo} relPath={activePath} />
+            </div>
           ) : !oldFile && !newFile ? (
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (

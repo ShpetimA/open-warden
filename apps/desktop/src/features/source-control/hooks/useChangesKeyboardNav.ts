@@ -112,9 +112,16 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     const unstaged = snapshot?.unstaged ?? [];
     const staged = snapshot?.staged ?? [];
     const untracked = snapshot?.untracked ?? [];
-    const stagedRows: BucketedFile[] = staged.map((file) => toBucketedFile(file, "staged"));
+    const conflictRows: BucketedFile[] = unstaged
+      .filter((file) => file.status === "unmerged")
+      .map((file) => toBucketedFile(file, "unstaged"));
+    const stagedRows: BucketedFile[] = staged
+      .filter((file) => file.status !== "unmerged")
+      .map((file) => toBucketedFile(file, "staged"));
     const changedRows: BucketedFile[] = [
-      ...unstaged.map((file) => toBucketedFile(file, "unstaged")),
+      ...unstaged
+        .filter((file) => file.status !== "unmerged")
+        .map((file) => toBucketedFile(file, "unstaged")),
       ...untracked.map((file) => toBucketedFile(file, "untracked")),
     ];
 
@@ -139,6 +146,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
             const fallbackRows: BucketedFile[] = [];
             if (!collapseStaged) fallbackRows.push(...stagedRows);
             if (!collapseUnstaged) fallbackRows.push(...changedRows);
+            fallbackRows.push(...conflictRows);
             return fallbackRows;
           })();
 
@@ -176,17 +184,23 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
     const focusedPath = getPierreFileTreeFocusedPath("changes-files");
     if (!focusedFile && focusedPath) {
-      const stagedRows: BucketedFile[] = (snapshot?.staged ?? []).map((file) =>
-        toBucketedFile(file, "staged"),
-      );
+      const stagedRows: BucketedFile[] = (snapshot?.staged ?? [])
+        .filter((file) => file.status !== "unmerged")
+        .map((file) => toBucketedFile(file, "staged"));
       const changedRows: BucketedFile[] = [
-        ...(snapshot?.unstaged ?? []).map((file) => toBucketedFile(file, "unstaged")),
+        ...(snapshot?.unstaged ?? [])
+          .filter((file) => file.status !== "unmerged")
+          .map((file) => toBucketedFile(file, "unstaged")),
         ...(snapshot?.untracked ?? []).map((file) => toBucketedFile(file, "untracked")),
       ];
+      const conflictRows: BucketedFile[] = (snapshot?.unstaged ?? [])
+        .filter((file) => file.status === "unmerged")
+        .map((file) => toBucketedFile(file, "unstaged"));
       const directoryContext = getUnifiedChangeDirectoryContext(
         focusedPath,
         stagedRows,
         changedRows,
+        conflictRows,
       );
       if (directoryContext && directoryContext.rows.length > 0) {
         event.preventDefault();
@@ -220,9 +234,16 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     if (candidates.length === 0) return;
 
     const snapshotRows: BucketedFile[] = [
-      ...(snapshot?.staged ?? []).map((file) => toBucketedFile(file, "staged")),
-      ...(snapshot?.unstaged ?? []).map((file) => toBucketedFile(file, "unstaged")),
+      ...(snapshot?.staged ?? [])
+        .filter((file) => file.status !== "unmerged")
+        .map((file) => toBucketedFile(file, "staged")),
+      ...(snapshot?.unstaged ?? [])
+        .filter((file) => file.status !== "unmerged")
+        .map((file) => toBucketedFile(file, "unstaged")),
       ...(snapshot?.untracked ?? []).map((file) => toBucketedFile(file, "untracked")),
+      ...(snapshot?.unstaged ?? [])
+        .filter((file) => file.status === "unmerged")
+        .map((file) => toBucketedFile(file, "unstaged")),
     ];
     const discardTargets = candidates
       .map((candidate) =>

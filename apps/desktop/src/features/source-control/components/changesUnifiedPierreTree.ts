@@ -15,24 +15,30 @@ export const STAGED_ROOT_PATH = `${STAGED_ROOT}/`;
 const CHANGES_ROOT = "Changes";
 export const CHANGES_ROOT_PATH = `${CHANGES_ROOT}/`;
 
+const CONFLICTS_ROOT = "Merge Conflicts";
+export const CONFLICTS_ROOT_PATH = `${CONFLICTS_ROOT}/`;
+
 const SECTION_SORT_ORDER = new Map([
-  [STAGED_ROOT, 0],
-  [CHANGES_ROOT, 1],
+  [CONFLICTS_ROOT, 0],
+  [STAGED_ROOT, 1],
+  [CHANGES_ROOT, 2],
 ]);
 const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: "base" };
 
 export type UnifiedChangeTreeFile = BucketedFile & {
   path: string;
   realPath: string;
-  sectionKey: "staged" | "unstaged";
+  sectionKey: "staged" | "unstaged" | "conflicts";
 };
 
 export function buildUnifiedChangeTreeFiles(
   stagedRows: ReadonlyArray<BucketedFile>,
   changedRows: ReadonlyArray<BucketedFile>,
+  conflictRows: ReadonlyArray<BucketedFile>,
   mode: FileBrowserMode,
 ): UnifiedChangeTreeFile[] {
   return [
+    ...conflictRows.map((file, index) => toUnifiedFile(file, "conflicts", mode, index)),
     ...stagedRows.map((file, index) => toUnifiedFile(file, "staged", mode, index)),
     ...changedRows.map((file, index) => toUnifiedFile(file, "unstaged", mode, index)),
   ];
@@ -40,11 +46,16 @@ export function buildUnifiedChangeTreeFiles(
 
 function toUnifiedFile(
   file: BucketedFile,
-  sectionKey: "staged" | "unstaged",
+  sectionKey: "staged" | "unstaged" | "conflicts",
   mode: FileBrowserMode,
   index: number,
 ): UnifiedChangeTreeFile {
-  const root = sectionKey === "staged" ? STAGED_ROOT : CHANGES_ROOT;
+  const root =
+    sectionKey === "staged"
+      ? STAGED_ROOT
+      : sectionKey === "conflicts"
+        ? CONFLICTS_ROOT
+        : CHANGES_ROOT;
   return {
     ...file,
     path: `${root}/${toDisplayPath(mode, file.path, index)}`,
@@ -124,22 +135,34 @@ export function getUnifiedChangeTreeHeight(rows: ReadonlyArray<UnifiedChangeTree
   return Math.max(PIERRE_FILE_TREE_ITEM_HEIGHT, rowCount * PIERRE_FILE_TREE_ITEM_HEIGHT + 4);
 }
 
+export function isMergeConflictPath(
+  rows: ReadonlyArray<UnifiedChangeTreeFile>,
+  treePath: string,
+): boolean {
+  const file = rows.find((row) => row.path === treePath);
+  return file?.sectionKey === "conflicts" ?? false;
+}
+
 export function getUnifiedChangeDirectoryContext(
   sectionPath: string,
   stagedRows: ReadonlyArray<BucketedFile>,
   changedRows: ReadonlyArray<BucketedFile>,
+  conflictRows: ReadonlyArray<BucketedFile>,
 ) {
   const normalizedSectionPath = normalizeTreePath(sectionPath);
   const stagedRoot = normalizeTreePath(STAGED_ROOT_PATH);
   const changesRoot = normalizeTreePath(CHANGES_ROOT_PATH);
+  const conflictsRoot = normalizeTreePath(CONFLICTS_ROOT_PATH);
 
-  const sectionKey = getSectionKey(normalizedSectionPath, stagedRoot, changesRoot);
+  const sectionKey = getSectionKey(normalizedSectionPath, stagedRoot, changesRoot, conflictsRoot);
   if (!sectionKey) {
     return null;
   }
 
-  const rootPath = sectionKey === "staged" ? stagedRoot : changesRoot;
-  const sectionRows = sectionKey === "staged" ? stagedRows : changedRows;
+  const rootPath =
+    sectionKey === "staged" ? stagedRoot : sectionKey === "conflicts" ? conflictsRoot : changesRoot;
+  const sectionRows =
+    sectionKey === "staged" ? stagedRows : sectionKey === "conflicts" ? conflictRows : changedRows;
   const directoryPath = normalizedSectionPath.slice(rootPath.length).replace(/^\/+/, "");
   const rows =
     directoryPath.length === 0
@@ -153,13 +176,22 @@ export function getUnifiedChangeDirectoryContext(
   };
 }
 
-function getSectionKey(sectionPath: string, stagedRoot: string, changesRoot: string) {
+function getSectionKey(
+  sectionPath: string,
+  stagedRoot: string,
+  changesRoot: string,
+  conflictsRoot: string,
+) {
   if (sectionPath === stagedRoot || sectionPath.startsWith(`${stagedRoot}/`)) {
     return "staged";
   }
 
   if (sectionPath === changesRoot || sectionPath.startsWith(`${changesRoot}/`)) {
     return "unstaged";
+  }
+
+  if (sectionPath === conflictsRoot || sectionPath.startsWith(`${conflictsRoot}/`)) {
+    return "conflicts";
   }
 
   return null;
