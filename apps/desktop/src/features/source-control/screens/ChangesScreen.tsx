@@ -1,16 +1,22 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
+import { applyHunkToIndexAction } from "@/features/source-control/actions";
 import { useGetFileVersionsQuery } from "@/features/source-control/api";
 import { ChangesSidebar } from "@/features/source-control/components/ChangesSidebar";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
+import {
+  buildIndexContentsForHunkOperation,
+  type DiffHunkActionPayload,
+  type DiffHunkOperation,
+} from "@/features/source-control/hunkOperations";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 
 export function ChangesScreen() {
@@ -30,6 +36,7 @@ export function ChangesScreen() {
 }
 
 function ChangesDiffPane() {
+  const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
@@ -80,6 +87,32 @@ function ChangesDiffPane() {
     diffFocusTarget?.kind === "changes" && diffFocusTarget.path === previewPath
       ? diffFocusTarget.focusKey
       : null;
+  const hunkOperations: DiffHunkOperation[] =
+    previewSelection?.bucket === "unstaged"
+      ? ["stage", "discard"]
+      : previewSelection?.bucket === "staged"
+        ? ["unstage"]
+        : [];
+
+  function handleHunkAction(operation: DiffHunkOperation, payload: DiffHunkActionPayload) {
+    if (!previewPath) {
+      return;
+    }
+
+    const contents = buildIndexContentsForHunkOperation({
+      fileDiff: payload.fileDiff,
+      hunkIndex: payload.hunkIndex,
+      operation,
+    });
+
+    void dispatch(
+      applyHunkToIndexAction({
+        filePath: previewPath,
+        contents,
+        operation,
+      }),
+    );
+  }
 
   return (
     <div className="grid h-full min-h-0 min-w-0">
@@ -109,6 +142,8 @@ function ChangesDiffPane() {
                 focusedLineNumber={focusedLineNumber}
                 focusedLineIndex={focusedLineIndex}
                 focusedLineKey={focusedLineKey}
+                hunkOperations={hunkOperations}
+                onHunkAction={handleHunkAction}
               />
             </div>
           )}

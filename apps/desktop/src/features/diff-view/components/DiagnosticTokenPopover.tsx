@@ -264,24 +264,24 @@ export function DiagnosticTokenPopover({
         side="bottom"
         sideOffset={6}
         collisionPadding={8}
-        className="w-[360px] max-h-[320px] overflow-hidden p-0"
+        className="w-[360px] max-h-[320px] rounded-none overflow-hidden p-0"
         style={{ maxWidth: "calc(100vw - 16px)" }}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <div className="max-h-full overflow-auto p-3">
+        <div className="max-h-full overflow-auto">
           <div className="flex flex-col gap-2">
             {diagnostics.map((diagnostic) => {
               const metadata = [diagnostic.source, diagnostic.code].filter(Boolean).join(" ");
               return (
                 <div
                   key={`${diagnostic.message}:${diagnostic.severity}:${diagnostic.startLine}:${diagnostic.startCharacter}:${diagnostic.endLine}:${diagnostic.endCharacter}:${diagnostic.source ?? ""}:${diagnostic.code ?? ""}`}
-                  className="bg-muted/40 rounded border p-2"
+                  className="bg-muted/40 border p-2"
                 >
                   <div className="mb-1 flex items-center gap-2">
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${diagnosticSeverityBadgeClasses(diagnostic.severity)}`}
+                      className={`px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${diagnosticSeverityBadgeClasses(diagnostic.severity)}`}
                     >
                       {diagnostic.severity}
                     </span>

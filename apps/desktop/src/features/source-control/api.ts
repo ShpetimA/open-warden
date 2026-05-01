@@ -27,6 +27,8 @@ import {
   stageFile,
   unstageAll,
   unstageFile,
+  updateIndexFileContents,
+  updateWorktreeFileContents,
 } from "./services/git";
 
 type ErrorResult = { message: string };
@@ -52,6 +54,8 @@ type BranchFileVersionsArgs = {
 
 type StageFileArgs = { repoPath: string; relPath: string };
 type UnstageFileArgs = { repoPath: string; relPath: string };
+type UpdateIndexFileContentsArgs = { repoPath: string; relPath: string; contents: string };
+type UpdateWorktreeFileContentsArgs = { repoPath: string; relPath: string; contents: string };
 type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket };
 type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> };
 type CommitStagedArgs = { repoPath: string; message: string };
@@ -232,6 +236,34 @@ export const gitApi = createApi({
       async queryFn({ repoPath, relPath }) {
         try {
           await unstageFile(repoPath, relPath);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
+        { type: "Snapshot", id: repoPath },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
+      ],
+    }),
+    updateIndexFileContents: builder.mutation<void, UpdateIndexFileContentsArgs>({
+      async queryFn({ repoPath, relPath, contents }) {
+        try {
+          await updateIndexFileContents(repoPath, relPath, contents);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
+        { type: "Snapshot", id: repoPath },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
+      ],
+    }),
+    updateWorktreeFileContents: builder.mutation<void, UpdateWorktreeFileContentsArgs>({
+      async queryFn({ repoPath, relPath, contents }) {
+        try {
+          await updateWorktreeFileContents(repoPath, relPath, contents);
           return { data: undefined };
         } catch (error) {
           return { error: toErrorResult(error) };
