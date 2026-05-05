@@ -2,7 +2,7 @@
 
 Still in Alpha alot of the ui subject to change also working on stability would appreciate any feedback/issue reports.
 OpenWarden is a local git client app and can be connected with github/bitbucket through api keys.
-Review local changes write comments send to agents or review upstream prs from colleagues with lsp support. 
+Review local changes write comments send to agents or review upstream prs from colleagues with lsp support.
 
 ## Install on macOS
 
