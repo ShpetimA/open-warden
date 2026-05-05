@@ -4,11 +4,12 @@ type UseDiffLineFocusOptions = {
   containerRef: RefObject<HTMLElement | null>;
   lineNumber: number | null;
   lineIndex?: string | null;
+  lineCount?: number | null;
   focusKey?: number | string | null;
   enabled?: boolean;
 };
 
-const MAX_FOCUS_ATTEMPTS = 24;
+const MAX_FOCUS_ATTEMPTS = 72;
 const FOCUS_PULSE_DURATION_MS = 1800;
 
 export const DIFF_LINE_FOCUS_CSS = `
@@ -93,10 +94,71 @@ export function getRenderedLineOffset(
   };
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getScrollContainer(container: HTMLElement) {
+  const knownScrollContainer = container.querySelector<HTMLElement>(
+    ".diff-viewport-scroll, .file-viewer-scroll",
+  );
+  if (knownScrollContainer) {
+    return knownScrollContainer;
+  }
+
+  if (container.scrollHeight > container.clientHeight + 1) {
+    return container;
+  }
+
+  for (const element of container.querySelectorAll<HTMLElement>("*")) {
+    if (element.scrollHeight > element.clientHeight + 1) {
+      return element;
+    }
+  }
+
+  return container;
+}
+
+function centerLineInContainer(lineNode: HTMLElement, scrollContainer: HTMLElement) {
+  const lineRect = lineNode.getBoundingClientRect();
+  const containerRect = scrollContainer.getBoundingClientRect();
+  const lineCenter =
+    lineRect.top - containerRect.top + scrollContainer.scrollTop + lineRect.height / 2;
+  const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+  const targetScrollTop = clamp(lineCenter - scrollContainer.clientHeight / 2, 0, maxScrollTop);
+  scrollContainer.scrollTop = targetScrollTop;
+}
+
+function nudgeContainerTowardLine(
+  scrollContainer: HTMLElement,
+  lineNumber: number,
+  lineCount: number | null,
+) {
+  if (!lineCount || lineCount <= 0) {
+    return;
+  }
+
+  const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight);
+  if (maxScrollTop <= 0) {
+    return;
+  }
+
+  const boundedLineNumber = clamp(lineNumber, 1, lineCount);
+  const lineRatio = lineCount <= 1 ? 0 : (boundedLineNumber - 1) / (lineCount - 1);
+  const estimatedScrollTop = maxScrollTop * lineRatio;
+
+  if (Math.abs(scrollContainer.scrollTop - estimatedScrollTop) <= 1) {
+    return;
+  }
+
+  scrollContainer.scrollTop = estimatedScrollTop;
+}
+
 export function useDiffLineFocus({
   containerRef,
   lineNumber,
   lineIndex = null,
+  lineCount = null,
   focusKey = null,
   enabled = true,
 }: UseDiffLineFocusOptions) {
@@ -148,8 +210,11 @@ export function useDiffLineFocus({
         return;
       }
 
+      const scrollContainer = getScrollContainer(container);
       const lineNode = findRenderedDiffLine(container, lineNumber, lineIndex);
       if (!lineNode) {
+        nudgeContainerTowardLine(scrollContainer, lineNumber, lineCount);
+
         if (attemptCount < MAX_FOCUS_ATTEMPTS) {
           attemptCount += 1;
           focusFrameRef.current = requestAnimationFrame(focusLine);
@@ -157,10 +222,7 @@ export function useDiffLineFocus({
         return;
       }
 
-      lineNode.scrollIntoView({
-        block: "center",
-        inline: "nearest",
-      });
+      centerLineInContainer(lineNode, scrollContainer);
 
       if (focusKey === null || focusKey === undefined) {
         return;
@@ -186,5 +248,5 @@ export function useDiffLineFocus({
         focusFrameRef.current = null;
       }
     };
-  }, [containerRef, enabled, focusKey, lineIndex, lineNumber]);
+  }, [containerRef, enabled, focusKey, lineCount, lineIndex, lineNumber]);
 }

@@ -61,6 +61,21 @@ function returnToDiffPath(target: DiffReturnTarget) {
   return "/changes/pull-request/files";
 }
 
+function countFileLines(contents: string) {
+  if (contents.length === 0) {
+    return 1;
+  }
+
+  let lines = 1;
+  for (let index = 0; index < contents.length; index += 1) {
+    if (contents[index] === "\n") {
+      lines += 1;
+    }
+  }
+
+  return lines;
+}
+
 export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -89,6 +104,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const selectedLine = target?.line && target.line > 0 ? target.line : null;
   const focusKey = target?.focusKey ?? null;
   const lspText = file?.contents ?? null;
+  const lineCount = file ? countFileLines(file.contents) : null;
   const { onTokenClick } = useLspTokenNavigation(
     target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined,
     {
@@ -100,6 +116,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   useDiffLineFocus({
     containerRef: viewerRef,
     lineNumber: file ? selectedLine : null,
+    lineCount,
     focusKey,
     enabled: Boolean(file),
   });
@@ -138,8 +155,12 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
           </div>
         </div>
       ) : null}
-      <div key={file.name} ref={viewerRef} className="grid relative min-h-0 flex-1 overflow-auto">
-        <Virtualizer className="relative min-h-0 flex-1 overflow-auto">
+      <div
+        key={file.name}
+        ref={viewerRef}
+        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      >
+        <Virtualizer className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
           <PierreFile
             file={file}
             className="block min-w-0 max-w-full"
@@ -153,11 +174,11 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
               onTokenClick,
             }}
           />
-          <LspSymbolPeekContainer
-            document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
-            containerRef={viewerRef}
-          />
         </Virtualizer>
+        <LspSymbolPeekContainer
+          document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
+          containerRef={viewerRef}
+        />
       </div>
     </section>
   );

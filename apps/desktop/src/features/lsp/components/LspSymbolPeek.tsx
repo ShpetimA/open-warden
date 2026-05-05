@@ -31,8 +31,7 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import type { LspLocation, SymbolPeekKind, SymbolPeekState } from "@/features/source-control/types";
 
-const SYMBOL_PEEK_HEIGHT_REM = 32;
-const SYMBOL_PEEK_HEIGHT_PX = 250;
+const SYMBOL_PEEK_MAX_HEIGHT_REM = 32;
 const SYMBOL_PEEK_OFFSET_PX = 4;
 
 const PEEK_FILE_CSS = `
@@ -106,6 +105,15 @@ function excerptForLocation(location: LspLocation, linesByPath: Map<string, stri
   }
 
   return `Line ${location.line}`;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function rootFontSizePx() {
+  const parsed = Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 16;
 }
 
 function buildSymbolPeekGroups(
@@ -229,7 +237,7 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
   const navigate = useNavigate();
   const location = useLocation();
   const deferredQuery = useDeferredValue(symbolPeek.query);
-  const [popoverTop, setPopoverTop] = useState<number | null>(null);
+  const [popoverLayout, setPopoverLayout] = useState<{ top: number; height: number } | null>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
   const locations = symbolPeek.locations;
@@ -333,7 +341,7 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
 
   useEffect(() => {
     if (anchorLineNumber === null) {
-      setPopoverTop(null);
+      setPopoverLayout(null);
       return;
     }
     const targetAnchorLineNumber = anchorLineNumber;
@@ -367,13 +375,30 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
         return;
       }
 
-      const maxTop = container.scrollTop + container.clientHeight - SYMBOL_PEEK_HEIGHT_PX - 4;
-      const nextTop = Math.max(
-        container.scrollTop,
-        Math.min(offset.bottom + SYMBOL_PEEK_OFFSET_PX, maxTop),
+      const viewportHeight =
+        container.clientHeight > 0 ? container.clientHeight : window.innerHeight;
+      const preferredHeightPx = SYMBOL_PEEK_MAX_HEIGHT_REM * rootFontSizePx();
+      const popoverHeight = Math.min(
+        preferredHeightPx,
+        Math.max(1, viewportHeight - SYMBOL_PEEK_OFFSET_PX * 2),
       );
 
-      setPopoverTop(nextTop);
+      const minTop = container.scrollTop + SYMBOL_PEEK_OFFSET_PX;
+      const maxTop = container.scrollTop + viewportHeight - popoverHeight - SYMBOL_PEEK_OFFSET_PX;
+      const preferredBelowTop = offset.bottom + SYMBOL_PEEK_OFFSET_PX;
+      const preferredAboveTop = offset.top - popoverHeight - SYMBOL_PEEK_OFFSET_PX;
+      const nextTop = clamp(
+        preferredBelowTop > maxTop && preferredAboveTop >= minTop
+          ? preferredAboveTop
+          : preferredBelowTop,
+        minTop,
+        maxTop,
+      );
+
+      setPopoverLayout({
+        top: nextTop,
+        height: popoverHeight,
+      });
     };
 
     frameId = requestAnimationFrame(updateTop);
@@ -445,7 +470,7 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
     },
   );
 
-  if (symbolPeek === null || popoverTop === null) {
+  if (symbolPeek === null || popoverLayout === null) {
     return null;
   }
 
@@ -453,8 +478,8 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
     <div
       className="bg-popover text-popover-foreground border-border absolute right-0 left-0 z-20 border shadow-md"
       style={{
-        top: `${popoverTop}px`,
-        height: `${SYMBOL_PEEK_HEIGHT_REM}rem`,
+        top: `${popoverLayout.top}px`,
+        height: `${popoverLayout.height}px`,
       }}
     >
       <div className="border-border flex h-7 items-center gap-2 border-b px-2 text-[11px]">

@@ -1,7 +1,7 @@
 import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +12,7 @@ import { openSymbolPeek, sourceControlReducer } from "@/features/source-control/
 const mocks = vi.hoisted(() => ({
   useHotkey: vi.fn(),
   useGetRepoFileQuery: vi.fn(),
+  getRenderedLineOffset: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-hotkeys", () => ({
@@ -27,12 +28,7 @@ vi.mock("next-themes", () => ({
 vi.mock("@/features/source-control/diffLineFocus", () => ({
   DIFF_LINE_FOCUS_CSS: "",
   useDiffLineFocus: () => {},
-  getRenderedLineOffset: () => ({
-    line: document.createElement("div"),
-    top: 24,
-    bottom: 48,
-    height: 24,
-  }),
+  getRenderedLineOffset: mocks.getRenderedLineOffset,
 }));
 
 vi.mock("@pierre/diffs/react", () => ({
@@ -65,16 +61,44 @@ function findLocationButton(labelText: RegExp) {
   return screen.getAllByRole("button").find((button) => labelText.test(button.textContent ?? ""));
 }
 
+function cssLengthToPixels(value: string) {
+  const numeric = Number.parseFloat(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+
+  if (value.endsWith("rem")) {
+    return numeric * 16;
+  }
+
+  return numeric;
+}
+
 function SymbolPeekHarness() {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
 
-  useEffect(() => {
+    if (!node) {
+      return;
+    }
+
     const host = document.createElement("div");
-    containerRef.current?.appendChild(host);
+    node.appendChild(host);
+
+    Object.defineProperty(node, "clientHeight", {
+      configurable: true,
+      value: 400,
+    });
+    Object.defineProperty(node, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
   }, []);
 
   return (
-    <div ref={containerRef}>
+    <div ref={setContainerRef}>
       <LspSymbolPeekContainer
         document={{ repoPath: "/repo", relPath: "src/current.ts" }}
         containerRef={containerRef}
@@ -101,6 +125,13 @@ describe("LspSymbolPeek", () => {
       },
     });
     Element.prototype.scrollIntoView = vi.fn();
+
+    mocks.getRenderedLineOffset.mockReturnValue({
+      line: document.createElement("div"),
+      top: 24,
+      bottom: 48,
+      height: 24,
+    });
 
     mocks.useGetRepoFileQuery.mockImplementation((arg) => {
       if (!arg || typeof arg !== "object" || !("relPath" in arg)) {
@@ -201,6 +232,61 @@ describe("LspSymbolPeek", () => {
     expect(screen.getByTestId("peek-preview")).toHaveTextContent(
       /src\/b\.ts:zero\s+omega target\s+last/i,
     );
+  });
+
+  it("keeps the symbol peek fully visible near the bottom edge", () => {
+    mocks.getRenderedLineOffset.mockReturnValue({
+      line: document.createElement("div"),
+      top: 360,
+      bottom: 384,
+      height: 24,
+    });
+
+    const store = createStore();
+    store.dispatch(
+      openSymbolPeek({
+        kind: "definitions",
+        locations: [
+          {
+            repoPath: "/repo",
+            relPath: "src/a.ts",
+            uri: "file:///repo/src/a.ts",
+            line: 2,
+            character: 1,
+            endLine: 2,
+            endCharacter: 4,
+          },
+        ],
+        activeIndex: 0,
+        query: "",
+        sourceDocument: {
+          repoPath: "/repo",
+          relPath: "src/current.ts",
+        },
+        anchor: {
+          lineNumber: 3,
+          lineIndex: "2,9",
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/changes/files"]}>
+        <Provider store={store}>
+          <SymbolPeekHarness />
+        </Provider>
+      </MemoryRouter>,
+    );
+
+    const closeButton = screen.getByLabelText("Close symbol peek");
+    const popover = closeButton.parentElement?.parentElement as HTMLDivElement | null;
+    expect(popover).not.toBeNull();
+
+    const topPx = cssLengthToPixels(popover?.style.top ?? "0px");
+    const heightPx = cssLengthToPixels(popover?.style.height ?? "0px");
+
+    expect(topPx).toBeGreaterThanOrEqual(0);
+    expect(topPx + heightPx).toBeLessThanOrEqual(400);
   });
 
   it("commits the active selection on Enter and closes the peek", () => {
