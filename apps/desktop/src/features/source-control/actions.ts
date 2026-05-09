@@ -54,13 +54,7 @@ function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, fil
   const index = changed.findIndex((item) => item.path === filePath);
   if (index < 0) return null;
 
-  const next = changed[index + 1];
-  if (next) return next;
-
-  const prev = changed[index - 1];
-  if (prev) return prev;
-
-  return null;
+  return changed[index + 1] ?? null;
 }
 
 function fileSelectionKey(file: SelectedFile): string {

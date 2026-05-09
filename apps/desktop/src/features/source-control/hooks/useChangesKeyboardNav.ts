@@ -22,7 +22,7 @@ import {
   scrollPierreFileTreeBucketedFileIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import { getUnifiedChangeDirectoryContext } from "@/features/source-control/components/changesUnifiedPierreTree";
-import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
+import type { Bucket, BucketedFile, FileItem, SelectedFile } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
   openFileViewer,
@@ -175,9 +175,35 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     return;
   };
 
+  const focusNextFileAfterStageOrUnstage = (
+    currentFile: SelectedFile | null,
+    movedCandidates: SelectedFile[],
+  ) => {
+    if (!currentFile || movedCandidates.length === 0) return;
+
+    const visibleRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
+    const currentIndex = visibleRows.findIndex(
+      (file) => file.bucket === currentFile.bucket && file.path === currentFile.path,
+    );
+    if (currentIndex < 0 || currentIndex >= visibleRows.length - 1) return;
+
+    const movedCandidateKeys = new Set(
+      movedCandidates.map((file) => `${file.bucket}\u0000${file.path}`),
+    );
+    const targetFile = visibleRows.slice(currentIndex + 1).find((file) => {
+      if (movedCandidateKeys.has(`${file.bucket}\u0000${file.path}`)) return false;
+      return currentFile.bucket === "staged" ? file.bucket === "staged" : file.bucket !== "staged";
+    });
+    if (!targetFile) return;
+
+    scrollPierreFileTreeBucketedFileIntoView("changes-files", targetFile.bucket, targetFile.path);
+    void dispatch(selectFile(targetFile.bucket, targetFile.path));
+  };
+
   const stageOrUnstageSelection = (event: KeyboardEvent) => {
     if (isTypingTarget(event.target)) return;
-    const { runningAction, snapshot } = getNavigationData();
+    const { activeBucket, activePath, runningAction, selectedFiles, snapshot } =
+      getNavigationData();
     if (mode !== "changes") return;
     if (runningAction) return;
 
@@ -214,7 +240,14 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     }
 
     event.preventDefault();
+
+    const candidates = selectedFiles.length
+      ? selectedFiles
+      : activePath
+        ? [{ bucket: activeBucket, path: activePath }]
+        : [];
     void dispatch(stageOrUnstageSelectionAction());
+    focusNextFileAfterStageOrUnstage(focusedFile ?? candidates[0] ?? null, candidates);
   };
 
   const discardSelection = async (event: KeyboardEvent) => {

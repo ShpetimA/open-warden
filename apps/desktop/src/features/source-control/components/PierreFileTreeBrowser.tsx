@@ -294,7 +294,11 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       syncingSelectionRef.current = true;
       model.resetPaths(nextPaths, { preparedInput: nextPreparedInput });
       collapseDirectoryPaths(model, collapsedDirectoryPaths);
-      model.focusNearestPath(focusedPath);
+      if (selectedPath && nextPaths.includes(selectedPath)) {
+        model.focusPath(selectedPath);
+      } else {
+        model.focusNearestPath(focusedPath);
+      }
       setPierreSelectedPaths(selectedPaths ?? (selectedPath ? [selectedPath] : []));
       syncingSelectionRef.current = false;
     }
