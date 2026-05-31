@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
   - "crates/*"
+
+patchedDependencies:
+  "@pierre/diffs@1.2.4": patches/@pierre__diffs@1.2.4.patch

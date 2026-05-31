@@ -28,7 +28,7 @@ import type {
 } from "@/features/source-control/hunkOperations";
 import { DiffViewer, type DiffViewerHandle } from "@/features/diff-view/components/DiffViewer";
 import { useDiffCommentAnnotations } from "@/features/diff-view/hooks/useDiffCommentAnnotations";
-import { useDiffDiagnostics } from "@/features/diff-view/hooks/useDiffDiagnostics";
+import { useMultiDiffDiagnostics } from "@/features/diff-view/hooks/useMultiDiffDiagnostics";
 import { useDiffAnnotationRenderer } from "@/features/diff-view/hooks/useDiffAnnotationRenderer";
 import { type DiffLineAnnotation, type FileDiffOptions } from "@pierre/diffs";
 
@@ -53,6 +53,8 @@ type Props = {
   hunkOperations?: DiffHunkOperation[];
   onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
 };
+
+const SINGLE_DIFF_ITEM_ID = "single-diff";
 
 function buildReturnToDiffTarget(
   jumpContextKind: "changes" | "review" | "pull-request",
@@ -155,7 +157,11 @@ export function DiffWorkspace({
     getReturnToDiffTarget,
   });
 
-  const diagnostics = useDiffDiagnostics(lspDiagnostics);
+  const diagnosticsByItem = useMemo(
+    () => new Map([[SINGLE_DIFF_ITEM_ID, lspDiagnostics]]),
+    [lspDiagnostics],
+  );
+  const diagnostics = useMultiDiffDiagnostics(diagnosticsByItem);
 
   const comments = useDiffCommentAnnotations({
     activePath,
@@ -245,15 +251,19 @@ export function DiffWorkspace({
       enableLineSelection: canComment,
       enableGutterUtility: canComment,
       onTokenClick: handleTokenClick,
-      onTokenEnter: diagnostics.onTokenEnter,
+      onTokenEnter: (props) => diagnostics.onTokenEnter(SINGLE_DIFF_ITEM_ID, props),
       onTokenLeave: diagnostics.onTokenLeave,
       onLineSelected: canComment ? comments.onLineSelected : undefined,
+      onLineSelectionStart: canComment ? comments.onLineSelectionStart : undefined,
+      onLineSelectionChange: canComment ? comments.onLineSelectionChange : undefined,
       onLineSelectionEnd: canComment ? comments.onLineSelectionEnd : undefined,
-      onPostRender: diagnostics.onPostRender,
+      onPostRender: (rootNode) => diagnostics.onPostRender(SINGLE_DIFF_ITEM_ID, rootNode),
     }),
     [
       canComment,
       comments.onLineSelected,
+      comments.onLineSelectionStart,
+      comments.onLineSelectionChange,
       comments.onLineSelectionEnd,
       diagnostics.onPostRender,
       diagnostics.onTokenEnter,

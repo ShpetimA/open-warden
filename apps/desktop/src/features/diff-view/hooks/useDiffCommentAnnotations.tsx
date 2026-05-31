@@ -56,6 +56,11 @@ type UseDiffCommentAnnotationsOptions = {
   commentMentions?: MentionConfig;
 };
 
+type CurrentSelection = {
+  range: SelectionRange;
+  showComposer: boolean;
+};
+
 export function useDiffCommentAnnotations({
   activePath,
   commentContext,
@@ -64,7 +69,9 @@ export function useDiffCommentAnnotations({
   commentMentions,
 }: UseDiffCommentAnnotationsOptions) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null);
+  const [selection, setSelection] = useState<CurrentSelection | null>(null);
+  const selectedRange = selection?.range ?? null;
+  const composerRange = selection?.showComposer ? selection.range : null;
 
   const { annotations: commentAnnotations } = useCurrentFileComments(
     activeRepo,
@@ -80,33 +87,45 @@ export function useDiffCommentAnnotations({
 
   const { showFirstCommentTip } = useFirstCommentTip();
 
+  const setSelectedRange = useCallback((range: SelectionRange | null) => {
+    setSelection(range ? { range, showComposer: false } : null);
+  }, []);
+
+  const onLineSelectionStart = useCallback((range: SelectionRange | null) => {
+    setSelection(range ? { range, showComposer: false } : null);
+  }, []);
+
+  const onLineSelectionChange = useCallback((range: SelectionRange | null) => {
+    setSelection(range ? { range, showComposer: false } : null);
+  }, []);
+
   const onLineSelected = useCallback((range: SelectionRange | null) => {
-    setSelectedRange(range);
+    setSelection(range ? { range, showComposer: true } : null);
   }, []);
 
   const onLineSelectionEnd = useCallback((range: SelectionRange | null) => {
-    setSelectedRange(range);
+    setSelection(range ? { range, showComposer: true } : null);
   }, []);
 
   const onCloseCommentComposer = useCallback(() => {
-    setSelectedRange(null);
+    setSelection(null);
   }, []);
 
   const composerAnnotation = useMemo<DiffLineAnnotation<DiffAnnotationItem> | null>(() => {
-    if (!selectedRange) return null;
+    if (!composerRange) return null;
 
     return {
-      lineNumber: selectedRange.end,
+      lineNumber: composerRange.end,
       metadata: {
         type: "composer",
-        side: selectedRange.side ?? "deletions",
-        endSide: selectedRange.endSide,
-        startLine: selectedRange.start,
-        endLine: selectedRange.end,
+        side: composerRange.side ?? "deletions",
+        endSide: composerRange.endSide,
+        startLine: composerRange.start,
+        endLine: composerRange.end,
       },
-      side: selectedRange.side ?? "deletions",
+      side: composerRange.side ?? "deletions",
     };
-  }, [selectedRange]);
+  }, [composerRange]);
 
   const annotations = useMemo<DiffLineAnnotation<DiffAnnotationItem>[]>(() => {
     if (!composerAnnotation) return commentAnnotations;
@@ -120,7 +139,7 @@ export function useDiffCommentAnnotations({
           <CommentComposer
             visible
             activePath={activePath}
-            selectedRange={selectedRange}
+            selectedRange={composerRange}
             commentContext={commentContext}
             onClose={onCloseCommentComposer}
             onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
@@ -141,7 +160,7 @@ export function useDiffCommentAnnotations({
       commentMentions,
       onCloseCommentComposer,
       repoCommentCount,
-      selectedRange,
+      composerRange,
       showFirstCommentTip,
     ],
   );
@@ -151,6 +170,8 @@ export function useDiffCommentAnnotations({
     renderCommentAnnotation,
     selectedRange,
     setSelectedRange,
+    onLineSelectionStart,
+    onLineSelectionChange,
     onLineSelected,
     onLineSelectionEnd,
     onCloseCommentComposer,

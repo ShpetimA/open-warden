@@ -10,49 +10,47 @@ type ActiveDocument = {
   relPath: string;
 };
 
-function sameDocument(current: ActiveDocument | null, next: ActiveDocument | null) {
-  if (!current || !next) {
-    return current === next;
-  }
+export type CurrentLspDocument = ActiveDocument & {
+  text: string;
+};
 
-  return current.repoPath === next.repoPath && current.relPath === next.relPath;
+function documentKey(document: ActiveDocument) {
+  return `${document.repoPath}\u0000${document.relPath}`;
 }
 
-export function useCurrentLspDocument(repoPath: string, relPath: string, text: string | null) {
+export function useCurrentLspDocuments(documents: CurrentLspDocument[]) {
   const dispatch = useAppDispatch();
-  const activeDocumentRef = useRef<ActiveDocument | null>(null);
+  const activeDocumentsRef = useRef(new Map<string, CurrentLspDocument>());
+  const documentsKey = documents
+    .map((document) => `${documentKey(document)}\u0000${document.text.length}`)
+    .join("\u0001");
 
   useEffect(() => {
-    const nextDocument = repoPath && relPath && text !== null ? { repoPath, relPath } : null;
-    const currentDocument = activeDocumentRef.current;
+    const nextDocuments = new Map(documents.map((document) => [documentKey(document), document]));
 
-    if (!sameDocument(currentDocument, nextDocument) && currentDocument) {
+    for (const [key, currentDocument] of activeDocumentsRef.current) {
+      if (nextDocuments.has(key)) continue;
       void desktop.closeLspDocument(currentDocument);
       dispatch(clearLspFile(currentDocument));
+      activeDocumentsRef.current.delete(key);
     }
 
-    activeDocumentRef.current = nextDocument;
+    for (const [key, nextDocument] of nextDocuments) {
+      const currentDocument = activeDocumentsRef.current.get(key);
+      if (currentDocument?.text === nextDocument.text) continue;
 
-    if (!nextDocument || text === null) {
-      return;
+      activeDocumentsRef.current.set(key, nextDocument);
+      void desktop.syncLspDocument(nextDocument);
     }
-
-    void desktop.syncLspDocument({
-      ...nextDocument,
-      text,
-    });
-  }, [dispatch, relPath, repoPath, text]);
+  }, [dispatch, documents, documentsKey]);
 
   useEffect(() => {
     return () => {
-      const currentDocument = activeDocumentRef.current;
-      if (!currentDocument) {
-        return;
+      for (const currentDocument of activeDocumentsRef.current.values()) {
+        void desktop.closeLspDocument(currentDocument);
+        dispatch(clearLspFile(currentDocument));
       }
-
-      void desktop.closeLspDocument(currentDocument);
-      dispatch(clearLspFile(currentDocument));
-      activeDocumentRef.current = null;
+      activeDocumentsRef.current.clear();
     };
   }, [dispatch]);
 }

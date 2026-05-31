@@ -1,0 +1,21 @@
+diff --git a/dist/components/VirtualizedFileDiff.js b/dist/components/VirtualizedFileDiff.js
+index a487779494bf281f4dff3aa8323c902fdbe80426..5304aa9d4d514a39c0dc8ce03dd542b6fca6e855 100644
+--- a/dist/components/VirtualizedFileDiff.js
++++ b/dist/components/VirtualizedFileDiff.js
+@@ -301,6 +301,7 @@ var VirtualizedFileDiff = class extends FileDiff {
+ 		this.hunksRenderer.expandHunk(hunkIndex, direction, expansionLineCountOverride);
+ 		this.resetLayoutCache({ includeEstimatedHeights: true });
+ 		this.computeApproximateSize();
++		this.forceRenderOverride = true;
+ 		this.virtualizer.instanceChanged(this, true);
+ 	};
+ 	setVisibility(visible) {
+@@ -408,7 +409,7 @@ var VirtualizedFileDiff = class extends FileDiff {
+ 			renderRange,
+ 			oldFile,
+ 			newFile,
+-			forceRender: forceRenderOverride ?? forceRender,
++			forceRender: forceRenderOverride ?? (forceRender || this.isAdvancedMode()),
+ 			...props
+ 		});
+ 	}

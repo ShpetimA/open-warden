@@ -22,6 +22,9 @@
     "format:check": "pnpm fmt:check",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm fmt:check"
   },
+  "dependencies": {
+    "electron": "^42.3.0"
+  },
   "devDependencies": {
     "oxfmt": "^0.40.0",
     "oxlint": "^1.55.0",

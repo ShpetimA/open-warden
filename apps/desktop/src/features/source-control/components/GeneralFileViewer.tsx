@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile, Virtualizer } from "@pierre/diffs/react";
 import { ArrowLeft } from "lucide-react";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { DIFF_LINE_FOCUS_CSS, useDiffLineFocus } from "@/features/source-control/diffLineFocus";
 import { getDiffTheme, getDiffThemeType } from "@/features/diff-view/diffRenderConfig";
 import { useGetRepoFileQuery } from "@/features/source-control/api";
-import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
+import { useCurrentLspDocuments } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
@@ -104,6 +104,21 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const selectedLine = target?.line && target.line > 0 ? target.line : null;
   const focusKey = target?.focusKey ?? null;
   const lspText = file?.contents ?? null;
+  const targetRepoPath = target?.repoPath;
+  const targetRelPath = target?.relPath;
+  const lspDocuments = useMemo(
+    () =>
+      targetRepoPath && targetRelPath && lspText !== null
+        ? [
+            {
+              repoPath: targetRepoPath,
+              relPath: targetRelPath,
+              text: lspText,
+            },
+          ]
+        : [],
+    [lspText, targetRelPath, targetRepoPath],
+  );
   const lineCount = file ? countFileLines(file.contents) : null;
   const { onTokenClick } = useLspTokenNavigation(
     target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined,
@@ -112,7 +127,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     },
   );
 
-  useCurrentLspDocument(target?.repoPath ?? "", target?.relPath ?? "", lspText);
+  useCurrentLspDocuments(lspDocuments);
   useDiffLineFocus({
     containerRef: viewerRef,
     lineNumber: file ? selectedLine : null,

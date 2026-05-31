@@ -19,6 +19,7 @@ type Props = {
   commentContext: CommentContext;
   expandUnchanged: boolean;
   fileViewerRevision?: string | null;
+  enableCopyHotkey?: boolean;
   onToggleExpandUnchanged: () => void;
 };
 
@@ -32,6 +33,7 @@ export function DiffHeaderMetadataControls({
   commentContext,
   expandUnchanged,
   fileViewerRevision,
+  enableCopyHotkey = true,
   onToggleExpandUnchanged,
 }: Props) {
   const dispatch = useAppDispatch();
@@ -59,7 +61,7 @@ export function DiffHeaderMetadataControls({
       void onCopyFileComments();
     },
     {
-      enabled: canComment && !!activePath && currentFileComments.length > 0,
+      enabled: enableCopyHotkey && canComment && !!activePath && currentFileComments.length > 0,
     },
   );
 

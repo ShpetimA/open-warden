@@ -109,6 +109,35 @@ pre[data-diff-type='single'] {
   text-decoration-color: rgb(5 150 105 / 0.95);
 }
 
+[data-line][data-lsp-diagnostic-line] {
+  --app-diagnostic-line-color: rgb(2 132 199 / 0.65);
+  --app-diagnostic-line-bg: color-mix(
+    in srgb,
+    var(--app-diagnostic-line-color) 14%,
+    var(--diffs-computed-diff-line-bg, var(--diffs-bg))
+  );
+  --diffs-line-bg: var(--app-diagnostic-line-bg);
+  box-shadow:
+    inset 3px 0 0 var(--app-diagnostic-line-color),
+    inset 0 0 0 1px color-mix(in srgb, var(--app-diagnostic-line-color) 18%, transparent);
+}
+
+[data-line][data-lsp-diagnostic-line='error'] {
+  --app-diagnostic-line-color: rgb(220 38 38 / 0.78);
+}
+
+[data-line][data-lsp-diagnostic-line='warning'] {
+  --app-diagnostic-line-color: rgb(217 119 6 / 0.78);
+}
+
+[data-line][data-lsp-diagnostic-line='information'] {
+  --app-diagnostic-line-color: rgb(2 132 199 / 0.68);
+}
+
+[data-line][data-lsp-diagnostic-line='hint'] {
+  --app-diagnostic-line-color: rgb(5 150 105 / 0.64);
+}
+
 [data-interactive-line-numbers] [data-column-number] {
   padding-left: 2.7ch;
 }
@@ -480,8 +509,10 @@ function DiffScrollbarMarkers({
 }) {
   const scrollToPercent = useCallback(
     (percent: number) => {
-      const scrollElement =
-        viewportRef.current?.querySelector<HTMLElement>(".diff-viewport-scroll");
+      const viewportElement = viewportRef.current;
+      const scrollElement = viewportElement?.matches(".diff-viewport-scroll")
+        ? viewportElement
+        : viewportElement?.querySelector<HTMLElement>(".diff-viewport-scroll");
       if (!scrollElement) return;
 
       const maxScrollTop = scrollElement.scrollHeight - scrollElement.clientHeight;
@@ -509,7 +540,7 @@ function DiffScrollbarMarkers({
       aria-label="Diff change markers"
       role="scrollbar"
       aria-orientation="vertical"
-      className="absolute bottom-2 right-1.5 top-2 z-20 w-2 cursor-pointer bg-background/45 shadow-[0_0_0_1px_hsl(var(--border)/0.55)_inset] transition-[width,background-color] hover:w-4 hover:bg-background/70"
+      className="absolute bottom-2 right-6 top-2 z-20 w-2 cursor-pointer bg-background/45 shadow-[0_0_0_1px_hsl(var(--border)/0.55)_inset] transition-[width,background-color] hover:w-3 hover:bg-background/70"
       onPointerDown={handleTrackPointerDown}
     >
       {markers.map((marker) => (
