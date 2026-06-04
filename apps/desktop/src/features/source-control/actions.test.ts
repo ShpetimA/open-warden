@@ -52,6 +52,7 @@ vi.mock("@/platform/desktop", () => ({
     discardFiles: vi.fn(),
     discardAll: vi.fn(),
     commitStaged: vi.fn(),
+    getLastGitCommandErrorLogPath: vi.fn(),
     getUpdateState: vi.fn(),
     checkForUpdates: vi.fn(),
     downloadUpdate: vi.fn(),

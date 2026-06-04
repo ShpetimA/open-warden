@@ -3,7 +3,6 @@ set -e
 
 echo "Running pre-commit checks..."
 
-pnpm lint
-pnpm fmt:check
+pnpm precommit
 
 echo "Pre-commit checks passed."

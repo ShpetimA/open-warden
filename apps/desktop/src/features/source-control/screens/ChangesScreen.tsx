@@ -3,6 +3,7 @@ import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayo
 import { ChangesCodeViewDiffPane } from "@/features/source-control/components/ChangesCodeViewDiffPane";
 import { ChangesSidebar } from "@/features/source-control/components/ChangesSidebar";
 import { MergeConflictViewer } from "@/features/source-control/components/MergeConflictViewer";
+import { RepoActionErrorDialog } from "@/features/source-control/components/RepoActionErrorDialog";
 import { useChangesKeyboardNav } from "@/features/source-control/hooks/useChangesKeyboardNav";
 import { useChangesSync } from "@/features/source-control/hooks/useChangesSync";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
@@ -12,14 +13,17 @@ export function ChangesScreen() {
   useChangesSync();
 
   return (
-    <ResizableSidebarLayout
-      panelId="primary"
-      sidebarDefaultSize={22}
-      sidebarMinSize={14}
-      sidebarMaxSize={34}
-      sidebar={<ChangesSidebar />}
-      content={<ChangesDiffPane />}
-    />
+    <>
+      <ResizableSidebarLayout
+        panelId="primary"
+        sidebarDefaultSize={22}
+        sidebarMinSize={14}
+        sidebarMaxSize={34}
+        sidebar={<ChangesSidebar />}
+        content={<ChangesDiffPane />}
+      />
+      <RepoActionErrorDialog />
+    </>
   );
 }
 

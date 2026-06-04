@@ -116,3 +116,7 @@ export async function unstageAll(repoPath: string) {
 export async function commitStaged(repoPath: string, message: string) {
   return desktop.commitStaged(repoPath, message);
 }
+
+export async function getLastGitCommandErrorLogPath(repoPath: string) {
+  return desktop.getLastGitCommandErrorLogPath(repoPath);
+}

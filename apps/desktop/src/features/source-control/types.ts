@@ -108,6 +108,13 @@ export type ChangesSidebarMode = "changes" | "files" | "pull-requests" | "pull-r
 
 export type HistoryCommit = ContractHistoryCommit;
 
+export type RepoActionError = {
+  title: string;
+  message: string;
+  details: string;
+  logPath: string | null;
+};
+
 export type LspDiagnostic = ContractLspDiagnostic;
 
 export type SelectionRange = {

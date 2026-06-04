@@ -171,6 +171,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Discarding all changes";
     case "commitStaged":
       return "Creating commits";
+    case "getLastGitCommandErrorLogPath":
+      return "Git command logs";
     default:
       return "Desktop runtime";
   }
@@ -207,6 +209,9 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
       return [];
     },
     async resolveActivePullRequestForBranch() {
+      return null;
+    },
+    async getLastGitCommandErrorLogPath() {
       return null;
     },
     async getRepoFile() {
@@ -299,6 +304,9 @@ const unavailableDesktopApiCore = createDesktopApiWithDefaults({
       return [];
     },
     async resolveActivePullRequestForBranch() {
+      return null;
+    },
+    async getLastGitCommandErrorLogPath() {
       return null;
     },
     async syncLspDocument() {},

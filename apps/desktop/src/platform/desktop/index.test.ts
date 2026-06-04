@@ -65,6 +65,7 @@ test("desktop API resolves Electron runtime lazily after import", async () => {
     discardFiles: vi.fn(),
     discardAll: vi.fn(),
     commitStaged: vi.fn(),
+    getLastGitCommandErrorLogPath: vi.fn(),
     getRepoFile: vi.fn(),
     syncLspDocument: vi.fn(),
     closeLspDocument: vi.fn(),

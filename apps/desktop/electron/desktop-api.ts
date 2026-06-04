@@ -19,6 +19,7 @@ import {
 } from "./hostedRepos";
 import {
   commitStaged,
+  getLastGitCommandErrorLogPath,
   discardAll,
   discardFile,
   discardFiles,
@@ -92,6 +93,7 @@ export const desktopApi: DesktopApi = {
   discardFiles,
   discardAll,
   commitStaged,
+  getLastGitCommandErrorLogPath,
   getRepoFile,
   syncLspDocument: (input) => lspSessionManager.syncDocument(input),
   closeLspDocument: (input) => lspSessionManager.closeDocument(input),
