@@ -12,6 +12,9 @@
     "make:electron": "pnpm --filter desktop make:electron",
     "electron:make": "pnpm --filter desktop electron:make",
     "lint": "oxlint --report-unused-disable-directives",
+    "lint:fix": "oxlint --fix --report-unused-disable-directives",
+    "precommit": "pnpm lint && pnpm fmt:check",
+    "precommit:fix": "pnpm lint:fix && pnpm fmt && pnpm precommit",
     "typecheck": "pnpm --filter desktop typecheck",
     "test": "turbo run test",
     "test:e2e": "pnpm --filter desktop test:e2e",
@@ -22,10 +25,18 @@
     "format:check": "pnpm fmt:check",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm fmt:check"
   },
+  "dependencies": {
+    "electron": "^42.3.0"
+  },
   "devDependencies": {
     "oxfmt": "^0.40.0",
     "oxlint": "^1.55.0",
     "turbo": "^2.5.8"
   },
-  "packageManager": "pnpm@10.28.0"
+  "packageManager": "pnpm@10.28.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  }
 }

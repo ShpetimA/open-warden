@@ -74,28 +74,37 @@ function cssLengthToPixels(value: string) {
   return numeric;
 }
 
-function SymbolPeekHarness() {
+function SymbolPeekHarness({
+  clientHeight = 400,
+  scrollTop = 0,
+}: {
+  clientHeight?: number;
+  scrollTop?: number;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const setContainerRef = useCallback((node: HTMLDivElement | null) => {
-    containerRef.current = node;
+  const setContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerRef.current = node;
 
-    if (!node) {
-      return;
-    }
+      if (!node) {
+        return;
+      }
 
-    const host = document.createElement("div");
-    node.appendChild(host);
+      const host = document.createElement("div");
+      node.appendChild(host);
 
-    Object.defineProperty(node, "clientHeight", {
-      configurable: true,
-      value: 400,
-    });
-    Object.defineProperty(node, "scrollTop", {
-      configurable: true,
-      writable: true,
-      value: 0,
-    });
-  }, []);
+      Object.defineProperty(node, "clientHeight", {
+        configurable: true,
+        value: clientHeight,
+      });
+      Object.defineProperty(node, "scrollTop", {
+        configurable: true,
+        writable: true,
+        value: scrollTop,
+      });
+    },
+    [clientHeight, scrollTop],
+  );
 
   return (
     <div ref={setContainerRef}>
@@ -141,7 +150,10 @@ describe("LspSymbolPeek", () => {
       if (arg.relPath === "src/a.ts") {
         return {
           data: { name: "src/a.ts", contents: "alpha\nbeta hit\ngamma second" },
-          currentData: { name: "src/a.ts", contents: "alpha\nbeta hit\ngamma second" },
+          currentData: {
+            name: "src/a.ts",
+            contents: "alpha\nbeta hit\ngamma second",
+          },
           isFetching: false,
           error: undefined,
         };
@@ -150,7 +162,10 @@ describe("LspSymbolPeek", () => {
       if (arg.relPath === "src/b.ts") {
         return {
           data: { name: "src/b.ts", contents: "zero\nomega target\nlast" },
-          currentData: { name: "src/b.ts", contents: "zero\nomega target\nlast" },
+          currentData: {
+            name: "src/b.ts",
+            contents: "zero\nomega target\nlast",
+          },
           isFetching: false,
           error: undefined,
         };
@@ -287,6 +302,59 @@ describe("LspSymbolPeek", () => {
 
     expect(topPx).toBeGreaterThanOrEqual(0);
     expect(topPx + heightPx).toBeLessThanOrEqual(400);
+  });
+
+  it("positions against the visible viewport when the code view is scrolled", () => {
+    mocks.getRenderedLineOffset.mockReturnValue({
+      line: document.createElement("div"),
+      top: 860,
+      bottom: 884,
+      height: 24,
+    });
+
+    const store = createStore();
+    store.dispatch(
+      openSymbolPeek({
+        kind: "definitions",
+        locations: [
+          {
+            repoPath: "/repo",
+            relPath: "src/a.ts",
+            uri: "file:///repo/src/a.ts",
+            line: 2,
+            character: 1,
+            endLine: 2,
+            endCharacter: 4,
+          },
+        ],
+        activeIndex: 0,
+        query: "",
+        sourceDocument: {
+          repoPath: "/repo",
+          relPath: "src/current.ts",
+        },
+        anchor: {
+          lineNumber: 3,
+          lineIndex: "2,9",
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/changes/files"]}>
+        <Provider store={store}>
+          <SymbolPeekHarness clientHeight={800} scrollTop={800} />
+        </Provider>
+      </MemoryRouter>,
+    );
+
+    const closeButton = screen.getByLabelText("Close symbol peek");
+    const popover = closeButton.parentElement?.parentElement as HTMLDivElement | null;
+    expect(popover).not.toBeNull();
+
+    const topPx = cssLengthToPixels(popover?.style.top ?? "0px");
+
+    expect(topPx).toBe(88);
   });
 
   it("commits the active selection on Enter and closes the peek", () => {

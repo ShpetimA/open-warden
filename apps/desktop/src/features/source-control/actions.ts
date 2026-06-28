@@ -15,8 +15,16 @@ import {
   setPullRequestFileJumpTarget,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { gitApi } from "./api";
-import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
+import type {
+  Bucket,
+  BucketedFile,
+  GitSnapshot,
+  RepoActionError,
+  RunningAction,
+  SelectedFile,
+} from "./types";
 import { findExistingBucket } from "./utils";
 import {
   closeFileViewer,
@@ -40,6 +48,7 @@ import {
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
+  setRepoActionError,
 } from "./sourceControlSlice";
 
 function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, filePath: string) {
@@ -412,6 +421,75 @@ function repoActionLabel(action: RunningAction): string {
   return "run repository action";
 }
 
+const ANSI_ESCAPE_PATTERN = new RegExp(
+  `[${String.fromCharCode(27)}${String.fromCharCode(155)}]\\[[0-?]*[ -/]*[@-~]`,
+  "gu",
+);
+
+function stripAnsi(message: string) {
+  return message.replace(ANSI_ESCAPE_PATTERN, "").replace(/\[\d+(?:;\d+)*m/gu, "");
+}
+
+function cleanDesktopErrorMessage(message: string) {
+  return stripAnsi(message)
+    .replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/u, "")
+    .replace(/^GitCommandError:\s*/u, "")
+    .trim();
+}
+
+function firstErrorLine(message: string) {
+  const cleanMessage = cleanDesktopErrorMessage(message);
+  return (
+    cleanMessage
+      .split("\n")
+      .find((line) => line.trim())
+      ?.trim() || cleanMessage
+  );
+}
+
+function errorDetailsFrom(error: unknown, fallback: string) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "details" in error &&
+    typeof (error as { details?: unknown }).details === "string" &&
+    (error as { details: string }).details.trim()
+  ) {
+    return cleanDesktopErrorMessage((error as { details: string }).details);
+  }
+  return cleanDesktopErrorMessage(fallback);
+}
+
+function errorLogPathFrom(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "logPath" in error &&
+    typeof (error as { logPath?: unknown }).logPath === "string" &&
+    (error as { logPath: string }).logPath.trim()
+  ) {
+    return (error as { logPath: string }).logPath;
+  }
+  return null;
+}
+
+function buildRepoActionError(action: RunningAction, error: unknown): RepoActionError {
+  const actionLabel = repoActionLabel(action);
+  const message = errorMessageFrom(error, `Failed to ${actionLabel}`);
+  const details = errorDetailsFrom(error, message);
+  const summary = firstErrorLine(details || message);
+
+  return {
+    title: action === "commit" ? `Git: ${summary}` : `Failed to ${actionLabel}`,
+    message:
+      action === "commit"
+        ? "The commit was blocked before Git could create it. Review the command output, fix the failing check, then commit again."
+        : summary,
+    details,
+    logPath: errorLogPathFrom(error),
+  };
+}
+
 const runRepoAction =
   (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
   async (dispatch, getState) => {
@@ -421,8 +499,9 @@ const runRepoAction =
     try {
       await dispatch(thunk);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
+      const actionError = buildRepoActionError(action, error);
+      dispatch(setRepoActionError(actionError));
+      toast.error(`Failed to ${repoActionLabel(action)}: ${firstErrorLine(actionError.details)}`);
     } finally {
       dispatch(setRunningAction(""));
     }

@@ -116,6 +116,12 @@ function rootFontSizePx() {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 16;
 }
 
+function getLayerRelativeViewportTop(container: HTMLElement, layerMarker: HTMLElement) {
+  const containerRect = container.getBoundingClientRect();
+  const layerRect = layerMarker.getBoundingClientRect();
+  return containerRect.top - layerRect.top;
+}
+
 function buildSymbolPeekGroups(
   locations: LspLocation[],
   query: string,
@@ -237,7 +243,11 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
   const navigate = useNavigate();
   const location = useLocation();
   const deferredQuery = useDeferredValue(symbolPeek.query);
-  const [popoverLayout, setPopoverLayout] = useState<{ top: number; height: number } | null>(null);
+  const [popoverLayout, setPopoverLayout] = useState<{
+    top: number;
+    height: number;
+  } | null>(null);
+  const layerMarkerRef = useRef<HTMLSpanElement | null>(null);
   const listContainerRef = useRef<HTMLDivElement>(null);
 
   const locations = symbolPeek.locations;
@@ -357,7 +367,8 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
       }
 
       const container = containerRef.current;
-      if (!container) {
+      const layerMarker = layerMarkerRef.current;
+      if (!container || !layerMarker) {
         return;
       }
 
@@ -383,10 +394,13 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
         Math.max(1, viewportHeight - SYMBOL_PEEK_OFFSET_PX * 2),
       );
 
-      const minTop = container.scrollTop + SYMBOL_PEEK_OFFSET_PX;
-      const maxTop = container.scrollTop + viewportHeight - popoverHeight - SYMBOL_PEEK_OFFSET_PX;
-      const preferredBelowTop = offset.bottom + SYMBOL_PEEK_OFFSET_PX;
-      const preferredAboveTop = offset.top - popoverHeight - SYMBOL_PEEK_OFFSET_PX;
+      const viewportTop = getLayerRelativeViewportTop(container, layerMarker);
+      const lineTop = viewportTop + offset.top - container.scrollTop;
+      const lineBottom = viewportTop + offset.bottom - container.scrollTop;
+      const minTop = viewportTop + SYMBOL_PEEK_OFFSET_PX;
+      const maxTop = viewportTop + viewportHeight - popoverHeight - SYMBOL_PEEK_OFFSET_PX;
+      const preferredBelowTop = lineBottom + SYMBOL_PEEK_OFFSET_PX;
+      const preferredAboveTop = lineTop - popoverHeight - SYMBOL_PEEK_OFFSET_PX;
       const nextTop = clamp(
         preferredBelowTop > maxTop && preferredAboveTop >= minTop
           ? preferredAboveTop
@@ -470,99 +484,113 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
     },
   );
 
-  if (symbolPeek === null || popoverLayout === null) {
+  if (symbolPeek === null) {
     return null;
   }
 
   return (
-    <div
-      className="bg-popover text-popover-foreground border-border absolute right-0 left-0 z-20 border shadow-md"
-      style={{
-        top: `${popoverLayout.top}px`,
-        height: `${popoverLayout.height}px`,
-      }}
-    >
-      <div className="border-border flex h-7 items-center gap-2 border-b px-2 text-[11px]">
-        <div className="text-primary truncate">{activeLocation?.relPath ?? document.relPath}</div>
-        <div className="text-muted-foreground truncate">
-          - {getSymbolPeekTitle(symbolPeek.kind, locations.length)}
-        </div>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-popover-foreground hover:bg-accent ml-auto inline-flex h-5 w-5 items-center justify-center"
-          onClick={closePeek}
-          aria-label="Close symbol peek"
+    <>
+      <span
+        ref={layerMarkerRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute top-0 left-0 h-0 w-0"
+      />
+      {popoverLayout === null ? null : (
+        <div
+          className="bg-popover text-popover-foreground border-border absolute right-0 left-0 z-20 border shadow-md"
+          style={{
+            top: `${popoverLayout.top}px`,
+            height: `${popoverLayout.height}px`,
+          }}
         >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-
-      <div className="grid h-[calc(100%-1.75rem)] min-h-0 grid-cols-[minmax(0,1fr)_20rem]">
-        <section className="min-h-0 min-w-0 border-r border-border">
-          {previewError ? (
-            <div className="text-destructive px-3 py-2 text-xs">{previewError}</div>
-          ) : previewQuery.isFetching && previewFile === undefined ? (
-            <div className="text-muted-foreground px-3 py-2 text-xs">Loading preview...</div>
-          ) : (
-            <SymbolPeekPreview location={activeLocation} contents={previewFile?.contents ?? null} />
-          )}
-        </section>
-
-        <section className="bg-muted flex min-h-0 min-w-0 flex-col">
-          <div className="border-border flex h-7 items-center gap-2 border-b px-2">
-            <Search className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-            <input
-              value={symbolPeek.query}
-              onChange={(event) => {
-                dispatch(setSymbolPeekQuery(event.target.value));
-              }}
-              className="text-popover-foreground placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none"
-              placeholder="Filter"
-            />
+          <div className="border-border flex h-7 items-center gap-2 border-b px-2 text-[11px]">
+            <div className="text-primary truncate">
+              {activeLocation?.relPath ?? document.relPath}
+            </div>
+            <div className="text-muted-foreground truncate">
+              - {getSymbolPeekTitle(symbolPeek.kind, locations.length)}
+            </div>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-popover-foreground hover:bg-accent ml-auto inline-flex h-5 w-5 items-center justify-center"
+              onClick={closePeek}
+              aria-label="Close symbol peek"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
 
-          <div ref={listContainerRef} className="min-h-0 flex-1 overflow-y-auto">
-            {groups.length === 0 ? (
-              <div className="text-muted-foreground px-2 py-2 text-[11px]">
-                No matching symbols.
+          <div className="grid h-[calc(100%-1.75rem)] min-h-0 grid-cols-[minmax(0,1fr)_20rem]">
+            <section className="min-h-0 min-w-0 border-r border-border">
+              {previewError ? (
+                <div className="text-destructive px-3 py-2 text-xs">{previewError}</div>
+              ) : previewQuery.isFetching && previewFile === undefined ? (
+                <div className="text-muted-foreground px-3 py-2 text-xs">Loading preview...</div>
+              ) : (
+                <SymbolPeekPreview
+                  location={activeLocation}
+                  contents={previewFile?.contents ?? null}
+                />
+              )}
+            </section>
+
+            <section className="bg-muted flex min-h-0 min-w-0 flex-col">
+              <div className="border-border flex h-7 items-center gap-2 border-b px-2">
+                <Search className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+                <input
+                  value={symbolPeek.query}
+                  onChange={(event) => {
+                    dispatch(setSymbolPeekQuery(event.target.value));
+                  }}
+                  className="text-popover-foreground placeholder:text-muted-foreground h-full min-w-0 flex-1 bg-transparent text-[11px] outline-none"
+                  placeholder="Filter"
+                />
               </div>
-            ) : (
-              groups.map((group) => (
-                <div key={group.relPath} className="border-border border-b last:border-b-0">
-                  <div className="text-popover-foreground flex h-6 items-center gap-2 px-2 text-[11px]">
-                    <span className="min-w-0 flex-1 truncate">{group.relPath}</span>
-                    <span className="text-primary">{group.items.length}</span>
+
+              <div ref={listContainerRef} className="min-h-0 flex-1 overflow-y-auto">
+                {groups.length === 0 ? (
+                  <div className="text-muted-foreground px-2 py-2 text-[11px]">
+                    No matching symbols.
                   </div>
-                  {group.items.map(({ index, location }) => {
-                    const isActive = index === activeIndex;
-                    return (
-                      <button
-                        key={`${location.relPath}:${location.line}:${location.character}:${index}`}
-                        type="button"
-                        data-symbol-peek-index={index}
-                        className={`block w-full border-t border-border px-2 py-1.5 text-left text-[11px] ${
-                          isActive ? "bg-surface-active" : "hover:bg-accent/50"
-                        }`}
-                        onClick={() => {
-                          setActiveIndex(index);
-                        }}
-                        onDoubleClick={() => {
-                          commitSelection(index);
-                        }}
-                      >
-                        <div className="text-popover-foreground">{lineLabel(location)}</div>
-                        <div className="text-primary truncate pt-0.5">
-                          {excerptsByIndex.get(index) ?? `Line ${location.line}`}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ))
-            )}
+                ) : (
+                  groups.map((group) => (
+                    <div key={group.relPath} className="border-border border-b last:border-b-0">
+                      <div className="text-popover-foreground flex h-6 items-center gap-2 px-2 text-[11px]">
+                        <span className="min-w-0 flex-1 truncate">{group.relPath}</span>
+                        <span className="text-primary">{group.items.length}</span>
+                      </div>
+                      {group.items.map(({ index, location }) => {
+                        const isActive = index === activeIndex;
+                        return (
+                          <button
+                            key={`${location.relPath}:${location.line}:${location.character}:${index}`}
+                            type="button"
+                            data-symbol-peek-index={index}
+                            className={`block w-full border-t border-border px-2 py-1.5 text-left text-[11px] ${
+                              isActive ? "bg-surface-active" : "hover:bg-accent/50"
+                            }`}
+                            onClick={() => {
+                              setActiveIndex(index);
+                            }}
+                            onDoubleClick={() => {
+                              commitSelection(index);
+                            }}
+                          >
+                            <div className="text-popover-foreground">{lineLabel(location)}</div>
+                            <div className="text-primary truncate pt-0.5">
+                              {excerptsByIndex.get(index) ?? `Line ${location.line}`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
           </div>
-        </section>
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 }

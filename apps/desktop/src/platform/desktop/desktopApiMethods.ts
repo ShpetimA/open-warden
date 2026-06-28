@@ -46,6 +46,7 @@ export const DESKTOP_API_METHODS = [
   "discardFiles",
   "discardAll",
   "commitStaged",
+  "getLastGitCommandErrorLogPath",
   "getRepoFile",
   "syncLspDocument",
   "closeLspDocument",

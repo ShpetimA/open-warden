@@ -437,6 +437,7 @@ export type DesktopApi = {
   discardFiles(repoPath: string, files: DiscardFileInput[]): Promise<void>;
   discardAll(repoPath: string): Promise<void>;
   commitStaged(repoPath: string, message: string): Promise<string>;
+  getLastGitCommandErrorLogPath(repoPath?: string): Promise<string | null>;
   getRepoFile(input: GetRepoFileInput): Promise<DiffFile | null>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;

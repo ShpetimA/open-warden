@@ -1,5 +1,12 @@
 import type { LspDiagnostic } from "@/features/source-control/types";
 
+export type DiagnosticPopoverAnchorRect = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
 const DIAGNOSTIC_SEVERITY_PRIORITY: Record<LspDiagnostic["severity"], number> = {
   error: 4,
   warning: 3,
@@ -28,6 +35,23 @@ function getTokenLineNumber(token: HTMLElement): number | null {
 function readLineNumber(lineElement: HTMLElement): number | null {
   const value = Number.parseInt(lineElement.getAttribute("data-line") ?? "", 10);
   return Number.isFinite(value) ? value : null;
+}
+
+function getHighestDiagnosticSeverity(
+  diagnostics: LspDiagnostic[],
+): LspDiagnostic["severity"] | null {
+  let winningSeverity: LspDiagnostic["severity"] | null = null;
+  let winningPriority = -1;
+
+  for (const diagnostic of diagnostics) {
+    const priority = DIAGNOSTIC_SEVERITY_PRIORITY[diagnostic.severity];
+    if (priority > winningPriority) {
+      winningPriority = priority;
+      winningSeverity = diagnostic.severity;
+    }
+  }
+
+  return winningSeverity;
 }
 
 function lineCanRenderDiagnostic(lineElement: HTMLElement): boolean {
@@ -136,6 +160,48 @@ export function findDiagnosticSeverityForToken(
   return winningSeverity;
 }
 
+export function findDiagnosticsForToken(
+  token: HTMLElement,
+  diagnosticsByLine: Map<number, LspDiagnostic[]>,
+): LspDiagnostic[] {
+  if (!tokenCanRenderDiagnostic(token)) {
+    return [];
+  }
+
+  const lineNumber = getTokenLineNumber(token);
+  if (!lineNumber) {
+    return [];
+  }
+
+  const diagnostics = diagnosticsByLine.get(lineNumber);
+  if (!diagnostics || diagnostics.length === 0) {
+    return [];
+  }
+
+  const charRange = getTokenCharRange(token);
+  if (!charRange) {
+    return [];
+  }
+
+  const matches = diagnostics.filter((diagnostic) =>
+    tokenOverlapsDiagnostic(lineNumber, charRange.start, charRange.end, diagnostic),
+  );
+  return matches.toSorted(
+    (left, right) =>
+      DIAGNOSTIC_SEVERITY_PRIORITY[right.severity] - DIAGNOSTIC_SEVERITY_PRIORITY[left.severity],
+  );
+}
+
+export function readDiagnosticAnchorRect(tokenElement: HTMLElement): DiagnosticPopoverAnchorRect {
+  const rect = tokenElement.getBoundingClientRect();
+  return {
+    top: rect.top,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
 // Applies diagnostic attributes with minimal DOM churn by updating only tokens
 // whose severity changed and skipping lines that cannot render diagnostics.
 export function applyDiagnosticTokenDecorations(
@@ -153,6 +219,11 @@ export function applyDiagnosticTokenDecorations(
       for (const token of tokens) {
         token.removeAttribute("data-lsp-diagnostic-token");
       }
+
+      const lines = root.querySelectorAll<HTMLElement>("[data-lsp-diagnostic-line]");
+      for (const line of lines) {
+        line.removeAttribute("data-lsp-diagnostic-line");
+      }
     }
     return;
   }
@@ -169,6 +240,7 @@ export function applyDiagnosticTokenDecorations(
       const canRender =
         diagnostics != null && diagnostics.length > 0 && lineCanRenderDiagnostic(line);
       if (!canRender) {
+        line.removeAttribute("data-lsp-diagnostic-line");
         const markedTokens = line.querySelectorAll<HTMLElement>(
           "[data-char][data-lsp-diagnostic-token]",
         );
@@ -176,6 +248,13 @@ export function applyDiagnosticTokenDecorations(
           token.removeAttribute("data-lsp-diagnostic-token");
         }
         continue;
+      }
+
+      const lineSeverity = getHighestDiagnosticSeverity(diagnostics);
+      if (lineSeverity) {
+        line.setAttribute("data-lsp-diagnostic-line", lineSeverity);
+      } else {
+        line.removeAttribute("data-lsp-diagnostic-line");
       }
 
       const tokens = line.querySelectorAll<HTMLElement>("[data-char]");

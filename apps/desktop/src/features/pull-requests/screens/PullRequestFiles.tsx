@@ -12,27 +12,21 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
   usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
+import { PullRequestCodeViewDiffPane } from "@/features/pull-requests/components/PullRequestCodeViewDiffPane";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
-import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
-import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
 import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
-import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
-import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
-import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type {
   GitProviderId,
   PullRequestChangedFile,
   PullRequestConversation,
-  PullRequestReviewThread,
 } from "@/platform/desktop";
 
 export const PullRequestFiles = () => {
@@ -87,10 +81,9 @@ export const PullRequestFiles = () => {
     }),
   });
 
-  const { conversation, reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
+  const { conversation } = useGetPullRequestConversationQuery(filesQueryArg, {
     selectFromResult: ({ data }) => ({
       conversation: data ?? null,
-      reviewThreads: data?.reviewThreads ?? [],
     }),
     pollingInterval: 10000,
     refetchOnFocus: true,
@@ -127,7 +120,6 @@ export const PullRequestFiles = () => {
               isLoadingCompareRefs={isLoadingCompareRefs}
               files={files}
               conversation={conversation}
-              reviewThreads={reviewThreads}
             />
           </div>
         }
@@ -170,7 +162,6 @@ function FilesDiffViewer({
   isLoadingCompareRefs,
   files,
   conversation,
-  reviewThreads,
 }: {
   providerId?: string;
   repoPath: string;
@@ -181,73 +172,22 @@ function FilesDiffViewer({
   isLoadingCompareRefs: boolean;
   files: PullRequestChangedFile[];
   conversation: PullRequestConversation | null;
-  reviewThreads: PullRequestReviewThread[];
 }) {
+  const dispatch = useAppDispatch();
   const selectedPath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const previewFileJumpTarget = useAppSelector((state) => state.pullRequests.previewFileJumpTarget);
-  const { anchorsByFile } = usePullRequestReviewAnchors({
-    repoPath,
-    compareBaseRef,
-    compareHeadRef,
-    files,
-    reviewThreads,
-  });
-  const commentMentions = usePullRequestMentionCandidates(conversation);
   const selectedFile = files.find((file) => file.path === selectedPath) ?? null;
-  const previewSelection = useThrottledDiffSelection(
-    selectedFile
-      ? { path: selectedFile.path, previousPath: selectedFile.previousPath ?? undefined }
-      : null,
-  );
-  const previewPath = previewSelection?.path ?? selectedFile?.path ?? "";
-  const previewFile = files.find((file) => file.path === previewPath) ?? selectedFile;
   const hasCompareRefs = Boolean(compareBaseRef && compareHeadRef);
-
-  const branchFileVersionsQuery = useGetBranchFileVersionsQuery(
-    previewPath && hasCompareRefs && previewFile
-      ? {
-          repoPath,
-          baseRef: compareBaseRef,
-          headRef: compareHeadRef,
-          relPath: previewPath,
-          previousPath: previewFile.previousPath ?? undefined,
-        }
-      : skipToken,
-  );
-
-  const branchFileVersions =
-    branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data ?? null;
-  const selectedOldFile = branchFileVersions?.oldFile ?? null;
-  const selectedNewFile = branchFileVersions?.newFile ?? null;
-  const branchFileVersionsError = branchFileVersions
-    ? ""
-    : errorMessageFrom(branchFileVersionsQuery.error, "");
-  const isLoadingBranchFileVersions =
-    Boolean(previewPath && hasCompareRefs && !branchFileVersions) &&
-    (branchFileVersionsQuery.isUninitialized ||
-      branchFileVersionsQuery.isLoading ||
-      branchFileVersionsQuery.isFetching);
-
-  const anchorAnnotations = previewFile
-    ? buildPullRequestAnchorAnnotations({
-        anchors: anchorsByFile[previewFile.path] ?? [],
-        repoPath,
-        pullRequestNumber,
-        compareBaseRef,
-        compareHeadRef,
-        providerId: providerId as GitProviderId | undefined,
-      })
-    : [];
   const focusedLineNumber =
-    previewFileJumpTarget && previewFileJumpTarget.path === previewPath
+    previewFileJumpTarget && previewFileJumpTarget.path === selectedPath
       ? previewFileJumpTarget.lineNumber
       : null;
   const focusedLineIndex =
-    previewFileJumpTarget && previewFileJumpTarget.path === previewPath
+    previewFileJumpTarget && previewFileJumpTarget.path === selectedPath
       ? previewFileJumpTarget.lineIndex
       : null;
   const focusedLineKey =
-    previewFileJumpTarget && previewFileJumpTarget.path === previewPath
+    previewFileJumpTarget && previewFileJumpTarget.path === selectedPath
       ? previewFileJumpTarget.focusKey
       : null;
 
@@ -302,41 +242,6 @@ function FilesDiffViewer({
     );
   }
 
-  if (isLoadingBranchFileVersions) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <LoaderCircle className="text-muted-foreground h-5 w-5 animate-spin" />
-        <span className="text-muted-foreground ml-2 text-sm">Loading diff...</span>
-      </div>
-    );
-  }
-
-  if (branchFileVersionsError) {
-    return (
-      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
-        {branchFileVersionsError}
-      </div>
-    );
-  }
-
-  if (!selectedOldFile && !selectedNewFile) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Empty className="border-0 bg-transparent">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <FileCode2 className="h-5 w-5" />
-            </EmptyMedia>
-            <EmptyTitle>Diff unavailable</EmptyTitle>
-            <EmptyDescription>
-              This file may be binary or the prepared refs did not return file contents.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      </div>
-    );
-  }
-
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
@@ -345,23 +250,24 @@ function FilesDiffViewer({
           pullRequestNumber={pullRequestNumber}
           compareBaseRef={compareBaseRef}
           compareHeadRef={compareHeadRef}
-          activePath={previewFile?.path ?? selectedFile.path}
-          activePreviousPath={previewFile?.previousPath ?? selectedFile.previousPath ?? undefined}
+          activePath={selectedFile.path}
+          activePreviousPath={selectedFile.previousPath ?? undefined}
         />
-        <DiffWorkspace
-          oldFile={selectedOldFile}
-          newFile={selectedNewFile}
-          activePath={previewFile?.path ?? selectedFile.path}
-          commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
-          canComment
-          includeCurrentFileComments={false}
-          fileViewerRevision={compareHeadRef}
-          lspJumpContextKind="pull-request"
+        <PullRequestCodeViewDiffPane
+          activeRepo={repoPath}
+          reviewRepoPath={repoPath}
+          reviewProviderId={providerId as GitProviderId | undefined}
+          pullRequestNumber={pullRequestNumber}
+          reviewBaseRef={compareBaseRef}
+          reviewHeadRef={compareHeadRef}
+          readyForDiff={hasCompareRefs}
+          branchFiles={files}
+          activePath={selectedPath}
+          onSelectPath={(path) => dispatch(setPullRequestPreviewActiveFilePath(path))}
+          conversation={conversation}
           focusedLineNumber={focusedLineNumber}
           focusedLineIndex={focusedLineIndex}
           focusedLineKey={focusedLineKey}
-          annotationItems={anchorAnnotations}
-          commentMentions={commentMentions}
         />
       </div>
     </div>

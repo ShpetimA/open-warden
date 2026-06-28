@@ -9,6 +9,7 @@ import type {
   DiffStyle,
   FileViewerTarget,
   HistoryNavTarget,
+  RepoActionError,
   RunningAction,
   SelectedFile,
   SymbolPeekState,
@@ -31,6 +32,7 @@ type SourceControlState = {
   commitMessage: string;
   lastCommitId: string;
   runningAction: RunningAction;
+  repoActionError: RepoActionError | null;
   selectedFiles: SelectedFile[];
   selectionAnchor: SelectedFile | null;
   reviewBaseRef: string;
@@ -58,6 +60,7 @@ const initialState: SourceControlState = {
   commitMessage: "",
   lastCommitId: "",
   runningAction: "",
+  repoActionError: null,
   selectedFiles: [],
   selectionAnchor: null,
   reviewBaseRef: "",
@@ -159,6 +162,9 @@ const sourceControlSlice = createSlice({
         state.runningAction = action.payload;
       }
     },
+    setRepoActionError(state, action: PayloadAction<RepoActionError | null>) {
+      state.repoActionError = action.payload;
+    },
     resetRepoViewState(state) {
       state.historyFilter = "";
       state.historyCommitId = "";
@@ -170,6 +176,7 @@ const sourceControlSlice = createSlice({
       state.commitMessage = "";
       state.lastCommitId = "";
       state.runningAction = "";
+      state.repoActionError = null;
       state.selectedFiles = [];
       state.selectionAnchor = null;
       state.reviewBaseRef = "";
@@ -318,6 +325,7 @@ export const {
   setSelectedFiles,
   setSelectionAnchor,
   setRunningAction,
+  setRepoActionError,
   setRepos,
   setReviewActivePath,
   setReviewBaseRef,

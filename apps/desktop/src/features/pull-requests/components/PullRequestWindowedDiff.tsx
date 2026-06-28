@@ -271,7 +271,6 @@ function WindowedFileDiff({
         renderHeaderPrefix: undefined,
         renderHeaderMetadata: undefined,
         renderGutterUtility: undefined,
-        renderHoverUtility: undefined,
         getHoveredLine,
         lineAnnotations,
       }),

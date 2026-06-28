@@ -23,6 +23,7 @@ import {
   getRepoFiles,
   getRepoFile,
   getGitSnapshot,
+  getLastGitCommandErrorLogPath,
   stageAll,
   stageFile,
   unstageAll,
@@ -31,7 +32,7 @@ import {
   updateWorktreeFileContents,
 } from "./services/git";
 
-type ErrorResult = { message: string };
+type ErrorResult = { message: string; details?: string; logPath?: string | null };
 
 type CommitHistoryArgs = { repoPath: string; limit?: number };
 type BranchFilesArgs = { repoPath: string; baseRef: string; headRef: string };
@@ -60,8 +61,33 @@ type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket };
 type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> };
 type CommitStagedArgs = { repoPath: string; message: string };
 
-function toErrorResult(error: unknown): ErrorResult {
-  return { message: error instanceof Error ? error.message : String(error) };
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return String(error);
+}
+
+function toErrorResult(error: unknown, options?: { logPath?: string | null }): ErrorResult {
+  const message = errorMessage(error);
+  return { message, details: message, logPath: options?.logPath ?? null };
+}
+
+async function toGitErrorResult(error: unknown, repoPath: string): Promise<ErrorResult> {
+  let logPath: string | null = null;
+  try {
+    logPath = await getLastGitCommandErrorLogPath(repoPath);
+  } catch {
+    logPath = null;
+  }
+  return toErrorResult(error, { logPath });
 }
 
 function normalizeFilePath(path: string): string {
@@ -326,7 +352,7 @@ export const gitApi = createApi({
         try {
           return { data: await commitStaged(repoPath, message) };
         } catch (error) {
-          return { error: toErrorResult(error) };
+          return { error: await toGitErrorResult(error, repoPath) };
         }
       },
       invalidatesTags: (_result, _error, { repoPath }) => [

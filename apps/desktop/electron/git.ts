@@ -21,12 +21,16 @@ const MAX_BUFFER = 32 * 1024 * 1024;
 const GIT_TIMEOUT_MS = 30_000;
 const GIT_WRITE_RETRY_COUNT = 3;
 const GIT_WRITE_RETRY_DELAY_MS = 120;
+const GIT_ERROR_LOG_DIR = path.join(os.tmpdir(), "open-warden-git-logs");
+
+let lastGitCommandErrorLog: { repoPath: string; path: string } | null = null;
 
 class GitCommandError extends Error {
   constructor(
     readonly args: string[],
     readonly stderr: string,
     readonly code: number | null,
+    readonly logPath: string | null,
   ) {
     super(stderr || `git ${args.join(" ")} failed`);
     this.name = "GitCommandError";
@@ -71,6 +75,53 @@ function decodeUtf8(buffer: Buffer, label: string) {
   }
 }
 
+function commandOutputToString(value: unknown) {
+  if (Buffer.isBuffer(value)) return value.toString("utf8");
+  if (typeof value === "string") return value;
+  return "";
+}
+
+function formatGitCommand(args: string[]) {
+  return `git ${args.join(" ")}`;
+}
+
+async function writeGitCommandErrorLog(input: {
+  repoPath: string;
+  args: string[];
+  stderr: string;
+  stdout: string;
+  code: number | null;
+}) {
+  try {
+    await fs.mkdir(GIT_ERROR_LOG_DIR, { recursive: true });
+    const logPath = path.join(GIT_ERROR_LOG_DIR, `git-${Date.now()}-${process.pid}.log`);
+    const content = [
+      `> ${formatGitCommand(input.args)}`,
+      `cwd: ${input.repoPath}`,
+      `exit code: ${input.code ?? "unknown"}`,
+      "",
+      "stderr:",
+      input.stderr || "(empty)",
+      "",
+      "stdout:",
+      input.stdout || "(empty)",
+      "",
+    ].join("\n");
+
+    await fs.writeFile(logPath, content, "utf8");
+    lastGitCommandErrorLog = { repoPath: input.repoPath, path: logPath };
+    return logPath;
+  } catch {
+    return null;
+  }
+}
+
+export async function getLastGitCommandErrorLogPath(repoPath?: string) {
+  if (!lastGitCommandErrorLog) return null;
+  if (repoPath && lastGitCommandErrorLog.repoPath !== repoPath) return null;
+  return lastGitCommandErrorLog.path;
+}
+
 async function runGit(
   repoPath: string,
   args: string[],
@@ -95,16 +146,24 @@ async function runGit(
 
     const rawCode = "code" in error ? error.code : null;
     if (rawCode === "ENOENT") {
-      throw new GitCommandError(args, "git is not installed or not available in PATH", null);
+      throw new GitCommandError(args, "git is not installed or not available in PATH", null, null);
     }
 
     if ("killed" in error && error.killed) {
-      throw new GitCommandError(args, `git command timed out after ${GIT_TIMEOUT_MS}ms`, null);
+      throw new GitCommandError(
+        args,
+        `git command timed out after ${GIT_TIMEOUT_MS}ms`,
+        null,
+        null,
+      );
     }
 
-    const stderr = "stderr" in error ? String(error.stderr ?? "").trim() : error.message;
+    const stdout = "stdout" in error ? commandOutputToString(error.stdout) : "";
+    const rawStderr = "stderr" in error ? commandOutputToString(error.stderr) : "";
+    const stderr = rawStderr.trim() || error.message;
     const code = typeof rawCode === "number" ? rawCode : null;
-    const commandError = new GitCommandError(args, stderr, code);
+    const logPath = await writeGitCommandErrorLog({ repoPath, args, stderr, stdout, code });
+    const commandError = new GitCommandError(args, stderr, code, logPath);
 
     if (options?.allowFailure) {
       throw commandError;
