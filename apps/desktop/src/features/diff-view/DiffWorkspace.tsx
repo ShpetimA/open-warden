@@ -55,14 +55,14 @@ type Props = {
 };
 
 function buildReturnToDiffTarget(
-  jumpContextKind: "changes" | "review" | "pull-request",
+  jumpContextKind: "changes" | "review" | "pull-request" | null,
   source: { lineNumber: number; lineIndex: string | null },
   activeRepo: string,
   activePath: string,
   commentContext: CommentContext,
   activeBucket: "staged" | "unstaged" | "untracked",
 ): DiffReturnTarget | null {
-  if (!activeRepo || !activePath || source.lineNumber <= 0) {
+  if (!jumpContextKind || !activeRepo || !activePath || source.lineNumber <= 0) {
     return null;
   }
 
@@ -125,7 +125,11 @@ export function DiffWorkspace({
 }: Props) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
-  const jumpContext = lspJumpContextKind ?? commentContext.kind;
+  const jumpContext: "changes" | "review" | "pull-request" | null =
+    lspJumpContextKind ??
+    (commentContext.kind === "changes" || commentContext.kind === "review"
+      ? commentContext.kind
+      : null);
   const viewerRef = useRef<DiffViewerHandle | null>(null);
 
   const getReturnToDiffTarget = useCallback(

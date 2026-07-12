@@ -69,6 +69,10 @@ function isMatchingContext(comment: CommentItem, context: CommentContext): boole
     return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
   }
 
+  if (context.kind === "history") {
+    return comment.commitId === context.commitId;
+  }
+
   return true;
 }
 
@@ -242,11 +246,15 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
   const hasRunningAction = runningAction !== "";
 
   const commentContext: CommentContext | null =
-    feature === "review"
-      ? reviewBaseRef && reviewHeadRef
-        ? { kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }
+    feature === "history"
+      ? historyCommitId
+        ? { kind: "history", commitId: historyCommitId }
         : null
-      : { kind: "changes" };
+      : feature === "review"
+        ? reviewBaseRef && reviewHeadRef
+          ? { kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }
+          : null
+        : { kind: "changes" };
 
   const contextPath = feature === "review" ? reviewActivePath : activePath;
   const allComments = compactComments(comments);

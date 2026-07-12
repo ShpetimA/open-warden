@@ -27,5 +27,13 @@
     "oxlint": "^1.55.0",
     "turbo": "^2.5.8"
   },
-  "packageManager": "pnpm@10.28.0"
+  "packageManager": "pnpm@10.28.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "sharp"
+    ]
+  }
 }

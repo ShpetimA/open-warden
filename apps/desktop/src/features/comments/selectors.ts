@@ -102,5 +102,8 @@ function commentMatchesContext(comment: CommentItem, context?: CommentContext): 
   if (context.kind === "review") {
     return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
   }
+  if (context.kind === "history") {
+    return comment.commitId === context.commitId;
+  }
   return true;
 }

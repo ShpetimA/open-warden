@@ -119,7 +119,8 @@ export type SelectionRange = {
 
 export type CommentContext =
   | { kind: "changes" }
-  | { kind: "review"; baseRef: string; headRef: string };
+  | { kind: "review"; baseRef: string; headRef: string }
+  | { kind: "history"; commitId: string };
 
 export type CommentItem = {
   type: "annotation";
@@ -135,6 +136,7 @@ export type CommentItem = {
   contextKind?: CommentContext["kind"];
   baseRef?: string;
   headRef?: string;
+  commitId?: string;
 };
 
 export type PullRequestReviewAnchor = {

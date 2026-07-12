@@ -32,6 +32,7 @@ function createComment(overrides: Partial<CommentItem>): CommentItem {
     contextKind: overrides.contextKind,
     baseRef: overrides.baseRef,
     headRef: overrides.headRef,
+    commitId: overrides.commitId,
   };
 }
 
@@ -149,6 +150,67 @@ describe("comments actions", () => {
         contextKind: "review",
         baseRef: "main",
         headRef: "feature/a",
+      }),
+    ]);
+  });
+
+  it("copies all comments for matching history commit only", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    mockClipboard(writeText);
+    const store = createTestStore([
+      createComment({
+        id: "c1",
+        filePath: "src/file.ts",
+        text: "match",
+        contextKind: "history",
+        commitId: "abc123",
+      }),
+      createComment({
+        id: "c2",
+        filePath: "src/file.ts",
+        text: "different commit",
+        contextKind: "history",
+        commitId: "def456",
+      }),
+      createComment({
+        id: "c3",
+        filePath: "src/file.ts",
+        text: "changes context",
+        contextKind: "changes",
+      }),
+    ]);
+
+    const result = await store.dispatch(
+      copyComments("all", {
+        context: { kind: "history", commitId: "abc123" },
+      }),
+    );
+
+    expect(result).toEqual({ ok: true, copiedCount: 1, clearedCount: 1 });
+    expect(writeText).toHaveBeenCalledWith("@src/file.ts#L1 - match");
+    expect(commentIds(store)).toEqual(["c2", "c3"]);
+  });
+
+  it("adds a history comment scoped to the selected commit", () => {
+    const store = createTestStore();
+
+    store.dispatch(
+      addComment(
+        { start: 10, end: 12, side: "additions", endSide: "additions" },
+        "history note",
+        { kind: "history", commitId: "81fe106" },
+        "apps/service/src/adapters/postgres/tenant-context.ts",
+      ),
+    );
+
+    expect(store.getState().comments).toEqual([
+      expect.objectContaining({
+        filePath: "apps/service/src/adapters/postgres/tenant-context.ts",
+        text: "history note",
+        contextKind: "history",
+        commitId: "81fe106",
+        startLine: 10,
+        endLine: 12,
       }),
     ]);
   });

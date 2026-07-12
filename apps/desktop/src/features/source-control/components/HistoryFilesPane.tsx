@@ -92,7 +92,12 @@ export function HistoryFilesPane() {
             void dispatch(selectHistoryFile(path));
           }}
           getCommentCount={(file) =>
-            countCommentsForPathInRepoContext(comments, activeRepo, file.path)
+            countCommentsForPathInRepoContext(
+              comments,
+              activeRepo,
+              file.path,
+              historyCommitId ? { kind: "history", commitId: historyCommitId } : undefined,
+            )
           }
           getFileStatus={(file) => file.status}
         />

@@ -52,7 +52,13 @@ function getCommentContext(
   currentPath: string,
   reviewBaseRef: string,
   reviewHeadRef: string,
+  historyCommitId: string,
 ): CommentContext | null {
+  if (activeFeature === "history") {
+    if (!historyCommitId) return null;
+    return { kind: "history", commitId: historyCommitId };
+  }
+
   const isReviewFeature =
     activeFeature === "review" ||
     activeFeature === "pull-requests" ||
@@ -76,6 +82,7 @@ function selectHeaderCommentContext(
     currentPath,
     state.sourceControl.reviewBaseRef,
     state.sourceControl.reviewHeadRef,
+    state.sourceControl.historyCommitId,
   );
 }
 
@@ -136,12 +143,13 @@ function HeaderCommentActions({ activeFeature, currentPath }: HeaderCommentActio
   if (!shouldShowButton) return null;
 
   const isRecopyMode = !hasComments && hasLastCopiedPayload;
-  const isReviewContext = commentContext?.kind === "review";
   const tooltipText = isRecopyMode
     ? "Copy last comments payload"
-    : isReviewContext
+    : commentContext?.kind === "review"
       ? "Copy local review comments (⌘⌥C)"
-      : "Copy all comments (⌘⌥C)";
+      : commentContext?.kind === "history"
+        ? "Copy commit comments (⌘⌥C)"
+        : "Copy all comments (⌘⌥C)";
 
   return (
     <TooltipProvider>

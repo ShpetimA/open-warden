@@ -90,8 +90,12 @@ function HistoryDiffPane() {
               oldFile={oldFile}
               newFile={newFile}
               activePath={previewPath}
-              commentContext={{ kind: "changes" }}
-              canComment={false}
+              commentContext={
+                historyCommitId
+                  ? { kind: "history", commitId: historyCommitId }
+                  : { kind: "changes" }
+              }
+              canComment={Boolean(historyCommitId)}
               fileViewerRevision={historyCommitId}
             />
           </div>

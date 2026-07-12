@@ -28,6 +28,9 @@ function contextForComment(comment: CommentItem): CommentContext {
   if (comment.contextKind === "review" && comment.baseRef && comment.headRef) {
     return { kind: "review", baseRef: comment.baseRef, headRef: comment.headRef };
   }
+  if (comment.contextKind === "history" && comment.commitId) {
+    return { kind: "history", commitId: comment.commitId };
+  }
   return { kind: "changes" };
 }
 
@@ -37,6 +40,9 @@ function isMatchingContext(comment: CommentItem, context?: CommentContext): bool
   if (commentContext.kind !== context.kind) return false;
   if (context.kind === "review" && commentContext.kind === "review") {
     return commentContext.baseRef === context.baseRef && commentContext.headRef === context.headRef;
+  }
+  if (context.kind === "history" && commentContext.kind === "history") {
+    return commentContext.commitId === context.commitId;
   }
   return true;
 }
@@ -54,6 +60,7 @@ export const addComment =
     const targetPath =
       targetPathOverride ?? (context.kind === "review" ? reviewActivePath : activePath);
     if (!trimmed || !activeRepo || !targetPath) return;
+    if (context.kind === "history" && !context.commitId) return;
 
     const side = range.side ?? "additions";
     const endSide = range.endSide ?? side;
@@ -64,7 +71,7 @@ export const addComment =
       id,
       repoPath: activeRepo,
       filePath: targetPath,
-      bucket: context.kind === "review" ? "unstaged" : activeBucket,
+      bucket: context.kind === "changes" ? activeBucket : "unstaged",
       startLine: range.start,
       endLine: range.end,
       side,
@@ -73,6 +80,7 @@ export const addComment =
       contextKind: context.kind,
       baseRef: context.kind === "review" ? context.baseRef : undefined,
       headRef: context.kind === "review" ? context.headRef : undefined,
+      commitId: context.kind === "history" ? context.commitId : undefined,
     };
 
     dispatch(addCommentAction(next));
