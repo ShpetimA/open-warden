@@ -322,6 +322,8 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
 
     if (returnToDiff?.kind === "changes" && !isRoute(location.pathname, "/changes/files")) {
       navigate("/changes/files");
+    } else if (returnToDiff?.kind === "history" && !isRoute(location.pathname, "/history")) {
+      navigate("/history");
     }
 
     dispatch(

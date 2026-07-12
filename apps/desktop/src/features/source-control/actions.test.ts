@@ -258,4 +258,42 @@ describe("source control workspace actions", () => {
       }),
     );
   });
+
+  it("returns from file viewer to history diff and restores origin focus", async () => {
+    const store = createTestStore();
+
+    store.dispatch(
+      openFileViewer({
+        repoPath: "/repo/a",
+        relPath: "src/target.ts",
+        line: 5,
+        column: 1,
+        focusKey: 7,
+        returnToDiff: {
+          kind: "history",
+          repoPath: "/repo/a",
+          path: "src/history-origin.ts",
+          commitId: "abc123def",
+          lineNumber: 18,
+          lineIndex: "17,0",
+        },
+      }),
+    );
+
+    await store.dispatch(navigateBackToDiffFromFileViewer());
+    const state = store.getState();
+
+    expect(state.sourceControl.fileViewerTarget).toBeNull();
+    expect(state.sourceControl.historyCommitId).toBe("abc123def");
+    expect(state.sourceControl.activePath).toBe("src/history-origin.ts");
+    expect(state.sourceControl.diffFocusTarget).toEqual(
+      expect.objectContaining({
+        kind: "history",
+        path: "src/history-origin.ts",
+        lineNumber: 18,
+        lineIndex: "17,0",
+        focusKey: expect.any(Number),
+      }),
+    );
+  });
 });

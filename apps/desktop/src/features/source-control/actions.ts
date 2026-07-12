@@ -386,6 +386,21 @@ export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getSt
     return;
   }
 
+  if (returnToDiff.kind === "history") {
+    dispatch(setHistoryCommitId(returnToDiff.commitId));
+    dispatch(setActivePath(returnToDiff.path));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "history",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
   dispatch(setPullRequestFilesViewMode("review"));
   dispatch(setReviewActivePath(returnToDiff.path));
   dispatch(

@@ -41,7 +41,7 @@ type Props = {
   lspDiagnostics?: LspDiagnostic[];
   fileViewerRevision?: string | null;
   lspHoverDocument?: LspHoverDocument;
-  lspJumpContextKind?: "changes" | "review" | "pull-request";
+  lspJumpContextKind?: "changes" | "review" | "history" | "pull-request";
   focusedLineNumber?: number | null;
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
@@ -54,8 +54,10 @@ type Props = {
   onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
 };
 
+type LspJumpContextKind = "changes" | "review" | "history" | "pull-request";
+
 function buildReturnToDiffTarget(
-  jumpContextKind: "changes" | "review" | "pull-request" | null,
+  jumpContextKind: LspJumpContextKind | null,
   source: { lineNumber: number; lineIndex: string | null },
   activeRepo: string,
   activePath: string,
@@ -82,6 +84,21 @@ function buildReturnToDiffTarget(
       repoPath: activeRepo,
       path: activePath,
       bucket: activeBucket,
+      lineNumber: source.lineNumber,
+      lineIndex: source.lineIndex,
+    };
+  }
+
+  if (jumpContextKind === "history") {
+    if (commentContext.kind !== "history") {
+      return null;
+    }
+
+    return {
+      kind: "history",
+      repoPath: activeRepo,
+      path: activePath,
+      commitId: commentContext.commitId,
       lineNumber: source.lineNumber,
       lineIndex: source.lineIndex,
     };
@@ -125,9 +142,11 @@ export function DiffWorkspace({
 }: Props) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
-  const jumpContext: "changes" | "review" | "pull-request" | null =
+  const jumpContext: LspJumpContextKind | null =
     lspJumpContextKind ??
-    (commentContext.kind === "changes" || commentContext.kind === "review"
+    (commentContext.kind === "changes" ||
+    commentContext.kind === "review" ||
+    commentContext.kind === "history"
       ? commentContext.kind
       : null);
   const viewerRef = useRef<DiffViewerHandle | null>(null);

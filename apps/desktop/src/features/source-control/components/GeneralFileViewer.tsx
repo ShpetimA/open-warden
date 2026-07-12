@@ -52,12 +52,16 @@ function formatReturnToDiffLabel(target: DiffReturnTarget) {
   if (target.kind === "review") {
     return `${target.path}${lineLabel} · Review`;
   }
+  if (target.kind === "history") {
+    return `${target.path}${lineLabel} · History`;
+  }
   return `${target.path}${lineLabel} · Pull Request`;
 }
 
 function returnToDiffPath(target: DiffReturnTarget) {
   if (target.kind === "changes") return "/changes";
   if (target.kind === "review") return "/review";
+  if (target.kind === "history") return "/history";
   return "/changes/pull-request/files";
 }
 

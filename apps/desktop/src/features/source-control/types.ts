@@ -57,6 +57,14 @@ export type DiffReturnTarget =
       lineIndex: string | null;
     }
   | {
+      kind: "history";
+      repoPath: string;
+      path: string;
+      commitId: string;
+      lineNumber: number;
+      lineIndex: string | null;
+    }
+  | {
       kind: "pull-request";
       repoPath: string;
       path: string;
@@ -65,7 +73,7 @@ export type DiffReturnTarget =
     };
 
 export type DiffFocusTarget = {
-  kind: "changes" | "review";
+  kind: "changes" | "review" | "history";
   path: string;
   lineNumber: number;
   lineIndex: string | null;
