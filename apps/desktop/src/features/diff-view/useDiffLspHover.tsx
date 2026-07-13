@@ -301,7 +301,7 @@ export function DiffLspHoverPopover({ hoverState, popoverRef }: DiffLspHoverPopo
         transform: placeAbove ? "translateY(-100%)" : undefined,
       }}
     >
-      <div className="max-h-full overflow-auto p-2">
+      <div className="min-h-0 overflow-y-auto p-2" style={{ maxHeight }}>
         {hoverState.loading ? (
           <div className="text-xs text-muted-foreground">Loading...</div>
         ) : (

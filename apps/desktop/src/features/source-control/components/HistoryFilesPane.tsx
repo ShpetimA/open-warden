@@ -10,10 +10,15 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
-import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from "@/features/source-control/api";
+import {
+  useGetBranchFilesQuery,
+  useGetCommitFilesQuery,
+  useGetCommitHistoryQuery,
+} from "@/features/source-control/api";
 import { selectHistoryFile } from "@/features/source-control/actions";
 import { FileList } from "@/features/source-control/components/FileList";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import { getHistoryComparison } from "@/features/source-control/historySelection";
 import type { FileItem } from "@/features/source-control/types";
 
 export function HistoryFilesPane() {
@@ -22,6 +27,9 @@ export function HistoryFilesPane() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const comments = useAppSelector((state) => state.comments);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const historySelectedCommitIds = useAppSelector(
+    (state) => state.sourceControl.historySelectedCommitIds,
+  );
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
@@ -31,18 +39,21 @@ export function HistoryFilesPane() {
       selectFromResult: ({ data }) => ({ historyCommits: data ?? [] }),
     },
   );
-  const { historyFiles, loadingHistoryFiles } = useGetCommitFilesQuery(
-    activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
-    {
-      selectFromResult: ({ data, isFetching }) => ({
-        historyFiles: data ?? [],
-        loadingHistoryFiles: isFetching,
-      }),
-    },
+  const comparison = getHistoryComparison(historyCommits, historySelectedCommitIds);
+  const { data: historyFiles = [], isFetching: loadingHistoryFiles } = useGetCommitFilesQuery(
+    activeRepo && historyCommitId && !comparison
+      ? { repoPath: activeRepo, commitId: historyCommitId }
+      : skipToken,
+  );
+  const { data: combinedFiles = [], isFetching: loadingCombinedFiles } = useGetBranchFilesQuery(
+    activeRepo && comparison
+      ? { repoPath: activeRepo, baseRef: comparison.baseRef, headRef: comparison.headRef }
+      : skipToken,
   );
 
   const selectedCommit = historyCommits.find((commit) => commit?.commitId === historyCommitId);
-  const files = historyFiles as FileItem[];
+  const files = (comparison ? combinedFiles : historyFiles) as FileItem[];
+  const loadingFiles = comparison ? loadingCombinedFiles : loadingHistoryFiles;
 
   return (
     <aside
@@ -53,15 +64,17 @@ export function HistoryFilesPane() {
     >
       <div className="border-border border-b px-3 py-2">
         <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-          COMMIT FILES
+          {comparison ? "COMBINED FILES" : "COMMIT FILES"}
         </div>
         <div className="text-muted-foreground mt-1 text-xs">
-          {selectedCommit
-            ? `${selectedCommit.shortId} · ${historyFiles.length} file${historyFiles.length === 1 ? "" : "s"}`
-            : "No commit selected"}
+          {comparison
+            ? `${historySelectedCommitIds.length} commits · ${files.length} file${files.length === 1 ? "" : "s"}`
+            : selectedCommit
+              ? `${selectedCommit.shortId} · ${files.length} file${files.length === 1 ? "" : "s"}`
+              : "No commit selected"}
         </div>
       </div>
-      {loadingHistoryFiles && files.length === 0 ? (
+      {loadingFiles && files.length === 0 ? (
         <Empty className="h-auto border-0 p-4">
           <EmptyHeader>
             <EmptyDescription>Loading files...</EmptyDescription>
@@ -75,9 +88,11 @@ export function HistoryFilesPane() {
             </EmptyMedia>
             <EmptyTitle>No files</EmptyTitle>
             <EmptyDescription>
-              {historyCommitId
-                ? "No changed files in this commit."
-                : "Select a commit to view files."}
+              {comparison
+                ? "No combined changes between these commits."
+                : historyCommitId
+                  ? "No changed files in this commit."
+                  : "Select a commit to view files."}
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -96,7 +111,15 @@ export function HistoryFilesPane() {
               comments,
               activeRepo,
               file.path,
-              historyCommitId ? { kind: "history", commitId: historyCommitId } : undefined,
+              comparison
+                ? {
+                    kind: "history-range",
+                    baseRef: comparison.baseRef,
+                    headRef: comparison.headRef,
+                  }
+                : historyCommitId
+                  ? { kind: "history", commitId: historyCommitId }
+                  : undefined,
             )
           }
           getFileStatus={(file) => file.status}

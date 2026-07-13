@@ -322,7 +322,10 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
 
     if (returnToDiff?.kind === "changes" && !isRoute(location.pathname, "/changes/files")) {
       navigate("/changes/files");
-    } else if (returnToDiff?.kind === "history" && !isRoute(location.pathname, "/history")) {
+    } else if (
+      (returnToDiff?.kind === "history" || returnToDiff?.kind === "history-range") &&
+      !isRoute(location.pathname, "/history")
+    ) {
       navigate("/history");
     }
 

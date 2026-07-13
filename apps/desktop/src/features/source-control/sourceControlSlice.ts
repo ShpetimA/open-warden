@@ -20,6 +20,7 @@ type SourceControlState = {
   recentRepos: string[];
   historyFilter: string;
   historyCommitId: string;
+  historySelectedCommitIds: string[];
   historyNavTarget: HistoryNavTarget;
   collapseStaged: boolean;
   collapseUnstaged: boolean;
@@ -47,6 +48,7 @@ const initialState: SourceControlState = {
   recentRepos: [],
   historyFilter: "",
   historyCommitId: "",
+  historySelectedCommitIds: [],
   historyNavTarget: "commits",
   collapseStaged: false,
   collapseUnstaged: false,
@@ -109,6 +111,28 @@ const sourceControlSlice = createSlice({
         state.historyCommitId = action.payload;
       }
     },
+    setHistoryCommitSelected(
+      state,
+      action: PayloadAction<{ commitId: string; selected: boolean }>,
+    ) {
+      const { commitId, selected } = action.payload;
+      if (selected) {
+        if (
+          !state.historySelectedCommitIds.includes(commitId) &&
+          state.historySelectedCommitIds.length < 2
+        ) {
+          state.historySelectedCommitIds.push(commitId);
+        }
+        return;
+      }
+
+      state.historySelectedCommitIds = state.historySelectedCommitIds.filter(
+        (selectedCommitId) => selectedCommitId !== commitId,
+      );
+    },
+    clearHistoryCommitSelection(state) {
+      state.historySelectedCommitIds = [];
+    },
     setHistoryNavTarget(state, action: PayloadAction<HistoryNavTarget>) {
       if (state.historyNavTarget !== action.payload) {
         state.historyNavTarget = action.payload;
@@ -162,6 +186,7 @@ const sourceControlSlice = createSlice({
     resetRepoViewState(state) {
       state.historyFilter = "";
       state.historyCommitId = "";
+      state.historySelectedCommitIds = [];
       state.historyNavTarget = "commits";
       state.activeBucket = "unstaged";
       state.changesSidebarMode = "changes";
@@ -196,6 +221,9 @@ const sourceControlSlice = createSlice({
       }
       if (state.historyNavTarget !== "commits") {
         state.historyNavTarget = "commits";
+      }
+      if (state.historySelectedCommitIds.length > 0) {
+        state.historySelectedCommitIds = [];
       }
       if (state.activePath !== "") {
         state.activePath = "";
@@ -296,6 +324,7 @@ export const {
   clearDiffFocusTarget,
   clearDiffSelection,
   closeFileViewer,
+  clearHistoryCommitSelection,
   clearHistorySelection,
   clearReviewSelection,
   hydrateWorkspaceSession,
@@ -310,6 +339,7 @@ export const {
   setChangesSidebarMode,
   setDiffStyle,
   setHistoryCommitId,
+  setHistoryCommitSelected,
   setHistoryFilter,
   setHistoryNavTarget,
   setLastCommitId,

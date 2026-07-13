@@ -215,6 +215,29 @@ describe("comments actions", () => {
     ]);
   });
 
+  it("adds a comment scoped to a combined history range", () => {
+    const store = createTestStore();
+
+    store.dispatch(
+      addComment(
+        { start: 4, end: 4, side: "additions", endSide: "additions" },
+        "combined history note",
+        { kind: "history-range", baseRef: "older^", headRef: "newer" },
+        "src/combined.ts",
+      ),
+    );
+
+    expect(store.getState().comments).toEqual([
+      expect.objectContaining({
+        filePath: "src/combined.ts",
+        text: "combined history note",
+        contextKind: "history-range",
+        baseRef: "older^",
+        headRef: "newer",
+      }),
+    ]);
+  });
+
   it("keeps comments and payload unchanged when clipboard write fails", async () => {
     const writeText = vi.fn().mockRejectedValue(new Error("clipboard denied"));
     mockClipboard(writeText);

@@ -107,6 +107,14 @@ describe("electron git backend", () => {
     const history = await getCommitHistory(repo);
     const files = await getCommitFiles(repo, history[0]!.commitId);
     const rootFiles = await getCommitFiles(repo, history[1]!.commitId);
+    const combinedBaseRef = `${history[1]!.commitId}^`;
+    const combinedFiles = await getBranchFiles(repo, combinedBaseRef, history[0]!.commitId);
+    const combinedVersions = await getBranchFileVersions(
+      repo,
+      combinedBaseRef,
+      history[0]!.commitId,
+      "notes.md",
+    );
     const versions = await getCommitFileVersions(repo, history[0]!.commitId, "notes.md");
 
     expect(history[0]!.summary).toEqual("update notes");
@@ -124,6 +132,15 @@ describe("electron git backend", () => {
         status: "added",
       },
     ]);
+    expect(combinedFiles).toEqual([
+      {
+        path: "notes.md",
+        previousPath: null,
+        status: "added",
+      },
+    ]);
+    expect(combinedVersions.oldFile).toBeNull();
+    expect(combinedVersions.newFile?.contents.trim()).toEqual("v2");
     expect(versions.oldFile?.contents.trim()).toEqual("v1");
     expect(versions.newFile?.contents.trim()).toEqual("v2");
   });

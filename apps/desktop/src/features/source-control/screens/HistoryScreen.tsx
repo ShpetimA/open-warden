@@ -7,10 +7,14 @@ import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
 import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
 import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
 import {
-  useGetCommitFilesQuery,
+  useGetBranchFileVersionsQuery,
+  useGetBranchFilesQuery,
   useGetCommitFileVersionsQuery,
+  useGetCommitFilesQuery,
+  useGetCommitHistoryQuery,
 } from "@/features/source-control/api";
 import { HistoryFilesPane } from "@/features/source-control/components/HistoryFilesPane";
+import { getHistoryComparison } from "@/features/source-control/historySelection";
 import { useHistoryKeyboardNav } from "@/features/source-control/hooks/useHistoryKeyboardNav";
 import { useHistorySync } from "@/features/source-control/hooks/useHistorySync";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
@@ -42,38 +46,70 @@ function HistorySelectionSync() {
 function HistoryDiffPane() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const historySelectedCommitIds = useAppSelector(
+    (state) => state.sourceControl.historySelectedCommitIds,
+  );
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
-  const { data: historyFiles } = useGetCommitFilesQuery(
-    activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
+  const { data: historyCommits = [] } = useGetCommitHistoryQuery(
+    activeRepo ? { repoPath: activeRepo } : skipToken,
   );
-
-  const selectedHistoryFile = historyFiles?.find((file) => file.path === activePath);
-  const previewSelection = useThrottledDiffSelection(
-    historyCommitId && activePath
-      ? {
-          commitId: historyCommitId,
-          path: activePath,
-          previousPath: selectedHistoryFile?.previousPath ?? undefined,
-        }
-      : null,
+  const comparison = getHistoryComparison(historyCommits, historySelectedCommitIds);
+  const { data: historyFiles = [] } = useGetCommitFilesQuery(
+    activeRepo && historyCommitId && !comparison
+      ? { repoPath: activeRepo, commitId: historyCommitId }
+      : skipToken,
   );
+  const { data: combinedFiles = [] } = useGetBranchFilesQuery(
+    activeRepo && comparison
+      ? { repoPath: activeRepo, baseRef: comparison.baseRef, headRef: comparison.headRef }
+      : skipToken,
+  );
+  const visibleFiles = comparison ? combinedFiles : historyFiles;
+  const selectedHistoryFile = visibleFiles.find((file) => file.path === activePath);
+  const previewSelection = useThrottledDiffSelection({
+    commitId: comparison ? "" : historyCommitId,
+    baseRef: comparison?.baseRef ?? "",
+    headRef: comparison?.headRef ?? "",
+    path: activePath,
+    previousPath: selectedHistoryFile?.previousPath ?? "",
+  });
   const historyFileVersions = useGetCommitFileVersionsQuery(
-    activeRepo && previewSelection
+    activeRepo && !comparison && previewSelection.commitId && previewSelection.path
       ? {
           repoPath: activeRepo,
           commitId: previewSelection.commitId,
           relPath: previewSelection.path,
-          previousPath: previewSelection.previousPath,
+          previousPath: previewSelection.previousPath || undefined,
         }
       : skipToken,
   );
-  const fileVersions = historyFileVersions.currentData ?? historyFileVersions.data;
-  const loadingPatch = !fileVersions && historyFileVersions.isFetching;
+  const combinedFileVersions = useGetBranchFileVersionsQuery(
+    activeRepo &&
+      comparison &&
+      previewSelection.baseRef &&
+      previewSelection.headRef &&
+      previewSelection.path
+      ? {
+          repoPath: activeRepo,
+          baseRef: previewSelection.baseRef,
+          headRef: previewSelection.headRef,
+          relPath: previewSelection.path,
+          previousPath: previewSelection.previousPath || undefined,
+        }
+      : skipToken,
+  );
+  const fileVersions = comparison
+    ? (combinedFileVersions.currentData ?? combinedFileVersions.data)
+    : (historyFileVersions.currentData ?? historyFileVersions.data);
+  const loadingPatch = comparison
+    ? !fileVersions && combinedFileVersions.isFetching
+    : !fileVersions && historyFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
-  const errorMessage = fileVersions ? "" : errorMessageFrom(historyFileVersions.error, "");
-  const previewPath = previewSelection?.path ?? "";
+  const activeFileError = comparison ? combinedFileVersions.error : historyFileVersions.error;
+  const errorMessage = fileVersions ? "" : errorMessageFrom(activeFileError, "");
+  const previewPath = previewSelection.path;
   const lspText = !loadingPatch && newFile ? newFile.contents : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null
@@ -105,7 +141,9 @@ function HistoryDiffPane() {
           <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
         ) : !activePath ? (
           <div className="text-muted-foreground p-3 text-sm">
-            Select a commit file to view diff.
+            {comparison
+              ? "Select a combined change file to view diff."
+              : "Select a commit file to view diff."}
           </div>
         ) : !oldFile && !newFile ? (
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
@@ -117,15 +155,21 @@ function HistoryDiffPane() {
               newFile={newFile}
               activePath={previewPath}
               commentContext={
-                historyCommitId
-                  ? { kind: "history", commitId: historyCommitId }
-                  : { kind: "changes" }
+                comparison
+                  ? {
+                      kind: "history-range",
+                      baseRef: comparison.baseRef,
+                      headRef: comparison.headRef,
+                    }
+                  : historyCommitId
+                    ? { kind: "history", commitId: historyCommitId }
+                    : { kind: "changes" }
               }
               canComment={Boolean(historyCommitId)}
               lspDiagnostics={lspDiagnostics}
-              fileViewerRevision={historyCommitId}
+              fileViewerRevision={comparison?.headRef ?? historyCommitId}
               lspHoverDocument={lspHoverDocument}
-              lspJumpContextKind="history"
+              lspJumpContextKind={comparison ? "history-range" : "history"}
               focusedLineNumber={focusedLineNumber}
               focusedLineIndex={focusedLineIndex}
               focusedLineKey={focusedLineKey}

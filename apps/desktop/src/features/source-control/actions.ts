@@ -29,7 +29,9 @@ import {
   setCommitMessage,
   setDiffFocusTarget,
   setDiffStyle,
+  clearHistoryCommitSelection,
   setHistoryCommitId,
+  setHistoryCommitSelected,
   setHistoryNavTarget,
   setLastCommitId,
   setRecentRepos,
@@ -319,8 +321,26 @@ export const selectHistoryCommit =
   (commitId: string): AppThunk =>
   async (dispatch, getState) => {
     if (!getState().sourceControl.activeRepo) return;
+    dispatch(clearHistoryCommitSelection());
     dispatch(setHistoryNavTarget("commits"));
     dispatch(setHistoryCommitId(commitId));
+  };
+
+export const setHistoryCommitSelectedValue =
+  (commitId: string, selected: boolean): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return;
+
+    const selectedCommitIds = getState().sourceControl.historySelectedCommitIds;
+    if (selected && !selectedCommitIds.includes(commitId) && selectedCommitIds.length >= 2) {
+      return;
+    }
+
+    if (selected) {
+      dispatch(setHistoryNavTarget("commits"));
+      dispatch(setHistoryCommitId(commitId));
+    }
+    dispatch(setHistoryCommitSelected({ commitId, selected }));
   };
 
 export const selectHistoryFile =
@@ -388,6 +408,20 @@ export const navigateBackToDiffFromFileViewer = (): AppThunk => (dispatch, getSt
 
   if (returnToDiff.kind === "history") {
     dispatch(setHistoryCommitId(returnToDiff.commitId));
+    dispatch(setActivePath(returnToDiff.path));
+    dispatch(
+      setDiffFocusTarget({
+        kind: "history",
+        path: returnToDiff.path,
+        lineNumber: returnToDiff.lineNumber,
+        lineIndex: returnToDiff.lineIndex,
+        focusKey: createFileViewerFocusKey(),
+      }),
+    );
+    return;
+  }
+
+  if (returnToDiff.kind === "history-range") {
     dispatch(setActivePath(returnToDiff.path));
     dispatch(
       setDiffFocusTarget({

@@ -41,6 +41,7 @@ import {
   useGetCommitHistoryQuery,
   useGetGitSnapshotQuery,
 } from "@/features/source-control/api";
+import { getHistoryComparison } from "@/features/source-control/historySelection";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
 import type {
   BucketedFile,
@@ -71,6 +72,10 @@ function isMatchingContext(comment: CommentItem, context: CommentContext): boole
 
   if (context.kind === "history") {
     return comment.commitId === context.commitId;
+  }
+
+  if (context.kind === "history-range") {
+    return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
   }
 
   return true;
@@ -184,6 +189,9 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
   const commitMessage = useAppSelector((state) => state.sourceControl.commitMessage);
   const diffStyle = useAppSelector((state) => state.sourceControl.diffStyle);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const historySelectedCommitIds = useAppSelector(
+    (state) => state.sourceControl.historySelectedCommitIds,
+  );
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
@@ -218,6 +226,7 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
     },
   );
 
+  const historyComparison = getHistoryComparison(commits, historySelectedCommitIds);
   const reviewReady = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
   const { reviewFiles } = useGetBranchFilesQuery(
     feature === "review" && reviewReady
@@ -247,9 +256,15 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
 
   const commentContext: CommentContext | null =
     feature === "history"
-      ? historyCommitId
-        ? { kind: "history", commitId: historyCommitId }
-        : null
+      ? historyComparison
+        ? {
+            kind: "history-range",
+            baseRef: historyComparison.baseRef,
+            headRef: historyComparison.headRef,
+          }
+        : historyCommitId
+          ? { kind: "history", commitId: historyCommitId }
+          : null
       : feature === "review"
         ? reviewBaseRef && reviewHeadRef
           ? { kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }

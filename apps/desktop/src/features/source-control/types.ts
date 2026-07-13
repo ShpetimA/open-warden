@@ -65,6 +65,15 @@ export type DiffReturnTarget =
       lineIndex: string | null;
     }
   | {
+      kind: "history-range";
+      repoPath: string;
+      path: string;
+      baseRef: string;
+      headRef: string;
+      lineNumber: number;
+      lineIndex: string | null;
+    }
+  | {
       kind: "pull-request";
       repoPath: string;
       path: string;
@@ -128,7 +137,8 @@ export type SelectionRange = {
 export type CommentContext =
   | { kind: "changes" }
   | { kind: "review"; baseRef: string; headRef: string }
-  | { kind: "history"; commitId: string };
+  | { kind: "history"; commitId: string }
+  | { kind: "history-range"; baseRef: string; headRef: string };
 
 export type CommentItem = {
   type: "annotation";

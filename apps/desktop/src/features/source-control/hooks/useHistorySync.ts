@@ -2,7 +2,12 @@ import { useEffect } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { useGetCommitFilesQuery, useGetCommitHistoryQuery } from "@/features/source-control/api";
+import { getHistoryComparison } from "@/features/source-control/historySelection";
+import {
+  useGetBranchFilesQuery,
+  useGetCommitFilesQuery,
+  useGetCommitHistoryQuery,
+} from "@/features/source-control/api";
 import {
   clearHistorySelection,
   setActivePath,
@@ -13,15 +18,27 @@ export function useHistorySync() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const historySelectedCommitIds = useAppSelector(
+    (state) => state.sourceControl.historySelectedCommitIds,
+  );
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
 
   const { data: historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
   );
 
+  const comparison = getHistoryComparison(historyCommits ?? [], historySelectedCommitIds);
   const { data: historyFiles } = useGetCommitFilesQuery(
-    activeRepo && historyCommitId ? { repoPath: activeRepo, commitId: historyCommitId } : skipToken,
+    activeRepo && historyCommitId && !comparison
+      ? { repoPath: activeRepo, commitId: historyCommitId }
+      : skipToken,
   );
+  const { data: combinedFiles } = useGetBranchFilesQuery(
+    activeRepo && comparison
+      ? { repoPath: activeRepo, baseRef: comparison.baseRef, headRef: comparison.headRef }
+      : skipToken,
+  );
+  const visibleFiles = comparison ? combinedFiles : historyFiles;
 
   useEffect(() => {
     if (!activeRepo) {
@@ -46,14 +63,14 @@ export function useHistorySync() {
       dispatch(setActivePath(""));
       return;
     }
-    if (!historyFiles) return;
-    if (historyFiles.length === 0) {
+    if (!visibleFiles) return;
+    if (visibleFiles.length === 0) {
       dispatch(setActivePath(""));
       return;
     }
-    const existing = historyFiles.find((file) => file.path === activePath);
+    const existing = visibleFiles.find((file) => file.path === activePath);
     if (!existing) {
-      dispatch(setActivePath(historyFiles[0].path));
+      dispatch(setActivePath(visibleFiles[0].path));
     }
-  }, [activePath, dispatch, historyCommitId, historyFiles]);
+  }, [activePath, dispatch, historyCommitId, visibleFiles]);
 }

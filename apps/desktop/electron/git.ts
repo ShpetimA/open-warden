@@ -480,6 +480,19 @@ async function discardFileForBucket(repoPath: string, relPath: string, bucket: B
   await removeWorktreePath(repoPath, relPath);
 }
 
+const EMPTY_TREE_OBJECT = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+async function resolveDiffBaseRef(repoPath: string, baseRef: string) {
+  if (!baseRef.endsWith("^")) return baseRef;
+
+  try {
+    await runGit(repoPath, ["rev-parse", "--verify", baseRef], { allowFailure: true });
+    return baseRef;
+  } catch {
+    return EMPTY_TREE_OBJECT;
+  }
+}
+
 async function readCommitParent(repoPath: string, commitId: string) {
   const output = await runGit(repoPath, ["show", "-s", "--format=%P", commitId]);
   const firstParent = decodeUtf8(output, "commit parents").trim().split(/\s+/).find(Boolean);
@@ -549,13 +562,14 @@ export async function getBranchFiles(
   baseRef: string,
   headRef: string,
 ): Promise<FileItem[]> {
+  const resolvedBaseRef = await resolveDiffBaseRef(repoPath, baseRef);
   const output = await runGit(repoPath, [
     "diff",
     "--name-status",
     "-z",
     "--find-renames",
     "--find-copies",
-    baseRef,
+    resolvedBaseRef,
     headRef,
   ]);
 
@@ -655,9 +669,10 @@ export async function getBranchFileVersions(
 ): Promise<FileVersions> {
   const normalizedPath = normalizeGitPath(relPath);
   const previousLookupPath = normalizeGitPath(previousPath ?? relPath);
+  const resolvedBaseRef = await resolveDiffBaseRef(repoPath, baseRef);
 
   const [oldFile, newFile] = await Promise.all([
-    readGitObject(repoPath, `${baseRef}:${previousLookupPath}`, previousLookupPath),
+    readGitObject(repoPath, `${resolvedBaseRef}:${previousLookupPath}`, previousLookupPath),
     readGitObject(repoPath, `${headRef}:${normalizedPath}`, normalizedPath),
   ]);
 

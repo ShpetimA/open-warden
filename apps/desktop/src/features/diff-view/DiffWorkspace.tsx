@@ -41,7 +41,7 @@ type Props = {
   lspDiagnostics?: LspDiagnostic[];
   fileViewerRevision?: string | null;
   lspHoverDocument?: LspHoverDocument;
-  lspJumpContextKind?: "changes" | "review" | "history" | "pull-request";
+  lspJumpContextKind?: "changes" | "review" | "history" | "history-range" | "pull-request";
   focusedLineNumber?: number | null;
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
@@ -54,7 +54,7 @@ type Props = {
   onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
 };
 
-type LspJumpContextKind = "changes" | "review" | "history" | "pull-request";
+type LspJumpContextKind = "changes" | "review" | "history" | "history-range" | "pull-request";
 
 function buildReturnToDiffTarget(
   jumpContextKind: LspJumpContextKind | null,
@@ -104,6 +104,22 @@ function buildReturnToDiffTarget(
     };
   }
 
+  if (jumpContextKind === "history-range") {
+    if (commentContext.kind !== "history-range") {
+      return null;
+    }
+
+    return {
+      kind: "history-range",
+      repoPath: activeRepo,
+      path: activePath,
+      baseRef: commentContext.baseRef,
+      headRef: commentContext.headRef,
+      lineNumber: source.lineNumber,
+      lineIndex: source.lineIndex,
+    };
+  }
+
   if (commentContext.kind !== "review") {
     return null;
   }
@@ -146,7 +162,8 @@ export function DiffWorkspace({
     lspJumpContextKind ??
     (commentContext.kind === "changes" ||
     commentContext.kind === "review" ||
-    commentContext.kind === "history"
+    commentContext.kind === "history" ||
+    commentContext.kind === "history-range"
       ? commentContext.kind
       : null);
   const viewerRef = useRef<DiffViewerHandle | null>(null);

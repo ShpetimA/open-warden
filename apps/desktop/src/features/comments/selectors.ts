@@ -105,5 +105,8 @@ function commentMatchesContext(comment: CommentItem, context?: CommentContext): 
   if (context.kind === "history") {
     return comment.commitId === context.commitId;
   }
+  if (context.kind === "history-range") {
+    return comment.baseRef === context.baseRef && comment.headRef === context.headRef;
+  }
   return true;
 }

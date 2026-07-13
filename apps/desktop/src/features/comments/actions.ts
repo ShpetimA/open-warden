@@ -28,6 +28,9 @@ function contextForComment(comment: CommentItem): CommentContext {
   if (comment.contextKind === "review" && comment.baseRef && comment.headRef) {
     return { kind: "review", baseRef: comment.baseRef, headRef: comment.headRef };
   }
+  if (comment.contextKind === "history-range" && comment.baseRef && comment.headRef) {
+    return { kind: "history-range", baseRef: comment.baseRef, headRef: comment.headRef };
+  }
   if (comment.contextKind === "history" && comment.commitId) {
     return { kind: "history", commitId: comment.commitId };
   }
@@ -43,6 +46,9 @@ function isMatchingContext(comment: CommentItem, context?: CommentContext): bool
   }
   if (context.kind === "history" && commentContext.kind === "history") {
     return commentContext.commitId === context.commitId;
+  }
+  if (context.kind === "history-range" && commentContext.kind === "history-range") {
+    return commentContext.baseRef === context.baseRef && commentContext.headRef === context.headRef;
   }
   return true;
 }
@@ -61,6 +67,9 @@ export const addComment =
       targetPathOverride ?? (context.kind === "review" ? reviewActivePath : activePath);
     if (!trimmed || !activeRepo || !targetPath) return;
     if (context.kind === "history" && !context.commitId) return;
+    if (context.kind === "history-range" && (!context.baseRef || !context.headRef)) {
+      return;
+    }
 
     const side = range.side ?? "additions";
     const endSide = range.endSide ?? side;
@@ -78,8 +87,10 @@ export const addComment =
       endSide,
       text: trimmed,
       contextKind: context.kind,
-      baseRef: context.kind === "review" ? context.baseRef : undefined,
-      headRef: context.kind === "review" ? context.headRef : undefined,
+      baseRef:
+        context.kind === "review" || context.kind === "history-range" ? context.baseRef : undefined,
+      headRef:
+        context.kind === "review" || context.kind === "history-range" ? context.headRef : undefined,
       commitId: context.kind === "history" ? context.commitId : undefined,
     };
 

@@ -21,6 +21,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DesktopUpdateButton } from "@/features/desktop-update/DesktopUpdateButton";
 import { copyComments, copyLastCommentsPayload } from "@/features/comments/actions";
 import { countCommentsForRepoContext } from "@/features/comments/selectors";
+import { gitApi } from "@/features/source-control/api";
+import {
+  getHistoryComparison,
+  type HistoryComparison,
+} from "@/features/source-control/historySelection";
 import type { CommentContext } from "@/features/source-control/types";
 
 type AppHeaderProps = {
@@ -53,8 +58,16 @@ function getCommentContext(
   reviewBaseRef: string,
   reviewHeadRef: string,
   historyCommitId: string,
+  historyComparison: HistoryComparison | null,
 ): CommentContext | null {
   if (activeFeature === "history") {
+    if (historyComparison) {
+      return {
+        kind: "history-range",
+        baseRef: historyComparison.baseRef,
+        headRef: historyComparison.headRef,
+      };
+    }
     if (!historyCommitId) return null;
     return { kind: "history", commitId: historyCommitId };
   }
@@ -77,12 +90,22 @@ function selectHeaderCommentContext(
   activeFeature: FeatureKey,
   currentPath: string,
 ): CommentContext | null {
+  const activeRepo = state.sourceControl.activeRepo;
+  const historyCommits = activeRepo
+    ? (gitApi.endpoints.getCommitHistory.select({ repoPath: activeRepo })(state).data ?? [])
+    : [];
+  const historyComparison = getHistoryComparison(
+    historyCommits,
+    state.sourceControl.historySelectedCommitIds,
+  );
+
   return getCommentContext(
     activeFeature,
     currentPath,
     state.sourceControl.reviewBaseRef,
     state.sourceControl.reviewHeadRef,
     state.sourceControl.historyCommitId,
+    historyComparison,
   );
 }
 
@@ -147,9 +170,11 @@ function HeaderCommentActions({ activeFeature, currentPath }: HeaderCommentActio
     ? "Copy last comments payload"
     : commentContext?.kind === "review"
       ? "Copy local review comments (⌘⌥C)"
-      : commentContext?.kind === "history"
-        ? "Copy commit comments (⌘⌥C)"
-        : "Copy all comments (⌘⌥C)";
+      : commentContext?.kind === "history-range"
+        ? "Copy combined history comments (⌘⌥C)"
+        : commentContext?.kind === "history"
+          ? "Copy commit comments (⌘⌥C)"
+          : "Copy all comments (⌘⌥C)";
 
   return (
     <TooltipProvider>
