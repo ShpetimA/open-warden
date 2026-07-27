@@ -15,7 +15,6 @@ import {
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
-  useGetPullRequestFilesQuery,
   usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
@@ -25,15 +24,33 @@ import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/useP
 import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
-import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
+import {
+  useGetBranchFileVersionsQuery,
+  useGetBranchFilesQuery,
+} from "@/features/source-control/api";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type {
   GitProviderId,
+  FileItem,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestReviewThread,
 } from "@/platform/desktop";
+
+function toChangedFile(file: FileItem): PullRequestChangedFile {
+  return {
+    ...file,
+    // Local git comparisons provide the complete file set, but not GitHub's
+    // per-file line totals. Those totals are only presentation metadata.
+    additions: 0,
+    deletions: 0,
+    status:
+      file.status === "untracked" || file.status === "type-changed" || file.status === "unmerged"
+        ? "modified"
+        : file.status,
+  };
+}
 
 export const PullRequestFiles = () => {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -79,13 +96,22 @@ export const PullRequestFiles = () => {
       }),
     });
 
-  const { files, filesError, isLoadingFiles } = useGetPullRequestFilesQuery(filesQueryArg, {
-    selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-      files: data ?? [],
-      filesError: data ? "" : errorMessageFrom(error, ""),
-      isLoadingFiles: isLoading || isFetching,
-    }),
-  });
+  const { files, filesError, isLoadingFiles } = useGetBranchFilesQuery(
+    compareRefs && activeRepo
+      ? {
+          repoPath: activeRepo,
+          baseRef: compareRefs.compareBaseRef,
+          headRef: compareRefs.compareHeadRef,
+        }
+      : skipToken,
+    {
+      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
+        files: (data ?? []).map(toChangedFile),
+        filesError: data ? "" : errorMessageFrom(error, ""),
+        isLoadingFiles: isLoading || isFetching,
+      }),
+    },
+  );
 
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
     selectFromResult: ({ data }) => ({

@@ -33,6 +33,7 @@ import {
   setPullRequestPreviewFileJumpTarget,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestsInboxPath } from "@/features/pull-requests/utils";
+import { useGetBranchFilesQuery } from "@/features/source-control/api";
 import type { PullRequestReviewAnchor } from "@/features/source-control/types";
 import type { PullRequestChangedFile, PullRequestConversation } from "@/platform/desktop";
 import type { GitProviderId, PullRequestOpenMode } from "@/platform/desktop/contracts";
@@ -251,7 +252,7 @@ type PullRequestOverviewDetailsSidebarProps = {
   activeRepo: string;
   pullRequestNumber: number;
   detail: PullRequestConversation["detail"];
-  files: PullRequestChangedFile[];
+  changedFilesCount: number;
   totalAdditions: number;
   totalDeletions: number;
   issueCommentCount: number;
@@ -263,7 +264,7 @@ function PullRequestOverviewDetailsSidebar({
   activeRepo,
   pullRequestNumber,
   detail,
-  files,
+  changedFilesCount,
   totalAdditions,
   totalDeletions,
   issueCommentCount,
@@ -297,7 +298,8 @@ function PullRequestOverviewDetailsSidebar({
             label="Changes"
             value={
               <span>
-                {files.length} files <span className="text-emerald-500">+{totalAdditions}</span>{" "}
+                {changedFilesCount} files{" "}
+                <span className="text-emerald-500">+{totalAdditions}</span>{" "}
                 <span className="text-red-500">-{totalDeletions}</span>
               </span>
             }
@@ -373,6 +375,19 @@ export const PullRequestOverview = () => {
       files: data ?? [],
     }),
   });
+
+  const { compareRefs } = usePreparePullRequestCompareRefsQuery(queryArg, {
+    selectFromResult: ({ data }) => ({ compareRefs: data ?? null }),
+  });
+  const { data: localFiles } = useGetBranchFilesQuery(
+    compareRefs && activeRepo
+      ? {
+          repoPath: activeRepo,
+          baseRef: compareRefs.compareBaseRef,
+          headRef: compareRefs.compareHeadRef,
+        }
+      : skipToken,
+  );
 
   async function handleOpen(mode: PullRequestOpenMode) {
     if (!Number.isFinite(parsedPullRequestNumber)) {
@@ -487,7 +502,7 @@ export const PullRequestOverview = () => {
         detail={detail}
         openingMode={openingMode}
         isRefreshing={loadingConversation && !!conversation}
-        changedFilesCount={files.length}
+        changedFilesCount={localFiles?.length ?? files.length}
         additions={totalAdditions}
         deletions={totalDeletions}
         onBack={() => navigate(buildPullRequestsInboxPath())}
@@ -535,7 +550,7 @@ export const PullRequestOverview = () => {
               activeRepo={activeRepo ?? ""}
               pullRequestNumber={parsedPullRequestNumber}
               detail={detail}
-              files={files}
+              changedFilesCount={localFiles?.length ?? files.length}
               totalAdditions={totalAdditions}
               totalDeletions={totalDeletions}
               issueCommentCount={issueCommentCount}
