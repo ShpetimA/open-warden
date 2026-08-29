@@ -1,14 +1,52 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
-vi.mock("./serverCatalog", () => ({
-  resolveServerConfigForLanguage: async () => null,
-}));
+import { afterEach, describe, expect, it } from "vitest";
+
+import { createAppSettings } from "../../src/platform/desktop/appSettings";
 
 import {
   LspSessionManager,
   normalizeLspHoverResponse,
   normalizeLspLocationResponse,
 } from "./sessionManager";
+
+const temporaryDirectories: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
+  );
+});
+
+async function createFakeLanguageServerSettings() {
+  const temporaryDirectory = await mkdtemp(path.join(os.tmpdir(), "openwarden-lsp-test-"));
+  temporaryDirectories.push(temporaryDirectory);
+  const eventLogPath = path.join(temporaryDirectory, "events.log");
+  const serverPath = path.resolve("electron/lsp/fixtures/fake-language-server.mjs");
+
+  return {
+    eventLogPath,
+    repoPath: temporaryDirectory,
+    settings: createAppSettings({
+      lsp: {
+        servers: {
+          typescript: {
+            command: process.execPath,
+            args: [serverPath, eventLogPath],
+            extensions: [".ts"],
+          },
+        },
+      },
+    }),
+  };
+}
+
+async function readEvents(eventLogPath: string) {
+  const contents = await readFile(eventLogPath, "utf8");
+  return contents.trim().split("\n");
+}
 
 describe("normalizeLspHoverResponse", () => {
   it("returns plain string hover text", () => {
@@ -147,7 +185,7 @@ describe("LspSessionManager.getHover", () => {
     await expect(
       manager.getHover({
         repoPath: "/tmp/repo",
-        relPath: "README.md",
+        relPath: "README.unsupported",
         line: 1,
         character: 0,
       }),
@@ -175,7 +213,7 @@ describe("LspSessionManager navigation", () => {
     await expect(
       manager.getDefinition({
         repoPath: "/tmp/repo",
-        relPath: "README.md",
+        relPath: "README.unsupported",
         line: 1,
         character: 0,
       }),
@@ -193,5 +231,43 @@ describe("LspSessionManager navigation", () => {
         character: 4,
       }),
     ).resolves.toEqual([]);
+  });
+});
+
+describe("LspSessionManager lifecycle", () => {
+  it("reuses a repo-language session and disposes it after its final document closes", async () => {
+    const { eventLogPath, repoPath, settings } = await createFakeLanguageServerSettings();
+    const manager = new LspSessionManager({
+      onDiagnostics: () => {},
+      loadAppSettings: async () => settings,
+      idleSessionTimeoutMs: 0,
+    });
+
+    await manager.syncDocument({ repoPath, relPath: "src/a.ts", text: "a" });
+    await manager.syncDocument({ repoPath, relPath: "src/b.ts", text: "b" });
+    await manager.closeDocument({ repoPath, relPath: "src/a.ts" });
+
+    expect(await readEvents(eventLogPath)).not.toContain("shutdown");
+
+    await manager.closeDocument({ repoPath, relPath: "src/b.ts" });
+
+    const events = await readEvents(eventLogPath);
+    expect(events.filter((event) => event === "initialize")).toHaveLength(1);
+    expect(events).toEqual(
+      expect.arrayContaining(["textDocument/didOpen", "textDocument/didClose", "shutdown", "exit"]),
+    );
+  });
+
+  it("waits for language-server shutdown when the manager is disposed", async () => {
+    const { eventLogPath, repoPath, settings } = await createFakeLanguageServerSettings();
+    const manager = new LspSessionManager({
+      onDiagnostics: () => {},
+      loadAppSettings: async () => settings,
+    });
+
+    await manager.syncDocument({ repoPath, relPath: "src/a.ts", text: "a" });
+    await manager.dispose();
+
+    expect(await readEvents(eventLogPath)).toEqual(expect.arrayContaining(["shutdown", "exit"]));
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, type RefObject } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 import { useAppSelector } from "@/app/hooks";
@@ -55,6 +55,10 @@ type Props = {
 };
 
 type LspJumpContextKind = "changes" | "review" | "history" | "history-range" | "pull-request";
+
+const EMPTY_LSP_DIAGNOSTICS: LspDiagnostic[] = [];
+const EMPTY_ANNOTATION_ITEMS: DiffLineAnnotation<DiffAnnotationItem>[] = [];
+const EMPTY_HUNK_OPERATIONS: DiffHunkOperation[] = [];
 
 function buildReturnToDiffTarget(
   jumpContextKind: LspJumpContextKind | null,
@@ -141,19 +145,19 @@ export function DiffWorkspace({
   activePath,
   commentContext,
   canComment,
-  lspDiagnostics = [],
+  lspDiagnostics = EMPTY_LSP_DIAGNOSTICS,
   fileViewerRevision,
   lspHoverDocument,
   lspJumpContextKind,
   focusedLineNumber = null,
   focusedLineIndex = null,
   focusedLineKey = null,
-  annotationItems = [],
+  annotationItems = EMPTY_ANNOTATION_ITEMS,
   commentMentions,
   includeCurrentFileComments = true,
   disableFileHeader = false,
   hideHeaderMetadataControls = false,
-  hunkOperations = [],
+  hunkOperations = EMPTY_HUNK_OPERATIONS,
   onHunkAction,
 }: Props) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -167,6 +171,11 @@ export function DiffWorkspace({
       ? commentContext.kind
       : null);
   const viewerRef = useRef<DiffViewerHandle | null>(null);
+  const symbolPeekContainerRef = useRef<RefObject<HTMLDivElement | null>>({
+    get current() {
+      return viewerRef.current?.getViewportElement() ?? null;
+    },
+  }).current;
 
   const getReturnToDiffTarget = useCallback(
     (source: { lineNumber: number; lineIndex: string | null }) =>
@@ -348,14 +357,7 @@ export function DiffWorkspace({
         hunkOperations={hunkOperations}
         onHunkAction={onHunkAction}
       >
-        <LspSymbolPeekContainer
-          document={lspHoverDocument}
-          containerRef={{
-            get current() {
-              return viewerRef.current?.getViewportElement() ?? null;
-            },
-          }}
-        />
+        <LspSymbolPeekContainer document={lspHoverDocument} containerRef={symbolPeekContainerRef} />
       </DiffViewer>
     </div>
   );

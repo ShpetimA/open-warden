@@ -1,6 +1,8 @@
 import type { ParsePriority } from "@/features/diff-view/services/parseDiffInWorker";
+import { getDiffFileIdentity } from "@/features/diff-view/services/diffFileIdentity";
 import { getDiffRenderGate } from "@/features/diff-view/services/diffRenderLimits";
 import { parseDiffInWorker } from "@/features/diff-view/services/parseDiffInWorker";
+import { WeightedLruCache } from "@/features/diff-view/services/weightedLruCache";
 import type { DiffFile } from "@/features/source-control/types";
 
 export type ParsedDiff = Awaited<ReturnType<typeof parseDiffInWorker>>;
@@ -13,9 +15,16 @@ type ParsedDiffRequest = {
   newFile: ParseWorkerFile;
 };
 
-const MAX_PARSED_DIFF_CACHE_SIZE = 64;
+const MAX_PARSED_DIFF_CACHE_ENTRIES = 24;
+const MAX_PARSED_DIFF_CACHE_ESTIMATED_BYTES = 64 * 1024 * 1024;
+const MIN_PARSED_DIFF_ESTIMATED_BYTES = 16 * 1024;
+const JAVASCRIPT_STRING_BYTES_PER_CHARACTER = 2;
+const PARSED_DIFF_STRUCTURE_MULTIPLIER = 4;
 
-const parsedDiffCache = new Map<string, ParsedDiff | null>();
+const parsedDiffCache = new WeightedLruCache<string, ParsedDiff | null>({
+  maxEntries: MAX_PARSED_DIFF_CACHE_ENTRIES,
+  maxWeight: MAX_PARSED_DIFF_CACHE_ESTIMATED_BYTES,
+});
 
 type InFlightParse = {
   promise: Promise<ParsedDiff | null>;
@@ -29,22 +38,8 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-function hashStringFNV1a(value: string): string {
-  let hash = 0x811c9dc5;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return (hash >>> 0).toString(36);
-}
-
 function getFileCacheKey(file: DiffFile): string {
-  const nameHash = hashStringFNV1a(file.name);
-  const contentsHash = hashStringFNV1a(file.contents);
-
-  return `f-${nameHash}-${file.contents.length}-${contentsHash}`;
+  return getDiffFileIdentity(file);
 }
 
 function withCacheKey(file: DiffFile, salt = ""): ParseWorkerFile {
@@ -55,15 +50,16 @@ function withCacheKey(file: DiffFile, salt = ""): ParseWorkerFile {
   };
 }
 
-function touchParsedDiff(key: string, diff: ParsedDiff | null) {
-  parsedDiffCache.delete(key);
-  parsedDiffCache.set(key, diff);
+function estimateParsedDiffBytes(request: ParsedDiffRequest): number {
+  const sourceCharacters = request.oldFile.contents.length + request.newFile.contents.length;
+  return Math.max(
+    MIN_PARSED_DIFF_ESTIMATED_BYTES,
+    sourceCharacters * JAVASCRIPT_STRING_BYTES_PER_CHARACTER * PARSED_DIFF_STRUCTURE_MULTIPLIER,
+  );
+}
 
-  while (parsedDiffCache.size > MAX_PARSED_DIFF_CACHE_SIZE) {
-    const oldestKey = parsedDiffCache.keys().next().value;
-    if (!oldestKey) break;
-    parsedDiffCache.delete(oldestKey);
-  }
+function touchParsedDiff(request: ParsedDiffRequest, diff: ParsedDiff | null) {
+  parsedDiffCache.set(request.key, diff, estimateParsedDiffBytes(request));
 }
 
 export function getParsedDiffRequest(
@@ -91,16 +87,11 @@ export function getParsedDiffRequest(
 }
 
 export function getCachedParsedDiff(key: string): ParsedDiff | null | undefined {
-  if (!parsedDiffCache.has(key)) return undefined;
-
-  const diff = parsedDiffCache.get(key) ?? null;
-  touchParsedDiff(key, diff);
-  return diff;
+  return parsedDiffCache.get(key);
 }
 
 export function peekCachedParsedDiff(key: string): ParsedDiff | null | undefined {
-  if (!parsedDiffCache.has(key)) return undefined;
-  return parsedDiffCache.get(key) ?? null;
+  return parsedDiffCache.peek(key);
 }
 
 export function isParsedDiffInFlight(key: string): boolean {
@@ -130,7 +121,7 @@ export async function loadParsedDiff(
     priority,
   )
     .then((parsedDiff) => {
-      touchParsedDiff(request.key, parsedDiff);
+      touchParsedDiff(request, parsedDiff);
       return parsedDiff;
     })
     .catch((error) => {
@@ -138,7 +129,7 @@ export async function loadParsedDiff(
         return null;
       }
 
-      touchParsedDiff(request.key, null);
+      touchParsedDiff(request, null);
       return null;
     })
     .finally(() => {

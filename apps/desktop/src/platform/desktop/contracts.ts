@@ -19,8 +19,8 @@ export type FileStatus =
   | "untracked";
 
 export type DiffFile = {
-  name: string;
-  contents: string;
+  readonly name: string;
+  readonly contents: string;
 };
 
 export type FileItem = {

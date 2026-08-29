@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 
 import type { DiffAnnotationItem } from "@/features/source-control/types";
 
@@ -16,28 +16,30 @@ type AnnotationRenderers = {
 };
 
 export function useDiffAnnotationRenderer(renderers: AnnotationRenderers) {
-  return useCallback(
-    (annotation: { metadata?: DiffAnnotationItem }) => {
-      const data = annotation.metadata;
-      if (!data) return null;
+  const renderersRef = useRef(renderers);
+  renderersRef.current = renderers;
 
-      switch (data.type) {
-        case "composer":
-          return renderers.composer?.(data) ?? null;
-        case "pull-request-anchor":
-          return renderers["pull-request-anchor"]?.(data) ?? null;
-        case "pull-request-thread":
-          return renderers["pull-request-thread"]?.(data) ?? null;
-        case "diagnostic":
-          return renderers.diagnostic?.(data) ?? null;
-        case "annotation":
-          return renderers.annotation?.(data) ?? null;
-        case "hunk-action":
-          return renderers["hunk-action"]?.(data) ?? null;
-        default:
-          return null;
-      }
-    },
-    [renderers],
-  );
+  return useCallback((annotation: { metadata?: DiffAnnotationItem }) => {
+    const data = annotation.metadata;
+    if (!data) return null;
+
+    const currentRenderers = renderersRef.current;
+
+    switch (data.type) {
+      case "composer":
+        return currentRenderers.composer?.(data) ?? null;
+      case "pull-request-anchor":
+        return currentRenderers["pull-request-anchor"]?.(data) ?? null;
+      case "pull-request-thread":
+        return currentRenderers["pull-request-thread"]?.(data) ?? null;
+      case "diagnostic":
+        return currentRenderers.diagnostic?.(data) ?? null;
+      case "annotation":
+        return currentRenderers.annotation?.(data) ?? null;
+      case "hunk-action":
+        return currentRenderers["hunk-action"]?.(data) ?? null;
+      default:
+        return null;
+    }
+  }, []);
 }

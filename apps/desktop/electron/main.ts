@@ -19,6 +19,8 @@ import { createUpdateManager } from "./updateManager";
 type DesktopMethod = keyof typeof desktopApi;
 let mainWindow: BrowserWindow | null = null;
 let disposeAppSettingsWatcher: (() => void) | null = null;
+let quitCleanupStarted = false;
+let quitCleanupFinished = false;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
@@ -164,11 +166,30 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (quitCleanupFinished) {
+    return;
+  }
+
+  event.preventDefault();
+  if (quitCleanupStarted) {
+    return;
+  }
+
+  quitCleanupStarted = true;
   updateManager.dispose();
   disposeAppSettingsWatcher?.();
   disposeAppSettingsWatcher = null;
-  void disposeDesktopApi();
+  void (async () => {
+    try {
+      await disposeDesktopApi();
+    } catch (error) {
+      console.error("Failed to dispose desktop services", error);
+    } finally {
+      quitCleanupFinished = true;
+      app.quit();
+    }
+  })();
 });
 
 app.on("window-all-closed", () => {
