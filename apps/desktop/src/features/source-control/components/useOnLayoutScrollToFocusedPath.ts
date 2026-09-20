@@ -123,7 +123,15 @@ function useOnLayoutScrollToFocusedPath<TFile extends PierreFileTreeBrowserFile>
         window.cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [compareTreeDirectories, flattenEmptyDirectories, selectedPath, model, sort]);
+  }, [
+    compareTreeDirectories,
+    filesRef,
+    flattenEmptyDirectories,
+    selectedPath,
+    model,
+    sort,
+    syncingSelectionRef,
+  ]);
 }
 
 export default useOnLayoutScrollToFocusedPath;

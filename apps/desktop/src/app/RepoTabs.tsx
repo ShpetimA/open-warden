@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, type WheelEvent } from "react";
 import { ChevronRight, FolderOpen, Plus, X } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { repoLabel, repoParentPath } from "@/features/source-control/utils";
 
 type Props = {
   repos: Array<string | undefined>;
   activeRepo: string;
   recentRepos: string[];
+  placement?: "top" | "bottom";
   onSelectRepo: (repo: string) => void;
   onCloseRepo: (repo: string) => void;
   onOpenRecentRepo: (repo: string) => void;
@@ -15,24 +17,37 @@ type Props = {
   onOpenFolder: () => void;
 };
 
-function tabStateClass(isActive: boolean): string {
+function tabPillClass(isActive: boolean): string {
   if (isActive) {
-    return "border-ring/30 bg-surface-active text-foreground shadow-[inset_0_0_0_1px_rgba(120,132,160,0.22)]";
+    return "bg-surface-active text-foreground shadow-xs ring-1 ring-border/60";
   }
-  return "border-border/70 bg-surface-alt/40 text-muted-foreground hover:bg-accent/45 hover:text-foreground";
+  return "text-muted-foreground hover:bg-accent/60 hover:text-foreground";
 }
 
-function closeButtonClass(isActive: boolean): string {
-  if (isActive) {
-    return "text-muted-foreground hover:bg-destructive/20 hover:text-destructive";
+function scrollTabsWithVerticalWheel(event: WheelEvent<HTMLDivElement>) {
+  if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+    return;
   }
-  return "text-muted-foreground/85 hover:bg-accent hover:text-foreground";
+
+  const tabList = event.currentTarget;
+  const maximumScrollLeft = Math.max(0, tabList.scrollWidth - tabList.clientWidth);
+  const nextScrollLeft = Math.min(
+    maximumScrollLeft,
+    Math.max(0, tabList.scrollLeft + event.deltaY),
+  );
+  if (nextScrollLeft === tabList.scrollLeft) {
+    return;
+  }
+
+  tabList.scrollLeft = nextScrollLeft;
+  event.preventDefault();
 }
 
 export function RepoTabs({
   repos,
   activeRepo,
   recentRepos,
+  placement = "bottom",
   onSelectRepo,
   onCloseRepo,
   onOpenRecentRepo,
@@ -44,35 +59,44 @@ export function RepoTabs({
   const previewRecentRepos = recentRepos.slice(0, 5);
 
   return (
-    <div className="border-border/70 bg-surface h-full border-t px-1.5">
-      <div className="flex h-full items-center gap-1 overflow-x-auto">
+    <div
+      className={cn(
+        "border-border/70 bg-surface h-full min-w-0 overflow-hidden px-1.5",
+        placement === "top" ? "border-b pt-1.5" : "border-t",
+      )}
+    >
+      <div
+        role="navigation"
+        aria-label="Open repositories"
+        className="flex h-full w-full min-w-0 items-center gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+        onWheel={scrollTabsWithVerticalWheel}
+      >
         {openRepos.map((repoPath, index) => {
           const isActive = repoPath === activeRepo;
-          const tabClass = tabStateClass(isActive);
-          const closeClass = closeButtonClass(isActive);
-          const firstTabEdgeClass = index === 0 ? "rounded-tl-none" : "";
+          const pillClass = tabPillClass(isActive);
+          const firstTabEdgeClass = index === 0 && placement === "bottom" ? "rounded-tl-none" : "";
 
           return (
             <div
               key={repoPath}
-              className={`flex h-7 shrink-0 items-center rounded-md border pl-1.5 ${tabClass} ${firstTabEdgeClass}`}
+              data-active={isActive || undefined}
+              className={`group/tab flex h-7 shrink-0 items-center rounded-md pr-1 pl-2 transition-[background-color,color,box-shadow,--tw-ring-color] duration-150 ease-out ${pillClass} ${firstTabEdgeClass}`}
               title={repoPath}
             >
               <button
                 type="button"
-                className="flex h-full max-w-56 min-w-0 items-center truncate pr-1 text-sm font-medium transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.98]"
+                className="flex h-full max-w-56 min-w-0 items-center truncate text-sm font-medium"
                 onClick={() => onSelectRepo(repoPath)}
               >
                 {repoLabel(repoPath)}
               </button>
               <button
                 type="button"
-                className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] ${closeClass}`}
+                className="text-muted-foreground hover:bg-foreground/12 hover:text-foreground ml-1 inline-flex size-5 items-center justify-center rounded-sm opacity-0 transition-[transform,background-color,color,opacity] duration-150 ease-[var(--ease-out)] group-hover/tab:opacity-80 hover:scale-110 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:hover:scale-110 active:scale-90 active:opacity-100"
                 onClick={(event) => {
                   event.stopPropagation();
                   onCloseRepo(repoPath);
                 }}
-                title={`Close ${repoLabel(repoPath)}`}
                 aria-label={`Close ${repoLabel(repoPath)} repository`}
               >
                 <X className="h-3.5 w-3.5" />
@@ -93,7 +117,7 @@ export function RepoTabs({
             </button>
           </PopoverTrigger>
           <PopoverContent
-            side="top"
+            side={placement === "top" ? "bottom" : "top"}
             align="start"
             sideOffset={8}
             className="border-border/70 bg-background/96 w-[320px] rounded-xl p-1.5 shadow-[0_18px_48px_rgba(0,0,0,0.35)] backdrop-blur-xl"

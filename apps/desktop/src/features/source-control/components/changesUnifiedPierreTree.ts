@@ -1,13 +1,8 @@
 import type { FileTreeSortComparator } from "@pierre/trees";
 
-import {
-  buildSourceControlFileTree,
-  collectDirectoryPaths,
-  type SourceControlTreeDirectoryNode,
-} from "@/features/source-control/fileTree";
+import type { SourceControlTreeDirectoryNode } from "@/features/source-control/fileTree";
 import type { BucketedFile, FileBrowserMode } from "@/features/source-control/types";
 import { getFlatPierrePathIndex, toDisplayPath } from "./flatPierreTree";
-import { PIERRE_FILE_TREE_ITEM_HEIGHT } from "./PierreFileTreeBrowser";
 
 const STAGED_ROOT = "Staged Changes";
 export const STAGED_ROOT_PATH = `${STAGED_ROOT}/`;
@@ -124,15 +119,6 @@ export function compareUnifiedChangeTreeDirectories(
   }
 
   return compareNames(left.name, right.name);
-}
-
-export function getUnifiedChangeTreeHeight(rows: ReadonlyArray<UnifiedChangeTreeFile>) {
-  const treeNodes = buildSourceControlFileTree(rows, {
-    compareDirectories: compareUnifiedChangeTreeDirectories,
-    flattenEmptyDirectories: false,
-  });
-  const rowCount = rows.length + collectDirectoryPaths(treeNodes).length;
-  return Math.max(PIERRE_FILE_TREE_ITEM_HEIGHT, rowCount * PIERRE_FILE_TREE_ITEM_HEIGHT + 4);
 }
 
 export function isMergeConflictPath(

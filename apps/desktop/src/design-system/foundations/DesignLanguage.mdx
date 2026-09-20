@@ -1,0 +1,46 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design system/Design language" />
+
+# Open Warden design language
+
+Open Warden is a focused desktop workspace for understanding and reviewing code changes. The interface should feel calm under pressure: compact without feeling cramped, technical without becoming noisy, and expressive without decorating every surface.
+
+## Core qualities
+
+### Quiet structure
+
+Use alignment, spacing, typography, and surface contrast to establish hierarchy. Borders explain structure; shadows communicate real depth. Avoid nesting cards simply to group nearby content.
+
+### Semantic color
+
+Color always carries a stable meaning. Green represents additions and successful outcomes, red represents deletions and destructive outcomes, blue represents modifications and information, and amber represents conflicts or attention. Pair color with text, a symbol, or shape.
+
+### Desktop density
+
+Rows and toolbars are compact, but primary controls retain a 40px target and selectable rows retain at least a 44px height. Metadata stays subordinate, paths use monospace, and changing numbers use tabular figures.
+
+### Visible state
+
+Selection, keyboard focus, loading, disabled, conflict, pending, and destructive states are first-class designs. Hover is supporting feedback and never the only way to discover an action.
+
+## Surface hierarchy
+
+1. **Canvas** — the application background.
+2. **Panel** — persistent sidebars, inspectors, and bounded workspaces.
+3. **Raised** — transient menus, popovers, and focused cards.
+4. **Overlay** — blocking dialogs and command surfaces.
+
+Each level should be recognizable in both themes without relying on a heavy border.
+
+## Component grammar
+
+- A **workspace tab** preserves the open resource and its context. Project and pull-request tabs may coexist.
+- A **project view tab** switches peer tools such as Changes, History, Review, and Pull requests without changing projects.
+- The **command launcher** is the common entry point for opening resources and invoking actions.
+- A **panel** owns its header, scroll region, and footer.
+- A **row** represents one selectable object and keeps its state marker aligned to a stable leading column.
+- A **status badge** names durable state; a **notice** explains temporary or actionable state.
+- A **diff statistic** always includes an accessible semantic label, even when only a signed number is visible.
+- **Pierre** remains responsible for file-tree rendering. The design system owns the chrome and states around it.
+- Feature screens compose these pieces but do not redefine their colors, geometry, or interaction states.

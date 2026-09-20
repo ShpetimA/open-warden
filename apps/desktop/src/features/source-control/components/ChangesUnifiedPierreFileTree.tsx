@@ -1,12 +1,19 @@
-import type { FileTreeRowDecoration } from "@pierre/trees";
+import type { FileTreeRowDecoration, GitStatusEntry } from "@pierre/trees";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
+import {
+  areCommentCountMapsEqual,
+  selectChangesCommentCountByPathForRepo,
+} from "@/features/comments/selectors";
 import {
   rangeSelectFile,
   selectFile,
   toggleFileSelection,
 } from "@/features/source-control/actions";
+import {
+  ChangesFileContextMenu,
+  ChangesSectionContextMenu,
+} from "@/features/source-control/components/ChangesContextMenu";
 import { getPierreFileTreeVisibleSelectedFiles } from "@/features/source-control/pierreFileTreeNavigation";
 import type { Bucket, BucketedFile, FileBrowserMode } from "@/features/source-control/types";
 import {
@@ -16,15 +23,11 @@ import {
   compareUnifiedChangeTreeDirectories,
   compareUnifiedChangeTreeEntries,
   CONFLICTS_ROOT_PATH,
-  getUnifiedChangeTreeHeight,
   STAGED_ROOT_PATH,
+  type UnifiedChangeTreeFile,
 } from "./changesUnifiedPierreTree";
 import { buildPierreGitStatusEntries } from "./pierreFileTree";
 import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
-import {
-  ChangesSectionContextMenu,
-  ChangesFileContextMenu,
-} from "@/features/source-control/components/ChangesContextMenu";
 
 const SELECTION_KEY_SEPARATOR = "\u0000";
 
@@ -44,7 +47,41 @@ type ChangesUnifiedPierreFileTreeProps = {
   onDiscardChangesGroup: (files: BucketedFile[]) => void;
 };
 
-export function ChangesUnifiedPierreFileTree({
+type ConnectedChangesTreeProps = ChangesUnifiedPierreFileTreeProps & {
+  files: UnifiedChangeTreeFile[];
+  filesByTreePath: ReadonlyMap<string, UnifiedChangeTreeFile>;
+  treePathBySelectionKey: ReadonlyMap<string, string>;
+  gitStatus: readonly GitStatusEntry[];
+};
+
+export function ChangesUnifiedPierreFileTree(props: ChangesUnifiedPierreFileTreeProps) {
+  const { stagedRows, changedRows, conflictRows, mode } = props;
+  const files = buildUnifiedChangeTreeFiles(stagedRows, changedRows, conflictRows, mode);
+
+  if (files.length === 0) {
+    return <div className="text-muted-foreground px-3 py-2 text-xs">No files.</div>;
+  }
+
+  const filesByTreePath = new Map(files.map((file) => [file.path, file]));
+  const treePathBySelectionKey = new Map(files.map((file) => [selectionKey(file), file.path]));
+  const gitStatus = buildPierreGitStatusEntries(
+    files,
+    (file) => file.path,
+    (file) => file.status,
+  );
+
+  return (
+    <ConnectedChangesTree
+      {...props}
+      files={files}
+      filesByTreePath={filesByTreePath}
+      treePathBySelectionKey={treePathBySelectionKey}
+      gitStatus={gitStatus}
+    />
+  );
+}
+
+function ConnectedChangesTree({
   mode,
   stagedRows,
   changedRows,
@@ -58,31 +95,25 @@ export function ChangesUnifiedPierreFileTree({
   onUnstageFiles,
   onDiscardFile,
   onDiscardChangesGroup,
-}: ChangesUnifiedPierreFileTreeProps) {
+  files,
+  filesByTreePath,
+  treePathBySelectionKey,
+  gitStatus,
+}: ConnectedChangesTreeProps) {
   const dispatch = useAppDispatch();
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const selectedFiles = useAppSelector((state) => state.sourceControl.selectedFiles);
-  const comments = useAppSelector((state) => state.comments);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
-  const files = buildUnifiedChangeTreeFiles(stagedRows, changedRows, conflictRows, mode);
-  const filesByTreePath = new Map(files.map((file) => [file.path, file]));
-  const treePathBySelectionKey = new Map(files.map((file) => [selectionKey(file), file.path]));
+  const commentCounts = useAppSelector<ReadonlyMap<string, number>>(
+    (state) => selectChangesCommentCountByPathForRepo(state, activeRepo),
+    areCommentCountMapsEqual,
+  );
   const selectedPath = treePathBySelectionKey.get(toBucketPathKey(activeBucket, activePath)) ?? "";
   const selectedPaths = selectedFiles
     .map((file) => treePathBySelectionKey.get(toBucketPathKey(file.bucket, file.path)))
-    .filter((path): path is string => !!path);
-  const gitStatus = buildPierreGitStatusEntries(
-    files,
-    (file) => file.path,
-    (file) => file.status,
-  );
-  const treeHeight = getUnifiedChangeTreeHeight(files);
+    .filter((path): path is string => path !== undefined);
   const hasRunningAction = runningAction !== "";
-
-  if (files.length === 0) {
-    return <div className="text-muted-foreground px-3 py-2 text-xs">No files.</div>;
-  }
 
   const activatePath = (treePath: string) => {
     const file = filesByTreePath.get(treePath);
@@ -111,8 +142,6 @@ export function ChangesUnifiedPierreFileTree({
       selectedPaths={selectedPaths}
       navRegion="changes-files"
       className="py-0.5"
-      style={{ height: `${treeHeight}px` }}
-      disableInternalScroll
       flattenEmptyDirectories={false}
       sort={mode === "list" ? compareUnifiedChangeListEntries : compareUnifiedChangeTreeEntries}
       compareTreeDirectories={compareUnifiedChangeTreeDirectories}
@@ -120,6 +149,7 @@ export function ChangesUnifiedPierreFileTree({
       onTogglePathSelection={togglePathSelection}
       onRangeSelectPath={rangeSelectPath}
       gitStatus={gitStatus}
+      rowDecorationInvalidationKey={commentCounts}
       renderRowDecoration={({ item }): FileTreeRowDecoration | null => {
         if (item.kind === "directory") {
           if (item.path === STAGED_ROOT_PATH) {
@@ -143,12 +173,7 @@ export function ChangesUnifiedPierreFileTree({
         const file = filesByTreePath.get(item.path);
         if (!file) return null;
 
-        const commentCount = countCommentsForPathInRepoContext(
-          comments,
-          activeRepo,
-          file.realPath,
-          { kind: "changes" },
-        );
+        const commentCount = commentCounts.get(file.realPath) ?? 0;
         return commentCount > 0
           ? {
               text: String(commentCount),

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Open Warden Design System"
+  short_description: "Build and review polished Open Warden desktop UI"
+  default_prompt: "Use $open-warden-design-system to build or review this Open Warden interface."
+policy:
+  allow_implicit_invocation: true

@@ -16,6 +16,8 @@
     "test": "turbo run test",
     "test:e2e": "pnpm --filter desktop test:e2e",
     "test:e2e:install": "pnpm --filter desktop test:e2e:install",
+    "storybook": "pnpm --filter desktop storybook",
+    "build:storybook": "pnpm --filter desktop build:storybook",
     "fmt": "oxfmt --ignore-path .oxfmtignore",
     "fmt:check": "oxfmt --check --ignore-path .oxfmtignore",
     "format": "pnpm fmt",

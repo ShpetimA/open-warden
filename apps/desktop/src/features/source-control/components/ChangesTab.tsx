@@ -1,5 +1,4 @@
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { confirmDiscard } from "@/features/comments/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
@@ -103,29 +102,26 @@ function ChangesFileList() {
   };
 
   return (
-    <div className="bg-surface-toolbar flex min-h-0 h-full flex-1 flex-col overflow-hidden">
-      <ScrollArea data-nav-region="changes-files" className="min-h-0 h-full flex-1 overflow-hidden">
-        <div>
-          {isLoadingSnapshot ? (
-            <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
-          ) : null}
-          <ChangesUnifiedPierreFileTree
-            mode={fileBrowserMode}
-            stagedRows={stagedRows}
-            changedRows={changedFiles}
-            conflictRows={conflictRows}
-            activeRepo={activeRepo}
-            onStageAll={onStageAll}
-            onUnstageAll={onUnstageAll}
-            onStageFile={onStageFile}
-            onUnstageFile={onUnstageFile}
-            onStageFiles={onStageFiles}
-            onUnstageFiles={onUnstageFiles}
-            onDiscardFile={onDiscardFile}
-            onDiscardChangesGroup={onDiscardChangesGroup}
-          />
-        </div>
-      </ScrollArea>
+    <div className="bg-surface-toolbar flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {isLoadingSnapshot && !snapshot ? (
+        <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
+      ) : (
+        <ChangesUnifiedPierreFileTree
+          mode={fileBrowserMode}
+          stagedRows={stagedRows}
+          changedRows={changedFiles}
+          conflictRows={conflictRows}
+          activeRepo={activeRepo}
+          onStageAll={onStageAll}
+          onUnstageAll={onUnstageAll}
+          onStageFile={onStageFile}
+          onUnstageFile={onUnstageFile}
+          onStageFiles={onStageFiles}
+          onUnstageFiles={onUnstageFiles}
+          onDiscardFile={onDiscardFile}
+          onDiscardChangesGroup={onDiscardChangesGroup}
+        />
+      )}
     </div>
   );
 }

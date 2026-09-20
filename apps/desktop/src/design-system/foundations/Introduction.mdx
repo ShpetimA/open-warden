@@ -1,0 +1,20 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design system/Introduction" />
+
+# Open Warden design system
+
+The design system is the shared language for Open Warden's desktop interface. It keeps dense source-control workflows calm, legible, keyboard-friendly, and consistent across light and dark themes.
+
+## Structure
+
+- **Foundations** define semantic color, typography, spacing, radius, elevation, and motion.
+- **Components** are reusable accessible controls in `src/components/ui`.
+- **Compositions** combine components into desktop patterns such as panels, toolbars, file rows, diff statistics, and review states.
+- **Features** own business behavior and one-screen layouts.
+
+## Working rule
+
+Feature UI consumes semantic tokens and shared controls. Physical palette colors and one-off interaction patterns should stay out of feature code when an established semantic role exists.
+
+Every shared component should show its normal, hover or focus, disabled, loading, invalid, selected, and destructive states when those states apply. Verify both themes and keyboard behavior before considering a visible change complete.

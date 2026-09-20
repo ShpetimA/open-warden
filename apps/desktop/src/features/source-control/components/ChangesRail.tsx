@@ -53,12 +53,14 @@ function PullRequestRailTabs({
     <div className="border-border/70 mt-2 flex flex-col gap-1 border-t pt-2">
       <SidebarTabButton
         icon={<GitPullRequest className="h-4 w-4" />}
+        label="Pull request files"
         isActive={isPullRequestFilesRoute}
         onClick={() => navigate("/changes/pull-request/files")}
       />
 
       <SidebarTabButton
         icon={<ShieldCheck className="h-4 w-4" />}
+        label="Pull request checks"
         isActive={isPullRequestChecksRoute}
         onClick={() => navigate("/changes/pull-request/checks")}
       />
@@ -85,11 +87,13 @@ export function ChangesRail() {
     <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 w-12 shrink-0 flex-col items-center gap-1 border-r px-2 py-2">
       <SidebarTabButton
         icon={<GitPullRequestArrow className="h-4 w-4" />}
+        label="Source control view"
         isActive={isChangesRoute}
         onClick={() => navigate("/changes")}
       />
       <SidebarTabButton
         icon={<Files className="h-4 w-4" />}
+        label="Repository files"
         isActive={isRepoFilesRoute}
         onClick={() => navigate("/changes/files")}
       />
