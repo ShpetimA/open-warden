@@ -86,7 +86,7 @@ export function reduceWorkspaceState(
         ? sourceControl.repos
         : [...sourceControl.repos, workspace.repoPath],
     };
-  } else if (previousId !== nextId) {
+  } else if (!workspace && previousId !== nextId) {
     sourceControl = { ...sourceControl, activeRepo: "" };
   }
   return { sourceControl, pullRequests, workspaces, workspaceViews };

@@ -68,3 +68,13 @@ it("round trips tab order, PR identity, active tab and drafts through session st
   const repo = reduceWorkspaceState(restored, workspaceActivated({ id: "/a" }));
   expect(repo.sourceControl.commitMessage).toBe("keep this draft");
 });
+
+it("never clears the repository while switching between a project and its PR", () => {
+  let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/b" }));
+  state = reduceWorkspaceState(state, pullRequestWorkspaceUpserted(pr));
+  expect(state.sourceControl.activeRepo).toBe("/b");
+  state = reduceWorkspaceState(state, workspaceActivated({ id: "/b" }));
+  expect(state.sourceControl.activeRepo).toBe("/b");
+  state = reduceWorkspaceState(state, workspaceRemoved({ id: "/b" }));
+  expect(state.sourceControl.activeRepo).toBe("/b");
+});
