@@ -26,7 +26,7 @@ export function SidebarPanelToggles() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col items-center gap-1">
         {sidebars.map((sidebar) => {
           const entry = panels.get(sidebar.panelId);
           const isCollapsed = entry?.collapsed ?? true;
@@ -39,7 +39,7 @@ export function SidebarPanelToggles() {
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className={`flex h-8 w-8 items-center justify-center rounded-md transition-[background-color,color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
+                  className={`flex h-8 w-8 [&>svg]:size-4 [&>svg]:stroke-[1.75] items-center justify-center rounded-md transition-[background-color,color] duration-150 ease-[var(--ease-out)] active:scale-[0.95] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
                     isCollapsed
                       ? "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
                       : "text-foreground"

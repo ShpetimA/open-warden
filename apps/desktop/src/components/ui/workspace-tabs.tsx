@@ -137,13 +137,15 @@ function WorkspaceTabs({
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "shrink-0 [&>svg]:size-3",
+                    "inline-flex size-[18px] shrink-0 items-center justify-center leading-none [&>svg]:size-3",
                     active ? "text-primary" : "text-foreground/55",
                   )}
                 >
                   {item.icon}
                 </span>
-                <span className="block truncate text-xs font-medium">{item.label}</span>
+                <span className="block truncate text-xs font-medium leading-none">
+                  {item.label}
+                </span>
                 {item.context ? <span className="sr-only">{` · ${item.context}`}</span> : null}
                 {item.status && !onClose ? (
                   <span className="ml-auto shrink-0 pl-1">{item.status}</span>
