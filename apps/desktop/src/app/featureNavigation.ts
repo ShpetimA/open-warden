@@ -14,7 +14,7 @@ export const FEATURE_NAV_ITEMS: FeatureNavItem[] = [
   { key: "changes", path: "/changes", label: "Changes", icon: GitPullRequestArrow },
   { key: "pull-requests", path: "/pull-requests", label: "Pull Requests", icon: GitPullRequest },
   { key: "history", path: "/history", label: "History", icon: History },
-  { key: "review", path: "/review", label: "Review", icon: GitBranch },
+  { key: "review", path: "/review", label: "Compare refs", icon: GitBranch },
 ];
 
 export function featureKeyFromPath(pathname: string): FeatureKey {

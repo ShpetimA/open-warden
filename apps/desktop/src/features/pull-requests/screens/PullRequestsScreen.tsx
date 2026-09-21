@@ -1,7 +1,7 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useEffect, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+
 import {
   CalendarClock,
   ExternalLink,
@@ -12,7 +12,7 @@ import {
   Unplug,
 } from "lucide-react";
 
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
   useDisconnectProviderMutation,
@@ -23,7 +23,7 @@ import {
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import { CommentBody } from "@/features/pull-requests/components/pullRequestCommentParts";
-import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
+import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { isTypingTarget } from "@/features/source-control/utils";
 import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
@@ -299,7 +299,7 @@ function PullRequestPreviewPane({
 }
 
 export function PullRequestsScreen() {
-  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
@@ -424,12 +424,14 @@ export function PullRequestsScreen() {
       return;
     }
 
-    navigate(
-      buildPullRequestPreviewPath({
+    void dispatch(
+      openPullRequestWorkspace({
+        repoPath: activeRepo,
         providerId: pullRequest.providerId,
         owner: hostedRepo.owner,
         repo: hostedRepo.repo,
         pullRequestNumber: pullRequest.number,
+        title: pullRequests.find((item) => item.number === pullRequest.number)?.title ?? "",
       }),
     );
   }

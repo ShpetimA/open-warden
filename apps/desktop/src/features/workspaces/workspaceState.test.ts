@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { reduceWorkspaceState } from "./workspaceState";
+import { reduceWorkspaceState, serializeWorkspaceTabs } from "./workspaceState";
 import {
   repoWorkspaceUpserted,
   pullRequestWorkspaceUpserted,
   workspaceActivated,
   workspaceRemoved,
+  workspaceSessionRestored,
 } from "./workspacesSlice";
 import { setActivePath, setCommitMessage } from "@/features/source-control/sourceControlSlice";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
@@ -49,4 +50,21 @@ describe("workspace transitions", () => {
     expect(state.workspaces.activeWorkspaceId).toBe("/c");
     expect(state.sourceControl.activeRepo).toBe("/c");
   });
+});
+
+it("round trips tab order, PR identity, active tab and drafts through session storage", () => {
+  let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/a" }));
+  state = reduceWorkspaceState(state, setCommitMessage("keep this draft"));
+  state = reduceWorkspaceState(state, pullRequestWorkspaceUpserted(pr));
+  state = reduceWorkspaceState(state, setPullRequestPreviewActiveFilePath("review.ts"));
+  const saved = serializeWorkspaceTabs(state);
+  const restored = reduceWorkspaceState(
+    reduceWorkspaceState(undefined, { type: "init" }),
+    workspaceSessionRestored(saved),
+  );
+  expect(restored.workspaces.items).toEqual(state.workspaces.items);
+  expect(restored.workspaces.activeWorkspaceId).toBe(state.workspaces.activeWorkspaceId);
+  expect(restored.pullRequests.previewActiveFilePath).toBe("review.ts");
+  const repo = reduceWorkspaceState(restored, workspaceActivated({ id: "/a" }));
+  expect(repo.sourceControl.commitMessage).toBe("keep this draft");
 });

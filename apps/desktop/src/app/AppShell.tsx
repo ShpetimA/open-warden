@@ -66,7 +66,7 @@ export function AppShell() {
             <AppHeader
               activeFeature={activeFeature}
               currentPath={location.pathname}
-              showWorkspaceTabs={!isSettingsRoute}
+              showWorkspaceTabs
               onOpenWorkspaces={openRecentProjectsPicker}
               onOpenCommandPalette={() => {
                 setCommandPaletteOpen(true);

@@ -1,3 +1,4 @@
+import { serializeWorkspaceTabs } from "@/features/workspaces/workspaceState";
 import type { AppThunk, RootState } from "@/app/store";
 import { toast } from "sonner";
 import { desktop } from "@/platform/desktop";
@@ -13,6 +14,7 @@ import {
   repoWorkspaceUpserted,
   workspacesHydrated,
   workspaceRemoved,
+  workspaceSessionRestored,
 } from "@/features/workspaces/workspacesSlice";
 import {
   clearCurrentPullRequestReview,
@@ -123,9 +125,16 @@ const resetRepoScopedState = (): AppThunk => (dispatch) => {
   dispatch(clearCurrentPullRequestReview());
 };
 
-async function persistWorkspaceSession(getState: () => RootState) {
-  const { sourceControl } = getState();
-  await desktop.saveWorkspaceSession(buildWorkspaceSession(sourceControl));
+let sessionWrite: Promise<unknown> = Promise.resolve();
+export async function persistWorkspaceSession(getState: () => RootState) {
+  const state = getState();
+  const session = {
+    ...buildWorkspaceSession(state.sourceControl),
+    workspaceTabs: serializeWorkspaceTabs(state),
+  };
+  const write = sessionWrite.then(() => desktop.saveWorkspaceSession(session));
+  sessionWrite = write.catch(() => undefined);
+  await write;
 }
 
 async function resolveRepoPath(repoPath: string): Promise<string | null> {
@@ -156,6 +165,7 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
       openRepos: restoredOpenRepos,
       activeRepo: restoredActiveRepo ?? undefined,
       recentRepos: restoredRecentRepos,
+      workspaceTabs: storedSession.workspaceTabs,
     });
 
     dispatch(hydrateWorkspaceSessionState(workspaceSession));
@@ -165,6 +175,9 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
         activeRepo: workspaceSession.activeRepo,
       }),
     );
+
+    if (workspaceSession.workspaceTabs)
+      dispatch(workspaceSessionRestored(workspaceSession.workspaceTabs));
 
     if (!workspaceSession.activeRepo) {
       dispatch(resetRepoScopedState());

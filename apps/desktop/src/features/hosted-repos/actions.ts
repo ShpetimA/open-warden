@@ -1,9 +1,14 @@
 import type { AppThunk } from "@/app/store";
 import { preparePullRequestWorkspace } from "@/features/hosted-repos/services/hostedRepos";
 import { desktop } from "@/platform/desktop";
-import { clearCurrentPullRequestReview } from "@/features/pull-requests/pullRequestsSlice";
+
 import { openRepo, refreshActiveRepo } from "@/features/source-control/actions";
-import { resetRepoViewState } from "@/features/source-control/sourceControlSlice";
+import {
+  selectActiveWorkspace,
+  pullRequestWorkspaceUpserted,
+  workspaceLocationChanged,
+} from "@/features/workspaces/workspacesSlice";
+import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import type { PullRequestOpenMode } from "@/platform/desktop";
 
 export type OpenPullRequestReviewResult = {
@@ -17,6 +22,7 @@ export const openPullRequestReview =
   ): AppThunk<Promise<OpenPullRequestReviewResult>> =>
   async (dispatch, getState) => {
     const activeRepo = getState().sourceControl.activeRepo;
+    const workspace = selectActiveWorkspace(getState());
     if (!activeRepo) {
       return { errorMessage: "No repository is currently active." };
     }
@@ -42,11 +48,17 @@ export const openPullRequestReview =
         openMode,
       });
 
-      const reopeningCurrentRepo = preparedWorkspace.repoPath === activeRepo;
       await dispatch(openRepo(preparedWorkspace.repoPath));
-      if (reopeningCurrentRepo) {
-        dispatch(resetRepoViewState());
-        dispatch(clearCurrentPullRequestReview());
+      if (workspace?.kind === "pull-request") {
+        dispatch(
+          workspaceLocationChanged({
+            id: workspace.id,
+            path: workspacePath(workspace).replace(/overview$/, "local-files"),
+          }),
+        );
+        dispatch(
+          pullRequestWorkspaceUpserted({ ...workspace, repoPath: preparedWorkspace.repoPath }),
+        );
       }
       await dispatch(refreshActiveRepo());
       return { errorMessage: null };

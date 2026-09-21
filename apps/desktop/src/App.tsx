@@ -92,6 +92,14 @@ const router = createHashRouter([
                 element: <Navigate to="overview" replace />,
               },
               {
+                path: "local-files",
+                element: <PullRequestReviewFilesScreen />,
+              },
+              {
+                path: "local-checks",
+                element: <PullRequestReviewChecksScreen />,
+              },
+              {
                 path: "overview",
                 element: <PullRequestOverview />,
               },

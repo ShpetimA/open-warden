@@ -1,3 +1,4 @@
+import { closeWorkspace } from "@/features/workspaces/actions";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Clock3, File, GitCommitHorizontal, Wrench } from "lucide-react";
@@ -20,7 +21,6 @@ import {
 import { confirmDiscard, copyComments } from "@/features/comments/actions";
 import { compactComments } from "@/features/comments/selectors";
 import {
-  closeRepo,
   commitAction,
   discardChangesGroupAction,
   openRepo,
@@ -179,6 +179,7 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
   const { setTheme } = useTheme();
   const feature = featureKeyFromPath(location.pathname);
 
+  const activeWorkspaceId = useAppSelector((state) => state.workspaces.activeWorkspaceId);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const repos = useAppSelector((state) => state.sourceControl.repos);
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
@@ -334,15 +335,12 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
     })),
     {
       id: "repo:close-active",
-      label: "Close Active Repo",
+      label: "Close Active Workspace",
       disabled: !activeRepo,
       keywords: ["repo", "close"],
       onSelect: async () => {
         if (!activeRepo) return;
-        const result = await dispatch(closeRepo(activeRepo));
-        if (result.closedActiveRepo && location.pathname !== "/changes") {
-          navigate("/changes", { replace: true });
-        }
+        dispatch(closeWorkspace(activeWorkspaceId));
       },
     },
     {

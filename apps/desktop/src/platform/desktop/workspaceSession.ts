@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { workspaceTabsSchema } from "./workspaceTabs";
 import type { WorkspaceSession } from "./contracts";
 
 export const MAX_RECENT_REPOS = 12;
@@ -54,9 +56,16 @@ export function addRecentRepo(recentRepos: string[], repoPath: string): string[]
   return mergeRecentRepos(recentRepos, [], repoPath);
 }
 
-export function createWorkspaceSession(
-  session?: Partial<WorkspaceSession> | null,
-): WorkspaceSession {
+export function createWorkspaceSession(input?: unknown): WorkspaceSession {
+  const parsed = z
+    .object({
+      openRepos: z.unknown().optional(),
+      activeRepo: z.unknown().optional(),
+      recentRepos: z.unknown().optional(),
+      workspaceTabs: workspaceTabsSchema.optional(),
+    })
+    .safeParse(input ?? {});
+  const session = parsed.success ? parsed.data : undefined;
   const openRepos = normalizeRepoPaths(session?.openRepos);
   const activeRepo = resolveActiveRepo(session?.activeRepo, openRepos);
   const recentRepos = mergeRecentRepos(
@@ -69,6 +78,7 @@ export function createWorkspaceSession(
     openRepos,
     activeRepo,
     recentRepos,
+    ...(session?.workspaceTabs ? { workspaceTabs: session.workspaceTabs } : {}),
   };
 }
 

@@ -286,6 +286,7 @@ export type PreparedPullRequestWorkspace = {
 };
 
 export type WorkspaceSession = {
+  workspaceTabs?: import("./workspaceTabs").PersistedWorkspaceTabs;
   openRepos: string[];
   activeRepo: string;
   recentRepos: string[];

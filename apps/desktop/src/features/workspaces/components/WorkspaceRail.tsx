@@ -8,10 +8,14 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
+import { openPullRequestWorkspace } from "../actions";
 import SidebarTabButton from "@/components/ui/sidebar-tab";
 import { SidebarPanelToggles } from "@/components/layout/SidebarPanelToggles";
-import { useAppSelector } from "@/app/hooks";
-import { useResolveActivePullRequestForBranchQuery } from "@/features/hosted-repos/api";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import {
+  useResolveActivePullRequestForBranchQuery,
+  useResolveHostedRepoQuery,
+} from "@/features/hosted-repos/api";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import { selectActiveWorkspace, type Workspace } from "@/features/workspaces/workspacesSlice";
 
@@ -62,7 +66,7 @@ function repoRailSections(): RailSection[] {
     },
     {
       key: "review",
-      label: "Review",
+      label: "Compare refs",
       icon: <GitBranch />,
       path: "/review",
       isActive: (pathname) => startsWith(pathname, "/review"),
@@ -70,7 +74,10 @@ function repoRailSections(): RailSection[] {
   ];
 }
 
-function pullRequestRailSections(workspace: Workspace & { kind: "pull-request" }): RailSection[] {
+function pullRequestRailSections(
+  workspace: Workspace & { kind: "pull-request" },
+  localReview: boolean,
+): RailSection[] {
   const base = `/pull-requests/${workspace.providerId}/${workspace.owner}/${workspace.repo}/${workspace.pullRequestNumber}`;
 
   return [
@@ -85,15 +92,17 @@ function pullRequestRailSections(workspace: Workspace & { kind: "pull-request" }
       key: "files",
       label: "Files",
       icon: <Files />,
-      path: base + "/files",
-      isActive: (pathname) => startsWith(pathname, `${base}/files`),
+      path: base + (localReview ? "/local-files" : "/files"),
+      isActive: (pathname) =>
+        startsWith(pathname, `${base}/files`) || startsWith(pathname, `${base}/local-files`),
     },
     {
       key: "checks",
       label: "Checks",
       icon: <ShieldCheck />,
-      path: base + "/checks",
-      isActive: (pathname) => startsWith(pathname, `${base}/checks`),
+      path: base + (localReview ? "/local-checks" : "/checks"),
+      isActive: (pathname) =>
+        startsWith(pathname, `${base}/checks`) || startsWith(pathname, `${base}/local-checks`),
     },
   ];
 }
@@ -105,46 +114,40 @@ function ActivePullRequestSegments({
   activeRepo?: string;
   activeBranch: string;
 }) {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const currentReview = useAppSelector((state) => state.pullRequests.currentReview);
+  const dispatch = useAppDispatch();
+  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo ?? "", {
+    skip: !activeRepo,
+    selectFromResult: ({ data }) => ({ hostedRepo: data }),
+  });
+  const { activePullRequest } = useResolveActivePullRequestForBranchQuery(
+    { repoPath: activeRepo ?? "", branch: activeBranch },
+    {
+      skip: !activeRepo || !activeBranch,
+      selectFromResult: ({ data }) => ({
+        activePullRequest: data ?? null,
+      }),
+    },
+  );
 
-  const { activePullRequest, loadingActivePullRequest, fetchingActivePullRequest } =
-    useResolveActivePullRequestForBranchQuery(
-      { repoPath: activeRepo ?? "", branch: activeBranch },
-      {
-        skip: !activeRepo || !activeBranch,
-        selectFromResult: ({ data, isLoading, isFetching }) => ({
-          activePullRequest: data ?? null,
-          loadingActivePullRequest: isLoading,
-          fetchingActivePullRequest: isFetching,
-        }),
-      },
-    );
-
-  const keepSegmentVisibleWhileLoading =
-    currentReview !== null &&
-    currentReview.repoPath === activeRepo &&
-    (loadingActivePullRequest || fetchingActivePullRequest);
-  const shouldShowSegment = Boolean(activePullRequest) || keepSegmentVisibleWhileLoading;
-
-  if (!shouldShowSegment) {
-    return null;
-  }
-
+  if (!activePullRequest || !hostedRepo || !activeRepo) return null;
   return (
-    <div className="border-border/70 mt-2 flex flex-col gap-1 border-t pt-2">
+    <div className="border-border/70 mt-2 border-t pt-2">
       <SidebarTabButton
         icon={<GitPullRequest />}
-        label="Pull request files"
-        isActive={location.pathname.startsWith("/changes/pull-request/files")}
-        onClick={() => navigate("/changes/pull-request/files")}
-      />
-      <SidebarTabButton
-        icon={<ShieldCheck />}
-        label="Pull request checks"
-        isActive={location.pathname.startsWith("/changes/pull-request/checks")}
-        onClick={() => navigate("/changes/pull-request/checks")}
+        label={`Open branch PR #${activePullRequest.number}`}
+        isActive={false}
+        onClick={() => {
+          void dispatch(
+            openPullRequestWorkspace({
+              repoPath: activeRepo,
+              providerId: activePullRequest.providerId,
+              owner: hostedRepo.owner,
+              repo: hostedRepo.repo,
+              pullRequestNumber: activePullRequest.number,
+              title: activePullRequest.title,
+            }),
+          );
+        }}
       />
     </div>
   );
@@ -162,11 +165,17 @@ export function WorkspaceRail() {
     }),
   });
 
+  const hasLocalReview = useAppSelector((state) => state.pullRequests.currentReview !== null);
   const sections = activeWorkspace
     ? activeWorkspace.kind === "repo"
       ? repoRailSections()
-      : pullRequestRailSections(activeWorkspace)
+      : pullRequestRailSections(
+          activeWorkspace,
+          hasLocalReview || location.pathname.includes("/local-"),
+        )
     : [];
+
+  if (!activeWorkspace) return null;
 
   return (
     <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 w-12 shrink-0 flex-col items-center gap-1 border-r px-2 py-2">

@@ -1,5 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
+import type { PersistedWorkspaceTabs } from "@/platform/desktop/workspaceTabs";
 import type { RootState } from "@/app/store";
 import type { GitProviderId } from "@/platform/desktop";
 
@@ -34,10 +35,12 @@ export function repoWorkspaceId(repoPath: string): string {
 }
 
 export function pullRequestWorkspaceId(input: {
-  repoPath: string;
+  providerId: GitProviderId;
+  owner: string;
+  repo: string;
   pullRequestNumber: number;
 }): string {
-  return `pr:${input.repoPath}:${input.pullRequestNumber}`;
+  return `pr:${input.providerId}:${input.owner}/${input.repo}:${input.pullRequestNumber}`;
 }
 
 function createRepoWorkspace(repoPath: string): RepoWorkspace {
@@ -65,6 +68,11 @@ const workspacesSlice = createSlice({
   name: "workspaces",
   initialState,
   reducers: {
+    workspaceSessionRestored(state, action: PayloadAction<PersistedWorkspaceTabs>) {
+      state.items = action.payload.items;
+      state.activeWorkspaceId = action.payload.activeWorkspaceId;
+      state.locations = action.payload.locations;
+    },
     workspacesHydrated(state, action: PayloadAction<{ openRepos: string[]; activeRepo?: string }>) {
       state.items = action.payload.openRepos.map((repoPath) => createRepoWorkspace(repoPath));
       state.activeWorkspaceId = action.payload.activeRepo
@@ -121,6 +129,7 @@ const workspacesSlice = createSlice({
 
 export const workspacesReducer = workspacesSlice.reducer;
 export const {
+  workspaceSessionRestored,
   workspacesHydrated,
   repoWorkspaceUpserted,
   pullRequestWorkspaceUpserted,

@@ -1,3 +1,4 @@
+import { workspacesReducer } from "@/features/workspaces/workspacesSlice";
 import { configureStore } from "@reduxjs/toolkit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -66,6 +67,7 @@ function createTestStore() {
   return configureStore({
     reducer: {
       settings: settingsReducer,
+      workspaces: workspacesReducer,
       sourceControl: sourceControlReducer,
       pullRequests: pullRequestsReducer,
       comments: commentsReducer,

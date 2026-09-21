@@ -1,7 +1,11 @@
 import { useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { selectActiveWorkspace, workspaceLocationChanged } from "../workspacesSlice";
+import {
+  selectActiveWorkspace,
+  workspaceLocationChanged,
+  repoWorkspaceUpserted,
+} from "../workspacesSlice";
 import { workspacePath, isRouteWithinWorkspace } from "../workspaceRoutes";
 
 export function WorkspaceNavigation() {
@@ -18,6 +22,21 @@ export function WorkspaceNavigation() {
     if (previousId.current !== id) {
       previousId.current = id;
       navigate(workspace ? (savedPath ?? workspacePath(workspace)) : "/changes", { replace: true });
+      return;
+    }
+    if (
+      workspace?.kind === "pull-request" &&
+      ["/changes", "/changes/files", "/history", "/review", "/pull-requests"].includes(
+        location.pathname,
+      )
+    ) {
+      dispatch(
+        workspaceLocationChanged({
+          id: workspace.repoPath,
+          path: location.pathname + location.search,
+        }),
+      );
+      dispatch(repoWorkspaceUpserted({ repoPath: workspace.repoPath }));
       return;
     }
     if (workspace && isRouteWithinWorkspace(location.pathname, workspace)) {

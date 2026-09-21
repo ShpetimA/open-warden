@@ -400,7 +400,6 @@ export const PullRequestOverview = () => {
     setOpeningMode(null);
 
     if (!result.errorMessage) {
-      navigate("/changes/pull-request/files");
       return;
     }
 
