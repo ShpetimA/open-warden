@@ -4,6 +4,7 @@ export type DesktopApiMethod = keyof DesktopApi;
 
 export const DESKTOP_API_METHODS = [
   "selectFolder",
+  "browseDirectory",
   "loadWorkspaceSession",
   "saveWorkspaceSession",
   "loadAppSettings",

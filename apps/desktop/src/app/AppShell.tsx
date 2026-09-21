@@ -1,6 +1,6 @@
 import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
 import { useState } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
@@ -20,7 +20,6 @@ export type AppShellOutletContext = {
 };
 
 export function AppShell() {
-  const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -33,18 +32,6 @@ export function AppShell() {
   const openRecentProjectsPicker = () => {
     setRecentProjectsPickerOpen(true);
   };
-
-  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
-    if (!switchingRepo) {
-      return;
-    }
-
-    if (location.pathname === "/changes") {
-      return;
-    }
-
-    navigate("/changes", { replace: true });
-  }
 
   useHotkey(
     "Mod+O",
@@ -88,12 +75,7 @@ export function AppShell() {
             activeRepo={activeRepo}
             recentRepos={recentRepos}
             onOpenChange={setRecentProjectsPickerOpen}
-            onSelectRepo={(repoPath) => {
-              const switchingRepo = repoPath !== activeRepo;
-              void dispatch(openRepo(repoPath)).then(() => {
-                navigateToChangesAfterRepoSwitch(switchingRepo);
-              });
-            }}
+            onSelectRepo={(repoPath) => dispatch(openRepo(repoPath))}
             onChooseFolder={() => {
               void dispatch(selectFolder());
             }}

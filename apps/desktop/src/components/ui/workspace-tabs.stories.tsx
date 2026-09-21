@@ -1,5 +1,6 @@
+import { ProjectMonogram } from "./project-monogram";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { FileDiff, FolderGit2, GitPullRequest, History, Link2 } from "lucide-react";
+import { FileDiff, GitPullRequest, History, Link2 } from "lucide-react";
 import { useState } from "react";
 
 import { WorkspaceTabs, type WorkspaceTabItem } from "@/components/ui/workspace-tabs";
@@ -10,20 +11,20 @@ const initialTabs: readonly WorkspaceTabItem[] = [
     id: "open-warden-changes",
     label: "open-warden",
     context: "Changes",
-    icon: <FolderGit2 />,
+    icon: <ProjectMonogram name="open-warden" identity="/projects/open-warden" />,
     closable: false,
   },
   {
     id: "t3code-history",
     label: "t3code",
     context: "History",
-    icon: <History />,
+    icon: <ProjectMonogram name="t3code" identity="/projects/t3code" />,
   },
   {
     id: "pull-request-418",
     label: "#418 Review navigation",
     context: "open-warden · Pull request",
-    icon: <GitPullRequest />,
+    icon: <ProjectMonogram name="open-warden" identity="/projects/open-warden" />,
   },
 ];
 

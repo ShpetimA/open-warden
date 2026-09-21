@@ -195,13 +195,13 @@ export const openRepo =
   (
     repoPath: string,
     options: { workspace: "repo" | "preserve" } = { workspace: "repo" },
-  ): AppThunk<Promise<void>> =>
+  ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const resolvedRepoPath = await resolveRepoPath(repoPath);
 
     if (!resolvedRepoPath) {
       toast.error(`Could not open repository: ${repoPath}`);
-      return;
+      return false;
     }
 
     const { activeRepo, repos, recentRepos } = getState().sourceControl;
@@ -213,7 +213,7 @@ export const openRepo =
       if (options.workspace === "repo")
         dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
       await persistWorkspaceSession(getState);
-      return;
+      return true;
     }
 
     dispatch(setRepos(nextRepos));
@@ -222,6 +222,7 @@ export const openRepo =
     if (options.workspace === "repo")
       dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
     await persistWorkspaceSession(getState);
+    return true;
   };
 
 export const selectFolder = (): AppThunk => async (dispatch) => {

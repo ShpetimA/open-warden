@@ -1,3 +1,4 @@
+import { ProjectMonogram } from "@/components/ui/project-monogram";
 import {
   repoRailSections,
   pullRequestRailSections,
@@ -15,14 +16,7 @@ import { useReducer } from "react";
 import { parseDiffFromFile, type ThemeTypes } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-  FolderClosed,
-  GitPullRequest,
-  PanelLeftClose,
-  Search,
-  Settings,
-  WrapText,
-} from "lucide-react";
+import { PanelLeftClose, Search, Settings, WrapText } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { PullRequestRow } from "@/components/ui/pull-request-row";
@@ -402,7 +396,12 @@ function ShellDemo() {
       item.kind === "repo"
         ? (item.repoPath.split("/").at(-1) ?? "Project")
         : `#${item.pullRequestNumber} ${item.title}`,
-    icon: item.kind === "repo" ? <FolderClosed /> : <GitPullRequest />,
+    icon: (
+      <ProjectMonogram
+        name={item.repoPath.split("/").at(-1) ?? "Project"}
+        identity={item.repoPath}
+      />
+    ),
   }));
   return (
     <div className="h-[46rem] overflow-hidden rounded-xl border border-border">

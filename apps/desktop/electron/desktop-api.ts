@@ -1,3 +1,4 @@
+import { browseDirectory } from "./directories";
 import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
 import { getAppSettingsPath, loadAppSettings, saveAppSettings } from "./appSettings";
 import {
@@ -50,6 +51,7 @@ let lspSessionManager = new LspSessionManager({
 
 export const desktopApi: DesktopApi = {
   selectFolder,
+  browseDirectory,
   loadWorkspaceSession,
   saveWorkspaceSession,
   loadAppSettings,

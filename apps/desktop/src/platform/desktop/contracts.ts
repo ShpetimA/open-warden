@@ -376,6 +376,7 @@ export type LspLocation = {
 };
 
 export type DesktopApi = {
+  browseDirectory(path: string): Promise<DirectoryListing>;
   selectFolder(): Promise<string | null>;
   loadWorkspaceSession(): Promise<WorkspaceSession>;
   saveWorkspaceSession(session: WorkspaceSession): Promise<WorkspaceSession>;
@@ -495,3 +496,7 @@ export type DesktopSettingsApi = {
 };
 
 export type DesktopBridge = DesktopApi & DesktopUpdateApi & DesktopLspApi & DesktopSettingsApi;
+
+export type DirectoryListing =
+  | { ok: true; path: string; parentPath: string; entries: { name: string; path: string }[] }
+  | { ok: false; message: string };
