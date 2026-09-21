@@ -5,12 +5,13 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import { AppHeader } from "@/app/AppHeader";
 import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { featureKeyFromPath } from "@/app/featureNavigation";
-import { RepoTabs } from "@/app/RepoTabs";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { SidebarPanelRegistryProvider } from "@/components/layout/SidebarPanelRegistry";
 import { AppCommandPalette } from "@/features/command-palette/AppCommandPalette";
-import { closeRepo, openRepo, selectFolder, selectRepo } from "@/features/source-control/actions";
+import { openRepo, selectFolder } from "@/features/source-control/actions";
 import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
+import { WorkspaceNavigation } from "@/features/workspaces/components/WorkspaceNavigation";
+import { WorkspaceRail } from "@/features/workspaces/components/WorkspaceRail";
 
 export type AppShellOutletContext = {
   openRecentProjectsPicker: () => void;
@@ -59,24 +60,25 @@ export function AppShell() {
   return (
     <NuqsAdapter>
       <SidebarPanelRegistryProvider>
+        <WorkspaceNavigation />
         <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-          <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
+          <div className="grid h-full" style={{ gridTemplateRows: "56px minmax(0, 1fr)" }}>
             <AppHeader
               activeFeature={activeFeature}
               currentPath={location.pathname}
+              showWorkspaceTabs={!isSettingsRoute}
+              onOpenWorkspaces={openRecentProjectsPicker}
               onOpenCommandPalette={() => {
                 setCommandPaletteOpen(true);
               }}
             />
 
-            <div className="relative min-h-0">
-              <Outlet context={{ openRecentProjectsPicker }} />
+            <div className="flex h-full min-h-0">
+              {!isSettingsRoute ? <WorkspaceRail /> : null}
+              <div className="relative min-h-0 min-w-0 flex-1">
+                <Outlet context={{ openRecentProjectsPicker }} />
+              </div>
             </div>
-
-            <RepoTabsContainer
-              currentPath={location.pathname}
-              onShowRecentProjects={openRecentProjectsPicker}
-            />
           </div>
 
           <RecentProjectsPicker
@@ -99,60 +101,5 @@ export function AppShell() {
         <div id="modal-root" />
       </SidebarPanelRegistryProvider>
     </NuqsAdapter>
-  );
-}
-
-type RepoTabsContainerProps = {
-  currentPath: string;
-  onShowRecentProjects: () => void;
-};
-
-function RepoTabsContainer({ currentPath, onShowRecentProjects }: RepoTabsContainerProps) {
-  const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const repos = useAppSelector((state) => state.sourceControl.repos);
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
-
-  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
-    if (!switchingRepo) {
-      return;
-    }
-
-    if (currentPath === "/changes") {
-      return;
-    }
-
-    navigate("/changes", { replace: true });
-  }
-
-  return (
-    <RepoTabs
-      repos={repos}
-      activeRepo={activeRepo}
-      recentRepos={recentRepos}
-      onSelectRepo={(repo) => {
-        const switchingRepo = repo !== activeRepo;
-        void dispatch(selectRepo(repo));
-        navigateToChangesAfterRepoSwitch(switchingRepo);
-      }}
-      onCloseRepo={(repo) => {
-        void dispatch(closeRepo(repo)).then((result) => {
-          if (result.closedActiveRepo && currentPath !== "/changes") {
-            navigate("/changes", { replace: true });
-          }
-        });
-      }}
-      onOpenRecentRepo={(repo) => {
-        const switchingRepo = repo !== activeRepo;
-        void dispatch(openRepo(repo)).then(() => {
-          navigateToChangesAfterRepoSwitch(switchingRepo);
-        });
-      }}
-      onShowAllRecentProjects={onShowRecentProjects}
-      onOpenFolder={() => {
-        void dispatch(selectFolder());
-      }}
-    />
   );
 }

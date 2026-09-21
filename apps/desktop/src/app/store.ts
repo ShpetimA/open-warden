@@ -1,4 +1,10 @@
-import { type Action, configureStore, type ThunkAction } from "@reduxjs/toolkit";
+import {
+  type Action,
+  type UnknownAction,
+  combineReducers,
+  configureStore,
+  type ThunkAction,
+} from "@reduxjs/toolkit";
 import { setupListeners } from "@reduxjs/toolkit/query";
 
 import { commentsClipboardReducer } from "@/features/comments/commentsClipboardSlice";
@@ -10,19 +16,33 @@ import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice"
 import { settingsReducer } from "@/features/settings/settingsSlice";
 import { gitApi } from "@/features/source-control/api";
 import { sourceControlReducer } from "@/features/source-control/sourceControlSlice";
+import { workspacesReducer } from "@/features/workspaces/workspacesSlice";
+
+import { reduceWorkspaceState } from "@/features/workspaces/workspaceState";
+
+const combinedReducer = combineReducers({
+  settings: settingsReducer,
+  desktopUpdate: desktopUpdateReducer,
+  lsp: lspReducer,
+  sourceControl: sourceControlReducer,
+  workspaces: workspacesReducer,
+  workspaceViews: (state: ReturnType<typeof reduceWorkspaceState>["workspaceViews"] = {}) => state,
+  pullRequests: pullRequestsReducer,
+  comments: commentsReducer,
+  commentsClipboard: commentsClipboardReducer,
+  [gitApi.reducerPath]: gitApi.reducer,
+  [hostedReposApi.reducerPath]: hostedReposApi.reducer,
+});
+
+export function rootReducer(
+  state: ReturnType<typeof combinedReducer> | undefined,
+  action: UnknownAction,
+) {
+  return { ...combinedReducer(state, action), ...reduceWorkspaceState(state, action) };
+}
 
 export const store = configureStore({
-  reducer: {
-    settings: settingsReducer,
-    desktopUpdate: desktopUpdateReducer,
-    lsp: lspReducer,
-    sourceControl: sourceControlReducer,
-    pullRequests: pullRequestsReducer,
-    comments: commentsReducer,
-    commentsClipboard: commentsClipboardReducer,
-    [gitApi.reducerPath]: gitApi.reducer,
-    [hostedReposApi.reducerPath]: hostedReposApi.reducer,
-  },
+  reducer: rootReducer,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(gitApi.middleware, hostedReposApi.middleware),
 });

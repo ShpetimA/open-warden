@@ -10,6 +10,11 @@ import {
 } from "@/platform/desktop/workspaceSession";
 import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
 import {
+  repoWorkspaceUpserted,
+  workspacesHydrated,
+  workspaceRemoved,
+} from "@/features/workspaces/workspacesSlice";
+import {
   clearCurrentPullRequestReview,
   setPullRequestFilesViewMode,
   setPullRequestFileJumpTarget,
@@ -154,6 +159,12 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
     });
 
     dispatch(hydrateWorkspaceSessionState(workspaceSession));
+    dispatch(
+      workspacesHydrated({
+        openRepos: workspaceSession.openRepos,
+        activeRepo: workspaceSession.activeRepo,
+      }),
+    );
 
     if (!workspaceSession.activeRepo) {
       dispatch(resetRepoScopedState());
@@ -183,6 +194,7 @@ export const openRepo =
 
     if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
       dispatch(setRecentRepos(nextRecentRepos));
+      dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
       await persistWorkspaceSession(getState);
       return;
     }
@@ -190,7 +202,7 @@ export const openRepo =
     dispatch(setRepos(nextRepos));
     dispatch(setActiveRepo(resolvedRepoPath));
     dispatch(setRecentRepos(nextRecentRepos));
-    dispatch(resetRepoScopedState());
+    dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
     await persistWorkspaceSession(getState);
   };
 
@@ -222,6 +234,7 @@ export const closeRepo =
     const { activeRepo } = getState().sourceControl;
     const closingActiveRepo = repo === activeRepo;
     dispatch(removeRepo(repo));
+    dispatch(workspaceRemoved({ id: repo }));
     dispatch(removeCommentsForRepo(repo));
 
     if (closingActiveRepo) {
