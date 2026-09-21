@@ -1,13 +1,13 @@
 import { Folder, GitPullRequest } from "lucide-react";
 import type { Hotkey } from "@tanstack/hotkeys";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 const WORKSPACE_HOTKEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
-import { closeWorkspace, selectWorkspace } from "@/features/workspaces/actions";
+import { closeWorkspace, reopenWorkspace, selectWorkspace } from "@/features/workspaces/actions";
 import {
   selectActiveWorkspaceId,
   selectWorkspaces,
@@ -43,22 +43,27 @@ function workspaceTabFor(workspace: Workspace) {
 export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const locations = useAppSelector((state) => state.workspaces.locations);
   const workspaces = useAppSelector(selectWorkspaces);
   const activeWorkspaceId = useAppSelector(selectActiveWorkspaceId);
 
-  for (const hotkey of WORKSPACE_HOTKEYS) {
-    useHotkey(
-      `Mod+${hotkey}` as Hotkey,
-      () => {
-        const target = workspaces[hotkey - 1];
-        if (target) {
-          activate(target.id);
-        }
-      },
-      { preventDefault: true },
-    );
+  function cycle(direction: number) {
+    const index = workspaces.findIndex((item) => item.id === activeWorkspaceId);
+    const target = workspaces[(index + direction + workspaces.length) % workspaces.length];
+    if (target) activate(target.id);
   }
+  useHotkey(
+    "Mod+W",
+    () => {
+      if (location.pathname === "/settings") activate(activeWorkspaceId);
+      else close(activeWorkspaceId);
+    },
+    { enabled: workspaces.length > 0, ignoreInputs: false },
+  );
+  useHotkey("Mod+Shift+T", () => dispatch(reopenWorkspace()), { ignoreInputs: false });
+  useHotkey("Control+Tab", () => cycle(1), { ignoreInputs: false });
+  useHotkey("Control+Shift+Tab", () => cycle(-1), { ignoreInputs: false });
 
   function activate(id: string) {
     dispatch(selectWorkspace(id));
@@ -71,15 +76,45 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
   }
 
   return (
-    <WorkspaceTabs
-      className="app-no-drag border-b-0 bg-transparent"
-      ariaLabel="Open workspaces"
-      addLabel="Open project or pull request"
-      items={workspaces.map((workspace) => workspaceTabFor(workspace))}
-      activeId={activeWorkspaceId}
-      onActivate={activate}
-      onClose={close}
-      onAdd={onOpenWorkspaces}
-    />
+    <>
+      {WORKSPACE_HOTKEYS.map((number) => (
+        <WorkspaceNumberHotkey
+          key={number}
+          number={number}
+          onActivate={() => {
+            const target = workspaces[number - 1];
+            if (target) activate(target.id);
+          }}
+        />
+      ))}
+      <WorkspaceTabs
+        className="min-w-0 flex-1 border-b-0 bg-transparent"
+        ariaLabel="Open workspaces"
+        addLabel="Open project (⌘O)"
+        items={workspaces.map((workspace) => {
+          const tab = workspaceTabFor(workspace);
+          const duplicate =
+            workspace.kind === "repo" &&
+            workspaces.some(
+              (other) =>
+                other.id !== workspace.id &&
+                other.kind === "repo" &&
+                repoLabel(other.repoPath) === tab.label,
+            );
+          if (duplicate)
+            tab.label = `${tab.label} · ${repoLabel(repoParentPath(workspace.repoPath))}`;
+          return tab;
+        })}
+        activeId={activeWorkspaceId}
+        onActivate={activate}
+        onClose={close}
+        onAdd={onOpenWorkspaces}
+      />
+    </>
   );
+}
+
+function WorkspaceNumberHotkey({ number, onActivate }: { number: number; onActivate: () => void }) {
+  useHotkey(`Mod+${number}` as Hotkey, onActivate, { preventDefault: true, ignoreInputs: false });
+  return null;
 }

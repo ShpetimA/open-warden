@@ -192,7 +192,10 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
 };
 
 export const openRepo =
-  (repoPath: string): AppThunk<Promise<void>> =>
+  (
+    repoPath: string,
+    options: { workspace: "repo" | "preserve" } = { workspace: "repo" },
+  ): AppThunk<Promise<void>> =>
   async (dispatch, getState) => {
     const resolvedRepoPath = await resolveRepoPath(repoPath);
 
@@ -207,7 +210,8 @@ export const openRepo =
 
     if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
       dispatch(setRecentRepos(nextRecentRepos));
-      dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
+      if (options.workspace === "repo")
+        dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
       await persistWorkspaceSession(getState);
       return;
     }
@@ -215,7 +219,8 @@ export const openRepo =
     dispatch(setRepos(nextRepos));
     dispatch(setActiveRepo(resolvedRepoPath));
     dispatch(setRecentRepos(nextRecentRepos));
-    dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
+    if (options.workspace === "repo")
+      dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
     await persistWorkspaceSession(getState);
   };
 

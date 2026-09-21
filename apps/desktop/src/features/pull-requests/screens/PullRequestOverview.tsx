@@ -400,6 +400,7 @@ export const PullRequestOverview = () => {
     setOpeningMode(null);
 
     if (!result.errorMessage) {
+      navigate("../local-files", { relative: "path" });
       return;
     }
 
@@ -521,7 +522,7 @@ export const PullRequestOverview = () => {
         onToggleFilesView={() => handleTabChange("files")}
       />
 
-      <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
+      <div data-workspace-scroll className="min-h-0 flex-1 overflow-auto px-6 py-6">
         <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6">
           {openError ? (
             <div className="text-destructive rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-2 text-sm">

@@ -2,7 +2,6 @@ import { Navigate, RouterProvider, createHashRouter } from "react-router";
 
 import { AppThemeProvider } from "@/app/AppThemeProvider";
 import { AppShell } from "@/app/AppShell";
-import { ActivePullRequestRouteLayout } from "@/app/routes/ActivePullRequestRouteLayout";
 import { ChangesRouteLayout } from "@/app/routes/ChangesRouteLayout";
 import { HistoryRouteLayout } from "@/app/routes/HistoryRouteLayout";
 import { RepoRequiredLayout } from "@/app/routes/RepoRequiredLayout";
@@ -47,25 +46,6 @@ const router = createHashRouter([
               {
                 path: "files",
                 element: <ChangesFilesScreen />,
-              },
-              {
-                path: "pull-request",
-                element: <ActivePullRequestRouteLayout />,
-                children: [
-                  {
-                    index: true,
-                    element: <Navigate to="files" replace />,
-                  },
-                  {
-                    path: "files",
-                    element: <PullRequestReviewFilesScreen />,
-                  },
-
-                  {
-                    path: "checks",
-                    element: <PullRequestReviewChecksScreen />,
-                  },
-                ],
               },
             ],
           },

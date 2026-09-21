@@ -31,7 +31,6 @@ function copyAndClearMessage(count: number): string {
 
 function getCommentContext(
   activeFeature: FeatureKey,
-  currentPath: string,
   reviewBaseRef: string,
   reviewHeadRef: string,
   historyCommitId: string,
@@ -49,10 +48,7 @@ function getCommentContext(
     return { kind: "history", commitId: historyCommitId };
   }
 
-  const isReviewFeature =
-    activeFeature === "review" ||
-    activeFeature === "pull-requests" ||
-    (activeFeature === "changes" && currentPath.startsWith("/changes/pull-request"));
+  const isReviewFeature = activeFeature === "review" || activeFeature === "pull-requests";
 
   if (isReviewFeature) {
     if (!reviewBaseRef || !reviewHeadRef) return null;
@@ -65,7 +61,7 @@ function getCommentContext(
 function selectHeaderCommentContext(
   state: RootState,
   activeFeature: FeatureKey,
-  currentPath: string,
+  _currentPath: string,
 ): CommentContext | null {
   const activeRepo = state.sourceControl.activeRepo;
   const historyCommits = activeRepo
@@ -78,7 +74,6 @@ function selectHeaderCommentContext(
 
   return getCommentContext(
     activeFeature,
-    currentPath,
     state.sourceControl.reviewBaseRef,
     state.sourceControl.reviewHeadRef,
     state.sourceControl.historyCommitId,
@@ -159,7 +154,7 @@ function HeaderCommentActions({ activeFeature, currentPath }: HeaderCommentActio
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+            className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-10 w-10 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
             onClick={() => void (isRecopyMode ? onCopyLastComments() : onCopyAllComments())}
             aria-label={tooltipText}
           >
@@ -191,7 +186,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
   const navigate = useNavigate();
 
   return (
-    <div className="app-no-drag flex min-w-0 items-center justify-self-end gap-1.5">
+    <div className="app-no-drag flex shrink-0 items-center justify-self-end gap-1.5">
       {activeFeature ? (
         <HeaderCommentActions activeFeature={activeFeature} currentPath={currentPath} />
       ) : null}
@@ -200,7 +195,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
 
       <button
         type="button"
-        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-10 w-10 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
         onClick={() => {
           navigate("/settings");
         }}
@@ -212,7 +207,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
 
       <button
         type="button"
-        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-8 w-8 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-10 w-10 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
         onClick={onOpenCommandPalette}
         title="Open Command Palette (⌘K)"
         aria-label="Open command palette"

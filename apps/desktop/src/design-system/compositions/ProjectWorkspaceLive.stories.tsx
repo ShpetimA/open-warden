@@ -1,14 +1,24 @@
+import {
+  repoRailSections,
+  pullRequestRailSections,
+} from "@/features/workspaces/components/WorkspaceRail";
+import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
+import {
+  repoWorkspaceUpserted,
+  pullRequestWorkspaceUpserted,
+  workspaceActivated,
+  workspaceRemoved,
+  workspaceLocationChanged,
+} from "@/features/workspaces/workspacesSlice";
+import { reduceWorkspaceState } from "@/features/workspaces/workspaceState";
+import { useReducer } from "react";
 import { parseDiffFromFile, type ThemeTypes } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-  CheckSquare,
   FolderClosed,
   GitPullRequest,
-  GitPullRequestArrow,
   PanelLeftClose,
-  Plus,
-  RotateCw,
   Search,
   Settings,
   WrapText,
@@ -16,12 +26,8 @@ import {
 import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { PullRequestRow } from "@/components/ui/pull-request-row";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  WorkspaceTabs,
-  type WorkspaceAddItem,
-  type WorkspaceTabItem,
-} from "@/components/ui/workspace-tabs";
+import { WorkspaceTabs, type WorkspaceTabItem } from "@/components/ui/workspace-tabs";
+import SidebarTabButton from "@/components/ui/sidebar-tab";
 import { cn } from "@/lib/utils";
 import { buildPierreGitStatusEntries } from "@/features/source-control/components/pierreFileTree";
 import { PierreFileTreeBrowser } from "@/features/source-control/components/PierreFileTreeBrowser";
@@ -249,11 +255,6 @@ function ToolbarIconButton({
   );
 }
 
-const projectNavTabs = [
-  { id: "changes", label: "Changes", icon: <GitPullRequestArrow className="size-3.5" /> },
-  { id: "prs", label: "Pull Requests", icon: <GitPullRequest className="size-3.5" /> },
-];
-
 function DiffStage({ activePath }: { activePath: string }) {
   const themeType = useDiffTheme();
   const fileDiff = useMemo(() => {
@@ -301,64 +302,6 @@ function DiffStage({ activePath }: { activePath: string }) {
           Select a file to view diff.
         </div>
       )}
-    </div>
-  );
-}
-
-function LandingContent({ openPullRequests }: { openPullRequests: () => void }) {
-  const items = [
-    { key: "search", label: "Search repositories", icon: <Search /> },
-    { key: "prs", label: "Pull requests", icon: <GitPullRequest /> },
-    { key: "repos", label: "Open repository", icon: <FolderClosed /> },
-    { key: "settings", label: "Settings", icon: <Settings /> },
-  ];
-
-  return (
-    <div className="mx-auto w-full max-w-xl px-10 py-14">
-      <h1 className="text-xl font-semibold">New tab</h1>
-      <p className="text-muted-foreground mt-1 text-sm">
-        Start something new or return to recent work.
-      </p>
-      <div className="text-muted-foreground mt-9 text-[11px] font-semibold tracking-[0.1em]">
-        OPEN
-      </div>
-      <div className="mt-1.5">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            onClick={item.key === "prs" ? openPullRequests : undefined}
-            className="focus-visible:ring-ring/50 -mx-2 flex min-h-8 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 text-left text-sm outline-none hover:bg-accent/60 focus-visible:ring-2"
-          >
-            <span aria-hidden="true" className="text-muted-foreground [&>svg]:size-3.5">
-              {item.icon}
-            </span>
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="text-muted-foreground mt-9 text-[11px] font-semibold tracking-[0.1em]">
-        RECENT PROJECTS
-      </div>
-      <div className="mt-1.5">
-        {[
-          { name: "marketplace_bo_fe", ago: "28m ago" },
-          { name: "invoice-service", ago: "2h ago" },
-          { name: "bo-ui", ago: "6h ago" },
-        ].map((project) => (
-          <button
-            key={project.name}
-            type="button"
-            className="focus-visible:ring-ring/50 -mx-2 flex min-h-8 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 text-left text-sm outline-none hover:bg-accent/60 focus-visible:ring-2"
-          >
-            <span className="bg-foreground/15 size-2 shrink-0 rounded-full" aria-hidden="true" />
-            <span className="truncate">{project.name}</span>
-            <span className="text-muted-foreground ml-auto text-[11px] tabular-nums">
-              {project.ago}
-            </span>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -414,205 +357,151 @@ function PullRequestHost() {
 }
 
 function ShellDemo() {
-  const [tabs, setTabs] = useState<WorkspaceTabItem[]>([
-    {
-      id: "marketplace",
-      label: "marketplace_bo_fe",
-      context: "Changes",
-      icon: <GitPullRequestArrow className="size-3.5" />,
-      closable: false,
-    },
-    {
-      id: "bo-ui",
-      label: "bo-ui",
-      context: "Pull request #41",
-      icon: <GitPullRequest className="size-3.5" />,
-    },
-  ]);
-  const [activeId, setActiveId] = useState("marketplace");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [projectView, setProjectView] = useState("changes");
+  const [state, dispatch] = useReducer(reduceWorkspaceState, undefined, () => {
+    let next = reduceWorkspaceState(
+      undefined,
+      repoWorkspaceUpserted({ repoPath: "/projects/marketplace_bo_fe" }),
+    );
+    next = reduceWorkspaceState(
+      next,
+      pullRequestWorkspaceUpserted({
+        repoPath: "/projects/bo-ui",
+        providerId: "github",
+        owner: "acme",
+        repo: "bo-ui",
+        pullRequestNumber: 41,
+        title: "Workspace navigation",
+        activate: false,
+      }),
+    );
+    return next;
+  });
   const [activePath, setActivePath] = useState(PRODUCT_PATH);
-
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const active = state.workspaces.items.find(
+    (item) => item.id === state.workspaces.activeWorkspaceId,
+  );
+  const currentPath = active
+    ? (state.workspaces.locations[active.id] ??
+      (active.kind === "repo" ? "/changes" : "/pull-requests/github/acme/bo-ui/41/overview"))
+    : "";
+  const sections = active
+    ? active.kind === "repo"
+      ? repoRailSections()
+      : pullRequestRailSections(active, false)
+    : [];
+  const section = sections.find((item) => item.isActive(currentPath))?.label ?? "";
   const gitStatus = buildPierreGitStatusEntries(
     changedFiles,
     (file) => file.path,
     (file) => file.status,
   );
-
-  const addItems: readonly WorkspaceAddItem[] = [
-    { id: "pull-requests", label: "Pull requests", icon: <GitPullRequest />, shortcut: "P" },
-    { id: "new-tab", label: "New tab", icon: <Plus />, shortcut: "T" },
-  ];
-
-  const openProjectWorkspace = activeId === "new-tab" || activeId === "pull-requests";
-
+  const tabs: WorkspaceTabItem[] = state.workspaces.items.map((item) => ({
+    id: item.id,
+    label:
+      item.kind === "repo"
+        ? (item.repoPath.split("/").at(-1) ?? "Project")
+        : `#${item.pullRequestNumber} ${item.title}`,
+    icon: item.kind === "repo" ? <FolderClosed /> : <GitPullRequest />,
+  }));
   return (
-    <div className="overflow-hidden rounded-xl shadow-[var(--elevation-raised)] ring-1 ring-border">
-      <div className="bg-surface-toolbar border-border/70 flex h-9 items-center gap-2 border-b px-2.5">
-        <div className="flex items-center gap-2" aria-hidden="true">
-          <span className="size-3 rounded-full bg-[oklch(0.65_0.24_26)]" />
-          <span className="size-3 rounded-full bg-[oklch(0.8_0.17_88)]" />
-          <span className="size-3 rounded-full bg-[oklch(0.75_0.18_150)]" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <WorkspaceTabs
-            items={tabs}
-            activeId={activeId}
-            ariaLabel="Open workspaces"
-            addLabel="Open a new tab"
-            addItems={addItems}
-            onActivate={setActiveId}
-            onAddSelect={(id) => {
-              if (tabs.some((tab) => tab.id === id)) {
-                setActiveId(id);
-                return;
+    <div className="h-[46rem] overflow-hidden rounded-xl border border-border">
+      <WorkspaceChrome
+        header={
+          <header className="border-border bg-surface-toolbar flex items-center gap-3 border-b px-3">
+            <WorkspaceTabs
+              className="min-w-0 flex-1 border-b-0"
+              items={tabs}
+              activeId={state.workspaces.activeWorkspaceId}
+              onActivate={(id) => dispatch(workspaceActivated({ id }))}
+              onClose={(id) => dispatch(workspaceRemoved({ id }))}
+              onAdd={() =>
+                dispatch(repoWorkspaceUpserted({ repoPath: "/projects/invoice-service" }))
               }
-              const label = id === "pull-requests" ? "Pull requests" : "New tab";
-              setTabs((prev) => [
-                ...prev,
-                {
-                  id,
-                  label,
-                  icon:
-                    id === "pull-requests" ? (
-                      <GitPullRequest className="size-3.5" />
-                    ) : (
-                      <Plus className="size-3.5" />
-                    ),
-                },
-              ]);
-              setActiveId(id);
-            }}
-            onClose={(closeId) => {
-              const next = tabs.filter((tab) => tab.id !== closeId);
-              setTabs(next);
-              if (closeId === activeId) {
-                setActiveId(next[next.length - 1]?.id ?? next[0]?.id ?? "");
-              }
-            }}
-          />
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <ToolbarIconButton label="Settings">
-            <Settings className="size-3.5" />
-          </ToolbarIconButton>
-        </div>
-      </div>
-
-      <div className="flex bg-background" style={{ height: "42rem" }}>
-        {activeId === "new-tab" ? (
-          <LandingContent
-            openPullRequests={() => {
-              if (!tabs.some((tab) => tab.id === "pull-requests")) {
-                setTabs((prev) => [
-                  ...prev,
-                  { id: "pull-requests", label: "Pull requests", icon: <GitPullRequest /> },
-                ]);
-              }
-              setActiveId("pull-requests");
-            }}
-          />
-        ) : (
-          <>
-            {openProjectWorkspace ? null : (
-              <aside className="border-border/70 bg-surface-toolbar flex w-10 shrink-0 flex-col items-center gap-1 border-r px-1 py-2">
-                <ToolbarIconButton
+            />
+            <ToolbarIconButton label="Settings">
+              <Settings className="size-4" />
+            </ToolbarIconButton>
+          </header>
+        }
+        rail={
+          active ? (
+            <aside className="border-border/70 bg-surface-toolbar flex w-14 shrink-0 flex-col items-center gap-1 border-r px-1.5 py-2">
+              {sections.map((item) => (
+                <SidebarTabButton
+                  key={item.key}
+                  label={item.label}
+                  icon={item.icon}
+                  isActive={item.isActive(currentPath)}
+                  onClick={() =>
+                    dispatch(workspaceLocationChanged({ id: active.id, path: item.path }))
+                  }
+                />
+              ))}
+              <div className="mt-auto">
+                <SidebarTabButton
                   label="Toggle sidebar"
-                  active={!sidebarCollapsed}
-                  onClick={() => setSidebarCollapsed((prev) => !prev)}
-                >
-                  <PanelLeftClose className="size-4" />
-                </ToolbarIconButton>
-              </aside>
-            )}
-            {activeId === "pull-requests" ? (
+                  icon={<PanelLeftClose />}
+                  isActive={!sidebarCollapsed}
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                />
+              </div>
+            </aside>
+          ) : null
+        }
+      >
+        {!active ? (
+          <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+            Open a project to get started.
+          </div>
+        ) : (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="border-border/70 flex h-9 shrink-0 items-center border-b px-4 text-xs font-medium">
+              {section}
+            </div>
+            {section === "Pull Requests" ||
+            (active.kind === "pull-request" && section === "Overview") ? (
               <PullRequestHost />
             ) : (
-              <>
-                {tabs.some((tab) => tab.id === "marketplace") && activeId === "marketplace" ? (
-                  <>
-                    <aside
-                      className={cn(
-                        "bg-surface-toolbar flex shrink-0 flex-col border-border/70 transition-[width] duration-200 ease-out",
-                        sidebarCollapsed ? "w-0 overflow-hidden" : "w-72 border-r",
-                      )}
-                    >
-                      <div className="border-border/70 flex min-h-10 items-center justify-between gap-2 border-b px-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-[13px]">marketplace_bo_fe</div>
-                          <div className="text-muted-foreground truncate text-[11px]">main</div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <ToolbarIconButton label="Choose repository">
-                            <FolderClosed className="size-3.5" />
-                          </ToolbarIconButton>
-                          <ToolbarIconButton label="Refresh">
-                            <RotateCw className="size-3.5" />
-                          </ToolbarIconButton>
-                        </div>
-                      </div>
-                      <div className="px-3 py-2">
-                        <input
-                          aria-label="Commit message"
-                          placeholder="Message (⌘↵ to commit)"
-                          className="border-input bg-input h-8 w-full rounded-md border px-2.5 text-[13px] outline-none"
-                        />
-                      </div>
-                      <div className="border-border/70 flex min-h-0 flex-1 flex-col border-t">
-                        <PierreFileTreeBrowser
-                          navRegion="storybook-changes"
-                          files={changedFiles.map((file) => ({ path: file.path }))}
-                          selectedPath={activePath}
-                          onActivatePath={setActivePath}
-                          gitStatus={gitStatus}
-                        />
-                      </div>
-                    </aside>
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="border-border/70 flex min-h-9 items-center gap-2 border-b px-2.5">
-                        <Tabs value={projectView} onValueChange={setProjectView}>
-                          <TabsList aria-label="Project views" className="bg-transparent">
-                            {projectNavTabs.map((tab) => (
-                              <TabsTrigger key={tab.id} value={tab.id}>
-                                {tab.icon}
-                                {tab.label}
-                              </TabsTrigger>
-                            ))}
-                          </TabsList>
-                        </Tabs>
-                        <div className="ml-auto flex items-center gap-1">
-                          <ToolbarIconButton label="Toggle inline sidebar">
-                            <PanelLeftClose className="size-3.5" />
-                          </ToolbarIconButton>
-                          <ToolbarIconButton label="Commit selection">
-                            <CheckSquare className="size-3.5" />
-                          </ToolbarIconButton>
-                        </div>
-                      </div>
-                      {projectView === "changes" ? (
-                        <DiffStage activePath={activePath} />
-                      ) : (
-                        <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-                          Pull request list
-                        </div>
-                      )}
+              <div className="flex min-h-0 flex-1">
+                {!sidebarCollapsed ? (
+                  <aside className="bg-surface-toolbar border-border/70 flex w-72 flex-col border-r">
+                    <div className="px-3 py-3 text-sm font-medium">
+                      {active.kind === "repo" ? "Changed files" : "Pull request files"}
                     </div>
-                  </>
+                    <PierreFileTreeBrowser
+                      navRegion="storybook-changes"
+                      files={changedFiles.map((file) => ({ path: file.path }))}
+                      selectedPath={activePath}
+                      onActivatePath={setActivePath}
+                      gitStatus={gitStatus}
+                    />
+                  </aside>
+                ) : null}
+                {section === "Changes" || section === "Files" || section === "Repository files" ? (
+                  <DiffStage activePath={activePath} />
                 ) : (
                   <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
-                    bo-ui workspace
+                    {section}
                   </div>
                 )}
-              </>
+              </div>
             )}
-          </>
+          </div>
         )}
-      </div>
+      </WorkspaceChrome>
     </div>
   );
 }
 
 export const InteractiveShell: Story = {
   render: () => <ShellDemo />,
+};
+
+export const NarrowShell: Story = {
+  render: () => (
+    <div className="w-[680px] max-w-full">
+      <ShellDemo />
+    </div>
+  ),
 };

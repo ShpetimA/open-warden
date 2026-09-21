@@ -31,7 +31,7 @@ function startsWith(pathname: string, base: string) {
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
-function repoRailSections(): RailSection[] {
+export function repoRailSections(): RailSection[] {
   return [
     {
       key: "changes",
@@ -39,9 +39,7 @@ function repoRailSections(): RailSection[] {
       icon: <GitPullRequestArrow />,
       path: "/changes",
       isActive: (pathname) =>
-        startsWith(pathname, "/changes") &&
-        !startsWith(pathname, "/changes/files") &&
-        !startsWith(pathname, "/changes/pull-request"),
+        startsWith(pathname, "/changes") && !startsWith(pathname, "/changes/files"),
     },
     {
       key: "files",
@@ -74,7 +72,7 @@ function repoRailSections(): RailSection[] {
   ];
 }
 
-function pullRequestRailSections(
+export function pullRequestRailSections(
   workspace: Workspace & { kind: "pull-request" },
   localReview: boolean,
 ): RailSection[] {
@@ -178,7 +176,10 @@ export function WorkspaceRail() {
   if (!activeWorkspace) return null;
 
   return (
-    <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 w-12 shrink-0 flex-col items-center gap-1 border-r px-2 py-2">
+    <aside
+      aria-label="Workspace sections"
+      className="bg-surface-toolbar border-border/70 flex h-full min-h-0 w-14 shrink-0 flex-col items-center gap-1 border-r px-1.5 py-2"
+    >
       {sections.map((section) => (
         <SidebarTabButton
           key={section.key}

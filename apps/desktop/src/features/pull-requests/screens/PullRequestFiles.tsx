@@ -127,6 +127,7 @@ export const PullRequestFiles = () => {
     <>
       <PullRequestPreviewActiveFileSync files={files} />
       <ResizableSidebarLayout
+        panelId="primary"
         sidebarDefaultSize={24}
         sidebarMinSize={16}
         sidebarMaxSize={36}

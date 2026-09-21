@@ -4,8 +4,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, X } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
+import { ChevronDown, Plus, X } from "lucide-react";
+import { useLayoutEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -73,7 +73,7 @@ function WorkspaceTabs({
   items,
   activeId,
   ariaLabel = "Open workspaces",
-  addLabel = "Open project or pull request",
+  addLabel = "Open project (⌘O)",
   className,
   onActivate,
   onClose,
@@ -81,15 +81,27 @@ function WorkspaceTabs({
   addItems,
   onAddSelect,
 }: WorkspaceTabsProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const addRef = useRef<HTMLButtonElement>(null);
+  const restoreFocus = useRef(false);
+  useLayoutEffect(() => {
+    const active = listRef.current?.querySelector<HTMLButtonElement>('[aria-current="page"]');
+    active?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    if (restoreFocus.current) {
+      (active ?? addRef.current)?.focus();
+      restoreFocus.current = false;
+    }
+  }, [activeId, items.length]);
   return (
     <div
       data-slot="workspace-tabs"
       className={cn(
-        "border-border/70 bg-surface-toolbar flex h-9 min-w-0 items-center border-b",
+        "border-border/70 bg-surface-toolbar flex h-12 min-w-0 items-center border-b",
         className,
       )}
     >
       <div
+        ref={listRef}
         role="navigation"
         aria-label={ariaLabel}
         data-workspace-tab-list="true"
@@ -101,7 +113,7 @@ function WorkspaceTabs({
             <div
               data-active={active || undefined}
               className={cn(
-                "group/tab flex min-w-0 shrink-0 items-center rounded-md pl-2 transition-[background-color,color,box-shadow,--tw-ring-color] duration-150 ease-out focus-within:ring-2 focus-within:ring-ring/60",
+                "app-no-drag group/tab flex min-w-0 shrink-0 items-center rounded-md pl-2 transition-[background-color,color,box-shadow,--tw-ring-color] duration-150 ease-out motion-reduce:transition-none focus-within:ring-2 focus-within:ring-ring/60",
                 active
                   ? "bg-surface-elevated text-foreground shadow-xs ring-1 ring-border/70"
                   : "text-foreground/75 hover:bg-accent/70 hover:text-foreground",
@@ -114,8 +126,9 @@ function WorkspaceTabs({
                 title={item.context ? `${item.label} · ${item.context}` : item.label}
                 aria-current={active ? "page" : undefined}
                 data-workspace-tab-id={item.id}
+                tabIndex={active ? 0 : -1}
                 className={cn(
-                  "flex h-7 min-w-0 max-w-60 items-center gap-1.5 text-left outline-none",
+                  "flex h-10 min-w-0 max-w-60 items-center gap-1.5 text-left outline-none",
                   item.closable === false || !onClose ? "pr-2" : "pr-0.5",
                 )}
                 onClick={() => onActivate(item.id)}
@@ -143,8 +156,16 @@ function WorkspaceTabs({
                 <button
                   type="button"
                   aria-label={`Close ${item.label}`}
-                  className="text-muted-foreground hover:bg-foreground/12 hover:text-foreground mr-1.5 inline-flex size-5 shrink-0 items-center justify-center rounded-sm opacity-0 transition-[transform,background-color,color,opacity] duration-150 ease-[var(--ease-out)] group-hover/tab:opacity-80 hover:scale-110 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:hover:scale-110 active:scale-90 active:opacity-100"
-                  onClick={() => onClose(item.id)}
+                  tabIndex={active ? 0 : -1}
+                  title={`Close ${item.label} (⌘W)`}
+                  className={cn(
+                    "text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-10 shrink-0 items-center justify-center rounded-md transition-[background-color,color,opacity] motion-reduce:transition-none group-hover/tab:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60",
+                    active ? "opacity-100" : "opacity-0",
+                  )}
+                  onClick={() => {
+                    restoreFocus.current = true;
+                    onClose(item.id);
+                  }}
                 >
                   <X className="size-3" />
                 </button>
@@ -152,43 +173,69 @@ function WorkspaceTabs({
             </div>
           );
         })}
-        {addItems && addItems.length > 0 ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label={addLabel}
-              className="focus-visible:ring-ring/60 ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] hover:bg-accent hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-accent data-[state=open]:text-foreground"
-            >
-              <Plus className="size-3.5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-52">
-              {addItems.map((addItem) => (
-                <DropdownMenuItem key={addItem.id} onSelect={() => onAddSelect?.(addItem.id)}>
-                  {addItem.icon ? (
-                    <span aria-hidden="true" className="[&>svg]:size-3.5">
-                      {addItem.icon}
-                    </span>
-                  ) : null}
-                  {addItem.label}
-                  {addItem.shortcut ? (
-                    <span className="text-muted-foreground ml-auto pl-6 font-mono text-[10px] tracking-[0.08em]">
-                      {addItem.shortcut}
-                    </span>
-                  ) : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : onAdd ? (
-          <button
-            type="button"
+      </div>
+      {items.length > 1 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label="All open workspaces"
+            title="All open workspaces"
+            className="app-no-drag size-10 shrink-0 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronDown className="size-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto max-w-96">
+            {items.map((item) => (
+              <DropdownMenuItem key={item.id} onSelect={() => onActivate(item.id)}>
+                <span aria-hidden="true">{item.icon}</span>
+                <span className="truncate">{item.label}</span>
+                {item.id === activeId ? (
+                  <span className="ml-auto" aria-label="Active">
+                    ✓
+                  </span>
+                ) : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+      {addItems && addItems.length > 0 ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger
             aria-label={addLabel}
-            className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/60 ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-[background-color,color] focus-visible:ring-2"
-            onClick={onAdd}
+            className="app-no-drag focus-visible:ring-ring/60 ml-0.5 flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] hover:bg-accent hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-accent data-[state=open]:text-foreground"
           >
             <Plus className="size-3.5" />
-          </button>
-        ) : null}
-      </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            {addItems.map((addItem) => (
+              <DropdownMenuItem key={addItem.id} onSelect={() => onAddSelect?.(addItem.id)}>
+                {addItem.icon ? (
+                  <span aria-hidden="true" className="[&>svg]:size-3.5">
+                    {addItem.icon}
+                  </span>
+                ) : null}
+                {addItem.label}
+                {addItem.shortcut ? (
+                  <span className="text-muted-foreground ml-auto pl-6 font-mono text-[10px] tracking-[0.08em]">
+                    {addItem.shortcut}
+                  </span>
+                ) : null}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : onAdd ? (
+        <button
+          type="button"
+          aria-label={addLabel}
+          className="app-no-drag text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/60 ml-0.5 flex size-10 shrink-0 items-center justify-center rounded-md outline-none transition-[background-color,color] focus-visible:ring-2"
+          ref={addRef}
+          title={addLabel}
+          onClick={onAdd}
+        >
+          <Plus className="size-3.5" />
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -24,6 +24,7 @@ export type PullRequestWorkspace = {
 export type Workspace = RepoWorkspace | PullRequestWorkspace;
 
 export type WorkspacesState = {
+  memory: Record<string, Record<string, number>>;
   locations: Record<string, string>;
   closed: Workspace[];
   items: Workspace[];
@@ -53,11 +54,17 @@ function createPullRequestWorkspace(
   return {
     id: pullRequestWorkspaceId(input),
     kind: "pull-request",
-    ...input,
+    repoPath: input.repoPath,
+    providerId: input.providerId,
+    owner: input.owner,
+    repo: input.repo,
+    pullRequestNumber: input.pullRequestNumber,
+    title: input.title,
   };
 }
 
 const initialState: WorkspacesState = {
+  memory: {},
   locations: {},
   closed: [],
   items: [],
@@ -68,10 +75,17 @@ const workspacesSlice = createSlice({
   name: "workspaces",
   initialState,
   reducers: {
+    workspaceMemoryChanged(
+      state,
+      action: PayloadAction<{ key: string; value: Record<string, number> }>,
+    ) {
+      state.memory[action.payload.key] = action.payload.value;
+    },
     workspaceSessionRestored(state, action: PayloadAction<PersistedWorkspaceTabs>) {
       state.items = action.payload.items;
       state.activeWorkspaceId = action.payload.activeWorkspaceId;
       state.locations = action.payload.locations;
+      state.memory = action.payload.memory;
     },
     workspacesHydrated(state, action: PayloadAction<{ openRepos: string[]; activeRepo?: string }>) {
       state.items = action.payload.openRepos.map((repoPath) => createRepoWorkspace(repoPath));
@@ -129,6 +143,7 @@ const workspacesSlice = createSlice({
 
 export const workspacesReducer = workspacesSlice.reducer;
 export const {
+  workspaceMemoryChanged,
   workspaceSessionRestored,
   workspacesHydrated,
   repoWorkspaceUpserted,

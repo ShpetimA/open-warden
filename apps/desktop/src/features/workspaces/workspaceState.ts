@@ -97,6 +97,7 @@ export function serializeWorkspaceTabs(state: WorkspaceState): PersistedWorkspac
   if (state.workspaces.activeWorkspaceId)
     views[state.workspaces.activeWorkspaceId] = capture(state.sourceControl, state.pullRequests);
   return {
+    memory: state.workspaces.memory,
     items: state.workspaces.items,
     activeWorkspaceId: state.workspaces.activeWorkspaceId,
     locations: state.workspaces.locations,

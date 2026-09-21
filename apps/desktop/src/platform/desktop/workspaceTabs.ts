@@ -27,6 +27,7 @@ const view = z.object({
 });
 export const workspaceTabsSchema = z
   .object({
+    memory: z.record(z.string(), z.record(z.string(), z.number().finite())).default({}),
     items: z.array(z.discriminatedUnion("kind", [repo, pullRequest])),
     activeWorkspaceId: z.string(),
     locations: z.record(z.string(), z.string()),

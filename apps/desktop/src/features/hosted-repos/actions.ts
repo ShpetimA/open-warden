@@ -6,9 +6,7 @@ import { openRepo, refreshActiveRepo } from "@/features/source-control/actions";
 import {
   selectActiveWorkspace,
   pullRequestWorkspaceUpserted,
-  workspaceLocationChanged,
 } from "@/features/workspaces/workspacesSlice";
-import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import type { PullRequestOpenMode } from "@/platform/desktop";
 
 export type OpenPullRequestReviewResult = {
@@ -48,14 +46,8 @@ export const openPullRequestReview =
         openMode,
       });
 
-      await dispatch(openRepo(preparedWorkspace.repoPath));
+      await dispatch(openRepo(preparedWorkspace.repoPath, { workspace: "preserve" }));
       if (workspace?.kind === "pull-request") {
-        dispatch(
-          workspaceLocationChanged({
-            id: workspace.id,
-            path: workspacePath(workspace).replace(/overview$/, "local-files"),
-          }),
-        );
         dispatch(
           pullRequestWorkspaceUpserted({ ...workspace, repoPath: preparedWorkspace.repoPath }),
         );

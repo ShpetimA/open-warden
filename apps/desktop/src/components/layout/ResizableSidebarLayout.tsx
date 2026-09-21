@@ -1,3 +1,4 @@
+import { useViewMemory } from "./ViewMemory";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
@@ -26,6 +27,8 @@ export function ResizableSidebarLayout({
   sidebarMinSize = 16,
   sidebarMaxSize = 40,
 }: ResizableSidebarLayoutProps) {
+  const memory = useViewMemory();
+  const layoutKey = `panes:${panelId ?? "primary"}`;
   const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null);
   const registry = useSidebarPanelRegistryOptional();
   const defaultSize = toPercentSize(sidebarDefaultSize);
@@ -60,8 +63,14 @@ export function ResizableSidebarLayout({
   };
 
   return (
-    <ResizablePanelGroup orientation="horizontal" className="w-full max-w-[100vw]">
+    <ResizablePanelGroup
+      orientation="horizontal"
+      className="w-full max-w-[100vw]"
+      defaultLayout={memory?.read(layoutKey)}
+      onLayoutChanged={(layout) => memory?.write(layoutKey, layout)}
+    >
       <ResizablePanel
+        id="sidebar"
         panelRef={sidebarPanelRef}
         defaultSize={defaultSize}
         minSize={minSize}
@@ -81,7 +90,7 @@ export function ResizableSidebarLayout({
         <div className="bg-muted-foreground/40 pointer-events-none h-10 w-[2px] opacity-0 transition-opacity group-hover:opacity-100" />
       </ResizableHandle>
 
-      <ResizablePanel minSize={30}>
+      <ResizablePanel id="content" minSize={30}>
         <div className="h-full min-h-0">{content}</div>
       </ResizablePanel>
     </ResizablePanelGroup>

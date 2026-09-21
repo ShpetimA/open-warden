@@ -35,6 +35,7 @@ vi.mock("@/app/hooks", () => ({
   useAppDispatch: () => vi.fn(),
   useAppSelector: (selector: (state: unknown) => unknown) =>
     selector({
+      workspaces: { activeWorkspaceId: "/tmp/repo" },
       sourceControl: {
         activeRepo: "/tmp/repo",
         repos: ["/tmp/repo"],

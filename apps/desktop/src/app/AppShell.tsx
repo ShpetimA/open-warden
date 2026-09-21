@@ -1,3 +1,4 @@
+import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -10,6 +11,7 @@ import { SidebarPanelRegistryProvider } from "@/components/layout/SidebarPanelRe
 import { AppCommandPalette } from "@/features/command-palette/AppCommandPalette";
 import { openRepo, selectFolder } from "@/features/source-control/actions";
 import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
+import { WorkspaceContent } from "@/features/workspaces/components/WorkspaceContent";
 import { WorkspaceNavigation } from "@/features/workspaces/components/WorkspaceNavigation";
 import { WorkspaceRail } from "@/features/workspaces/components/WorkspaceRail";
 
@@ -62,24 +64,24 @@ export function AppShell() {
       <SidebarPanelRegistryProvider>
         <WorkspaceNavigation />
         <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-          <div className="grid h-full" style={{ gridTemplateRows: "56px minmax(0, 1fr)" }}>
-            <AppHeader
-              activeFeature={activeFeature}
-              currentPath={location.pathname}
-              showWorkspaceTabs
-              onOpenWorkspaces={openRecentProjectsPicker}
-              onOpenCommandPalette={() => {
-                setCommandPaletteOpen(true);
-              }}
-            />
-
-            <div className="flex h-full min-h-0">
-              {!isSettingsRoute ? <WorkspaceRail /> : null}
-              <div className="relative min-h-0 min-w-0 flex-1">
-                <Outlet context={{ openRecentProjectsPicker }} />
-              </div>
-            </div>
-          </div>
+          <WorkspaceChrome
+            header={
+              <AppHeader
+                activeFeature={activeFeature}
+                currentPath={location.pathname}
+                showWorkspaceTabs
+                onOpenWorkspaces={openRecentProjectsPicker}
+                onOpenCommandPalette={() => {
+                  setCommandPaletteOpen(true);
+                }}
+              />
+            }
+            rail={!isSettingsRoute ? <WorkspaceRail /> : null}
+          >
+            <WorkspaceContent>
+              <Outlet context={{ openRecentProjectsPicker }} />
+            </WorkspaceContent>
+          </WorkspaceChrome>
 
           <RecentProjectsPicker
             open={recentProjectsPickerOpen}

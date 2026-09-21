@@ -1,3 +1,5 @@
+import { selectActiveWorkspace, type Workspace } from "@/features/workspaces/workspacesSlice";
+import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import { useRef } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile, Virtualizer } from "@pierre/diffs/react";
@@ -58,11 +60,13 @@ function formatReturnToDiffLabel(target: DiffReturnTarget) {
   return `${target.path}${lineLabel} · Pull Request`;
 }
 
-function returnToDiffPath(target: DiffReturnTarget) {
+function returnToDiffPath(target: DiffReturnTarget, workspace: Workspace | null) {
   if (target.kind === "changes") return "/changes";
   if (target.kind === "review") return "/review";
   if (target.kind === "history" || target.kind === "history-range") return "/history";
-  return "/changes/pull-request/files";
+  return workspace?.kind === "pull-request"
+    ? workspacePath(workspace).replace(/overview$/, "local-files")
+    : "/changes";
 }
 
 function countFileLines(contents: string) {
@@ -82,6 +86,7 @@ function countFileLines(contents: string) {
 
 export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const navigate = useNavigate();
+  const workspace = useAppSelector(selectActiveWorkspace);
   const dispatch = useAppDispatch();
   const { resolvedTheme } = useTheme();
   const reduxTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
@@ -146,7 +151,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
               size="sm"
               variant="secondary"
               onClick={() => {
-                navigate(returnToDiffPath(returnToDiffTarget));
+                navigate(returnToDiffPath(returnToDiffTarget, workspace));
                 dispatch(navigateBackToDiffFromFileViewer());
               }}
             >

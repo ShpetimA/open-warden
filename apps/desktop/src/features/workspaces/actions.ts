@@ -38,7 +38,7 @@ export const openPullRequestWorkspace =
   (input: Omit<PullRequestWorkspace, "id" | "kind">): AppThunk<Promise<void>> =>
   async (dispatch, getState) => {
     if (!getState().sourceControl.repos.includes(input.repoPath)) {
-      await dispatch(openRepo(input.repoPath));
+      await dispatch(openRepo(input.repoPath, { workspace: "preserve" }));
     }
     if (!getState().sourceControl.repos.includes(input.repoPath)) return;
     dispatch(pullRequestWorkspaceUpserted(input));

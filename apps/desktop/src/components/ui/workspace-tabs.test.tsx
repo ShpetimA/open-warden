@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -37,4 +38,26 @@ describe("WorkspaceTabs", () => {
     expect(pullRequest).toHaveFocus();
     expect(onActivate).toHaveBeenCalledWith("pull-request");
   });
+});
+
+it("keeps add outside the scrolling strip and restores focus when closing the active tab", () => {
+  function Harness() {
+    const [openItems, setOpenItems] = useState([...items]);
+    return (
+      <WorkspaceTabs
+        items={openItems}
+        activeId={openItems[0]?.id ?? ""}
+        onActivate={() => {}}
+        onAdd={() => {}}
+        onClose={(id) => setOpenItems(openItems.filter((item) => item.id !== id))}
+      />
+    );
+  }
+  render(<Harness />);
+  const add = screen.getByRole("button", { name: "Open project (⌘O)" });
+  expect(screen.getByRole("navigation")).not.toContainElement(add);
+  fireEvent.click(screen.getByRole("button", { name: "Close open-warden" }));
+  expect(screen.getByRole("button", { name: "#418 Workspace tabs, Pull request" })).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Close #418 Workspace tabs" }));
+  expect(add).toHaveFocus();
 });

@@ -1,12 +1,21 @@
+import { useNavigate } from "react-router";
+import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
+import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import { useEffect, useState } from "react";
 import { ExternalLink, FileJson, Settings2 } from "lucide-react";
 
+import { ThemeSwitcher } from "@/app/ThemeSwitcher";
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { SourceControlFileViewToggle } from "@/features/source-control/components/SourceControlFileViewToggle";
 import { desktop } from "@/platform/desktop";
 
 export function SettingsScreen() {
+  const navigate = useNavigate();
+  const workspace = useAppSelector(selectActiveWorkspace);
+  const savedPath = useAppSelector((state) =>
+    workspace ? state.workspaces.locations[workspace.id] : undefined,
+  );
   const error = useAppSelector((state) => state.settings.error);
   const [settingsPath, setSettingsPath] = useState("");
 
@@ -34,6 +43,13 @@ export function SettingsScreen() {
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
+        <Button
+          variant="ghost"
+          className="self-start"
+          onClick={() => navigate(savedPath ?? (workspace ? workspacePath(workspace) : "/changes"))}
+        >
+          ← Back to workspace
+        </Button>
         <div className="space-y-2">
           <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-surface-alt">
             <Settings2 className="h-5 w-5" />
@@ -48,6 +64,16 @@ export function SettingsScreen() {
         </div>
 
         <section className="border-border/70 bg-surface-toolbar rounded-2xl border">
+          <div className="border-border/70 flex items-start justify-between gap-4 border-b px-5 py-4">
+            <div className="space-y-1">
+              <div className="text-sm font-medium">Appearance</div>
+              <p className="text-muted-foreground text-sm leading-6">
+                Choose the interface theme for light, dark, or follow your system.
+              </p>
+            </div>
+            <ThemeSwitcher />
+          </div>
+
           <div className="border-border/70 flex items-start justify-between gap-4 border-b px-5 py-4">
             <div className="space-y-1">
               <div className="text-sm font-medium">File Tree Views</div>
