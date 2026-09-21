@@ -54,6 +54,6 @@ it("restores each workspace route, keeps Settings transient and reconciles activ
   await act(() => store.dispatch(workspaceActivated({ id })));
   expect(screen.getByRole("status")).toHaveTextContent("/pull-requests/github/acme/b/3/files");
   await act(() => store.dispatch(workspaceRemoved({ id })));
-  expect(screen.getByRole("status")).toHaveTextContent("/history");
-  expect(store.getState().sourceControl.activeRepo).toBe("/a");
+  expect(screen.getByRole("status")).toHaveTextContent("/pull-requests");
+  expect(store.getState().sourceControl.activeRepo).toBe("/b");
 });

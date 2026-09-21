@@ -37,7 +37,7 @@ describe("workspace transitions", () => {
     expect(state.pullRequests.previewActiveFilePath).toBe("src/b.ts");
   });
 
-  it("closing a background tab preserves the active review and closing the active tab chooses its neighbor", () => {
+  it("closing a background tab preserves the active review and closing the active review returns to its project", () => {
     let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/a" }));
     state = reduceWorkspaceState(state, pullRequestWorkspaceUpserted(pr));
     const prId = state.workspaces.activeWorkspaceId;
@@ -47,8 +47,8 @@ describe("workspace transitions", () => {
     expect(state.workspaces.activeWorkspaceId).toBe(prId);
     expect(state.pullRequests.previewActiveFilePath).toBe("selected.ts");
     state = reduceWorkspaceState(state, workspaceRemoved({ id: prId }));
-    expect(state.workspaces.activeWorkspaceId).toBe("/c");
-    expect(state.sourceControl.activeRepo).toBe("/c");
+    expect(state.workspaces.activeWorkspaceId).toBe("/b");
+    expect(state.sourceControl.activeRepo).toBe("/b");
   });
 });
 
@@ -75,6 +75,11 @@ it("never clears the repository while switching between a project and its PR", (
   expect(state.sourceControl.activeRepo).toBe("/b");
   state = reduceWorkspaceState(state, workspaceActivated({ id: "/b" }));
   expect(state.sourceControl.activeRepo).toBe("/b");
-  state = reduceWorkspaceState(state, workspaceRemoved({ id: "/b" }));
+  state = reduceWorkspaceState(
+    state,
+    workspaceActivated({
+      id: state.workspaces.items.find((item) => item.kind === "pull-request")!.id,
+    }),
+  );
   expect(state.sourceControl.activeRepo).toBe("/b");
 });

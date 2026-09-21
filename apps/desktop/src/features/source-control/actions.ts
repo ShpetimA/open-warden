@@ -13,7 +13,7 @@ import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
 import {
   repoWorkspaceUpserted,
   workspacesHydrated,
-  workspaceRemoved,
+  projectRemoved,
   workspaceSessionRestored,
 } from "@/features/workspaces/workspacesSlice";
 import {
@@ -252,13 +252,9 @@ export const closeRepo =
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     const closingActiveRepo = repo === activeRepo;
+    dispatch(projectRemoved({ repoPath: repo }));
     dispatch(removeRepo(repo));
-    dispatch(workspaceRemoved({ id: repo }));
     dispatch(removeCommentsForRepo(repo));
-
-    if (closingActiveRepo) {
-      dispatch(resetRepoScopedState());
-    }
 
     await persistWorkspaceSession(getState);
 

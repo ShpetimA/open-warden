@@ -5,6 +5,8 @@ import {
 } from "@/features/workspaces/components/WorkspaceRail";
 import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
 import {
+  projectActivated,
+  projectRemoved,
   repoWorkspaceUpserted,
   pullRequestWorkspaceUpserted,
   workspaceActivated,
@@ -16,7 +18,7 @@ import { useReducer } from "react";
 import { parseDiffFromFile, type ThemeTypes } from "@pierre/diffs";
 import { FileDiff as PierreFileDiff, Virtualizer } from "@pierre/diffs/react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { PanelLeftClose, Search, Settings, WrapText } from "lucide-react";
+import { List, GitPullRequest, PanelLeftClose, Search, Settings, WrapText } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { PullRequestRow } from "@/components/ui/pull-request-row";
@@ -350,7 +352,7 @@ function PullRequestHost() {
   );
 }
 
-function ShellDemo() {
+function ShellDemo({ review = false }: { review?: boolean }) {
   const [state, dispatch] = useReducer(reduceWorkspaceState, undefined, () => {
     let next = reduceWorkspaceState(
       undefined,
@@ -368,6 +370,10 @@ function ShellDemo() {
         activate: false,
       }),
     );
+    if (review) {
+      const tab = next.workspaces.items.find((item) => item.kind === "pull-request");
+      if (tab) next = reduceWorkspaceState(next, workspaceActivated({ id: tab.id }));
+    }
     return next;
   });
   const [activePath, setActivePath] = useState(PRODUCT_PATH);
@@ -379,30 +385,33 @@ function ShellDemo() {
     ? (state.workspaces.locations[active.id] ??
       (active.kind === "repo" ? "/changes" : "/pull-requests/github/acme/bo-ui/41/overview"))
     : "";
-  const sections = active
-    ? active.kind === "repo"
-      ? repoRailSections()
-      : pullRequestRailSections(active, false)
-    : [];
-  const section = sections.find((item) => item.isActive(currentPath))?.label ?? "";
+  const sections = active ? repoRailSections() : [];
+  const reviewSections =
+    active?.kind === "pull-request" ? pullRequestRailSections(active, false) : [];
+  const reviews = state.workspaces.items.filter(
+    (item) => item.kind === "pull-request" && item.repoPath === active?.repoPath,
+  );
+  const section =
+    (active?.kind === "pull-request" ? reviewSections : sections).find((item) =>
+      item.isActive(currentPath),
+    )?.label ?? "";
   const gitStatus = buildPierreGitStatusEntries(
     changedFiles,
     (file) => file.path,
     (file) => file.status,
   );
-  const tabs: WorkspaceTabItem[] = state.workspaces.items.map((item) => ({
-    id: item.id,
-    label:
-      item.kind === "repo"
-        ? (item.repoPath.split("/").at(-1) ?? "Project")
-        : `#${item.pullRequestNumber} ${item.title}`,
-    icon: (
-      <ProjectMonogram
-        name={item.repoPath.split("/").at(-1) ?? "Project"}
-        identity={item.repoPath}
-      />
-    ),
-  }));
+  const tabs: WorkspaceTabItem[] = state.workspaces.items
+    .filter((item) => item.kind === "repo")
+    .map((item) => ({
+      id: item.id,
+      label: item.repoPath.split("/").at(-1) ?? "Project",
+      icon: (
+        <ProjectMonogram
+          name={item.repoPath.split("/").at(-1) ?? "Project"}
+          identity={item.repoPath}
+        />
+      ),
+    }));
   return (
     <div className="h-[46rem] overflow-hidden rounded-xl border border-border">
       <WorkspaceChrome
@@ -411,9 +420,12 @@ function ShellDemo() {
             <WorkspaceTabs
               className="min-w-0 flex-1 border-b-0"
               items={tabs}
-              activeId={state.workspaces.activeWorkspaceId}
-              onActivate={(id) => dispatch(workspaceActivated({ id }))}
-              onClose={(id) => dispatch(workspaceRemoved({ id }))}
+              activeId={active?.repoPath ?? ""}
+              ariaLabel="Open projects"
+              closeShortcut="⌘⇧W"
+              overflowLabel="All open projects"
+              onActivate={(repoPath) => dispatch(projectActivated({ repoPath }))}
+              onClose={(repoPath) => dispatch(projectRemoved({ repoPath }))}
               onAdd={() =>
                 dispatch(repoWorkspaceUpserted({ repoPath: "/projects/invoice-service" }))
               }
@@ -432,9 +444,10 @@ function ShellDemo() {
                   label={item.label}
                   icon={item.icon}
                   isActive={item.isActive(currentPath)}
-                  onClick={() =>
-                    dispatch(workspaceLocationChanged({ id: active.id, path: item.path }))
-                  }
+                  onClick={() => {
+                    dispatch(workspaceLocationChanged({ id: active.repoPath, path: item.path }));
+                    dispatch(workspaceActivated({ id: active.repoPath }));
+                  }}
                 />
               ))}
               <div className="mt-auto">
@@ -455,9 +468,50 @@ function ShellDemo() {
           </div>
         ) : (
           <div className="flex h-full min-h-0 flex-col">
-            <div className="border-border/70 flex h-9 shrink-0 items-center border-b px-4 text-xs font-medium">
-              {section}
-            </div>
+            {currentPath.startsWith("/pull-requests") && reviews.length > 0 && (
+              <div className="flex h-8 shrink-0 items-center border-b bg-background">
+                <WorkspaceTabs
+                  variant="secondary"
+                  className="min-w-0 flex-1 border-b-0"
+                  ariaLabel="Project pull requests"
+                  activeId={active.id}
+                  items={[
+                    {
+                      id: active.repoPath,
+                      label: "Pull requests",
+                      icon: <List />,
+                      closable: false,
+                    },
+                    ...reviews.map((item) => ({
+                      id: item.id,
+                      label:
+                        item.kind === "pull-request"
+                          ? `#${item.pullRequestNumber} ${item.title}`
+                          : "",
+                      icon: <GitPullRequest />,
+                    })),
+                  ]}
+                  onActivate={(id) => {
+                    if (id === active.repoPath)
+                      dispatch(workspaceLocationChanged({ id, path: "/pull-requests" }));
+                    dispatch(workspaceActivated({ id }));
+                  }}
+                  onClose={(id) => dispatch(workspaceRemoved({ id }))}
+                />
+                {reviewSections.map((item) => (
+                  <button
+                    key={item.key}
+                    className="h-6 rounded px-2 text-xs hover:bg-accent aria-[current=page]:bg-surface-active"
+                    aria-current={item.isActive(currentPath) ? "page" : undefined}
+                    onClick={() =>
+                      dispatch(workspaceLocationChanged({ id: active.id, path: item.path }))
+                    }
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
             {section === "Pull Requests" ||
             (active.kind === "pull-request" && section === "Overview") ? (
               <PullRequestHost />
@@ -501,6 +555,15 @@ export const NarrowShell: Story = {
   render: () => (
     <div className="w-[680px] max-w-full">
       <ShellDemo />
+    </div>
+  ),
+};
+
+export const NestedReviews: Story = { render: () => <ShellDemo review /> };
+export const NarrowReviews: Story = {
+  render: () => (
+    <div className="w-[680px] max-w-full">
+      <ShellDemo review />
     </div>
   ),
 };

@@ -136,3 +136,16 @@ export const ProjectContexts: Story = {
     </DesignSystemCanvas>
   ),
 };
+
+export const ProjectReviews: Story = {
+  args: {
+    variant: "secondary",
+    ariaLabel: "Project pull requests",
+    items: [
+      { id: "list", label: "Pull requests", icon: <GitPullRequest />, closable: false },
+      { id: "review", label: "#418 Review navigation", icon: <GitPullRequest /> },
+    ],
+    activeId: "review",
+    onClose: () => {},
+  },
+};

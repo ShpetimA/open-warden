@@ -3,7 +3,8 @@ import { openRepo } from "@/features/source-control/actions";
 import { removeRepo } from "@/features/source-control/sourceControlSlice";
 import {
   pullRequestWorkspaceUpserted,
-  repoWorkspaceUpserted,
+  projectRemoved,
+  projectReopened,
   selectWorkspaceById,
   workspaceActivated,
   workspaceRemoved,
@@ -30,7 +31,7 @@ export const closeWorkspace =
 export const reopenWorkspace = (): AppThunk => (dispatch, getState) => {
   const workspace = getState().workspaces.closed.at(-1);
   if (!workspace) return;
-  if (workspace.kind === "repo") dispatch(repoWorkspaceUpserted(workspace));
+  if (workspace.kind === "repo") dispatch(projectReopened(workspace));
   else dispatch(pullRequestWorkspaceUpserted(workspace));
 };
 
@@ -42,4 +43,11 @@ export const openPullRequestWorkspace =
     }
     if (!getState().sourceControl.repos.includes(input.repoPath)) return;
     dispatch(pullRequestWorkspaceUpserted(input));
+  };
+
+export const closeProject =
+  (repoPath: string): AppThunk =>
+  (dispatch) => {
+    dispatch(projectRemoved({ repoPath }));
+    dispatch(removeRepo(repoPath));
   };

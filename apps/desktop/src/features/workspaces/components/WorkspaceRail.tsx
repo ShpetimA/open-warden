@@ -163,15 +163,7 @@ export function WorkspaceRail() {
     }),
   });
 
-  const hasLocalReview = useAppSelector((state) => state.pullRequests.currentReview !== null);
-  const sections = activeWorkspace
-    ? activeWorkspace.kind === "repo"
-      ? repoRailSections()
-      : pullRequestRailSections(
-          activeWorkspace,
-          hasLocalReview || location.pathname.includes("/local-"),
-        )
-    : [];
+  const sections = activeWorkspace ? repoRailSections() : [];
 
   if (!activeWorkspace) return null;
 

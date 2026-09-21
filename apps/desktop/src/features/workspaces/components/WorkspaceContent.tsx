@@ -4,7 +4,7 @@ import { useLocation } from "react-router";
 import type { RootState } from "@/app/store";
 import { useAppSelector } from "@/app/hooks";
 import { ViewMemoryContext, type ViewMemory } from "@/components/layout/ViewMemory";
-import { repoLabel } from "@/features/source-control/utils";
+import { ProjectReviewTabs } from "./ProjectReviewTabs";
 import { selectActiveWorkspace, workspaceMemoryChanged } from "../workspacesSlice";
 
 const scrollSelectors = [
@@ -18,35 +18,9 @@ export function WorkspaceContent({ children }: { children: ReactNode }) {
   const workspace = useAppSelector(selectActiveWorkspace);
   const id = workspace?.id ?? "";
   const { pathname } = useLocation();
-  const section =
-    pathname.endsWith("/checks") || pathname.endsWith("/local-checks")
-      ? "Checks"
-      : pathname.endsWith("/overview")
-        ? "Overview"
-        : pathname.endsWith("/files") || pathname.endsWith("/local-files")
-          ? "Files"
-          : pathname === "/history"
-            ? "History"
-            : pathname === "/review"
-              ? "Compare refs"
-              : pathname === "/pull-requests"
-                ? "Pull requests"
-                : "Changes";
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {workspace && pathname !== "/settings" ? (
-        <div className="border-border/70 flex h-9 shrink-0 items-center gap-2 border-b px-4 text-xs">
-          <span className="text-muted-foreground truncate">
-            {workspace.kind === "repo"
-              ? repoLabel(workspace.repoPath)
-              : `${workspace.repo} #${workspace.pullRequestNumber}`}
-          </span>
-          <span aria-hidden="true" className="text-muted-foreground">
-            /
-          </span>
-          <h1 className="font-medium">{section}</h1>
-        </div>
-      ) : null}
+      <ProjectReviewTabs />
       <div className="min-h-0 flex-1">
         <WorkspaceContentView key={`${id}:${pathname}`} memoryId={`${id}:${pathname}`}>
           {children}

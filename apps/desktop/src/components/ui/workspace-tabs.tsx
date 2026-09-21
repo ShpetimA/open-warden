@@ -26,10 +26,13 @@ type WorkspaceAddItem = Readonly<{
 }>;
 
 type WorkspaceTabsProps = Readonly<{
+  variant?: "primary" | "secondary";
   items: readonly WorkspaceTabItem[];
   activeId: string;
   ariaLabel?: string;
+  overflowLabel?: string;
   addLabel?: string;
+  closeShortcut?: string;
   className?: string;
   onActivate: (id: string) => void;
   onClose?: (id: string) => void;
@@ -71,9 +74,12 @@ function focusWorkspaceTab(
 
 function WorkspaceTabs({
   items,
+  variant = "primary",
   activeId,
   ariaLabel = "Open workspaces",
+  overflowLabel = "All open tabs",
   addLabel = "Open project (⌘O)",
+  closeShortcut = "⌘W",
   className,
   onActivate,
   onClose,
@@ -97,6 +103,8 @@ function WorkspaceTabs({
       data-slot="workspace-tabs"
       className={cn(
         "border-border/70 bg-surface-toolbar flex h-8 min-w-0 items-center border-b",
+        variant === "secondary" &&
+          "h-8 bg-background [&_[data-workspace-tab-id]]:h-6 [&_[data-workspace-tab-id]]:gap-1.5 [&_[data-workspace-tab-id]]:max-w-64 [&_[data-tab-close]]:h-6 [&_[data-tab-close]]:w-5",
         className,
       )}
     >
@@ -157,9 +165,10 @@ function WorkspaceTabs({
               {item.closable !== false && onClose ? (
                 <button
                   type="button"
+                  data-tab-close="true"
                   aria-label={`Close ${item.label}`}
                   tabIndex={active ? 0 : -1}
-                  title={`Close ${item.label} (⌘W)`}
+                  title={`Close ${item.label} (${closeShortcut})`}
                   className={cn(
                     "text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-6 shrink-0 items-center justify-center rounded-md transition-[background-color,color,opacity] motion-reduce:transition-none group-hover/tab:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/60",
                     active ? "opacity-100" : "opacity-0",
@@ -179,8 +188,8 @@ function WorkspaceTabs({
       {items.length > 1 ? (
         <DropdownMenu>
           <DropdownMenuTrigger
-            aria-label="All open workspaces"
-            title="All open workspaces"
+            aria-label={overflowLabel}
+            title={overflowLabel}
             className="app-no-drag size-7 shrink-0 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring"
           >
             <ChevronDown className="size-3.5" />

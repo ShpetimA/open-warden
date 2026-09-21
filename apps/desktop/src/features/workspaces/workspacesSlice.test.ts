@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  projectActivated,
+  projectRemoved,
+  projectReopened,
   pullRequestWorkspaceUpserted,
   repoWorkspaceUpserted,
   selectActiveWorkspace,
@@ -85,4 +88,55 @@ describe("workspacesSlice", () => {
     const active = selectActiveWorkspace({ workspaces: next } as never);
     expect(active?.kind).toBe("repo");
   });
+});
+
+it("remembers each project's active review and restores a closed project as a group", () => {
+  let state = workspacesReducer(undefined, workspacesHydrated({ openRepos: ["/a", "/b"] }));
+  state = workspacesReducer(
+    state,
+    pullRequestWorkspaceUpserted({
+      repoPath: "/a",
+      providerId: "github",
+      owner: "acme",
+      repo: "a",
+      pullRequestNumber: 7,
+      title: "Review",
+    }),
+  );
+  const reviewId = state.activeWorkspaceId;
+  state = workspacesReducer(state, projectActivated({ repoPath: "/b" }));
+  expect(state.activeWorkspaceId).toBe("/b");
+  state = workspacesReducer(state, projectActivated({ repoPath: "/a" }));
+  expect(state.activeWorkspaceId).toBe(reviewId);
+  state = workspacesReducer(state, projectRemoved({ repoPath: "/a" }));
+  expect(state.items.map((item) => item.id)).toEqual(["/b"]);
+  expect(state.activeWorkspaceId).toBe("/b");
+  state = workspacesReducer(state, projectReopened({ repoPath: "/a" }));
+  expect(state.items.filter((item) => item.repoPath === "/a")).toHaveLength(2);
+  expect(state.activeWorkspaceId).toBe(reviewId);
+});
+
+it("opens the same PR independently in two project checkouts", () => {
+  const review = {
+    providerId: "github" as const,
+    owner: "acme",
+    repo: "app",
+    pullRequestNumber: 7,
+    title: "Review",
+  };
+  let state = workspacesReducer(
+    undefined,
+    pullRequestWorkspaceUpserted({ ...review, repoPath: "/main" }),
+  );
+  const first = state.activeWorkspaceId;
+  state = workspacesReducer(
+    state,
+    pullRequestWorkspaceUpserted({ ...review, repoPath: "/worktree" }),
+  );
+  expect(state.activeWorkspaceId).not.toBe(first);
+  expect(state.items.filter((item) => item.kind === "pull-request")).toHaveLength(2);
+  state = workspacesReducer(state, projectActivated({ repoPath: "/main" }));
+  expect(state.activeWorkspaceId).toBe(first);
+  state = workspacesReducer(state, pullRequestWorkspaceUpserted({ ...review, repoPath: "/main" }));
+  expect(state.items.filter((item) => item.kind === "pull-request")).toHaveLength(2);
 });

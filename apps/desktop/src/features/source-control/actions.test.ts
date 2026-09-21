@@ -1,4 +1,5 @@
-import { workspacesReducer } from "@/features/workspaces/workspacesSlice";
+import { rootReducer } from "@/app/store";
+import { workspacesReducer, workspacesHydrated } from "@/features/workspaces/workspacesSlice";
 import { configureStore } from "@reduxjs/toolkit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -156,7 +157,7 @@ describe("source control workspace actions", () => {
   });
 
   it("resets repo-scoped tab state when closing the active repo", async () => {
-    const store = createTestStore();
+    const store = configureStore({ reducer: rootReducer });
 
     store.dispatch(
       hydrateWorkspaceSession({
@@ -164,6 +165,9 @@ describe("source control workspace actions", () => {
         activeRepo: "/repo/b",
         recentRepos: ["/repo/b", "/repo/a"],
       }),
+    );
+    store.dispatch(
+      workspacesHydrated({ openRepos: ["/repo/a", "/repo/b"], activeRepo: "/repo/b" }),
     );
     store.dispatch(setActivePath("src/file.ts"));
     store.dispatch(setSelectedFiles([{ bucket: "unstaged", path: "src/file.ts" }]));

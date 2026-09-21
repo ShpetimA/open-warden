@@ -7,9 +7,10 @@ const WORKSPACE_HOTKEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
-import { closeWorkspace, reopenWorkspace, selectWorkspace } from "@/features/workspaces/actions";
+import { closeProject, closeWorkspace, reopenWorkspace } from "@/features/workspaces/actions";
 import {
   selectActiveWorkspaceId,
+  projectActivated,
   selectWorkspaces,
   type Workspace,
 } from "@/features/workspaces/workspacesSlice";
@@ -21,16 +22,6 @@ type WorkspaceTabBarProps = {
 };
 
 function workspaceTabFor(workspace: Workspace) {
-  if (workspace.kind === "pull-request") {
-    return {
-      id: workspace.id,
-      label: `#${workspace.pullRequestNumber} ${workspace.title}`.trim(),
-      context: `${workspace.owner}/${workspace.repo}`,
-      icon: <ProjectMonogram name={repoLabel(workspace.repoPath)} identity={workspace.repoPath} />,
-      closable: true,
-    };
-  }
-
   return {
     id: workspace.id,
     label: repoLabel(workspace.repoPath),
@@ -44,35 +35,50 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const locations = useAppSelector((state) => state.workspaces.locations);
+
   const workspaces = useAppSelector(selectWorkspaces);
+  const locations = useAppSelector((state) => state.workspaces.locations);
+  const activeByProject = useAppSelector((state) => state.workspaces.activeByProject);
   const activeWorkspaceId = useAppSelector(selectActiveWorkspaceId);
+  const projects = workspaces.filter((item) => item.kind === "repo");
+  const activeProject = workspaces.find((item) => item.id === activeWorkspaceId)?.repoPath ?? "";
 
   function cycle(direction: number) {
-    const index = workspaces.findIndex((item) => item.id === activeWorkspaceId);
-    const target = workspaces[(index + direction + workspaces.length) % workspaces.length];
+    const index = projects.findIndex((item) => item.repoPath === activeProject);
+    const target = projects[(index + direction + projects.length) % projects.length];
     if (target) activate(target.id);
   }
   useHotkey(
     "Mod+W",
     () => {
-      if (location.pathname === "/settings") activate(activeWorkspaceId);
-      else close(activeWorkspaceId);
+      if (location.pathname === "/settings") {
+        const active = workspaces.find((item) => item.id === activeWorkspaceId);
+        if (active) navigate(locations[active.id] ?? workspacePath(active));
+      } else if (workspaces.find((item) => item.id === activeWorkspaceId)?.kind === "pull-request")
+        dispatch(closeWorkspace(activeWorkspaceId));
+      else dispatch(closeProject(activeProject));
     },
     { enabled: workspaces.length > 0, ignoreInputs: false },
   );
+  useHotkey("Mod+Shift+W", () => dispatch(closeProject(activeProject)), {
+    enabled: Boolean(activeProject),
+    ignoreInputs: false,
+  });
   useHotkey("Mod+Shift+T", () => dispatch(reopenWorkspace()), { ignoreInputs: false });
   useHotkey("Control+Tab", () => cycle(1), { ignoreInputs: false });
   useHotkey("Control+Shift+Tab", () => cycle(-1), { ignoreInputs: false });
 
   function activate(id: string) {
-    dispatch(selectWorkspace(id));
-    const workspace = workspaces.find((item) => item.id === id);
-    if (workspace) navigate(locations[id] ?? workspacePath(workspace));
+    dispatch(projectActivated({ repoPath: id }));
+    if (location.pathname === "/settings") {
+      const workspace =
+        workspaces.find((item) => item.id === activeByProject[id]) ??
+        workspaces.find((item) => item.repoPath === id);
+      if (workspace) navigate(locations[workspace.id] ?? workspacePath(workspace));
+    }
   }
-
   function close(id: string) {
-    dispatch(closeWorkspace(id));
+    dispatch(closeProject(id));
   }
 
   return (
@@ -82,16 +88,18 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
           key={number}
           number={number}
           onActivate={() => {
-            const target = workspaces[number - 1];
+            const target = projects[number - 1];
             if (target) activate(target.id);
           }}
         />
       ))}
       <WorkspaceTabs
         className="min-w-0 flex-1 border-b-0 bg-transparent"
-        ariaLabel="Open workspaces"
+        ariaLabel="Open projects"
+        overflowLabel="All open projects"
         addLabel="Open project (⌘O)"
-        items={workspaces.map((workspace) => {
+        closeShortcut="⌘⇧W"
+        items={projects.map((workspace) => {
           const tab = workspaceTabFor(workspace);
           const duplicate =
             workspace.kind === "repo" &&
@@ -105,7 +113,7 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
             tab.label = `${tab.label} · ${repoLabel(repoParentPath(workspace.repoPath))}`;
           return tab;
         })}
-        activeId={activeWorkspaceId}
+        activeId={activeProject}
         onActivate={activate}
         onClose={close}
         onAdd={onOpenWorkspaces}
