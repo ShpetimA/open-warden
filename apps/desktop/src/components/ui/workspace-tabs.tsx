@@ -96,7 +96,7 @@ function WorkspaceTabs({
     <div
       data-slot="workspace-tabs"
       className={cn(
-        "border-border/70 bg-surface-toolbar flex h-12 min-w-0 items-center border-b",
+        "border-border/70 bg-surface-toolbar flex h-8 min-w-0 items-center border-b",
         className,
       )}
     >
@@ -105,7 +105,7 @@ function WorkspaceTabs({
         role="navigation"
         aria-label={ariaLabel}
         data-workspace-tab-list="true"
-        className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1.5 py-1"
+        className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto overflow-y-hidden px-1 py-0.5"
       >
         {items.map((item) => {
           const active = item.id === activeId;
@@ -113,10 +113,10 @@ function WorkspaceTabs({
             <div
               data-active={active || undefined}
               className={cn(
-                "app-no-drag group/tab flex min-w-0 shrink-0 items-center rounded-md pl-2 transition-[background-color,color,box-shadow,--tw-ring-color] duration-150 ease-out motion-reduce:transition-none focus-within:ring-2 focus-within:ring-ring/60",
+                "app-no-drag group/tab flex min-w-0 shrink-0 items-center rounded-md pl-2 transition-[background-color,color,box-shadow,--tw-ring-color] duration-150 ease-out motion-reduce:transition-none",
                 active
-                  ? "bg-surface-elevated text-foreground shadow-xs ring-1 ring-border/70"
-                  : "text-foreground/75 hover:bg-accent/70 hover:text-foreground",
+                  ? "bg-surface-active text-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
               key={item.id}
             >
@@ -128,7 +128,7 @@ function WorkspaceTabs({
                 data-workspace-tab-id={item.id}
                 tabIndex={active ? 0 : -1}
                 className={cn(
-                  "flex h-10 min-w-0 max-w-60 items-center gap-1.5 text-left outline-none",
+                  "flex h-7 min-w-0 max-w-56 items-center gap-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm",
                   item.closable === false || !onClose ? "pr-2" : "pr-0.5",
                 )}
                 onClick={() => onActivate(item.id)}
@@ -159,7 +159,7 @@ function WorkspaceTabs({
                   tabIndex={active ? 0 : -1}
                   title={`Close ${item.label} (⌘W)`}
                   className={cn(
-                    "text-muted-foreground hover:bg-accent hover:text-foreground inline-flex size-10 shrink-0 items-center justify-center rounded-md transition-[background-color,color,opacity] motion-reduce:transition-none group-hover/tab:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring/60",
+                    "text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-6 shrink-0 items-center justify-center rounded-md transition-[background-color,color,opacity] motion-reduce:transition-none group-hover/tab:opacity-100 focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring/60",
                     active ? "opacity-100" : "opacity-0",
                   )}
                   onClick={() => {
@@ -179,7 +179,7 @@ function WorkspaceTabs({
           <DropdownMenuTrigger
             aria-label="All open workspaces"
             title="All open workspaces"
-            className="app-no-drag size-10 shrink-0 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+            className="app-no-drag size-7 shrink-0 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring"
           >
             <ChevronDown className="size-3.5" />
           </DropdownMenuTrigger>
@@ -202,7 +202,7 @@ function WorkspaceTabs({
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={addLabel}
-            className="app-no-drag focus-visible:ring-ring/60 ml-0.5 flex size-10 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] hover:bg-accent hover:text-foreground focus-visible:ring-2 data-[state=open]:bg-accent data-[state=open]:text-foreground"
+            className="app-no-drag focus-visible:ring-ring/60 ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none transition-[background-color,color] hover:bg-accent hover:text-foreground focus-visible:ring-1 data-[state=open]:bg-accent data-[state=open]:text-foreground"
           >
             <Plus className="size-3.5" />
           </DropdownMenuTrigger>
@@ -228,7 +228,7 @@ function WorkspaceTabs({
         <button
           type="button"
           aria-label={addLabel}
-          className="app-no-drag text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/60 ml-0.5 flex size-10 shrink-0 items-center justify-center rounded-md outline-none transition-[background-color,color] focus-visible:ring-2"
+          className="app-no-drag text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring/60 ml-0.5 flex size-7 shrink-0 items-center justify-center rounded-md outline-none transition-[background-color,color] focus-visible:ring-1"
           ref={addRef}
           title={addLabel}
           onClick={onAdd}

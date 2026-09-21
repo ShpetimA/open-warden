@@ -57,7 +57,7 @@ function createMainWindow() {
     show: false,
     title: "OpenWarden",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-    trafficLightPosition: process.platform === "darwin" ? { x: 16, y: 16 } : undefined,
+    trafficLightPosition: process.platform === "darwin" ? { x: 16, y: 13 } : undefined,
     webPreferences: {
       preload: resolvePreloadPath(__dirname),
       contextIsolation: true,

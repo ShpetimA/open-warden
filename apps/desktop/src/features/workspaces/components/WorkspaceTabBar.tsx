@@ -1,4 +1,4 @@
-import { Folder, GitPullRequest } from "lucide-react";
+import { ProjectMonogram } from "@/components/ui/project-monogram";
 import type { Hotkey } from "@tanstack/hotkeys";
 import { useLocation, useNavigate } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -26,7 +26,7 @@ function workspaceTabFor(workspace: Workspace) {
       id: workspace.id,
       label: `#${workspace.pullRequestNumber} ${workspace.title}`.trim(),
       context: `${workspace.owner}/${workspace.repo}`,
-      icon: <GitPullRequest className="size-3" />,
+      icon: <ProjectMonogram name={repoLabel(workspace.repoPath)} identity={workspace.repoPath} />,
       closable: true,
     };
   }
@@ -35,7 +35,7 @@ function workspaceTabFor(workspace: Workspace) {
     id: workspace.id,
     label: repoLabel(workspace.repoPath),
     context: repoParentPath(workspace.repoPath),
-    icon: <Folder className="size-3" />,
+    icon: <ProjectMonogram name={repoLabel(workspace.repoPath)} identity={workspace.repoPath} />,
     closable: true,
   };
 }

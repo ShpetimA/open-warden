@@ -154,7 +154,7 @@ function HeaderCommentActions({ activeFeature, currentPath }: HeaderCommentActio
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-10 w-10 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+            className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
             onClick={() => void (isRecopyMode ? onCopyLastComments() : onCopyAllComments())}
             aria-label={tooltipText}
           >
@@ -186,7 +186,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
   const navigate = useNavigate();
 
   return (
-    <div className="app-no-drag flex shrink-0 items-center justify-self-end gap-1.5">
+    <div className="app-no-drag flex shrink-0 items-center justify-self-end gap-1">
       {activeFeature ? (
         <HeaderCommentActions activeFeature={activeFeature} currentPath={currentPath} />
       ) : null}
@@ -195,7 +195,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
 
       <button
         type="button"
-        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-10 w-10 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
         onClick={() => {
           navigate("/settings");
         }}
@@ -207,7 +207,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
 
       <button
         type="button"
-        className="border-input bg-surface-alt text-muted-foreground hover:text-foreground inline-flex h-10 w-10 items-center justify-center rounded-md border transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
+        className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
         onClick={onOpenCommandPalette}
         title="Open Command Palette (⌘K)"
         aria-label="Open command palette"
@@ -226,7 +226,7 @@ export function AppHeader({
   onOpenCommandPalette,
 }: AppHeaderProps) {
   return (
-    <header className="app-drag-region border-border bg-surface-toolbar flex h-14 select-none items-center justify-between gap-3 border-b pl-22 pr-3">
+    <header className="app-drag-region border-border bg-surface-toolbar flex h-10 select-none items-center justify-between gap-3 border-b pl-22 pr-3">
       {showWorkspaceTabs ? <WorkspaceTabBar onOpenWorkspaces={onOpenWorkspaces} /> : null}
 
       <HeaderActions
