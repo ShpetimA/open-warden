@@ -10,6 +10,18 @@ import { hostedReposApi } from "@/features/hosted-repos/api";
 
 export const gitOperationsApi = gitApi.injectEndpoints({
   endpoints: (builder) => ({
+    getGitStashPatch: builder.query<string, { repoPath: string; oid: string }>({
+      async queryFn({ repoPath, oid }) {
+        try {
+          const result = gitCommandResultSchema.parse(
+            await desktop.getGitStashPatch(repoPath, oid),
+          );
+          return result.ok ? { data: result.value } : { error: result.error };
+        } catch {
+          return { error: { message: "Unable to read stash." } };
+        }
+      },
+    }),
     getGitRepositoryState: builder.query<GitRepositoryState, string>({
       async queryFn(repoPath) {
         try {
@@ -56,4 +68,5 @@ export const gitOperationsApi = gitApi.injectEndpoints({
     }),
   }),
 });
-export const { useGetGitRepositoryStateQuery, useRunGitCommandMutation } = gitOperationsApi;
+export const { useGetGitStashPatchQuery, useGetGitRepositoryStateQuery, useRunGitCommandMutation } =
+  gitOperationsApi;

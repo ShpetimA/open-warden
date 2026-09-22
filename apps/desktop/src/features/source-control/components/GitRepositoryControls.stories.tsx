@@ -1,3 +1,11 @@
+import { Provider } from "react-redux";
+import { configureStore } from "@reduxjs/toolkit";
+import { rootReducer } from "@/app/store";
+import { gitApi } from "../api";
+const storyStore = configureStore({
+  reducer: rootReducer,
+  middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+});
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { RepositoryActions } from "./GitRepositoryControls";
 const meta = {
@@ -5,9 +13,11 @@ const meta = {
   component: RepositoryActions,
   decorators: [
     (Story) => (
-      <div className="bg-background text-foreground w-[520px] max-w-full p-4">
-        <Story />
-      </div>
+      <Provider store={storyStore}>
+        <div className="bg-background text-foreground w-[520px] max-w-full p-4">
+          <Story />
+        </div>
+      </Provider>
     ),
   ],
   args: {
@@ -15,6 +25,8 @@ const meta = {
     busy: false,
     run: async () => {},
     state: {
+      lastCommit: null,
+      stashes: [],
       branch: "feature/tabs",
       upstream: "origin/feature/tabs",
       ahead: 2,

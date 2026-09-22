@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, it } from "vitest";
-import { getGitRepositoryState, runGitCommand } from "./gitOperations";
+import { getGitStashPatch, getGitRepositoryState, runGitCommand } from "./gitOperations";
 
 const roots: string[] = [];
 function git(repo: string, ...args: string[]) {
@@ -89,4 +89,74 @@ it("does not overwrite dirty files when switching and refuses option-shaped name
     false,
   );
   expect(git(repo, "diff")).toContain("unsaved");
+});
+
+it("amends unpublished commits and undoes them while retaining staged changes", async () => {
+  const { repo } = await fixture();
+  git(repo, "commit", "--allow-empty", "-m", "Second");
+  const expectedHead = git(repo, "rev-parse", "HEAD");
+  expect(
+    (await runGitCommand(repo, { kind: "amend", message: "Second\n\nDetails", expectedHead })).ok,
+  ).toBe(true);
+  expect(git(repo, "log", "-1", "--format=%B")).toBe("Second\n\nDetails");
+  expect((await runGitCommand(repo, { kind: "undo", expectedHead })).ok).toBe(false);
+  await writeFile(path.join(repo, "file.txt"), "updated\n");
+  git(repo, "add", ".");
+  expect(
+    (
+      await runGitCommand(repo, {
+        kind: "amend",
+        message: "Updated",
+        expectedHead: git(repo, "rev-parse", "HEAD"),
+      })
+    ).ok,
+  ).toBe(true);
+  expect(
+    (await runGitCommand(repo, { kind: "undo", expectedHead: git(repo, "rev-parse", "HEAD") })).ok,
+  ).toBe(true);
+  expect(git(repo, "diff", "--cached")).toContain("updated");
+  expect(git(repo, "log", "-1", "--format=%s")).toBe("Initial");
+});
+
+it("protects published commits from amend and undo", async () => {
+  const { repo } = await fixture();
+  await runGitCommand(repo, { kind: "publish", remote: "origin" });
+  const expectedHead = git(repo, "rev-parse", "HEAD");
+  expect((await runGitCommand(repo, { kind: "amend", message: "Changed", expectedHead })).ok).toBe(
+    false,
+  );
+  expect((await runGitCommand(repo, { kind: "undo", expectedHead })).ok).toBe(false);
+  expect(git(repo, "rev-parse", "HEAD")).toBe(expectedHead);
+});
+
+it("saves untracked files, previews and applies a stash using its stable identity", async () => {
+  const { repo } = await fixture();
+  await writeFile(path.join(repo, "notes.txt"), "saved notes\n");
+  expect(
+    (await runGitCommand(repo, { kind: "stash-save", message: "Notes", includeUntracked: true }))
+      .ok,
+  ).toBe(true);
+  const state = await getGitRepositoryState(repo);
+  const oid = state.ok ? state.value.stashes[0]?.oid : undefined;
+  if (!oid) throw new Error("Expected saved stash");
+  const patch = await getGitStashPatch(repo, oid);
+  expect(patch.ok && patch.value).toContain("saved notes");
+  await writeFile(path.join(repo, "another.txt"), "another\n");
+  await runGitCommand(repo, { kind: "stash-save", message: "Another", includeUntracked: true });
+  expect((await runGitCommand(repo, { kind: "stash-pop", oid })).ok).toBe(true);
+  expect(await readFile(path.join(repo, "notes.txt"), "utf8")).toBe("saved notes\n");
+  expect(git(repo, "stash", "list")).toContain("Another");
+  expect(git(repo, "stash", "list")).not.toContain("Notes");
+});
+
+it("retains the stash if applying it causes conflicts", async () => {
+  const { repo } = await fixture();
+  await writeFile(path.join(repo, "file.txt"), "stashed\n");
+  await runGitCommand(repo, { kind: "stash-save", message: "Conflict", includeUntracked: false });
+  const oid = git(repo, "rev-parse", "refs/stash");
+  await writeFile(path.join(repo, "file.txt"), "committed\n");
+  git(repo, "commit", "-am", "Conflict");
+  expect((await runGitCommand(repo, { kind: "stash-pop", oid })).ok).toBe(false);
+  expect(git(repo, "rev-parse", "refs/stash")).toBe(oid);
+  expect(git(repo, "diff", "--name-only", "--diff-filter=U")).toBe("file.txt");
 });

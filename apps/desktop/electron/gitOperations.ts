@@ -79,15 +79,27 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
         }),
     };
   };
-  const incoming = upstream ? await readLog("HEAD..@{upstream}") : { ok: true as const, value: [] };
-  const outgoing = upstream ? await readLog("@{upstream}..HEAD") : { ok: true as const, value: [] };
+  const upstreamExists = upstream
+    ? (await run(repo, ["rev-parse", "--verify", "@{upstream}"])).ok
+    : false;
+  const incoming = upstreamExists
+    ? await readLog("HEAD..@{upstream}")
+    : { ok: true as const, value: [] };
+  const outgoing = upstreamExists
+    ? await readLog("@{upstream}..HEAD")
+    : { ok: true as const, value: [] };
   if (!incoming.ok) return incoming;
   if (!outgoing.ok) return outgoing;
+  const head = await run(repo, ["rev-parse", "--verify", "HEAD"]);
+  const lastMessage = head.ok ? await run(repo, ["log", "-1", "--format=%B"]) : null;
+  const published = head.ok ? await run(repo, ["branch", "-r", "--contains", "HEAD"]) : null;
+  const stashes = await run(repo, ["stash", "list", "--format=%H%x09%gs"]);
+  if (!stashes.ok) return stashes;
   return {
     ok: true,
     value: {
       branch: branch === "(detached)" ? "" : branch,
-      upstream,
+      upstream: upstreamExists ? upstream : "",
       ahead: Number(counts?.[1] ?? 0),
       behind: Number(counts?.[2] ?? 0),
       remotes: remotes.value.split("\n").filter(Boolean),
@@ -100,6 +112,17 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
           const remote = ref.startsWith("refs/remotes/");
           return [{ name: ref.replace(/^refs\/(heads|remotes)\//, ""), remote, worktree }];
         }),
+      lastCommit:
+        head.ok && lastMessage?.ok && published?.ok
+          ? { id: head.value, message: lastMessage.value, published: Boolean(published.value) }
+          : null,
+      stashes: stashes.value
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const [oid = "", ...label] = line.split("\t");
+          return { oid, label: label.join("\t") };
+        }),
       incoming: incoming.value,
       outgoing: outgoing.value,
     },
@@ -108,6 +131,70 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
 
 async function execute(repo: string, command: GitCommand): Promise<GitResult<string>> {
   switch (command.kind) {
+    case "amend":
+    case "undo": {
+      const head = await run(repo, ["rev-parse", "--verify", "HEAD"]);
+      if (!head.ok) return head;
+      if (head.value !== command.expectedHead)
+        return failure("HEAD changed. Refresh before editing this commit.");
+      const published = await run(repo, ["branch", "-r", "--contains", "HEAD"]);
+      if (!published.ok) return published;
+      if (published.value)
+        return failure(
+          "This commit is on a remote-tracking branch. Use Revert to preserve published history.",
+        );
+      if (command.kind === "amend")
+        return run(repo, ["commit", "--amend", "--allow-empty", "-m", command.message]);
+      return run(repo, ["reset", "--soft", "HEAD^"]);
+    }
+    case "stash-save":
+      return run(repo, [
+        "stash",
+        "push",
+        ...(command.includeUntracked ? ["--include-untracked"] : []),
+        "-m",
+        command.message,
+      ]);
+    case "stash-apply":
+      return run(repo, ["stash", "apply", command.oid]);
+    case "stash-pop":
+    case "stash-drop": {
+      const list = await run(repo, ["stash", "list", "--format=%H%x09%gd"]);
+      if (!list.ok) return list;
+      const ref = list.value
+        .split("\n")
+        .find((line) => line.startsWith(command.oid + "\t"))
+        ?.split("\t")[1];
+      if (!ref) return failure("This stash no longer exists. Refresh the stash list.");
+      if (command.kind === "stash-pop") {
+        const applied = await run(repo, ["stash", "apply", command.oid]);
+        if (!applied.ok) return applied;
+      }
+      return run(repo, ["stash", "drop", ref]);
+    }
+    case "stash-switch": {
+      const saved = await run(repo, [
+        "stash",
+        "push",
+        "--include-untracked",
+        "-m",
+        "Before switching to " + command.branch,
+      ]);
+      if (!saved.ok) return saved;
+      const switched = await execute(
+        repo,
+        command.remote
+          ? {
+              kind: "track",
+              remoteBranch: command.branch,
+              branch: command.branch.slice(command.branch.indexOf("/") + 1),
+            }
+          : { kind: "switch", branch: command.branch },
+      );
+      if (!switched.ok)
+        return failure(switched.error.message + "\nYour saved work remains in Stashes.");
+      return switched;
+    }
     case "fetch":
       return run(repo, ["fetch", "--prune", command.remote]);
     case "pull":
@@ -165,4 +252,21 @@ export async function runGitCommand(
   } finally {
     running.delete(root.value);
   }
+}
+
+function failure(message: string): GitResult<string> {
+  return { ok: false, error: { code: "git-failed", message } };
+}
+
+export async function getGitStashPatch(
+  repoInput: string,
+  oidInput: string,
+): Promise<GitResult<string>> {
+  const repo = repoSchema.safeParse(repoInput);
+  const oid = z
+    .string()
+    .regex(/^[a-f0-9]{40,64}$/)
+    .safeParse(oidInput);
+  if (!repo.success || !oid.success) return failure("Invalid stash.");
+  return run(repo.data, ["stash", "show", "--include-untracked", "--patch", oid.data]);
 }

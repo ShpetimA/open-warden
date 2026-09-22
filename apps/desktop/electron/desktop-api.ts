@@ -1,4 +1,4 @@
-import { getGitRepositoryState, runGitCommand } from "./gitOperations";
+import { getGitStashPatch, getGitRepositoryState, runGitCommand } from "./gitOperations";
 import { browseDirectory } from "./directories";
 import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
 import { getAppSettingsPath, loadAppSettings, saveAppSettings } from "./appSettings";
@@ -51,6 +51,7 @@ let lspSessionManager = new LspSessionManager({
 });
 
 export const desktopApi: DesktopApi = {
+  getGitStashPatch,
   getGitRepositoryState,
   runGitCommand,
   selectFolder,

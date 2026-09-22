@@ -1,3 +1,4 @@
+import { StashPanel } from "./StashPanel";
 import { useState } from "react";
 import { ArrowDown, ArrowUp, GitBranch, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -262,6 +263,19 @@ export function RepositoryActions({
           variant="outline"
           size="sm"
           disabled={
+            busy || !selectedBranch || selected === state.branch || Boolean(selectedBranch.worktree)
+          }
+          onClick={() => {
+            if (selectedBranch)
+              void run({ kind: "stash-switch", branch: selected, remote: selectedBranch.remote });
+          }}
+        >
+          Stash & switch
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={
             busy || !selectedBranch || selectedBranch.remote || Boolean(selectedBranch.worktree)
           }
           onClick={() => void run({ kind: "delete", branch: selected })}
@@ -297,6 +311,7 @@ export function RepositoryActions({
           Rename current branch
         </Button>
       </div>
+      <StashPanel repoPath={repoPath} stashes={state.stashes} busy={busy} run={run} />
       {(["incoming", "outgoing"] as const).map((direction) =>
         state[direction].length ? (
           <section key={direction}>

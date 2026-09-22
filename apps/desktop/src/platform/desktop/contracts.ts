@@ -377,6 +377,7 @@ export type LspLocation = {
 };
 
 export type DesktopApi = {
+  getGitStashPatch(repoPath: string, oid: string): Promise<GitResult<string>>;
   getGitRepositoryState(repoPath: string): Promise<GitResult<GitRepositoryState>>;
   runGitCommand(repoPath: string, command: GitCommand): Promise<GitResult<string>>;
   browseDirectory(path: string): Promise<DirectoryListing>;

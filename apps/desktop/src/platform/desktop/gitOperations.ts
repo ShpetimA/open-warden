@@ -5,8 +5,23 @@ const name = z
   .trim()
   .min(1)
   .max(1024)
-  .refine((value) => !value.startsWith("-") && !/[\0\r\n]/.test(value), "Invalid Git name");
+  .refine(
+    (value) => !value.startsWith("-") && !value.includes("\0") && !/[\r\n]/.test(value),
+    "Invalid Git name",
+  );
+const oid = z.string().regex(/^[a-f0-9]{40,64}$/);
 export const gitCommandSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("amend"), message: z.string().trim().min(1), expectedHead: oid }),
+  z.object({ kind: z.literal("undo"), expectedHead: oid }),
+  z.object({
+    kind: z.literal("stash-save"),
+    message: z.string().trim().min(1),
+    includeUntracked: z.boolean(),
+  }),
+  z.object({ kind: z.literal("stash-apply"), oid }),
+  z.object({ kind: z.literal("stash-pop"), oid }),
+  z.object({ kind: z.literal("stash-drop"), oid }),
+  z.object({ kind: z.literal("stash-switch"), branch: name, remote: z.boolean() }),
   z.object({ kind: z.literal("fetch"), remote: name }),
   z.object({ kind: z.literal("pull") }),
   z.object({ kind: z.literal("push") }),
@@ -25,6 +40,8 @@ export const gitRepositoryStateSchema = z.object({
   behind: z.number().int().nonnegative(),
   remotes: z.array(z.string()),
   branches: z.array(z.object({ name: z.string(), remote: z.boolean(), worktree: z.string() })),
+  lastCommit: z.object({ id: z.string(), message: z.string(), published: z.boolean() }).nullable(),
+  stashes: z.array(z.object({ oid: z.string(), label: z.string() })),
   incoming: z.array(z.object({ id: z.string(), subject: z.string() })),
   outgoing: z.array(z.object({ id: z.string(), subject: z.string() })),
 });
