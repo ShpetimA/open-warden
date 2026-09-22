@@ -1,3 +1,4 @@
+import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
 export type ErrorCode = "INVALID_INPUT" | "INVALID_STATUS" | "BACKEND" | "UNAVAILABLE";
 
 export type ApiError = {
@@ -376,6 +377,8 @@ export type LspLocation = {
 };
 
 export type DesktopApi = {
+  getGitRepositoryState(repoPath: string): Promise<GitResult<GitRepositoryState>>;
+  runGitCommand(repoPath: string, command: GitCommand): Promise<GitResult<string>>;
   browseDirectory(path: string): Promise<DirectoryListing>;
   selectFolder(): Promise<string | null>;
   loadWorkspaceSession(): Promise<WorkspaceSession>;

@@ -1,6 +1,7 @@
 import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import { repoLabel } from "@/features/source-control/utils";
-import { GitBranch, RefreshCw } from "lucide-react";
+import { GitRepositoryControls } from "./GitRepositoryControls";
+import { RefreshCw } from "lucide-react";
 
 type CurrentRepositoryHeaderProps = {
   activeRepo: string;
@@ -11,12 +12,9 @@ type CurrentRepositoryHeaderProps = {
 
 function CurrentRepositoryHeader({
   activeRepo,
-  activeBranch,
   runningAction,
   onRefresh,
 }: CurrentRepositoryHeaderProps) {
-  const branchLabel = activeBranch || "Detached HEAD";
-
   return (
     <div className="border-border border-b px-3 py-1.5">
       <div className="flex items-center gap-2">
@@ -42,14 +40,7 @@ function CurrentRepositoryHeader({
           </button>
         </div>
       </div>
-      <div className="text-muted-foreground flex min-w-0 items-center gap-1 text-xs">
-        {activeRepo ? (
-          <>
-            <GitBranch className="h-3 w-3 shrink-0" />
-            <span className="truncate">{branchLabel}</span>
-          </>
-        ) : null}
-      </div>
+      {activeRepo ? <GitRepositoryControls key={activeRepo} repoPath={activeRepo} /> : null}
     </div>
   );
 }
