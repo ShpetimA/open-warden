@@ -66,15 +66,10 @@ export function useHistoryKeyboardNav() {
 
     event.preventDefault();
 
-    const { historyCommitId, historyNavTarget, historyFilter, fileBrowserMode, allHistoryCommits } =
+    const { historyCommitId, historyNavTarget, historyFilter, allHistoryCommits } =
       getNavigationData();
 
     if (historyNavTarget === "files") {
-      if (fileBrowserMode === "tree") {
-        movePierreFileTreeFocus("history-files", nextKey);
-        return;
-      }
-
       const targetFile = movePierreFileTreeFocusFile("history-files", nextKey);
       if (!targetFile) return;
       void dispatch(selectHistoryFile(targetFile.realPath ?? targetFile.path));
