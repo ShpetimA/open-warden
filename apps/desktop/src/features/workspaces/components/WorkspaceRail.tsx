@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
+import { BranchPullRequestButton } from "./BranchPullRequestButton";
 import { openPullRequestWorkspace } from "../actions";
 import SidebarTabButton from "@/components/ui/sidebar-tab";
 import { SidebarPanelToggles } from "@/components/layout/SidebarPanelToggles";
@@ -130,10 +131,10 @@ function ActivePullRequestSegments({
   if (!activePullRequest || !hostedRepo || !activeRepo) return null;
   return (
     <div className="border-border/70 mt-2 border-t pt-2">
-      <SidebarTabButton
-        icon={<GitPullRequest />}
-        label={`Open branch PR #${activePullRequest.number}`}
-        isActive={false}
+      <BranchPullRequestButton
+        branch={activeBranch}
+        number={activePullRequest.number}
+        title={activePullRequest.title}
         onClick={() => {
           void dispatch(
             openPullRequestWorkspace({
