@@ -1,3 +1,4 @@
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { pullRequestRailSections } from "./WorkspaceRail";
 import { GitPullRequest, List } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
@@ -19,11 +20,33 @@ export function ProjectReviewTabs() {
   const hasLocalReview = useAppSelector((state) => state.pullRequests.currentReview !== null);
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  if (!active || !pathname.startsWith("/pull-requests")) return null;
   const reviews = items.filter(
-    (item) => item.kind === "pull-request" && item.repoPath === active.repoPath,
+    (item) => item.kind === "pull-request" && item.repoPath === active?.repoPath,
   );
-  if (!reviews.length) return null;
+  const enabled = Boolean(active && pathname.startsWith("/pull-requests") && reviews.length);
+  function activate(id: string) {
+    if (!active) return;
+    if (id === active.repoPath) {
+      dispatch(workspaceLocationChanged({ id, path: "/pull-requests" }));
+      dispatch(selectWorkspace(id));
+      navigate("/pull-requests");
+    } else {
+      const target = reviews.find((item) => item.id === id);
+      if (!target) return;
+      dispatch(selectWorkspace(id));
+      navigate(locations[id] ?? workspacePath(target));
+    }
+  }
+  function cycle(direction: number) {
+    if (!active) return;
+    const ids = [active.repoPath, ...reviews.map((item) => item.id)];
+    const index = ids.indexOf(active.id);
+    const next = ids[(index + direction + ids.length) % ids.length];
+    if (next) activate(next);
+  }
+  useHotkey("Mod+Alt+ArrowRight", () => cycle(1), { enabled, ignoreInputs: false });
+  useHotkey("Mod+Alt+ArrowLeft", () => cycle(-1), { enabled, ignoreInputs: false });
+  if (!active || !enabled) return null;
   return (
     <div className="flex h-8 shrink-0 items-center border-b bg-background">
       <WorkspaceTabs
@@ -40,18 +63,7 @@ export function ProjectReviewTabs() {
           })),
         ]}
         activeId={active.id}
-        onActivate={(id) => {
-          if (id === active.repoPath) {
-            dispatch(workspaceLocationChanged({ id, path: "/pull-requests" }));
-            dispatch(selectWorkspace(id));
-            navigate("/pull-requests");
-          } else {
-            const target = reviews.find((item) => item.id === id);
-            if (!target) return;
-            dispatch(selectWorkspace(id));
-            navigate(locations[id] ?? workspacePath(target));
-          }
-        }}
+        onActivate={activate}
         onClose={(id) => dispatch(closeWorkspace(id))}
       />
       {active.kind === "pull-request" && (

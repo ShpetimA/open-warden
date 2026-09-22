@@ -64,6 +64,19 @@ it("keeps reviews inside their project and hides the inner strip on ordinary scr
   expect(screen.getByRole("status")).toHaveTextContent("/pull-requests/github/acme/alpha/7/files");
   fireEvent.click(screen.getByRole("button", { name: "Pull requests", exact: true }));
   expect(screen.getByRole("status")).toHaveTextContent("/pull-requests");
+  fireEvent.keyDown(document, {
+    key: "ArrowRight",
+    code: "ArrowRight",
+    ctrlKey: true,
+    altKey: true,
+  });
+  expect(screen.getByRole("status")).toHaveTextContent("/pull-requests/github/acme/alpha/7/files");
+  fireEvent.keyDown(document, { key: "ArrowLeft", code: "ArrowLeft", ctrlKey: true, altKey: true });
+  expect(store.getState().workspaces.activeWorkspaceId).toBe("/projects/alpha");
+  fireEvent.keyDown(document, { key: "9", code: "Digit9", ctrlKey: true });
+  expect(store.getState().sourceControl.activeRepo).toBe("/projects/beta");
+  fireEvent.keyDown(document, { key: "1", code: "Digit1", ctrlKey: true });
+  expect(store.getState().sourceControl.activeRepo).toBe("/projects/alpha");
   await act(() => router.navigate("/history"));
   expect(
     screen.queryByRole("navigation", { name: "Project pull requests" }),

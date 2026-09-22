@@ -296,6 +296,7 @@ function AppCommandPaletteContent({ onOpenChange }: AppCommandPaletteContentProp
     })),
     {
       id: "nav:settings",
+      shortcut: "⌘,",
       label: "Open Settings",
       subtitle: "/settings",
       keywords: ["settings", "preferences", "config"],

@@ -1,3 +1,4 @@
+import { KeyboardShortcuts } from "../components/KeyboardShortcuts";
 import { useNavigate } from "react-router";
 import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
 import { workspacePath } from "@/features/workspaces/workspaceRoutes";
@@ -117,6 +118,7 @@ export function SettingsScreen() {
             </Button>
           </div>
         </section>
+        <KeyboardShortcuts />
       </div>
     </div>
   );

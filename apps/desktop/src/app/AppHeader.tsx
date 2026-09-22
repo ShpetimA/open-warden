@@ -199,7 +199,7 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
         onClick={() => {
           navigate("/settings");
         }}
-        title="Open Settings"
+        title="Open Settings (⌘,)"
         aria-label="Open settings"
       >
         <Settings2 className="h-3.5 w-3.5" />

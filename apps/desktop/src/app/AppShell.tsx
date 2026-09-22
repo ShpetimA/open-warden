@@ -1,7 +1,7 @@
 import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
 import { useState } from "react";
-import { Outlet, useLocation } from "react-router";
-import { useHotkey } from "@tanstack/react-hotkeys";
+import { Outlet, useLocation, useNavigate } from "react-router";
+import { useAppNavigationHotkeys } from "./useAppNavigationHotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
 import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
@@ -21,6 +21,7 @@ export type AppShellOutletContext = {
 
 export function AppShell() {
   const location = useLocation();
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
@@ -30,21 +31,18 @@ export function AppShell() {
   const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
 
   const openRecentProjectsPicker = () => {
+    setCommandPaletteOpen(false);
     setRecentProjectsPickerOpen(true);
   };
 
-  useHotkey(
-    "Mod+O",
-    (event) => {
-      event.preventDefault();
-      openRecentProjectsPicker();
+  useAppNavigationHotkeys({
+    openProject: openRecentProjectsPicker,
+    openSettings: () => {
+      setRecentProjectsPickerOpen(false);
+      setCommandPaletteOpen(false);
+      navigate("/settings");
     },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  );
+  });
 
   return (
     <NuqsAdapter>
@@ -80,7 +78,13 @@ export function AppShell() {
               void dispatch(selectFolder());
             }}
           />
-          <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
+          <AppCommandPalette
+            open={commandPaletteOpen}
+            onOpenChange={(open) => {
+              if (open) setRecentProjectsPickerOpen(false);
+              setCommandPaletteOpen(open);
+            }}
+          />
         </div>
         <div id="modal-root" />
       </SidebarPanelRegistryProvider>

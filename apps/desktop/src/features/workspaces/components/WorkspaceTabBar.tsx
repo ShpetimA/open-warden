@@ -88,7 +88,7 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
           key={number}
           number={number}
           onActivate={() => {
-            const target = projects[number - 1];
+            const target = number === 9 ? projects.at(-1) : projects[number - 1];
             if (target) activate(target.id);
           }}
         />
@@ -97,7 +97,7 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
         className="min-w-0 flex-1 border-b-0 bg-transparent"
         ariaLabel="Open projects"
         overflowLabel="All open projects"
-        addLabel="Open project (⌘O)"
+        addLabel="New project tab (⌘T)"
         closeShortcut="⌘⇧W"
         items={projects.map((workspace) => {
           const tab = workspaceTabFor(workspace);
