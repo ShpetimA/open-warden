@@ -1,3 +1,4 @@
+import { GitOperationBanner } from "@/features/source-control/components/GitOperationBanner";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useStore } from "react-redux";
 import { useLocation } from "react-router";
@@ -21,6 +22,7 @@ export function WorkspaceContent({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ProjectReviewTabs />
+      {workspace && pathname !== "/settings" ? <GitOperationBanner /> : null}
       <div className="min-h-0 flex-1">
         <WorkspaceContentView key={`${id}:${pathname}`} memoryId={`${id}:${pathname}`}>
           {children}

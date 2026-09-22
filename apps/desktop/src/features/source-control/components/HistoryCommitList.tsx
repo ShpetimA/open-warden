@@ -1,3 +1,4 @@
+import { HistoryCommitMenu } from "./HistoryCommitMenu";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -139,35 +140,40 @@ function HistoryCommitRow({
     : "border-transparent hover:bg-accent";
 
   return (
-    <div className={`flex min-w-0 items-start gap-1 rounded-sm border-l-2 p-1 ${stateClass}`}>
-      <Checkbox
-        checked={isSelected}
-        disabled={selectionDisabled}
-        aria-label={`Include ${commit.summary || commit.shortId} in combined changes`}
-        className="mt-1.5 ml-0.5"
-        onClick={(event) => event.stopPropagation()}
-        onCheckedChange={(checked) => onSelectionChange(commit.commitId, checked === true)}
-      />
-      <button
-        type="button"
-        data-nav-index={navIndex}
-        className="block min-w-0 flex-1 overflow-hidden rounded-sm px-1.5 py-1 text-left"
-        onClick={() => onSelect(commit.commitId)}
-        title={commit.summary || commit.commitId}
+    <HistoryCommitMenu commit={commit}>
+      <div
+        title="Right-click for commit actions"
+        className={`flex min-w-0 items-start gap-1 rounded-sm border-l-2 p-1 ${stateClass}`}
       >
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="text-foreground w-0 flex-1 truncate text-[13px] leading-5 font-semibold">
-            {commit.summary || "(no commit message)"}
-          </span>
-        </div>
-        <div className="text-muted-foreground mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px]">
-          <span className="text-muted-foreground max-w-[32%] shrink-0 truncate font-mono py-0.5">
-            {commit.shortId}
-          </span>
-          <span className="min-w-0 flex-1 truncate">{commit.author || "Unknown"}</span>
-          <span className="shrink-0 truncate">{commit.relativeTime}</span>
-        </div>
-      </button>
-    </div>
+        <Checkbox
+          checked={isSelected}
+          disabled={selectionDisabled}
+          aria-label={`Include ${commit.summary || commit.shortId} in combined changes`}
+          className="mt-1.5 ml-0.5"
+          onClick={(event) => event.stopPropagation()}
+          onCheckedChange={(checked) => onSelectionChange(commit.commitId, checked === true)}
+        />
+        <button
+          type="button"
+          data-nav-index={navIndex}
+          className="block min-w-0 flex-1 overflow-hidden rounded-sm px-1.5 py-1 text-left"
+          onClick={() => onSelect(commit.commitId)}
+          title={commit.summary || commit.commitId}
+        >
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="text-foreground w-0 flex-1 truncate text-[13px] leading-5 font-semibold">
+              {commit.summary || "(no commit message)"}
+            </span>
+          </div>
+          <div className="text-muted-foreground mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px]">
+            <span className="text-muted-foreground max-w-[32%] shrink-0 truncate font-mono py-0.5">
+              {commit.shortId}
+            </span>
+            <span className="min-w-0 flex-1 truncate">{commit.author || "Unknown"}</span>
+            <span className="shrink-0 truncate">{commit.relativeTime}</span>
+          </div>
+        </button>
+      </div>
+    </HistoryCommitMenu>
   );
 }

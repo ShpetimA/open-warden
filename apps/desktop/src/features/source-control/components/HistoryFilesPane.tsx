@@ -1,3 +1,4 @@
+import { RestoreHistoryFile } from "./RestoreHistoryFile";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileText } from "lucide-react";
 
@@ -73,6 +74,12 @@ export function HistoryFilesPane() {
               ? `${selectedCommit.shortId} · ${files.length} file${files.length === 1 ? "" : "s"}`
               : "No commit selected"}
         </div>
+        {!comparison &&
+        historyCommitId &&
+        activePath &&
+        files.some((file) => file.path === activePath) ? (
+          <RestoreHistoryFile repoPath={activeRepo} commit={historyCommitId} path={activePath} />
+        ) : null}
       </div>
       {loadingFiles && files.length === 0 ? (
         <Empty className="h-auto border-0 p-4">

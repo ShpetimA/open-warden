@@ -1,3 +1,4 @@
+import { gitApi } from "@/features/source-control/api";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Provider } from "react-redux";
@@ -29,7 +30,10 @@ function Shell() {
 
 it("keeps reviews inside their project and hides the inner strip on ordinary screens", async () => {
   Element.prototype.scrollIntoView = vi.fn();
-  const store = configureStore({ reducer: rootReducer });
+  const store = configureStore({
+    reducer: rootReducer,
+    middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+  });
   store.dispatch(repoWorkspaceUpserted({ repoPath: "/projects/alpha" }));
   store.dispatch(
     pullRequestWorkspaceUpserted({

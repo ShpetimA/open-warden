@@ -143,7 +143,8 @@ it("saves untracked files, previews and applies a stash using its stable identit
   expect(patch.ok && patch.value).toContain("saved notes");
   await writeFile(path.join(repo, "another.txt"), "another\n");
   await runGitCommand(repo, { kind: "stash-save", message: "Another", includeUntracked: true });
-  expect((await runGitCommand(repo, { kind: "stash-pop", oid })).ok).toBe(true);
+  const popped = await runGitCommand(repo, { kind: "stash-pop", oid });
+  expect(popped, JSON.stringify(popped)).toMatchObject({ ok: true });
   expect(await readFile(path.join(repo, "notes.txt"), "utf8")).toBe("saved notes\n");
   expect(git(repo, "stash", "list")).toContain("Another");
   expect(git(repo, "stash", "list")).not.toContain("Notes");
@@ -159,4 +160,109 @@ it("retains the stash if applying it causes conflicts", async () => {
   expect((await runGitCommand(repo, { kind: "stash-pop", oid })).ok).toBe(false);
   expect(git(repo, "rev-parse", "refs/stash")).toBe(oid);
   expect(git(repo, "diff", "--name-only", "--diff-filter=U")).toBe("file.txt");
+});
+
+async function conflictingBranches() {
+  const { repo } = await fixture();
+  git(repo, "switch", "-c", "feature");
+  await writeFile(path.join(repo, "file.txt"), "feature\n");
+  git(repo, "commit", "-am", "Feature");
+  git(repo, "switch", "main");
+  await writeFile(path.join(repo, "file.txt"), "main\n");
+  git(repo, "commit", "-am", "Main");
+  return repo;
+}
+
+it("reports merge conflicts, blocks unrelated operations and continues after staging", async () => {
+  const repo = await conflictingBranches();
+  expect((await runGitCommand(repo, { kind: "merge", branch: "feature" })).ok).toBe(false);
+  const state = await getGitRepositoryState(repo);
+  expect(state.ok && state.value.operation).toBe("merge");
+  expect(state.ok && state.value.conflicts).toEqual(["file.txt"]);
+  expect((await runGitCommand(repo, { kind: "switch", branch: "feature" })).ok).toBe(false);
+  expect((await runGitCommand(repo, { kind: "continue", operation: "rebase" })).ok).toBe(false);
+  await writeFile(path.join(repo, "file.txt"), "resolved\n");
+  git(repo, "add", "file.txt");
+  expect((await runGitCommand(repo, { kind: "continue", operation: "merge" })).ok).toBe(true);
+  const completed = await getGitRepositoryState(repo);
+  expect(completed.ok && completed.value.operation).toBe(null);
+  expect(git(repo, "show", "HEAD:file.txt")).toBe("resolved");
+});
+
+it("aborts a conflicted rebase back to its starting commit", async () => {
+  const repo = await conflictingBranches();
+  const before = git(repo, "rev-parse", "HEAD");
+  expect((await runGitCommand(repo, { kind: "rebase", branch: "feature" })).ok).toBe(false);
+  const state = await getGitRepositoryState(repo);
+  expect(state.ok && state.value.operation).toBe("rebase");
+  expect((await runGitCommand(repo, { kind: "abort", operation: "rebase" })).ok).toBe(true);
+  expect(git(repo, "rev-parse", "HEAD")).toBe(before);
+  expect(git(repo, "status", "--porcelain")).toBe("");
+});
+
+it("cherry-picks and reverts commits and restores a clean historical file", async () => {
+  const { repo } = await fixture();
+  const initial = git(repo, "rev-parse", "HEAD");
+  git(repo, "switch", "-c", "feature");
+  await writeFile(path.join(repo, "file.txt"), "feature\n");
+  git(repo, "commit", "-am", "Feature");
+  const feature = git(repo, "rev-parse", "HEAD");
+  git(repo, "switch", "main");
+  expect((await runGitCommand(repo, { kind: "cherry-pick", commit: feature })).ok).toBe(true);
+  expect(git(repo, "show", "HEAD:file.txt")).toBe("feature");
+  expect(
+    (await runGitCommand(repo, { kind: "restore-file", commit: initial, path: "file.txt" })).ok,
+  ).toBe(true);
+  expect(await readFile(path.join(repo, "file.txt"), "utf8")).toBe("initial\n");
+  expect(
+    (await runGitCommand(repo, { kind: "restore-file", commit: feature, path: "file.txt" })).ok,
+  ).toBe(false);
+  git(repo, "restore", "file.txt");
+  expect(
+    (await runGitCommand(repo, { kind: "revert", commit: git(repo, "rev-parse", "HEAD") })).ok,
+  ).toBe(true);
+  expect(git(repo, "show", "HEAD:file.txt")).toBe("initial");
+});
+
+it("refuses a fast-forward pull when local and remote history diverge", async () => {
+  const { root, repo } = await fixture();
+  await runGitCommand(repo, { kind: "publish", remote: "origin" });
+  git(root, "clone", "-b", "main", path.join(root, "remote.git"), "peer");
+  const peer = path.join(root, "peer");
+  git(peer, "config", "user.name", "Peer");
+  git(peer, "config", "user.email", "peer@example.com");
+  git(peer, "commit", "--allow-empty", "-m", "Remote commit");
+  git(peer, "push");
+  git(repo, "commit", "--allow-empty", "-m", "Local commit");
+  const before = git(repo, "rev-parse", "HEAD");
+  expect((await runGitCommand(repo, { kind: "pull" })).ok).toBe(false);
+  expect(git(repo, "rev-parse", "HEAD")).toBe(before);
+  const state = await getGitRepositoryState(repo);
+  expect(state.ok && [state.value.ahead, state.value.behind]).toEqual([1, 1]);
+});
+
+it("skips a conflicted rebase step without leaving an operation behind", async () => {
+  const repo = await conflictingBranches();
+  await runGitCommand(repo, { kind: "rebase", branch: "feature" });
+  expect((await runGitCommand(repo, { kind: "skip", operation: "rebase" })).ok).toBe(true);
+  const state = await getGitRepositoryState(repo);
+  expect(state.ok && state.value.operation).toBe(null);
+  expect(git(repo, "show", "HEAD:file.txt")).toBe("feature");
+});
+
+it("restores a literal file path without treating wildcard characters as a pathspec", async () => {
+  const { repo } = await fixture();
+  await writeFile(path.join(repo, "*.txt"), "literal old\n");
+  await writeFile(path.join(repo, "other.txt"), "other old\n");
+  git(repo, "add", ".");
+  git(repo, "commit", "-m", "Files");
+  const revision = git(repo, "rev-parse", "HEAD");
+  await writeFile(path.join(repo, "*.txt"), "literal new\n");
+  await writeFile(path.join(repo, "other.txt"), "other new\n");
+  git(repo, "commit", "-am", "Update");
+  expect(
+    (await runGitCommand(repo, { kind: "restore-file", commit: revision, path: "*.txt" })).ok,
+  ).toBe(true);
+  expect(await readFile(path.join(repo, "*.txt"), "utf8")).toBe("literal old\n");
+  expect(await readFile(path.join(repo, "other.txt"), "utf8")).toBe("other new\n");
 });

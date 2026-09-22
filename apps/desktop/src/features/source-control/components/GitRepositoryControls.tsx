@@ -300,7 +300,7 @@ export function RepositoryActions({
             void run({ kind: "create", branch: newBranch, startPoint: selected || "HEAD" })
           }
         >
-          Create & switch{selected ? ` from ${selected}` : ""}
+          Create & switch
         </Button>
         <Button
           variant="outline"
@@ -309,6 +309,30 @@ export function RepositoryActions({
           onClick={() => void run({ kind: "rename", branch: newBranch })}
         >
           Rename current branch
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-2 border-t pt-3">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy || Boolean(state.operation) || !selected || selected === state.branch}
+          onClick={() => void run({ kind: "merge", branch: selected })}
+        >
+          Merge selected into current
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={
+            busy ||
+            Boolean(state.operation) ||
+            !selected ||
+            selected === state.branch ||
+            !state.branch
+          }
+          onClick={() => void run({ kind: "rebase", branch: selected })}
+        >
+          Rebase current onto selected
         </Button>
       </div>
       <StashPanel repoPath={repoPath} stashes={state.stashes} busy={busy} run={run} />

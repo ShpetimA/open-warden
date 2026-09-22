@@ -1,7 +1,10 @@
+import { stat } from "node:fs/promises";
+import path from "node:path";
 import { execFile } from "node:child_process";
 import { z } from "zod";
 import {
   gitCommandSchema,
+  type GitOperation,
   type GitCommand,
   type GitRepositoryState,
   type GitResult,
@@ -36,7 +39,7 @@ function run(repoPath: string, args: string[]): Promise<GitResult<string>> {
             .replace(/https?:\/\/\S+/g, "[remote]")
             .slice(0, 4000);
           resolve({ ok: false, error: { code: "git-failed", message } });
-        } else resolve({ ok: true, value: stdout.trim() });
+        } else resolve({ ok: true, value: stdout.replace(/\r?\n$/, "") });
       },
     );
   });
@@ -95,6 +98,10 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
   const published = head.ok ? await run(repo, ["branch", "-r", "--contains", "HEAD"]) : null;
   const stashes = await run(repo, ["stash", "list", "--format=%H%x09%gs"]);
   if (!stashes.ok) return stashes;
+  const operation = await readOperation(repo);
+  if (!operation.ok) return operation;
+  const conflicts = await run(repo, ["diff", "--name-only", "--diff-filter=U", "-z"]);
+  if (!conflicts.ok) return conflicts;
   return {
     ok: true,
     value: {
@@ -112,6 +119,8 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
           const remote = ref.startsWith("refs/remotes/");
           return [{ name: ref.replace(/^refs\/(heads|remotes)\//, ""), remote, worktree }];
         }),
+      operation: operation.value,
+      conflicts: conflicts.value.split("\0").filter(Boolean),
       lastCommit:
         head.ok && lastMessage?.ok && published?.ok
           ? { id: head.value, message: lastMessage.value, published: Boolean(published.value) }
@@ -131,6 +140,44 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
 
 async function execute(repo: string, command: GitCommand): Promise<GitResult<string>> {
   switch (command.kind) {
+    case "merge":
+    case "rebase":
+    case "cherry-pick":
+    case "revert": {
+      const status = await run(repo, ["status", "--porcelain"]);
+      if (!status.ok) return status;
+      if (status.value)
+        return failure("Commit or stash local changes before starting this operation.");
+      if (command.kind === "merge") return run(repo, ["merge", "--no-edit", command.branch]);
+      if (command.kind === "rebase") return run(repo, ["rebase", command.branch]);
+      return run(repo, [command.kind, "--no-edit", command.commit]);
+    }
+    case "continue":
+    case "abort":
+    case "skip":
+      return run(repo, [command.operation, "--" + command.kind]);
+    case "restore-file": {
+      const changes = await run(repo, [
+        "--literal-pathspecs",
+        "status",
+        "--porcelain",
+        "--",
+        command.path,
+      ]);
+      if (!changes.ok) return changes;
+      if (changes.value)
+        return failure(
+          "This file has local changes. Commit or stash them before restoring a revision.",
+        );
+      return run(repo, [
+        "--literal-pathspecs",
+        "restore",
+        "--source=" + command.commit,
+        "--worktree",
+        "--",
+        command.path,
+      ]);
+    }
     case "amend":
     case "undo": {
       const head = await run(repo, ["rev-parse", "--verify", "HEAD"]);
@@ -145,7 +192,9 @@ async function execute(repo: string, command: GitCommand): Promise<GitResult<str
         );
       if (command.kind === "amend")
         return run(repo, ["commit", "--amend", "--allow-empty", "-m", command.message]);
-      return run(repo, ["reset", "--soft", "HEAD^"]);
+      const parent = await run(repo, ["rev-parse", "--verify", "HEAD^"]);
+      if (!parent.ok) return failure("The initial commit has no parent. Amend it instead.");
+      return run(repo, ["reset", "--soft", parent.value]);
     }
     case "stash-save":
       return run(repo, [
@@ -248,13 +297,25 @@ export async function runGitCommand(
     };
   running.add(root.value);
   try {
+    const operation = await readOperation(repo.data);
+    if (!operation.ok) return operation;
+    if (
+      command.data.kind === "continue" ||
+      command.data.kind === "abort" ||
+      command.data.kind === "skip"
+    ) {
+      if (operation.value !== command.data.operation)
+        return failure("The Git operation changed. Refresh before continuing.");
+    } else if (operation.value && command.data.kind !== "fetch") {
+      return failure("Finish or abort the current " + operation.value + " first.");
+    }
     return await execute(repo.data, command.data);
   } finally {
     running.delete(root.value);
   }
 }
 
-function failure(message: string): GitResult<string> {
+function failure(message: string): GitResult<never> {
   return { ok: false, error: { code: "git-failed", message } };
 }
 
@@ -269,4 +330,26 @@ export async function getGitStashPatch(
     .safeParse(oidInput);
   if (!repo.success || !oid.success) return failure("Invalid stash.");
   return run(repo.data, ["stash", "show", "--include-untracked", "--patch", oid.data]);
+}
+
+async function readOperation(repo: string): Promise<GitResult<GitOperation | null>> {
+  const directory = await run(repo, ["rev-parse", "--absolute-git-dir"]);
+  if (!directory.ok) return directory;
+  const markers: ReadonlyArray<readonly [string, GitOperation]> = [
+    ["rebase-merge", "rebase"],
+    ["rebase-apply", "rebase"],
+    ["MERGE_HEAD", "merge"],
+    ["CHERRY_PICK_HEAD", "cherry-pick"],
+    ["REVERT_HEAD", "revert"],
+  ];
+  for (const [marker, operation] of markers) {
+    try {
+      await stat(path.join(directory.value, marker));
+      return { ok: true, value: operation };
+    } catch (error: unknown) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+        return failure("Unable to read the current Git operation.");
+    }
+  }
+  return { ok: true, value: null };
 }

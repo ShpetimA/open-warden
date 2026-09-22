@@ -25,6 +25,8 @@ const meta = {
     busy: false,
     run: async () => {},
     state: {
+      operation: null,
+      conflicts: [],
       lastCommit: null,
       stashes: [],
       branch: "feature/tabs",
