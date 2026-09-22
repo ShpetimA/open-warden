@@ -2,11 +2,12 @@ const shortcuts = [
   ["New project tab / open project", "⌘T / ⌘O"],
   ["Next / previous project", "Ctrl Tab / Ctrl ⇧ Tab"],
   ["Jump to project 1–8 / last project", "⌘1–8 / ⌘9"],
-  ["Next / previous review tab", "⌘⌥→ / ⌘⌥←"],
+  ["Next / previous review tab", "⌘⇧] / ⌘⇧["],
   ["Close current review or project", "⌘W"],
   ["Close project and its reviews", "⌘⇧W"],
   ["Reopen closed tab or project", "⌘⇧T"],
   ["Search files and commands", "⌘K"],
+  ["Open next / previous file", "J / K"],
   ["Settings", "⌘,"],
   ["Toggle sidebar / files pane", "⌘S / ⌘⇧S"],
 ] as const;

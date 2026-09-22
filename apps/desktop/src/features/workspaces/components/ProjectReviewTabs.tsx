@@ -44,8 +44,16 @@ export function ProjectReviewTabs() {
     const next = ids[(index + direction + ids.length) % ids.length];
     if (next) activate(next);
   }
-  useHotkey("Mod+Alt+ArrowRight", () => cycle(1), { enabled, ignoreInputs: false });
-  useHotkey("Mod+Alt+ArrowLeft", () => cycle(-1), { enabled, ignoreInputs: false });
+  useHotkey({ key: "]", mod: true, shift: true }, () => cycle(1), { enabled, ignoreInputs: false });
+  useHotkey({ key: "[", mod: true, shift: true }, () => cycle(-1), {
+    enabled,
+    ignoreInputs: false,
+  });
+  useHotkey({ key: "}", mod: true, shift: true }, () => cycle(1), { enabled, ignoreInputs: false });
+  useHotkey({ key: "{", mod: true, shift: true }, () => cycle(-1), {
+    enabled,
+    ignoreInputs: false,
+  });
   if (!active || !enabled) return null;
   return (
     <div className="flex h-8 shrink-0 items-center border-b bg-background">
