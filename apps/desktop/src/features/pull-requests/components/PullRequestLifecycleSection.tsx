@@ -1,7 +1,15 @@
 import { useState } from "react";
+import { ChevronDown, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -126,21 +134,32 @@ export function PullRequestLifecycleSection({
 
   return (
     <section className="rounded-lg border bg-surface-0 p-4">
-      <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-        Pull request actions
-      </h2>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {availableActions(detail).map((item) => (
-          <Button
-            key={item}
-            variant={item === "merge" ? "default" : "outline"}
-            size="sm"
-            className="text-xs"
-            onClick={() => choose(item)}
-          >
-            {actionLabels[item]}
-          </Button>
-        ))}
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
+          Pull request actions
+        </h2>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <MoreHorizontal className="size-4" /> Actions <ChevronDown className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            {availableActions(detail).map((item) => (
+              <div key={item}>
+                {(item === "merge" || item === "close" || item === "revert") && (
+                  <DropdownMenuSeparator />
+                )}
+                <DropdownMenuItem
+                  variant={item === "close" || item === "revert" ? "destructive" : "default"}
+                  onSelect={() => choose(item)}
+                >
+                  {actionLabels[item]}
+                </DropdownMenuItem>
+              </div>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       <Dialog
         open={action !== null}

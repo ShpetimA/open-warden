@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 import { useAppSelector } from "@/app/hooks";
@@ -50,6 +50,7 @@ type Props = {
   includeCurrentFileComments?: boolean;
   disableFileHeader?: boolean;
   hideHeaderMetadataControls?: boolean;
+  headerAction?: ReactNode;
   hunkOperations?: DiffHunkOperation[];
   onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
 };
@@ -157,6 +158,7 @@ export function DiffWorkspace({
   includeCurrentFileComments = true,
   disableFileHeader = false,
   hideHeaderMetadataControls = false,
+  headerAction,
   hunkOperations = EMPTY_HUNK_OPERATIONS,
   onHunkAction,
 }: Props) {
@@ -319,17 +321,27 @@ export function DiffWorkspace({
       }
 
       return (
-        <DiffHeaderMetadataControls
-          activePath={activePath}
-          canComment={canComment}
-          commentContext={commentContext}
-          expandUnchanged={controls.expandUnchanged}
-          fileViewerRevision={fileViewerRevision}
-          onToggleExpandUnchanged={controls.onToggleExpandUnchanged}
-        />
+        <div className="flex items-center gap-1">
+          {headerAction}
+          <DiffHeaderMetadataControls
+            activePath={activePath}
+            canComment={canComment}
+            commentContext={commentContext}
+            expandUnchanged={controls.expandUnchanged}
+            fileViewerRevision={fileViewerRevision}
+            onToggleExpandUnchanged={controls.onToggleExpandUnchanged}
+          />
+        </div>
       );
     },
-    [activePath, canComment, commentContext, fileViewerRevision, hideHeaderMetadataControls],
+    [
+      activePath,
+      canComment,
+      commentContext,
+      fileViewerRevision,
+      headerAction,
+      hideHeaderMetadataControls,
+    ],
   );
 
   return (

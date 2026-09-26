@@ -37,6 +37,7 @@ import {
   setDiffFocusTarget,
   setDiffStyle,
   clearHistoryCommitSelection,
+  pinHistoryCommit,
   setHistoryCommitId,
   setHistoryCommitSelected,
   setHistoryNavTarget,
@@ -352,6 +353,16 @@ export const selectHistoryCommit =
     dispatch(clearHistoryCommitSelection());
     dispatch(setHistoryNavTarget("commits"));
     dispatch(setHistoryCommitId(commitId));
+  };
+
+export const selectHistoryPullRequestCommit =
+  (commitId: string): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return;
+    dispatch(clearHistoryCommitSelection());
+    dispatch(setHistoryNavTarget("commits"));
+    dispatch(setHistoryCommitId(commitId));
+    dispatch(pinHistoryCommit(commitId));
   };
 
 export const setHistoryCommitSelectedValue =

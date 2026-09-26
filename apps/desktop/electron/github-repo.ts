@@ -59,6 +59,7 @@ export type GitHubPullRequestResponse = {
     name?: string | null;
     avatar_url?: string | null;
   }>;
+  labels?: Array<{ name?: string; description?: string | null }>;
 };
 
 export type GitHubIssueCommentResponse = {
@@ -71,6 +72,7 @@ export type GitHubIssueCommentResponse = {
     login: string;
     avatar_url: string | null;
   } | null;
+  reactions?: Partial<Record<PullRequestIssueComment["reactions"][number]["content"], number>>;
 };
 
 export type GitHubPullRequestFileResponse = {
@@ -645,6 +647,9 @@ export function toPullRequestDetail(
     headSha: pullRequest.head.sha,
     createdAt: pullRequest.created_at,
     updatedAt: pullRequest.updated_at,
+    labels: (pullRequest.labels ?? []).flatMap((label) =>
+      label.name ? [{ name: label.name, description: label.description ?? null }] : [],
+    ),
   };
 }
 
@@ -671,6 +676,16 @@ export function toPullRequestChangedFile(
 export function toPullRequestIssueComment(
   comment: GitHubIssueCommentResponse,
 ): PullRequestIssueComment {
+  const reactionContents = [
+    "+1",
+    "-1",
+    "laugh",
+    "hooray",
+    "confused",
+    "heart",
+    "rocket",
+    "eyes",
+  ] as const;
   return {
     id: `issue-comment:${String(comment.id)}`,
     databaseId: comment.id,
@@ -679,6 +694,10 @@ export function toPullRequestIssueComment(
     updatedAt: comment.updated_at,
     author: toPullRequestPerson(comment.user),
     url: comment.html_url,
+    reactions: reactionContents.flatMap((content) => {
+      const count = comment.reactions?.[content] ?? 0;
+      return count > 0 ? [{ content, count }] : [];
+    }),
   };
 }
 

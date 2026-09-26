@@ -6,6 +6,17 @@ import {
 } from "@/features/pull-requests/components/pullRequestCommentParts";
 import type { PullRequestConversation } from "@/platform/desktop";
 
+const reactionSymbols = {
+  "+1": "👍",
+  "-1": "👎",
+  laugh: "😄",
+  hooray: "🎉",
+  confused: "😕",
+  heart: "❤️",
+  rocket: "🚀",
+  eyes: "👀",
+} as const;
+
 export function PullRequestDiscussionSection({
   conversation,
 }: {
@@ -71,6 +82,19 @@ export function PullRequestDiscussionSection({
               <div className="mt-2">
                 <CommentBody body={comment.body} />
               </div>
+              {comment.reactions.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-1" aria-label="Reactions">
+                  {comment.reactions.map((reaction) => (
+                    <span
+                      key={reaction.content}
+                      className="border-border bg-surface-toolbar rounded-full border px-2 py-0.5 text-xs tabular-nums"
+                      title={`${reaction.content}: ${reaction.count}`}
+                    >
+                      {reactionSymbols[reaction.content]} {reaction.count}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         ))}

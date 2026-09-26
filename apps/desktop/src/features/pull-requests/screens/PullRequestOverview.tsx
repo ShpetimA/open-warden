@@ -314,6 +314,30 @@ function PullRequestOverviewDetailsSidebar({
             }
           />
           <OverviewDetailRow label="Pending drafts" value={pendingActions.pendingDraftCount} />
+          <OverviewDetailRow
+            label="Labels"
+            value={
+              detail.providerId === "github" ? (
+                detail.labels.length ? (
+                  <span className="flex max-w-44 flex-wrap justify-end gap-1">
+                    {detail.labels.map((label) => (
+                      <span
+                        key={label.name}
+                        title={label.description ?? label.name}
+                        className="border-border bg-surface-toolbar rounded border px-1.5 py-0.5 text-xs"
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                  </span>
+                ) : (
+                  "None"
+                )
+              ) : (
+                <span className="text-muted-foreground text-xs">Unavailable on Bitbucket</span>
+              )
+            }
+          />
           <OverviewDetailRow label="Base" value={detail.baseRef} />
           <OverviewDetailRow label="Head" value={detail.headRef} />
         </dl>

@@ -20,6 +20,7 @@ type SourceControlState = {
   recentRepos: string[];
   historyFilter: string;
   historyCommitId: string;
+  historyPinnedCommitId: string;
   historySelectedCommitIds: string[];
   historyNavTarget: HistoryNavTarget;
   collapseStaged: boolean;
@@ -48,6 +49,7 @@ const initialState: SourceControlState = {
   recentRepos: [],
   historyFilter: "",
   historyCommitId: "",
+  historyPinnedCommitId: "",
   historySelectedCommitIds: [],
   historyNavTarget: "commits",
   collapseStaged: false,
@@ -96,6 +98,7 @@ const sourceControlSlice = createSlice({
     setActiveRepo(state, action: PayloadAction<string>) {
       if (state.activeRepo !== action.payload) {
         state.activeRepo = action.payload;
+        state.historyPinnedCommitId = "";
       }
     },
     setRecentRepos(state, action: PayloadAction<string[]>) {
@@ -110,6 +113,12 @@ const sourceControlSlice = createSlice({
       if (state.historyCommitId !== action.payload) {
         state.historyCommitId = action.payload;
       }
+      if (state.historyPinnedCommitId !== action.payload) {
+        state.historyPinnedCommitId = "";
+      }
+    },
+    pinHistoryCommit(state, action: PayloadAction<string>) {
+      state.historyPinnedCommitId = action.payload;
     },
     setHistoryCommitSelected(
       state,
@@ -186,6 +195,7 @@ const sourceControlSlice = createSlice({
     resetRepoViewState(state) {
       state.historyFilter = "";
       state.historyCommitId = "";
+      state.historyPinnedCommitId = "";
       state.historySelectedCommitIds = [];
       state.historyNavTarget = "commits";
       state.activeBucket = "unstaged";
@@ -216,6 +226,7 @@ const sourceControlSlice = createSlice({
       }
     },
     clearHistorySelection(state) {
+      state.historyPinnedCommitId = "";
       if (state.historyCommitId !== "") {
         state.historyCommitId = "";
       }
@@ -339,6 +350,7 @@ export const {
   setChangesSidebarMode,
   setDiffStyle,
   setHistoryCommitId,
+  pinHistoryCommit,
   setHistoryCommitSelected,
   setHistoryFilter,
   setHistoryNavTarget,

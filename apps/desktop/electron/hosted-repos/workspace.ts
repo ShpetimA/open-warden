@@ -191,7 +191,14 @@ async function isAncestorCommit(repoPath: string, ancestorCommit: string, commit
   }
 }
 
-async function ensurePreparedWorktree(
+async function assertCleanWorktree(repoPath: string) {
+  const status = await runGitInRepo(repoPath, ["status", "--porcelain", "-z"]);
+  if (status.length > 0) {
+    throw new Error("This checkout has local changes. Commit or stash them before updating it.");
+  }
+}
+
+export async function ensurePreparedWorktree(
   sourceRepoPath: string,
   worktreePath: string,
   localBranch: string,
@@ -203,35 +210,73 @@ async function ensurePreparedWorktree(
   await runGitInRepo(sourceRepoPath, ["worktree", "prune"]);
 
   if (await pathExists(worktreeGitPath)) {
-    await runGitInRepo(worktreePath, ["checkout", "-B", localBranch, headRefShort]);
-    await runGitInRepo(worktreePath, ["reset", "--hard", headRefShort]);
-    await runGitInRepo(worktreePath, ["clean", "-fd"]);
+    const actualPath = (await runGitInRepo(worktreePath, ["rev-parse", "--show-toplevel"]))
+      .toString("utf8")
+      .trim();
+    if ((await fs.realpath(actualPath)) !== (await fs.realpath(worktreePath))) {
+      throw new Error("The managed worktree path belongs to another repository.");
+    }
+    const currentBranch = (await runGitInRepo(worktreePath, ["branch", "--show-current"]))
+      .toString("utf8")
+      .trim();
+    if (currentBranch !== localBranch) {
+      throw new Error(
+        `This worktree is on "${currentBranch || "detached HEAD"}". Switch it back to "${localBranch}" before updating.`,
+      );
+    }
+    await assertCleanWorktree(worktreePath);
+    const currentCommit = await resolveRevision(worktreePath, "HEAD");
+    const targetCommit = await resolveRevision(worktreePath, headRefShort);
+    if (currentCommit === targetCommit) return;
+    if (!(await isAncestorCommit(worktreePath, currentCommit, targetCommit))) {
+      throw new Error(
+        "This worktree has local commits that cannot be fast-forwarded to the pull request head.",
+      );
+    }
+    await runGitInRepo(worktreePath, ["merge", "--ff-only", headRefShort]);
     return;
   }
 
   if (await pathExists(worktreePath)) {
-    await fs.rm(worktreePath, { recursive: true, force: true });
+    throw new Error(
+      "The managed worktree path already contains files. Move them before opening this pull request.",
+    );
   }
 
   await fs.mkdir(worktreeParentPath, { recursive: true });
-  await runGitInRepo(sourceRepoPath, [
-    "worktree",
-    "add",
-    "--force",
-    "-B",
-    localBranch,
-    worktreePath,
-    headRefShort,
-  ]);
+  if (await localBranchExists(sourceRepoPath, localBranch)) {
+    const localCommit = await resolveRevision(sourceRepoPath, `refs/heads/${localBranch}`);
+    const targetCommit = await resolveRevision(sourceRepoPath, headRefShort);
+    if (
+      localCommit !== targetCommit &&
+      !(await isAncestorCommit(sourceRepoPath, localCommit, targetCommit))
+    ) {
+      throw new Error(
+        "The managed branch has local commits that cannot be fast-forwarded to the pull request head.",
+      );
+    }
+    await runGitInRepo(sourceRepoPath, ["worktree", "add", worktreePath, localBranch]);
+    await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+  } else {
+    await runGitInRepo(sourceRepoPath, [
+      "worktree",
+      "add",
+      "-b",
+      localBranch,
+      worktreePath,
+      headRefShort,
+    ]);
+  }
 }
 
-async function ensurePreparedBranchCheckout(
+export async function ensurePreparedBranchCheckout(
   repoPath: string,
   localBranch: string,
   headRefShort: string,
 ) {
   const targetCommit = await resolveRevision(repoPath, headRefShort);
   const hasLocalBranch = await localBranchExists(repoPath, localBranch);
+  await assertCleanWorktree(repoPath);
 
   if (hasLocalBranch) {
     const localCommit = await resolveRevision(repoPath, `refs/heads/${localBranch}`);
@@ -245,12 +290,12 @@ async function ensurePreparedBranchCheckout(
     }
 
     await runGitInRepo(repoPath, ["checkout", localBranch]);
+    if (localCommit !== targetCommit) {
+      await runGitInRepo(repoPath, ["merge", "--ff-only", headRefShort]);
+    }
   } else {
-    await runGitInRepo(repoPath, ["checkout", "-B", localBranch, headRefShort]);
+    await runGitInRepo(repoPath, ["checkout", "-b", localBranch, headRefShort]);
   }
-
-  await runGitInRepo(repoPath, ["reset", "--hard", headRefShort]);
-  await runGitInRepo(repoPath, ["clean", "-fd"]);
 }
 
 function createPullRequestCompareRefs(input: {

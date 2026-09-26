@@ -1,6 +1,15 @@
 import { GitCommitHorizontal, History } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
 
-import { useGetPullRequestActivityQuery } from "@/features/hosted-repos/api";
+import { useAppDispatch } from "@/app/hooks";
+import {
+  useGetPullRequestActivityQuery,
+  useLazyPreparePullRequestCompareRefsQuery,
+} from "@/features/hosted-repos/api";
+import { selectHistoryPullRequestCommit } from "@/features/source-control/actions";
+import { desktop } from "@/platform/desktop";
 
 export function PullRequestActivitySection({
   repoPath,
@@ -9,6 +18,10 @@ export function PullRequestActivitySection({
   repoPath: string;
   pullRequestNumber: number;
 }) {
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const [prepareRefs] = useLazyPreparePullRequestCompareRefsQuery();
+  const [openingCommit, setOpeningCommit] = useState<string | null>(null);
   const { activity, loading, error } = useGetPullRequestActivityQuery(
     { repoPath, pullRequestNumber },
     {
@@ -19,6 +32,28 @@ export function PullRequestActivitySection({
       }),
     },
   );
+  async function openCommit(commitSha: string) {
+    if (openingCommit) return;
+    setOpeningCommit(commitSha);
+    try {
+      try {
+        await desktop.getCommitFiles(repoPath, commitSha);
+      } catch {
+        await prepareRefs({ repoPath, pullRequestNumber }, true).unwrap();
+        await desktop.getCommitFiles(repoPath, commitSha);
+      }
+      await dispatch(selectHistoryPullRequestCommit(commitSha));
+      navigate(`/history?commit=${commitSha}`);
+    } catch (cause) {
+      toast.error(
+        cause && typeof cause === "object" && "message" in cause
+          ? String(cause.message)
+          : "Could not open this commit in History.",
+      );
+    } finally {
+      setOpeningCommit(null);
+    }
+  }
   return (
     <section className="rounded-lg border bg-surface-0 p-5">
       <div className="flex items-center gap-2">
@@ -52,7 +87,16 @@ export function PullRequestActivitySection({
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium break-words">
-                  {item.url ? (
+                  {item.kind === "commit" ? (
+                    <button
+                      type="button"
+                      className="text-left hover:underline disabled:opacity-50"
+                      disabled={openingCommit !== null}
+                      onClick={() => void openCommit(item.commitSha)}
+                    >
+                      {item.label}
+                    </button>
+                  ) : item.url ? (
                     <a href={item.url} target="_blank" rel="noreferrer" className="hover:underline">
                       {item.label}
                     </a>
@@ -76,7 +120,7 @@ export function PullRequestActivitySection({
       ) : null}
       {activity?.truncated ? (
         <p className="text-muted-foreground mt-4 text-xs">
-          Showing the first 100 provider events and commits.
+          Showing the first provider page of events and commits.
         </p>
       ) : null}
     </section>

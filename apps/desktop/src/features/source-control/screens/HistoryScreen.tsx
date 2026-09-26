@@ -1,6 +1,8 @@
 import { skipToken } from "@reduxjs/toolkit/query";
+import { useLayoutEffect } from "react";
+import { useLocation } from "react-router";
 
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
@@ -17,6 +19,7 @@ import { HistoryFilesPane } from "@/features/source-control/components/HistoryFi
 import { getHistoryComparison } from "@/features/source-control/historySelection";
 import { useHistoryKeyboardNav } from "@/features/source-control/hooks/useHistoryKeyboardNav";
 import { useHistorySync } from "@/features/source-control/hooks/useHistorySync";
+import { selectHistoryPullRequestCommit } from "@/features/source-control/actions";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 
@@ -39,6 +42,14 @@ export function HistoryScreen() {
 }
 
 function HistorySelectionSync() {
+  const dispatch = useAppDispatch();
+  const location = useLocation();
+  const commitId = new URLSearchParams(location.search).get("commit");
+  useLayoutEffect(() => {
+    if (commitId && /^[a-f0-9]{40,64}$/.test(commitId)) {
+      void dispatch(selectHistoryPullRequestCommit(commitId));
+    }
+  }, [commitId, dispatch]);
   useHistorySync();
   return null;
 }

@@ -451,6 +451,7 @@ function toBitbucketPullRequestDetail(
     headSha: pullRequest.source?.commit?.hash ?? "",
     createdAt: pullRequest.created_on ?? new Date(0).toISOString(),
     updatedAt: pullRequest.updated_on ?? pullRequest.created_on ?? new Date(0).toISOString(),
+    labels: [],
   };
 }
 
@@ -529,6 +530,7 @@ function toIssueComment(comment: NormalizedBitbucketComment): PullRequestIssueCo
     updatedAt: comment.updatedAt,
     author: comment.author,
     url: comment.url,
+    reactions: [],
   };
 }
 

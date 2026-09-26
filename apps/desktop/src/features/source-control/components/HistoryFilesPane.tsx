@@ -20,6 +20,7 @@ import { selectHistoryFile } from "@/features/source-control/actions";
 import { FileList } from "@/features/source-control/components/FileList";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
 import { getHistoryComparison } from "@/features/source-control/historySelection";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { FileItem } from "@/features/source-control/types";
 
 export function HistoryFilesPane() {
@@ -41,7 +42,11 @@ export function HistoryFilesPane() {
     },
   );
   const comparison = getHistoryComparison(historyCommits, historySelectedCommitIds);
-  const { data: historyFiles = [], isFetching: loadingHistoryFiles } = useGetCommitFilesQuery(
+  const {
+    data: historyFiles = [],
+    isFetching: loadingHistoryFiles,
+    error: historyFilesError,
+  } = useGetCommitFilesQuery(
     activeRepo && historyCommitId && !comparison
       ? { repoPath: activeRepo, commitId: historyCommitId }
       : skipToken,
@@ -72,7 +77,9 @@ export function HistoryFilesPane() {
             ? `${historySelectedCommitIds.length} commits · ${files.length} file${files.length === 1 ? "" : "s"}`
             : selectedCommit
               ? `${selectedCommit.shortId} · ${files.length} file${files.length === 1 ? "" : "s"}`
-              : "No commit selected"}
+              : historyCommitId
+                ? `${historyCommitId.slice(0, 8)} · ${files.length} file${files.length === 1 ? "" : "s"}`
+                : "No commit selected"}
         </div>
         {!comparison &&
         historyCommitId &&
@@ -81,7 +88,11 @@ export function HistoryFilesPane() {
           <RestoreHistoryFile repoPath={activeRepo} commit={historyCommitId} path={activePath} />
         ) : null}
       </div>
-      {loadingFiles && files.length === 0 ? (
+      {!comparison && historyFilesError ? (
+        <p role="alert" className="text-destructive p-3 text-sm">
+          {errorMessageFrom(historyFilesError, "This commit could not be loaded locally.")}
+        </p>
+      ) : loadingFiles && files.length === 0 ? (
         <Empty className="h-auto border-0 p-4">
           <EmptyHeader>
             <EmptyDescription>Loading files...</EmptyDescription>

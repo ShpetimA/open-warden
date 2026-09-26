@@ -427,6 +427,7 @@ export const {
   useListProviderConnectionsQuery,
   useListPullRequestsQuery,
   usePreparePullRequestCompareRefsQuery,
+  useLazyPreparePullRequestCompareRefsQuery,
   useReplyToPullRequestThreadMutation,
   useResolveHostedRepoQuery,
   useResolveActivePullRequestForBranchQuery,

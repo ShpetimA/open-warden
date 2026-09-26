@@ -1,10 +1,11 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { FileCode2, LoaderCircle } from "lucide-react";
+import { FileCode2, LoaderCircle, Square, SquareCheckBig } from "lucide-react";
 import { useEffect } from "react";
 import { useParams } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
@@ -12,6 +13,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
@@ -21,6 +23,7 @@ import {
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
+import { usePullRequestViewedFiles } from "@/features/pull-requests/hooks/usePullRequestViewedFiles";
 import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
@@ -122,6 +125,11 @@ export const PullRequestFiles = () => {
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
+  const viewedState = usePullRequestViewedFiles({
+    repoPath: activeRepo ?? "",
+    pullRequestNumber: parsedPullRequestNumber,
+    headSha: conversation?.detail.headSha ?? "",
+  });
 
   return (
     <>
@@ -140,6 +148,7 @@ export const PullRequestFiles = () => {
             compareHeadRef={compareRefs?.compareHeadRef ?? ""}
             filesError={filesError}
             isLoading={isLoadingFiles}
+            viewedState={viewedState}
           />
         }
         content={
@@ -155,6 +164,7 @@ export const PullRequestFiles = () => {
               files={files}
               conversation={conversation}
               reviewThreads={reviewThreads}
+              viewedState={viewedState}
             />
           </div>
         }
@@ -198,6 +208,7 @@ function FilesDiffViewer({
   files,
   conversation,
   reviewThreads,
+  viewedState,
 }: {
   providerId?: string;
   repoPath: string;
@@ -209,6 +220,7 @@ function FilesDiffViewer({
   files: PullRequestChangedFile[];
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
+  viewedState: ReturnType<typeof usePullRequestViewedFiles>;
 }) {
   const selectedPath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const previewFileJumpTarget = useAppSelector((state) => state.pullRequests.previewFileJumpTarget);
@@ -379,6 +391,43 @@ function FilesDiffViewer({
           oldFile={selectedOldFile}
           newFile={selectedNewFile}
           activePath={previewFile?.path ?? selectedFile.path}
+          headerAction={
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon-xs"
+                    variant={
+                      viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                        ? "secondary"
+                        : "ghost"
+                    }
+                    disabled={!viewedState.viewedFiles || viewedState.changingViewed}
+                    aria-label={
+                      viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                        ? "Mark file unviewed"
+                        : "Mark file viewed"
+                    }
+                    onClick={() =>
+                      void viewedState.toggleViewed(previewFile?.path ?? selectedFile.path)
+                    }
+                  >
+                    {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path) ? (
+                      <SquareCheckBig />
+                    ) : (
+                      <Square />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                    ? "Mark file unviewed"
+                    : "Mark file viewed"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          }
           commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
           canComment
           includeCurrentFileComments={false}

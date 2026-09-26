@@ -229,6 +229,7 @@ export async function getPullRequestActivity(
     const commitItems: PullRequestActivityItem[] = commits.data.map((commit) => ({
       id: `github-commit-${commit.sha}`,
       kind: "commit",
+      commitSha: commit.sha,
       label: commit.commit?.message?.split("\n")[0] || commit.sha.slice(0, 8),
       detail: commit.sha.slice(0, 8),
       actor: commit.author?.login ?? commit.commit?.author?.name ?? null,
@@ -248,11 +249,8 @@ export async function getPullRequestActivity(
   if (hostedRepo.providerId === "bitbucket") {
     const path = bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber);
     const [activity, commits] = await Promise.all([
-      bitbucketRequest<BitbucketPage<BitbucketActivity>>(
-        `${path}/activity?pagelen=100`,
-        connection,
-      ),
-      bitbucketRequest<BitbucketPage<BitbucketCommit>>(`${path}/commits?pagelen=100`, connection),
+      bitbucketRequest<BitbucketPage<BitbucketActivity>>(`${path}/activity`, connection),
+      bitbucketRequest<BitbucketPage<BitbucketCommit>>(`${path}/commits`, connection),
     ]);
     const events = activity.data.values.flatMap((item, index) => {
       const event = toBitbucketEvent(item, index);
@@ -261,6 +259,7 @@ export async function getPullRequestActivity(
     const commitItems: PullRequestActivityItem[] = commits.data.values.map((commit) => ({
       id: `bb-commit-${commit.hash}`,
       kind: "commit",
+      commitSha: commit.hash,
       label: commit.message?.split("\n")[0] || commit.hash.slice(0, 8),
       detail: commit.hash.slice(0, 8),
       actor:

@@ -2,7 +2,7 @@
 
 Open Warden's pull request list stays scoped to the active project. A cross-project inbox is a separate product decision and is outside this plan.
 
-Progress: slices 1–5 are implemented; slice 6 is planned.
+Progress: slices 1–5 are implemented; slice 6 is in progress.
 
 ## 1. Checks and merge readiness
 
@@ -34,12 +34,16 @@ Progress: slices 1–5 are implemented; slice 6 is planned.
 - Persist viewed-file state where the provider supports it; provide a local fallback only when clearly labeled.
 - Add commit and activity timelines, including review decisions and force pushes, without duplicating the current conversation view.
 
-Current limits: GitHub viewed marks live on GitHub; Bitbucket marks are stored on this device for each PR head commit. Activity shows up to 100 provider events and 100 commits and labels truncated results. GitHub reports force pushes explicitly; Bitbucket activity reports source updates without assuming they were force pushes.
+Current limits: GitHub viewed marks live on GitHub; Bitbucket marks are stored on this device for each PR head commit. Activity shows the first provider page of events and commits and labels truncated results. GitHub reports force pushes explicitly; Bitbucket activity reports source updates without assuming they were force pushes.
 
 ## 6. Provider extras and core Git
 
 - Add GitHub labels, reactions, workflows, and stack relationships when useful for a project review. Keep Bitbucket-specific limits visible.
 - Audit and fill Git client gaps in blame, tags, and worktree lifecycle with the same keyboard and confirmation rules as the command composer.
+
+Current progress: GitHub PR labels and issue-comment reaction counts are visible in project review. Bitbucket shows that GitHub labels are unavailable. Reopening PR branches and worktrees now requires a clean checkout and fast-forwards without resetting local commits or deleting files. Existing managed worktree paths are never removed to make room for a new checkout.
+
+Next: label editing, workflow-run actions, explicit PR stack links, blame, tags, and safe worktree removal. These need their own provider or Git operations and interaction checks before slice 6 is complete.
 
 ## Delivery rules
 

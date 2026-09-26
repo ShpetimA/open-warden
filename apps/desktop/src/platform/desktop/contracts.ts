@@ -164,6 +164,7 @@ export type PullRequestDetail = {
   headSha: string;
   createdAt: string;
   updatedAt: string;
+  labels: Array<{ name: string; description: string | null }>;
 };
 
 export type PullRequestIssueComment = {
@@ -174,6 +175,10 @@ export type PullRequestIssueComment = {
   updatedAt: string;
   author: PullRequestPerson | null;
   url: string | null;
+  reactions: Array<{
+    content: "+1" | "-1" | "laugh" | "hooray" | "confused" | "heart" | "rocket" | "eyes";
+    count: number;
+  }>;
 };
 
 export type PullRequestReviewComment = {
@@ -260,13 +265,12 @@ export type SetPullRequestFileViewedInput = PullRequestLocatorInput & {
 
 export type PullRequestActivityItem = {
   id: string;
-  kind: "event" | "commit";
   label: string;
   detail: string | null;
   actor: string | null;
   occurredAt: string;
   url: string | null;
-};
+} & ({ kind: "event" } | { kind: "commit"; commitSha: string });
 
 export type PullRequestActivity = {
   items: PullRequestActivityItem[];

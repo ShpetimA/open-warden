@@ -25,6 +25,8 @@ export function HistoryCommitList() {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyFilter = useAppSelector((state) => state.sourceControl.historyFilter);
   const selectedCommitIds = useAppSelector((state) => state.sourceControl.historySelectedCommitIds);
+  const activeCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
+  const pinnedCommitId = useAppSelector((state) => state.sourceControl.historyPinnedCommitId);
   const { data: historyCommits = [], isFetching: loadingHistoryCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
   );
@@ -78,6 +80,17 @@ export function HistoryCommitList() {
             >
               Clear
             </Button>
+          </div>
+        ) : null}
+
+        {pinnedCommitId &&
+        pinnedCommitId === activeCommitId &&
+        !historyCommits.some((commit) => commit.commitId === activeCommitId) ? (
+          <div className="border-ring/30 bg-surface-active rounded-md border px-3 py-2 text-xs">
+            <div className="font-medium">Selected pull request commit</div>
+            <div className="text-muted-foreground mt-1 truncate font-mono" title={activeCommitId}>
+              {activeCommitId}
+            </div>
           </div>
         ) : null}
 
