@@ -54,7 +54,7 @@ import { getProviderConnection } from "../providerConnections";
 import { resolveHostedRepo } from "./repository";
 import { missingConnectionMessage, providerDisplayName } from "./providers";
 
-async function resolvePullRequestContext(input: { repoPath: string }) {
+export async function resolvePullRequestContext(input: { repoPath: string }) {
   const hostedRepo = await resolveHostedRepo(input.repoPath);
   if (!hostedRepo) {
     throw new Error("No supported hosted repository was found for the selected repo.");
@@ -116,7 +116,7 @@ function managedPullRequestNumberFromBranch(branch: string) {
   return pullRequestNumber;
 }
 
-function normalizePullRequestReviewComments(
+export function normalizePullRequestReviewComments(
   comments: SubmitPullRequestReviewCommentsInput["comments"],
 ) {
   return comments.map((comment) => {
@@ -154,7 +154,7 @@ function normalizePullRequestReviewComments(
   });
 }
 
-function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput) {
+export function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput) {
   return {
     body: comment.body,
     path: comment.path,
@@ -169,7 +169,7 @@ function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput)
   };
 }
 
-function toBitbucketInline(comment: PullRequestReviewDraftCommentInput) {
+export function toBitbucketInline(comment: PullRequestReviewDraftCommentInput) {
   const inline: {
     path: string;
     from?: number;
@@ -215,11 +215,22 @@ export async function listPullRequests(input: ListPullRequestsInput): Promise<Pu
   }
 
   if (hostedRepo.providerId === "github") {
-    return listGitHubPullRequests(hostedRepo, connection.token, input.page, input.perPage);
+    return listGitHubPullRequests(hostedRepo, connection.token, input.page, input.perPage, {
+      state: input.state,
+      query: input.query,
+      author: input.author,
+      involvement: input.involvement,
+      viewerLogin: connection.login,
+    });
   }
 
   if (hostedRepo.providerId === "bitbucket") {
-    return listBitbucketPullRequests(hostedRepo, connection, input.page, input.perPage);
+    return listBitbucketPullRequests(hostedRepo, connection, input.page, input.perPage, {
+      state: input.state,
+      query: input.query,
+      author: input.author,
+      involvement: input.involvement,
+    });
   }
 
   throw new Error(

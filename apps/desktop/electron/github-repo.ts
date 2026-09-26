@@ -53,6 +53,11 @@ export type GitHubPullRequestResponse = {
   };
   body?: string | null;
   created_at: string;
+  requested_reviewers?: Array<{
+    login: string;
+    name?: string | null;
+    avatar_url?: string | null;
+  }>;
 };
 
 export type GitHubIssueCommentResponse = {
@@ -243,7 +248,7 @@ export async function githubJsonRequest<T>(
   pathname: string,
   token: string,
   init?: {
-    method?: "GET" | "POST" | "PUT";
+    method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
     body?: unknown;
   },
 ) {
@@ -343,10 +348,30 @@ export async function listGitHubPullRequests(
   token: string,
   page: number,
   perPage: number,
+  filters?: {
+    state?: "open" | "merged" | "closed" | "all";
+    query?: string;
+    author?: string;
+    involvement?: "all" | "mine";
+    viewerLogin?: string;
+  },
 ): Promise<PullRequestPage> {
   const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const normalizedPerPage =
     Number.isFinite(perPage) && perPage > 0 ? Math.min(100, Math.floor(perPage)) : 25;
+  const state = filters?.state ?? "open";
+  const query = filters?.query?.trim() ?? "";
+  const author = filters?.author?.trim() ?? "";
+  const involvement = filters?.involvement ?? "all";
+  if (state !== "open" || query || author || involvement !== "all") {
+    return searchGitHubPullRequests(hostedRepo, token, normalizedPage, normalizedPerPage, {
+      state,
+      query,
+      author,
+      involvement,
+      viewerLogin: filters?.viewerLogin ?? "",
+    });
+  }
   const pathname = `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls?state=open&per_page=${String(normalizedPerPage)}&page=${String(normalizedPage)}`;
   const { data, headers } = await githubRequest<GitHubPullRequestResponse[]>(pathname, token);
 
@@ -358,6 +383,131 @@ export async function listGitHubPullRequests(
     perPage: normalizedPerPage,
     hasNextPage: hasGitHubNextPage(headers),
   };
+}
+
+type GitHubSearchPullRequestNode = {
+  __typename: "PullRequest";
+  number: number;
+  title: string;
+  state: "OPEN" | "CLOSED" | "MERGED";
+  isDraft: boolean;
+  url: string;
+  updatedAt: string;
+  baseRefName: string;
+  headRefName: string;
+  headRepository: { name: string; owner: { login: string } } | null;
+  baseRepository: { name: string; owner: { login: string } } | null;
+  author: { login: string; name: string | null } | null;
+};
+
+type GitHubPullRequestSearchResponse = {
+  data?: {
+    search?: {
+      nodes?: Array<GitHubSearchPullRequestNode | null>;
+      pageInfo: { endCursor: string | null; hasNextPage: boolean };
+    };
+  };
+};
+
+function githubSearchQuery(input: {
+  hostedRepo: HostedRepoRef;
+  state: "open" | "merged" | "closed" | "all";
+  query: string;
+  author: string;
+  involvement: "all" | "mine";
+  viewerLogin: string;
+}) {
+  if (input.author && !/^[a-zA-Z0-9-]+$/.test(input.author)) {
+    throw new Error("Enter a GitHub username without spaces or punctuation.");
+  }
+  if (input.involvement === "mine" && !/^[a-zA-Z0-9-]+$/.test(input.viewerLogin)) {
+    throw new Error("The connected GitHub account could not be identified.");
+  }
+  const states = {
+    open: ["is:open"],
+    merged: ["is:merged"],
+    closed: ["is:closed", "is:unmerged"],
+    all: [],
+  }[input.state];
+  return [
+    `repo:${input.hostedRepo.owner}/${input.hostedRepo.repo}`,
+    "is:pr",
+    ...states,
+    ...(input.query ? [JSON.stringify(input.query), "in:title,body"] : []),
+    ...(input.author ? [`author:${input.author}`] : []),
+    ...(input.involvement === "mine" ? [`involves:${input.viewerLogin}`] : []),
+    "sort:updated-desc",
+  ].join(" ");
+}
+
+async function searchGitHubPullRequests(
+  hostedRepo: HostedRepoRef,
+  token: string,
+  page: number,
+  perPage: number,
+  filters: {
+    state: "open" | "merged" | "closed" | "all";
+    query: string;
+    author: string;
+    involvement: "all" | "mine";
+    viewerLogin: string;
+  },
+): Promise<PullRequestPage> {
+  const searchQuery = githubSearchQuery({ hostedRepo, ...filters });
+  const graphQuery = `
+    query($query: String!, $first: Int!, $after: String) {
+      search(query: $query, type: ISSUE, first: $first, after: $after) {
+        pageInfo { endCursor hasNextPage }
+        nodes {
+          __typename
+          ... on PullRequest {
+            number title state isDraft url updatedAt baseRefName headRefName
+            author { login ... on User { name } }
+            baseRepository { name owner { login } }
+            headRepository { name owner { login } }
+          }
+        }
+      }
+    }
+  `;
+  let cursor: string | null = null;
+  let search: NonNullable<NonNullable<GitHubPullRequestSearchResponse["data"]>["search"]> | null =
+    null;
+  for (let currentPage = 1; currentPage <= page; currentPage += 1) {
+    const response: GitHubPullRequestSearchResponse = await githubGraphqlRequest(
+      token,
+      graphQuery,
+      { query: searchQuery, first: perPage, after: cursor },
+    );
+    search = response.data?.search ?? null;
+    if (!search) throw new Error("GitHub did not return pull request search results.");
+    if (currentPage < page && !search.pageInfo.hasNextPage) {
+      return { pullRequests: [], page, perPage, hasNextPage: false };
+    }
+    cursor = search.pageInfo.endCursor;
+  }
+  const pullRequests = (search?.nodes ?? []).flatMap((node): PullRequestSummary[] => {
+    if (!node || node.__typename !== "PullRequest") return [];
+    return [
+      {
+        id: `github:${node.number}`,
+        providerId: "github",
+        number: node.number,
+        title: node.title,
+        state: node.state === "MERGED" ? "merged" : node.state === "CLOSED" ? "closed" : "open",
+        isDraft: node.isDraft,
+        authorLogin: node.author?.login ?? "unknown",
+        authorDisplayName: node.author?.name ?? null,
+        url: node.url,
+        baseRef: node.baseRefName,
+        headRef: node.headRefName,
+        headOwner: node.headRepository?.owner.login ?? hostedRepo.owner,
+        headRepo: node.headRepository?.name ?? hostedRepo.repo,
+        updatedAt: node.updatedAt,
+      },
+    ];
+  });
+  return { pullRequests, page, perPage, hasNextPage: search?.pageInfo.hasNextPage ?? false };
 }
 
 function toPullRequestSummaryFromHeadNode(

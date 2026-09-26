@@ -72,6 +72,25 @@ export type BitbucketPullRequestResponse = {
   } | null;
   source?: BitbucketPullRequestSide | null;
   destination?: BitbucketPullRequestSide | null;
+  reviewers?: Array<{
+    uuid?: string;
+    nickname?: string;
+    username?: string;
+    display_name?: string;
+    links?: { avatar?: { href?: string } };
+  }>;
+  participants?: Array<{
+    user?: {
+      uuid?: string;
+      nickname?: string;
+      username?: string;
+      display_name?: string;
+      links?: { avatar?: { href?: string } };
+    };
+    approved?: boolean;
+    state?: string | null;
+    participated_on?: string | null;
+  }>;
 };
 
 export type BitbucketDiffstatResponse = {
@@ -639,6 +658,10 @@ export function bitbucketPullRequestPath(hostedRepo: HostedRepoRef, pullRequestN
   return `${bitbucketPullRequestsPath(hostedRepo)}/${String(pullRequestNumber)}`;
 }
 
+function bitbucketFilterLiteral(value: string) {
+  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
+}
+
 async function fetchBitbucketPaginatedValues<T>(
   firstPath: string,
   connection: ProviderConnectionSecret,
@@ -668,14 +691,46 @@ export async function listBitbucketPullRequests(
   connection: ProviderConnectionSecret,
   page: number,
   perPage: number,
+  filters?: {
+    state?: "open" | "merged" | "closed" | "all";
+    query?: string;
+    author?: string;
+    involvement?: "all" | "mine";
+  },
 ): Promise<PullRequestPage> {
   const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const normalizedPerPage =
     Number.isFinite(perPage) && perPage > 0 ? Math.min(100, Math.floor(perPage)) : 25;
 
-  const pathname = `/repositories/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(
-    hostedRepo.repo,
-  )}/pullrequests?state=OPEN&sort=-updated_on&pagelen=${String(normalizedPerPage)}&page=${String(normalizedPage)}`;
+  const state = filters?.state ?? "open";
+  const states = {
+    open: ["OPEN"],
+    merged: ["MERGED"],
+    closed: ["DECLINED", "SUPERSEDED"],
+    all: ["OPEN", "MERGED", "DECLINED", "SUPERSEDED"],
+  }[state];
+  const predicates: string[] = [];
+  const query = filters?.query?.trim() ?? "";
+  if (query) {
+    const literal = bitbucketFilterLiteral(query);
+    predicates.push(`(title ~ "${literal}" OR description ~ "${literal}")`);
+  }
+  const author = filters?.author?.trim() ?? "";
+  if (author) predicates.push(`author.nickname = "${bitbucketFilterLiteral(author)}"`);
+  if (filters?.involvement === "mine") {
+    const { data: viewer } = await bitbucketRequest<BitbucketUserResponse>("/user", connection);
+    if (!viewer.uuid) throw new Error("The connected Bitbucket account could not be identified.");
+    const id = bitbucketFilterLiteral(viewer.uuid);
+    predicates.push(`(author.uuid = "${id}" OR reviewers.uuid = "${id}")`);
+  }
+  const params = new URLSearchParams({
+    sort: "-updated_on",
+    pagelen: String(normalizedPerPage),
+    page: String(normalizedPage),
+  });
+  for (const value of states) params.append("state", value);
+  if (predicates.length > 0) params.set("q", predicates.join(" AND "));
+  const pathname = `${bitbucketPullRequestsPath(hostedRepo)}?${params.toString()}`;
 
   const { data } = await bitbucketRequest<BitbucketPaginatedResponse<BitbucketPullRequestResponse>>(
     pathname,

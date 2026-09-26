@@ -11,6 +11,7 @@ import type {
   PullRequestChangedFile,
   PullRequestCompareRefs,
   PullRequestConversation,
+  PullRequestReviewOverview,
   PullRequestChecksResult,
   PullRequestLocatorInput,
   PullRequestPage,
@@ -19,6 +20,9 @@ import type {
   ReplyToPullRequestThreadInput,
   ResolveActivePullRequestForBranchInput,
   SetPullRequestThreadResolvedInput,
+  SetPullRequestReviewerInput,
+  SubmitPullRequestReviewInput,
+  SubmitPullRequestReviewResult,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
   SubmitPullRequestDecisionInput,
@@ -29,6 +33,9 @@ import {
   connectProvider,
   disconnectProvider,
   getPullRequestConversation,
+  getPullRequestReviewOverview,
+  setPullRequestReviewer,
+  submitPullRequestReview,
   getPullRequestChecks,
   getPullRequestFiles,
   getPullRequestPatch,
@@ -58,6 +65,7 @@ export const hostedReposApi = createApi({
     "HostedRepo",
     "PullRequests",
     "PullRequestConversation",
+    "PullRequestReviewOverview",
     "PullRequestChecks",
     "PullRequestFiles",
     "PullRequestPatch",
@@ -140,6 +148,49 @@ export const hostedReposApi = createApi({
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
+    getPullRequestReviewOverview: builder.query<PullRequestReviewOverview, PullRequestLocatorInput>(
+      {
+        async queryFn(input) {
+          try {
+            return { data: await getPullRequestReviewOverview(input) };
+          } catch (error) {
+            return { error: toErrorResult(error) };
+          }
+        },
+        providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+          { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+        ],
+      },
+    ),
+    setPullRequestReviewer: builder.mutation<void, SetPullRequestReviewerInput>({
+      async queryFn(input) {
+        try {
+          await setPullRequestReviewer(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    submitPullRequestReview: builder.mutation<
+      SubmitPullRequestReviewResult,
+      SubmitPullRequestReviewInput
+    >({
+      async queryFn(input) {
+        try {
+          return { data: await submitPullRequestReview(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     getPullRequestChecks: builder.query<PullRequestChecksResult, PullRequestLocatorInput>({
@@ -296,6 +347,9 @@ export const {
   useMergePullRequestMutation,
   useDisconnectProviderMutation,
   useGetPullRequestConversationQuery,
+  useGetPullRequestReviewOverviewQuery,
+  useSetPullRequestReviewerMutation,
+  useSubmitPullRequestReviewMutation,
   useGetPullRequestChecksQuery,
   useGetPullRequestFilesQuery,
   useGetPullRequestPatchQuery,

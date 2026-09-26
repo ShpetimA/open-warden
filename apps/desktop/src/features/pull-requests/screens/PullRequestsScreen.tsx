@@ -14,6 +14,14 @@ import {
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   useDisconnectProviderMutation,
   useGetPullRequestConversationQuery,
@@ -27,7 +35,7 @@ import { useCommandComposerLauncher } from "@/features/command-palette/CommandCo
 import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { isTypingTarget } from "@/features/source-control/utils";
-import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
+import type { GitProviderId, ListPullRequestsInput, PullRequestSummary } from "@/platform/desktop";
 import {
   ConnectBitbucketDialog,
   ConnectGitHubDialog,
@@ -123,6 +131,11 @@ function PullRequestRow({
               <div className="shrink-0 rounded-full border border-border/80 px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
                 Draft
               </div>
+            ) : null}
+            {pullRequest.state !== "open" ? (
+              <span className="text-muted-foreground shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium capitalize">
+                {pullRequest.state}
+              </span>
             ) : null}
           </div>
 
@@ -312,6 +325,22 @@ export function PullRequestsScreen() {
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
   const [pullRequestsPage, setPullRequestsPage] = useState(1);
   const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState<number | null>(null);
+  const [searchInput, setSearchInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [authorInput, setAuthorInput] = useState("");
+  const [author, setAuthor] = useState("");
+  const [stateFilter, setStateFilter] =
+    useState<NonNullable<ListPullRequestsInput["state"]>>("open");
+  const [involvementFilter, setInvolvementFilter] =
+    useState<NonNullable<ListPullRequestsInput["involvement"]>>("all");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setQuery(searchInput.trim());
+      setAuthor(authorInput.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, authorInput]);
 
   const { connections, loadingConnections } = useListProviderConnectionsQuery(undefined, {
     selectFromResult: ({ data, isLoading, isFetching }) => ({
@@ -351,6 +380,10 @@ export function PullRequestsScreen() {
           repoPath: activeRepo,
           page: pullRequestsPage,
           perPage: PULL_REQUESTS_PAGE_SIZE,
+          state: stateFilter,
+          query,
+          author,
+          involvement: involvementFilter,
         }
       : skipToken,
     {
@@ -373,6 +406,11 @@ export function PullRequestsScreen() {
     setPullRequestsPage(1);
     setSelectedPullRequestNumber(null);
   }, [activeRepo, hostedRepo?.providerId, hostedRepo?.owner, hostedRepo?.repo]);
+
+  useEffect(() => {
+    setPullRequestsPage(1);
+    setSelectedPullRequestNumber(null);
+  }, [stateFilter, query, author, involvementFilter]);
 
   useEffect(() => {
     if (pullRequests.length === 0) {
@@ -454,7 +492,10 @@ export function PullRequestsScreen() {
   }
 
   function handleListNavigation(event: KeyboardEvent, direction: 1 | -1) {
-    if (isTypingTarget(event.target)) {
+    if (
+      isTypingTarget(event.target) ||
+      (event.target instanceof Element && event.target.closest('[data-slot^="select-"]'))
+    ) {
       return;
     }
 
@@ -485,7 +526,11 @@ export function PullRequestsScreen() {
   useHotkey(
     "Enter",
     (event) => {
-      if (isTypingTarget(event.target) || !selectedPullRequest) {
+      if (
+        isTypingTarget(event.target) ||
+        (event.target instanceof Element && event.target.closest('[data-slot^="select-"]')) ||
+        !selectedPullRequest
+      ) {
         return;
       }
 
@@ -654,7 +699,7 @@ export function PullRequestsScreen() {
     if (pullRequests.length === 0) {
       return (
         <div className="rounded-lg border border-border/70 bg-surface-0 p-4 text-sm text-muted-foreground">
-          No open pull requests were found for this repository.
+          No pull requests match these filters in this project.
         </div>
       );
     }
@@ -668,7 +713,7 @@ export function PullRequestsScreen() {
           <div className="border-b border-border/70 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">Open pull requests</div>
+                <div className="text-sm font-medium capitalize">{stateFilter} pull requests</div>
                 <div className="text-muted-foreground mt-0.5 text-xs">
                   Use ↑/↓ or J/K to preview. Enter opens the review.
                 </div>
@@ -741,6 +786,54 @@ export function PullRequestsScreen() {
             ) : null}
           </header>
 
+          {activeProviderConnection ? (
+            <div className="flex flex-wrap items-center gap-2 border-b border-border/70 py-3">
+              <Input
+                aria-label="Search pull requests"
+                placeholder="Search pull requests"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                className="h-8 min-w-[180px] flex-1 text-sm"
+              />
+              <Select
+                value={stateFilter}
+                onValueChange={(value) =>
+                  setStateFilter(value as NonNullable<ListPullRequestsInput["state"]>)
+                }
+              >
+                <SelectTrigger size="sm" aria-label="Pull request state">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="merged">Merged</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="all">All states</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={involvementFilter}
+                onValueChange={(value) =>
+                  setInvolvementFilter(value as NonNullable<ListPullRequestsInput["involvement"]>)
+                }
+              >
+                <SelectTrigger size="sm" aria-label="Pull request involvement">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Everyone</SelectItem>
+                  <SelectItem value="mine">Involving me</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                aria-label="Filter by author"
+                placeholder="Author username"
+                value={authorInput}
+                onChange={(event) => setAuthorInput(event.target.value)}
+                className="h-8 w-[160px] text-sm"
+              />
+            </div>
+          ) : null}
           <div className="min-h-0 flex-1">{renderPullRequestsContent()}</div>
         </div>
       </div>

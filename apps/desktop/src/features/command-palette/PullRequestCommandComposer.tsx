@@ -16,7 +16,7 @@ import {
   useMergePullRequestMutation,
   usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
-  useSubmitPullRequestReviewCommentsMutation,
+  useSubmitPullRequestReviewMutation,
   useSubmitPullRequestDecisionMutation,
 } from "@/features/hosted-repos/api";
 import {
@@ -61,6 +61,9 @@ export function PullRequestCommandComposer({
     initialPullRequest ?? null,
   );
   const [mergeMethod, setMergeMethod] = useState<"merge" | "squash" | "rebase">("merge");
+  const [reviewDecision, setReviewDecision] = useState<"comment" | "approve" | "request-changes">(
+    "comment",
+  );
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -104,12 +107,15 @@ export function PullRequestCommandComposer({
     }),
   });
   const [addComment] = useAddPullRequestCommentMutation();
-  const [submitReview] = useSubmitPullRequestReviewCommentsMutation();
+  const [submitReview] = useSubmitPullRequestReviewMutation();
   const [submitDecision] = useSubmitPullRequestDecisionMutation();
   const [mergePullRequest] = useMergePullRequestMutation();
   const { selectedConversation } = useGetPullRequestConversationQuery(
     selectedPullRequest &&
-      (action === "merge-pr" || action === "approve-pr" || action === "request-changes")
+      (action === "merge-pr" ||
+        action === "approve-pr" ||
+        action === "request-changes" ||
+        action === "submit-review")
       ? { repoPath, pullRequestNumber: selectedPullRequest.number }
       : skipToken,
     { selectFromResult: ({ currentData }) => ({ selectedConversation: currentData }) },
@@ -145,7 +151,12 @@ export function PullRequestCommandComposer({
     !busy &&
     (action !== "open-pr-worktree" || hostedRepo) &&
     (action !== "comment-pr" || message.trim()) &&
-    (action !== "submit-review" || pendingDrafts.length > 0) &&
+    (action !== "submit-review" ||
+      (Boolean(selectedConversation?.detail.headSha) &&
+        (reviewDecision !== "comment" || Boolean(message.trim() || pendingDrafts.length)) &&
+        (reviewDecision !== "request-changes" || Boolean(message.trim())) &&
+        selectedConversation?.detail.state === "open" &&
+        !selectedConversation.detail.isDraft)) &&
     (action !== "request-changes" || hostedRepo?.providerId !== "github" || message.trim()) &&
     ((action !== "merge-pr" && action !== "approve-pr" && action !== "request-changes") ||
       (selectedConversation?.detail.state === "open" && !selectedConversation.detail.isDraft)) &&
@@ -158,7 +169,8 @@ export function PullRequestCommandComposer({
       pane === "review" &&
       (action === "comment-pr" ||
         (action === "request-changes" && hostedRepo?.providerId !== "bitbucket") ||
-        action === "approve-pr")
+        action === "approve-pr" ||
+        action === "submit-review")
     )
       messageRef.current?.focus();
     else if (pane === "review") runRef.current?.focus();
@@ -238,13 +250,19 @@ export function PullRequestCommandComposer({
         }).unwrap();
         toast.success(status === "queued" ? "Merge started" : "Pull request merged");
       } else {
-        const result = await submitReview(
-          buildSubmitPullRequestReviewCommentsInput({
+        const expectedHeadSha = selectedConversation?.detail.headSha;
+        if (!expectedHeadSha)
+          throw new Error("Load the latest pull request before submitting a review.");
+        const result = await submitReview({
+          ...buildSubmitPullRequestReviewCommentsInput({
             repoPath,
             pullRequestNumber: target.number,
             comments: pendingDrafts,
           }),
-        ).unwrap();
+          expectedHeadSha,
+          decision: reviewDecision,
+          body: message.trim(),
+        }).unwrap();
         if (result.submittedDraftIds.length)
           dispatch(removeCommentsByIds(result.submittedDraftIds));
         if (result.failedMessage) throw new Error(result.failedMessage);
@@ -485,11 +503,44 @@ export function PullRequestCommandComposer({
                 </p>
               </>
             ) : action === "submit-review" ? (
-              <p className="change-composer-help text-muted-foreground text-xs tabular-nums">
-                {loadingCompareRefs
-                  ? "Loading review context…"
-                  : `${pendingDrafts.length} pending inline ${pendingDrafts.length === 1 ? "comment" : "comments"} will be published.`}
-              </p>
+              <>
+                <div className="grid grid-cols-3 gap-2" role="group" aria-label="Review decision">
+                  {(["comment", "approve", "request-changes"] as const).map((decision) => (
+                    <Button
+                      key={decision}
+                      variant={reviewDecision === decision ? "default" : "outline"}
+                      onClick={() => setReviewDecision(decision)}
+                      className="min-w-0 text-xs"
+                    >
+                      {decision === "comment"
+                        ? "Comment"
+                        : decision === "approve"
+                          ? "Approve"
+                          : "Request changes"}
+                    </Button>
+                  ))}
+                </div>
+                <label className="change-composer-panel-label" htmlFor="composer-review-message">
+                  Review message
+                  {reviewDecision === "request-changes" ? " (required)" : " (optional)"}
+                </label>
+                <Textarea
+                  id="composer-review-message"
+                  ref={messageRef}
+                  className="min-h-24 min-w-0 text-sm"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  placeholder="Write your review…"
+                />
+                <p className="change-composer-help text-muted-foreground text-xs tabular-nums">
+                  {loadingCompareRefs
+                    ? "Loading review context…"
+                    : `${pendingDrafts.length} pending inline ${pendingDrafts.length === 1 ? "comment" : "comments"} will be published.`}
+                  {hostedRepo?.providerId === "bitbucket"
+                    ? " Bitbucket posts comments and the decision separately."
+                    : ""}
+                </p>
+              </>
             ) : (
               <p className="change-composer-help text-muted-foreground text-xs">
                 {selectedPullRequest.url}

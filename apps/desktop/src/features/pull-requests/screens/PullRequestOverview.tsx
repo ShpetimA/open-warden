@@ -20,6 +20,7 @@ import {
 } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { PullRequestDiscussionSection } from "@/features/pull-requests/components/PullRequestDiscussionSection";
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
+import { PullRequestReviewersSection } from "@/features/pull-requests/components/PullRequestReviewersSection";
 import { PullRequestPreviewHeader } from "@/features/pull-requests/components/PullRequestPreviewHeader";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
@@ -284,6 +285,11 @@ function PullRequestOverviewDetailsSidebar({
 
   return (
     <aside className="flex flex-col gap-4 xl:sticky xl:top-4">
+      <PullRequestReviewersSection
+        repoPath={activeRepo}
+        pullRequestNumber={pullRequestNumber}
+        open={detail.state === "open"}
+      />
       <section className="rounded-lg border bg-surface-0 p-4">
         <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
           Details

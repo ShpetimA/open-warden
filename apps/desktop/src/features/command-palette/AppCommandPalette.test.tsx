@@ -75,6 +75,7 @@ vi.mock("@/features/hosted-repos/api", () => ({
   usePreparePullRequestCompareRefsQuery: mocks.usePreparePullRequestCompareRefsQuery,
   useAddPullRequestCommentMutation: () => [mocks.addComment],
   useSubmitPullRequestReviewCommentsMutation: () => [mocks.submitReview],
+  useSubmitPullRequestReviewMutation: () => [mocks.submitReview],
   useSubmitPullRequestDecisionMutation: () => [mocks.submitDecision],
   useMergePullRequestMutation: () => [mocks.mergePullRequest],
   useCreatePullRequestMutation: () => [mocks.createPullRequest],
@@ -806,6 +807,10 @@ describe("AppCommandPalette", () => {
       compareRefs: { compareBaseRef: "origin/main", compareHeadRef: "composer" },
       loadingCompareRefs: false,
     });
+    mocks.useGetPullRequestConversationQuery.mockReturnValue({
+      currentConversation: null,
+      selectedConversation: { detail: { headSha: "reviewed-sha", state: "open", isDraft: false } },
+    });
     mocks.submitReview.mockReturnValue({
       unwrap: () => Promise.resolve({ submittedDraftIds: ["draft-1"], failedMessage: null }),
     });
@@ -819,13 +824,16 @@ describe("AppCommandPalette", () => {
       />,
     );
 
-    expect(screen.getByText("1 pending inline comment will be published.")).toBeInTheDocument();
+    expect(screen.getByText(/1 pending inline comment will be published/)).toBeInTheDocument();
     expect(mocks.submitReview).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Confirm submit review comments" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(mocks.submitReview).toHaveBeenCalledWith({
       repoPath: "/tmp/repo",
       pullRequestNumber: 42,
+      expectedHeadSha: "reviewed-sha",
+      decision: "comment",
+      body: "",
       comments: [
         expect.objectContaining({
           draftId: "draft-1",

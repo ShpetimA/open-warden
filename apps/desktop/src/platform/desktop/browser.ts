@@ -122,6 +122,10 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Active pull request detection";
     case "getPullRequestConversation":
       return "Pull request conversation";
+    case "getPullRequestReviewOverview":
+    case "setPullRequestReviewer":
+    case "submitPullRequestReview":
+      return "Pull request review workflow";
     case "getPullRequestChecks":
       return "Pull request checks";
     case "getPullRequestFiles":

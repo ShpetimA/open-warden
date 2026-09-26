@@ -14,6 +14,10 @@ import type {
   PullRequestChangedFile,
   PullRequestCompareRefs,
   PullRequestConversation,
+  PullRequestReviewOverview,
+  SetPullRequestReviewerInput,
+  SubmitPullRequestReviewInput,
+  SubmitPullRequestReviewResult,
   PullRequestChecksResult,
   PullRequestIssueComment,
   PullRequestLocatorInput,
@@ -55,6 +59,18 @@ export async function resolveActivePullRequestForBranch(
 
 export async function getPullRequestConversation(input: PullRequestLocatorInput) {
   return desktop.getPullRequestConversation(input) as Promise<PullRequestConversation>;
+}
+
+export async function getPullRequestReviewOverview(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestReviewOverview(input) as Promise<PullRequestReviewOverview>;
+}
+
+export async function setPullRequestReviewer(input: SetPullRequestReviewerInput) {
+  await desktop.setPullRequestReviewer(input);
+}
+
+export async function submitPullRequestReview(input: SubmitPullRequestReviewInput) {
+  return desktop.submitPullRequestReview(input) as Promise<SubmitPullRequestReviewResult>;
 }
 
 export async function getPullRequestChecks(input: PullRequestLocatorInput) {

@@ -124,6 +124,10 @@ export type ListPullRequestsInput = {
   repoPath: string;
   page: number;
   perPage: number;
+  state?: "open" | "merged" | "closed" | "all";
+  query?: string;
+  author?: string;
+  involvement?: "all" | "mine";
 };
 
 export type ResolveActivePullRequestForBranchInput = {
@@ -201,6 +205,36 @@ export type PullRequestConversation = {
   detail: PullRequestDetail;
   issueComments: PullRequestIssueComment[];
   reviewThreads: PullRequestReviewThread[];
+};
+
+export type PullRequestReviewer = PullRequestPerson & {
+  id: string;
+  state: "requested" | "approved" | "changes-requested" | "commented";
+  reviewedAt: string | null;
+};
+
+export type PullRequestReviewOverview = {
+  reviewers: PullRequestReviewer[];
+  viewerLogin: string;
+  canManageReviewers: boolean | null;
+};
+
+export type SetPullRequestReviewerInput = PullRequestLocatorInput & {
+  reviewer: string;
+  requested: boolean;
+};
+
+export type SubmitPullRequestReviewInput = PullRequestLocatorInput & {
+  decision: "comment" | "approve" | "request-changes";
+  body: string;
+  comments: PullRequestReviewDraftCommentInput[];
+  expectedHeadSha: string;
+};
+
+export type SubmitPullRequestReviewResult = {
+  submittedDraftIds: string[];
+  decisionSubmitted: boolean;
+  failedMessage: string | null;
 };
 
 export type PullRequestCheckState = "passed" | "failed" | "pending";
@@ -434,6 +468,11 @@ export type DesktopApi = {
     input: ResolveActivePullRequestForBranchInput,
   ): Promise<PullRequestSummary | null>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
+  getPullRequestReviewOverview(input: PullRequestLocatorInput): Promise<PullRequestReviewOverview>;
+  setPullRequestReviewer(input: SetPullRequestReviewerInput): Promise<void>;
+  submitPullRequestReview(
+    input: SubmitPullRequestReviewInput,
+  ): Promise<SubmitPullRequestReviewResult>;
   getPullRequestChecks(input: PullRequestLocatorInput): Promise<PullRequestChecksResult>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;

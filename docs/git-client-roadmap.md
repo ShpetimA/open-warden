@@ -2,7 +2,7 @@
 
 Open Warden's pull request list stays scoped to the active project. A cross-project inbox is a separate product decision and is outside this plan.
 
-Progress: slice 1 is implemented; slices 2–6 are planned.
+Progress: slices 1–3 are implemented; slices 4–6 are planned.
 
 ## 1. Checks and merge readiness
 
