@@ -11,6 +11,7 @@ import type {
   PullRequestChangedFile,
   PullRequestCompareRefs,
   PullRequestConversation,
+  PullRequestChecksResult,
   PullRequestLocatorInput,
   PullRequestPage,
   PullRequestReviewThread,
@@ -28,6 +29,7 @@ import {
   connectProvider,
   disconnectProvider,
   getPullRequestConversation,
+  getPullRequestChecks,
   getPullRequestFiles,
   getPullRequestPatch,
   listProviderConnections,
@@ -56,6 +58,7 @@ export const hostedReposApi = createApi({
     "HostedRepo",
     "PullRequests",
     "PullRequestConversation",
+    "PullRequestChecks",
     "PullRequestFiles",
     "PullRequestPatch",
     "PullRequestCompareRefs",
@@ -137,6 +140,18 @@ export const hostedReposApi = createApi({
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
+    getPullRequestChecks: builder.query<PullRequestChecksResult, PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await getPullRequestChecks(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
     getPullRequestFiles: builder.query<PullRequestChangedFile[], PullRequestLocatorInput>({
@@ -222,6 +237,7 @@ export const hostedReposApi = createApi({
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
     replyToPullRequestThread: builder.mutation<
@@ -280,6 +296,7 @@ export const {
   useMergePullRequestMutation,
   useDisconnectProviderMutation,
   useGetPullRequestConversationQuery,
+  useGetPullRequestChecksQuery,
   useGetPullRequestFilesQuery,
   useGetPullRequestPatchQuery,
   useListProviderConnectionsQuery,

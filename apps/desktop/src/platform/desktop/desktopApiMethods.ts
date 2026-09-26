@@ -23,6 +23,7 @@ export const DESKTOP_API_METHODS = [
   "listPullRequests",
   "resolveActivePullRequestForBranch",
   "getPullRequestConversation",
+  "getPullRequestChecks",
   "getPullRequestFiles",
   "getPullRequestPatch",
   "addPullRequestComment",

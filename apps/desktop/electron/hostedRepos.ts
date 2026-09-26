@@ -4,6 +4,7 @@ export {
   listProviderConnections,
 } from "./hosted-repos/providers";
 export { parseRemoteUrl, resolveHostedRepo } from "./hosted-repos/repository";
+export { getPullRequestChecks } from "./hosted-repos/checks";
 export {
   addPullRequestComment,
   createPullRequest,

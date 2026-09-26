@@ -34,6 +34,7 @@ export type GitHubPullRequestResponse = {
   draft: boolean;
   state: "open" | "closed";
   merged_at: string | null;
+  mergeable?: boolean | null;
   html_url: string;
   updated_at: string;
   user: {

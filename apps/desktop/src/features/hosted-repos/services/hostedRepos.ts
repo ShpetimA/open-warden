@@ -14,6 +14,7 @@ import type {
   PullRequestChangedFile,
   PullRequestCompareRefs,
   PullRequestConversation,
+  PullRequestChecksResult,
   PullRequestIssueComment,
   PullRequestLocatorInput,
   PullRequestPage,
@@ -54,6 +55,10 @@ export async function resolveActivePullRequestForBranch(
 
 export async function getPullRequestConversation(input: PullRequestLocatorInput) {
   return desktop.getPullRequestConversation(input) as Promise<PullRequestConversation>;
+}
+
+export async function getPullRequestChecks(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestChecks(input) as Promise<PullRequestChecksResult>;
 }
 
 export async function getPullRequestFiles(input: PullRequestLocatorInput) {

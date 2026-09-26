@@ -203,6 +203,23 @@ export type PullRequestConversation = {
   reviewThreads: PullRequestReviewThread[];
 };
 
+export type PullRequestCheckState = "passed" | "failed" | "pending";
+
+export type PullRequestCheck = {
+  id: string;
+  name: string;
+  description: string | null;
+  state: PullRequestCheckState;
+  url: string | null;
+};
+
+export type PullRequestChecksResult = {
+  headSha: string;
+  checks: PullRequestCheck[];
+  complete: boolean;
+  mergeability: "mergeable" | "conflicting" | "unknown";
+};
+
 export type PullRequestChangedFile = {
   path: string;
   previousPath: string | null;
@@ -417,6 +434,7 @@ export type DesktopApi = {
     input: ResolveActivePullRequestForBranchInput,
   ): Promise<PullRequestSummary | null>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
+  getPullRequestChecks(input: PullRequestLocatorInput): Promise<PullRequestChecksResult>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;

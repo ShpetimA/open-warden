@@ -1,18 +1,36 @@
-import { PreviewPlaceholder } from "@/features/pull-requests/components/PreviewPlaceholder";
-import { ShieldCheck } from "lucide-react";
+import { skipToken } from "@reduxjs/toolkit/query";
+import { useParams } from "react-router";
+
+import { useAppSelector } from "@/app/hooks";
+import { useResolveHostedRepoQuery } from "@/features/hosted-repos/api";
+import { PullRequestChecksPanel } from "@/features/pull-requests/components/PullRequestChecksPanel";
 
 export const PullRequestChecks = () => {
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto px-6 py-6">
-        <div className="mx-auto flex min-h-full w-full max-w-[1400px] flex-col">
-          <PreviewPlaceholder
-            icon={ShieldCheck}
-            title="Checks preview is next"
-            description="Checks will live here in the preview shell. For now, open the PR locally to continue review."
-          />
-        </div>
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const { providerId, owner, repo, pullRequestNumber } = useParams();
+  const number = Number(pullRequestNumber);
+  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo || skipToken, {
+    selectFromResult: ({ data }) => ({ hostedRepo: data ?? null }),
+  });
+
+  if (
+    !hostedRepo ||
+    hostedRepo.providerId !== providerId ||
+    hostedRepo.owner !== owner ||
+    hostedRepo.repo !== repo ||
+    !Number.isInteger(number) ||
+    number <= 0
+  ) {
+    return (
+      <div className="text-muted-foreground p-6 text-sm">
+        Open a pull request in this project to see its checks.
       </div>
+    );
+  }
+
+  return (
+    <div className="h-full overflow-auto">
+      <PullRequestChecksPanel repoPath={activeRepo} pullRequestNumber={number} />
     </div>
   );
 };
