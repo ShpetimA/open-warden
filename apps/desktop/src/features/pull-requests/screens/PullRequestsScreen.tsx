@@ -12,7 +12,7 @@ import {
   Unplug,
 } from "lucide-react";
 
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
   useDisconnectProviderMutation,
@@ -24,6 +24,7 @@ import {
 } from "@/features/hosted-repos/api";
 import { CommentBody } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { useCommandComposerLauncher } from "@/features/command-palette/CommandComposerLauncher";
+import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { isTypingTarget } from "@/features/source-control/utils";
 import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
@@ -304,6 +305,7 @@ function PullRequestPreviewPane({
 }
 
 export function PullRequestsScreen() {
+  const dispatch = useAppDispatch();
   const openComposer = useCommandComposerLauncher();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
@@ -425,7 +427,17 @@ export function PullRequestsScreen() {
   }
 
   function onOpenPullRequest(pullRequest: PullRequestSummary) {
-    openComposer("open-pr", pullRequest);
+    if (!hostedRepo) return;
+    void dispatch(
+      openPullRequestWorkspace({
+        repoPath: activeRepo,
+        providerId: pullRequest.providerId,
+        owner: hostedRepo.owner,
+        repo: hostedRepo.repo,
+        pullRequestNumber: pullRequest.number,
+        title: pullRequest.title,
+      }),
+    );
   }
 
   function moveSelection(direction: 1 | -1) {

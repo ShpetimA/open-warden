@@ -618,7 +618,7 @@ describe("AppCommandPalette", () => {
     });
   });
 
-  test("opens a selected pull request in the chosen mode after confirmation", async () => {
+  test("opens a selected pull request as a tab without checking it out", async () => {
     const onOpenChange = vi.fn();
     render(
       <AppCommandPalette
@@ -629,16 +629,39 @@ describe("AppCommandPalette", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Current checkout" }));
+    expect(screen.getByRole("button", { name: "Review tab" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm open pull request" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "test/open-pr-review" }),
+    );
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      type: "test/open-pr-workspace",
+      payload: expect.objectContaining({ repoPath: "/tmp/repo", pullRequestNumber: 42 }),
+    });
+  });
+
+  test("opens a selected pull request in a worktree after confirmation", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="open-pr"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New worktree" }));
     expect(mocks.dispatch).not.toHaveBeenCalledWith({
       type: "test/open-pr-review",
-      payload: { number: 42, mode: "branch" },
+      payload: { number: 42, mode: "worktree" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Confirm open pull request" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(mocks.dispatch).toHaveBeenCalledWith({
       type: "test/open-pr-review",
-      payload: { number: 42, mode: "branch" },
+      payload: { number: 42, mode: "worktree" },
     });
     expect(mocks.dispatch).toHaveBeenCalledWith({
       type: "test/open-pr-workspace",

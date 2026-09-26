@@ -25,7 +25,7 @@ import {
 } from "@/features/pull-requests/utils/pendingReviewComments";
 import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
-import type { PullRequestOpenMode, PullRequestSummary } from "@/platform/desktop/contracts";
+import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
 import { CommandComposerCards } from "./CommandComposerCards";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
@@ -60,7 +60,7 @@ export function PullRequestCommandComposer({
   const [selectedPullRequest, setSelectedPullRequest] = useState<PullRequestSummary | null>(
     initialPullRequest ?? null,
   );
-  const [openMode, setOpenMode] = useState<PullRequestOpenMode>("worktree");
+  const [openMode, setOpenMode] = useState<"tab" | "worktree">("tab");
   const [mergeMethod, setMergeMethod] = useState<"merge" | "squash" | "rebase">("merge");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -221,12 +221,18 @@ export function PullRequestCommandComposer({
     try {
       if (action === "open-pr") {
         if (!hostedRepo) throw new Error("Connect a supported hosted repository first.");
-        const result = await dispatch(openPullRequestReview(selectedPullRequest.number, openMode));
-        if (result.errorMessage || !result.repoPath)
-          throw new Error(result.errorMessage ?? "The review workspace could not be opened.");
+        let reviewRepoPath = repoPath;
+        if (openMode === "worktree") {
+          const result = await dispatch(
+            openPullRequestReview(selectedPullRequest.number, "worktree"),
+          );
+          if (result.errorMessage || !result.repoPath)
+            throw new Error(result.errorMessage ?? "The review worktree could not be opened.");
+          reviewRepoPath = result.repoPath;
+        }
         await dispatch(
           openPullRequestWorkspace({
-            repoPath: result.repoPath,
+            repoPath: reviewRepoPath,
             providerId: selectedPullRequest.providerId,
             owner: hostedRepo.owner,
             repo: hostedRepo.repo,
@@ -408,21 +414,21 @@ export function PullRequestCommandComposer({
             {action === "open-pr" ? (
               <div className="grid grid-cols-2 gap-2" role="group" aria-label="Open mode">
                 <Button
+                  variant={openMode === "tab" ? "default" : "outline"}
+                  onClick={() => setOpenMode("tab")}
+                >
+                  Review tab
+                </Button>
+                <Button
                   variant={openMode === "worktree" ? "default" : "outline"}
                   onClick={() => setOpenMode("worktree")}
                 >
                   New worktree
                 </Button>
-                <Button
-                  variant={openMode === "branch" ? "default" : "outline"}
-                  onClick={() => setOpenMode("branch")}
-                >
-                  Current checkout
-                </Button>
                 <p className="change-composer-help text-muted-foreground col-span-2 text-xs">
-                  {openMode === "branch"
-                    ? "Current checkout must have no local changes."
-                    : "The review opens in a separate worktree."}
+                  {openMode === "tab"
+                    ? "Open the review as a tab in this repository."
+                    : "Check out the pull request in a separate worktree and open its review tab."}
                 </p>
               </div>
             ) : action === "request-changes" && hostedRepo?.providerId === "bitbucket" ? (
