@@ -38,7 +38,7 @@ export const actions = [
   },
   {
     id: "submit-review",
-    label: "Submit review comments",
+    label: "Submit review",
     group: "Pull requests",
     icon: MessageSquarePlus,
   },

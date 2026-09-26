@@ -190,7 +190,7 @@ export function ChangeCommandComposer({
     "open-pr-worktree": "Check out a PR in a separate worktree",
     "copy-pr-link": "Copy a pull request URL",
     "comment-pr": "Write a pull request comment",
-    "submit-review": "Publish pending inline review comments",
+    "submit-review": "Choose a decision, note, and pending inline comments",
     "create-pr": "Choose branches, write details, then confirm",
     "approve-pr": "Approve a reviewed pull request",
     "request-changes": "Send a review requesting changes",

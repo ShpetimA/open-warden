@@ -826,7 +826,7 @@ describe("AppCommandPalette", () => {
 
     expect(screen.getByText(/1 pending inline comment will be published/)).toBeInTheDocument();
     expect(mocks.submitReview).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm submit review comments" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm submit review" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(mocks.submitReview).toHaveBeenCalledWith({
       repoPath: "/tmp/repo",
