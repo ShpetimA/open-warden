@@ -23,6 +23,8 @@ const state: GitRepositoryState = {
     { name: "main", remote: false, worktree: "/repo" },
     { name: "feature", remote: false, worktree: "" },
   ],
+  tags: [],
+  worktrees: [{ path: "/repo", branch: "main", commitId: "a".repeat(40) }],
 };
 
 it("opens focused composer actions from the repository controls", () => {

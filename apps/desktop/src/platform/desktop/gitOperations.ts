@@ -16,6 +16,12 @@ const message = z
   .max(65536)
   .refine((value) => !value.includes("\0"));
 const oid = z.string().regex(/^[a-f0-9]{40,64}$/);
+const worktreePath = z
+  .string()
+  .trim()
+  .min(1)
+  .max(4096)
+  .refine((value) => !value.includes("\0") && !/[\r\n]/.test(value));
 export const gitOperationSchema = z.enum(["merge", "rebase", "cherry-pick", "revert"]);
 export type GitOperation = z.infer<typeof gitOperationSchema>;
 export const gitCommandSchema = z.discriminatedUnion("kind", [
@@ -62,6 +68,10 @@ export const gitCommandSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("create"), branch: name, startPoint: name }),
   z.object({ kind: z.literal("rename"), branch: name }),
   z.object({ kind: z.literal("delete"), branch: name }),
+  z.object({ kind: z.literal("tag-create"), tag: name }),
+  z.object({ kind: z.literal("tag-delete"), tag: name }),
+  z.object({ kind: z.literal("worktree-add"), branch: name, path: worktreePath }),
+  z.object({ kind: z.literal("worktree-remove"), path: worktreePath }),
 ]);
 export type GitCommand = z.infer<typeof gitCommandSchema>;
 export const gitRepositoryStateSchema = z.object({
@@ -71,6 +81,8 @@ export const gitRepositoryStateSchema = z.object({
   behind: z.number().int().nonnegative(),
   remotes: z.array(z.string()),
   branches: z.array(z.object({ name: z.string(), remote: z.boolean(), worktree: z.string() })),
+  tags: z.array(z.object({ name: z.string(), commitId: z.string() })),
+  worktrees: z.array(z.object({ path: z.string(), branch: z.string(), commitId: z.string() })),
   operation: gitOperationSchema.nullable(),
   conflicts: z.array(z.string()),
   lastCommit: z.object({ id: z.string(), message: z.string(), published: z.boolean() }).nullable(),

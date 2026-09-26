@@ -111,7 +111,14 @@ export function PullRequestLifecycleSection({
         };
         const input: PullRequestLifecycleInput =
           action === "edit"
-            ? { ...common, action, title, body }
+            ? {
+                ...common,
+                action,
+                title,
+                body,
+                expectedTitle: detail.title,
+                expectedBody: detail.body,
+              }
             : action === "auto-merge"
               ? { ...common, action, method }
               : { ...common, action };

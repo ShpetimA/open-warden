@@ -10,6 +10,7 @@ import { isPullRequestAction } from "./commandComposerModel";
 import { RepositoryCommandComposer } from "./RepositoryCommandComposer";
 import { CreatePullRequestComposer } from "./CreatePullRequestComposer";
 import { PullRequestCommandComposer } from "./PullRequestCommandComposer";
+import { BlameCommandComposer } from "./BlameCommandComposer";
 import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
 type AppCommandPaletteProps = {
@@ -62,6 +63,11 @@ export function AppCommandPalette({
         {open ? (
           specialAction === "open-repository" ? (
             <RepositoryCommandComposer
+              onBack={() => setSpecialAction(null)}
+              onClose={() => onOpenChange(false)}
+            />
+          ) : specialAction === "blame-file" ? (
+            <BlameCommandComposer
               onBack={() => setSpecialAction(null)}
               onClose={() => onOpenChange(false)}
             />

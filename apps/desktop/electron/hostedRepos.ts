@@ -10,6 +10,13 @@ export {
   submitPullRequestReview,
 } from "./hosted-repos/reviewers";
 export { getPullRequestChecks } from "./hosted-repos/checks";
+export {
+  getPullRequestExtras,
+  setPullRequestLabels,
+  rerunPullRequestWorkflow,
+} from "./hosted-repos/extras";
+export { cancelPullRequestWorkflow } from "./hosted-repos/extras";
+export { addPullRequestReaction } from "./hosted-repos/extras";
 export { runPullRequestLifecycle } from "./hosted-repos/lifecycle";
 export {
   getPullRequestActivity,

@@ -4,6 +4,16 @@ import {
   CommentBody,
   toDisplayDate,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
+import { SmilePlus } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAddPullRequestReactionMutation } from "@/features/hosted-repos/api";
 import type { PullRequestConversation } from "@/platform/desktop";
 
 const reactionSymbols = {
@@ -17,10 +27,64 @@ const reactionSymbols = {
   eyes: "👀",
 } as const;
 
+function ReactionMenu({
+  repoPath,
+  pullRequestNumber,
+  commentId,
+}: {
+  repoPath: string;
+  pullRequestNumber: number;
+  commentId: number;
+}) {
+  const [addReaction, mutation] = useAddPullRequestReactionMutation();
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          disabled={mutation.isLoading}
+          aria-label="Add reaction"
+          title="Add reaction"
+        >
+          <SmilePlus />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {Object.entries(reactionSymbols).map(([content, symbol]) => (
+          <DropdownMenuItem
+            key={content}
+            onSelect={() => {
+              void addReaction({
+                repoPath,
+                pullRequestNumber,
+                commentId,
+                content: content as keyof typeof reactionSymbols,
+              })
+                .unwrap()
+                .catch((cause: unknown) =>
+                  toast.error(
+                    cause && typeof cause === "object" && "message" in cause
+                      ? String(cause.message)
+                      : "Could not add reaction.",
+                  ),
+                );
+            }}
+          >
+            {symbol} {content}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function PullRequestDiscussionSection({
   conversation,
+  repoPath,
 }: {
   conversation: PullRequestConversation;
+  repoPath: string;
 }) {
   const hasDescription = conversation.detail.body.trim().length > 0;
   const hasComments = conversation.issueComments.length > 0;
@@ -82,8 +146,8 @@ export function PullRequestDiscussionSection({
               <div className="mt-2">
                 <CommentBody body={comment.body} />
               </div>
-              {comment.reactions.length > 0 ? (
-                <div className="mt-2 flex flex-wrap gap-1" aria-label="Reactions">
+              {conversation.detail.providerId === "github" || comment.reactions.length > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center gap-1" aria-label="Reactions">
                   {comment.reactions.map((reaction) => (
                     <span
                       key={reaction.content}
@@ -93,6 +157,13 @@ export function PullRequestDiscussionSection({
                       {reactionSymbols[reaction.content]} {reaction.count}
                     </span>
                   ))}
+                  {conversation.detail.providerId === "github" ? (
+                    <ReactionMenu
+                      repoPath={repoPath}
+                      pullRequestNumber={conversation.detail.number}
+                      commentId={comment.databaseId}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>

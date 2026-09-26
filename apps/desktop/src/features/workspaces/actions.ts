@@ -1,9 +1,10 @@
 import type { AppThunk } from "@/app/store";
 import { openRepo } from "@/features/source-control/actions";
-import { removeRepo } from "@/features/source-control/sourceControlSlice";
+import { removeRepo, setRecentRepos } from "@/features/source-control/sourceControlSlice";
 import {
   pullRequestWorkspaceUpserted,
   projectRemoved,
+  projectForgotten,
   projectReopened,
   selectWorkspaceById,
   workspaceActivated,
@@ -50,4 +51,14 @@ export const closeProject =
   (dispatch) => {
     dispatch(projectRemoved({ repoPath }));
     dispatch(removeRepo(repoPath));
+  };
+
+export const forgetProject =
+  (repoPath: string): AppThunk =>
+  (dispatch, getState) => {
+    dispatch(projectForgotten({ repoPath }));
+    dispatch(removeRepo(repoPath));
+    dispatch(
+      setRecentRepos(getState().sourceControl.recentRepos.filter((item) => item !== repoPath)),
+    );
   };

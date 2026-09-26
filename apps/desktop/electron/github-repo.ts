@@ -247,6 +247,25 @@ export async function githubTextRequest(pathname: string, token: string, accept:
   return response.text();
 }
 
+export async function githubEmptyRequest(
+  pathname: string,
+  token: string,
+  method: "POST" | "DELETE",
+) {
+  const response = await fetch(`https://api.github.com${pathname}`, {
+    method,
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "User-Agent": "open-warden",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+  if (!response.ok) {
+    throw new Error(parseGitHubErrorMessage(await response.text(), response.status));
+  }
+}
+
 export async function githubJsonRequest<T>(
   pathname: string,
   token: string,

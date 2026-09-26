@@ -19,6 +19,10 @@ import type {
   SubmitPullRequestReviewInput,
   SubmitPullRequestReviewResult,
   PullRequestChecksResult,
+  PullRequestExtras,
+  SetPullRequestLabelsInput,
+  RerunPullRequestWorkflowInput,
+  AddPullRequestReactionInput,
   PullRequestIssueComment,
   PullRequestLocatorInput,
   PullRequestLifecycleInput,
@@ -96,6 +100,26 @@ export async function setPullRequestFileViewed(input: SetPullRequestFileViewedIn
 
 export async function getPullRequestChecks(input: PullRequestLocatorInput) {
   return desktop.getPullRequestChecks(input) as Promise<PullRequestChecksResult>;
+}
+
+export async function getPullRequestExtras(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestExtras(input) as Promise<PullRequestExtras>;
+}
+
+export async function setPullRequestLabels(input: SetPullRequestLabelsInput) {
+  await desktop.setPullRequestLabels(input);
+}
+
+export async function rerunPullRequestWorkflow(input: RerunPullRequestWorkflowInput) {
+  await desktop.rerunPullRequestWorkflow(input);
+}
+
+export async function cancelPullRequestWorkflow(input: RerunPullRequestWorkflowInput) {
+  await desktop.cancelPullRequestWorkflow(input);
+}
+
+export async function addPullRequestReaction(input: AddPullRequestReactionInput) {
+  await desktop.addPullRequestReaction(input);
 }
 
 export async function getPullRequestFiles(input: PullRequestLocatorInput) {

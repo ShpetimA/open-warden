@@ -13,6 +13,10 @@ import type {
   PullRequestConversation,
   PullRequestReviewOverview,
   PullRequestChecksResult,
+  PullRequestExtras,
+  SetPullRequestLabelsInput,
+  RerunPullRequestWorkflowInput,
+  AddPullRequestReactionInput,
   PullRequestLocatorInput,
   PullRequestLifecycleInput,
   PullRequestLifecycleResult,
@@ -46,6 +50,11 @@ import {
   getPullRequestViewedFiles,
   setPullRequestFileViewed,
   getPullRequestChecks,
+  getPullRequestExtras,
+  setPullRequestLabels,
+  rerunPullRequestWorkflow,
+  cancelPullRequestWorkflow,
+  addPullRequestReaction,
   getPullRequestFiles,
   getPullRequestPatch,
   listProviderConnections,
@@ -78,6 +87,7 @@ export const hostedReposApi = createApi({
     "PullRequestActivity",
     "PullRequestViewedFiles",
     "PullRequestChecks",
+    "PullRequestExtras",
     "PullRequestFiles",
     "PullRequestPatch",
     "PullRequestCompareRefs",
@@ -221,6 +231,7 @@ export const hostedReposApi = createApi({
         { type: "PullRequestChecks", id: `${repoPath}:${pullRequestNumber}` },
         { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
         { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     getPullRequestActivity: builder.query<PullRequestActivity, PullRequestLocatorInput>({
@@ -270,6 +281,73 @@ export const hostedReposApi = createApi({
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
+    getPullRequestExtras: builder.query<PullRequestExtras, PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await getPullRequestExtras(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    setPullRequestLabels: builder.mutation<void, SetPullRequestLabelsInput>({
+      async queryFn(input) {
+        try {
+          await setPullRequestLabels(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    rerunPullRequestWorkflow: builder.mutation<void, RerunPullRequestWorkflowInput>({
+      async queryFn(input) {
+        try {
+          await rerunPullRequestWorkflow(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestChecks", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    cancelPullRequestWorkflow: builder.mutation<void, RerunPullRequestWorkflowInput>({
+      async queryFn(input) {
+        try {
+          await cancelPullRequestWorkflow(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestChecks", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    addPullRequestReaction: builder.mutation<void, AddPullRequestReactionInput>({
+      async queryFn(input) {
+        try {
+          await addPullRequestReaction(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     getPullRequestFiles: builder.query<PullRequestChangedFile[], PullRequestLocatorInput>({
@@ -422,6 +500,11 @@ export const {
   useGetPullRequestViewedFilesQuery,
   useSetPullRequestFileViewedMutation,
   useGetPullRequestChecksQuery,
+  useGetPullRequestExtrasQuery,
+  useSetPullRequestLabelsMutation,
+  useRerunPullRequestWorkflowMutation,
+  useCancelPullRequestWorkflowMutation,
+  useAddPullRequestReactionMutation,
   useGetPullRequestFilesQuery,
   useGetPullRequestPatchQuery,
   useListProviderConnectionsQuery,

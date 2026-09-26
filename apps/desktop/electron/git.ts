@@ -13,7 +13,57 @@ import type {
   GitSnapshot,
   HistoryCommit,
   RepoFileItem,
+  GitBlameResult,
 } from "../src/platform/desktop/contracts";
+
+export async function getGitBlame(
+  repoPath: string,
+  relPath: string,
+  revision?: string | null,
+): Promise<GitBlameResult> {
+  const safePath = normalizeGitPath(relPath);
+  if (revision && (revision.startsWith("-") || revision.includes("\0") || revision.includes("\n")))
+    throw new Error("Invalid blame revision.");
+  const output = decodeUtf8(
+    await runGit(repoPath, [
+      "blame",
+      "--line-porcelain",
+      ...(revision ? [revision] : []),
+      "--",
+      safePath,
+    ]),
+    safePath,
+  );
+  const lines: GitBlameResult["lines"] = [];
+  let commitId = "";
+  let line = 0;
+  let author = "";
+  let authoredAt: string | null = null;
+  let summary = "";
+  let totalLines = 0;
+  for (const record of output.split("\n")) {
+    const header = /^([a-f0-9^]{40,65}) \d+ (\d+)(?: \d+)?$/.exec(record);
+    if (header) {
+      commitId = header[1]!.replace(/^\^/, "");
+      line = Number(header[2]);
+      author = "";
+      authoredAt = null;
+      summary = "";
+    } else if (record.startsWith("author ")) author = record.slice(7);
+    else if (record.startsWith("author-time ")) {
+      const seconds = Number(record.slice(12));
+      authoredAt =
+        Number.isFinite(seconds) && Math.abs(seconds) <= 8.64e9
+          ? new Date(seconds * 1000).toISOString()
+          : null;
+    } else if (record.startsWith("summary ")) summary = record.slice(8);
+    else if (record.startsWith("\t") && commitId) {
+      totalLines += 1;
+      if (lines.length < 5000) lines.push({ line, commitId, author, authoredAt, summary });
+    }
+  }
+  return { lines, truncated: totalLines > lines.length };
+}
 
 const execFile = promisify(nodeExecFile);
 const textDecoder = new TextDecoder("utf-8", { fatal: true });

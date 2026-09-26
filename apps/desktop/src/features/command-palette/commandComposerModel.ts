@@ -15,6 +15,9 @@ import {
   RefreshCw,
   Trash2,
   XCircle,
+  Tag,
+  PanelsTopLeft,
+  ListTree,
 } from "lucide-react";
 
 import type { GitSnapshot } from "@/features/source-control/types";
@@ -67,12 +70,19 @@ export const actions = [
   { id: "drop-stash", label: "Delete stash", group: "Stashes", icon: Trash2 },
   { id: "view-incoming", label: "View incoming commits", group: "Remote", icon: ArrowDown },
   { id: "view-outgoing", label: "View outgoing commits", group: "Remote", icon: ArrowUp },
+  { id: "view-tags", label: "View tags", group: "Tags", icon: Tag },
+  { id: "blame-file", label: "Blame file", group: "History", icon: ListTree },
+  { id: "create-tag", label: "Create tag", group: "Tags", icon: Tag },
+  { id: "delete-tag", label: "Delete tag", group: "Tags", icon: Trash2 },
+  { id: "create-worktree", label: "Create worktree", group: "Worktrees", icon: PanelsTopLeft },
+  { id: "remove-worktree", label: "Remove worktree", group: "Worktrees", icon: Trash2 },
 ] as const;
 
 export type ComposerAction = (typeof actions)[number]["id"];
 
 export const specialActions = new Set<ComposerAction>([
   "open-repository",
+  "blame-file",
   "open-pr",
   "open-pr-worktree",
   "copy-pr-link",
@@ -116,18 +126,24 @@ export const branchActions = new Set<ComposerAction>([
   "delete-branch",
   "merge-branch",
   "rebase-branch",
+  "create-worktree",
 ]);
 export const remoteActions = new Set<ComposerAction>(["fetch", "publish"]);
 export const stashActions = new Set<ComposerAction>(["apply-stash", "pop-stash", "drop-stash"]);
+export const tagActions = new Set<ComposerAction>(["delete-tag"]);
+export const worktreeActions = new Set<ComposerAction>(["remove-worktree"]);
 export const nameActions = new Set<ComposerAction>([
   "create-branch",
   "rename-branch",
   "save-stash",
+  "create-tag",
 ]);
 export const selectionActions = new Set<ComposerAction>([
   ...branchActions,
   ...remoteActions,
   ...stashActions,
+  ...tagActions,
+  ...worktreeActions,
 ]);
 export function actionFromId(id: string): ComposerAction | null {
   return actions.find((item) => item.id === id)?.id ?? null;
@@ -160,6 +176,7 @@ export function eligibleBranch(
 ) {
   if (branch.name === current || (branch.worktree && branch.worktree !== repoPath)) return false;
   if (action === "delete-branch") return !branch.remote && !branch.worktree;
+  if (action === "create-worktree") return !branch.remote && !branch.worktree;
   return true;
 }
 
@@ -181,6 +198,8 @@ export function commandFor(
     case "approve-pr":
     case "request-changes":
     case "merge-pr":
+    case "view-tags":
+    case "blame-file":
       return null;
     case "pull":
       return { kind: "pull" };
@@ -225,6 +244,14 @@ export function commandFor(
       return { kind: "stash-pop", oid: selection };
     case "drop-stash":
       return { kind: "stash-drop", oid: selection };
+    case "create-tag":
+      return { kind: "tag-create", tag: draft.trim() };
+    case "delete-tag":
+      return { kind: "tag-delete", tag: selection };
+    case "create-worktree":
+      return { kind: "worktree-add", branch: selection, path: draft.trim() };
+    case "remove-worktree":
+      return { kind: "worktree-remove", path: selection };
     case "commit":
     case "stage-all":
     case "unstage-all":

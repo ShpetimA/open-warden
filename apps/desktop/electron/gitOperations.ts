@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { z } from "zod";
@@ -59,11 +59,19 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
       "refs/heads",
       "refs/remotes",
     ]),
+    run(repo, [
+      "for-each-ref",
+      "--format=%(refname:strip=2)%09%(*objectname)%09%(objectname)",
+      "refs/tags",
+    ]),
+    run(repo, ["worktree", "list", "--porcelain", "-z"]),
   ]);
-  const [status, remotes, refs] = results;
+  const [status, remotes, refs, tags, worktrees] = results;
   if (!status.ok) return status;
   if (!remotes.ok) return remotes;
   if (!refs.ok) return refs;
+  if (!tags.ok) return tags;
+  if (!worktrees.ok) return worktrees;
   const lines = status.value.split("\n");
   const branch = lines.find((line) => line.startsWith("# branch.head "))?.slice(14) ?? "";
   const upstream = lines.find((line) => line.startsWith("# branch.upstream "))?.slice(18) ?? "";
@@ -118,6 +126,27 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
           if (symbolic) return [];
           const remote = ref.startsWith("refs/remotes/");
           return [{ name: ref.replace(/^refs\/(heads|remotes)\//, ""), remote, worktree }];
+        }),
+      tags: tags.value
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => {
+          const [name = "", peeled = "", object = ""] = line.split("\t");
+          return { name, commitId: peeled || object };
+        }),
+      worktrees: worktrees.value
+        .split("\0\0")
+        .filter(Boolean)
+        .flatMap((record) => {
+          const fields = record.split("\0");
+          const worktree = fields.find((field) => field.startsWith("worktree "))?.slice(9);
+          const commitId = fields.find((field) => field.startsWith("HEAD "))?.slice(5);
+          const branch =
+            fields
+              .find((field) => field.startsWith("branch "))
+              ?.slice(7)
+              .replace(/^refs\/heads\//, "") ?? "";
+          return worktree && commitId ? [{ path: worktree, commitId, branch }] : [];
         }),
       operation: operation.value,
       conflicts: conflicts.value.split("\0").filter(Boolean),
@@ -295,6 +324,52 @@ async function execute(repo: string, command: GitCommand): Promise<GitResult<str
       return run(repo, ["branch", "-m", command.branch]);
     case "delete":
       return run(repo, ["branch", "-d", "--", command.branch]);
+    case "tag-create":
+      return run(repo, ["tag", "--annotate", command.tag, "-m", command.tag]);
+    case "tag-delete":
+      return run(repo, ["tag", "--delete", "--", command.tag]);
+    case "worktree-add": {
+      if (!path.isAbsolute(command.path))
+        return failure("Choose an absolute path for the worktree.");
+      try {
+        await stat(command.path);
+        return failure("The worktree path already exists.");
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+          return failure("Could not inspect the worktree path.");
+      }
+      const state = await getGitRepositoryState(repo);
+      if (!state.ok) return state;
+      const branch = state.value.branches.find(
+        (item) => item.name === command.branch && !item.remote,
+      );
+      if (!branch || branch.worktree)
+        return failure("Choose a local branch that is not checked out elsewhere.");
+      return run(repo, ["worktree", "add", "--", command.path, command.branch]);
+    }
+    case "worktree-remove": {
+      const state = await getGitRepositoryState(repo);
+      if (!state.ok) return state;
+      let requested: string;
+      let current: string;
+      const root = await run(repo, ["rev-parse", "--show-toplevel"]);
+      if (!root.ok) return root;
+      try {
+        [requested, current] = await Promise.all([realpath(command.path), realpath(root.value)]);
+      } catch {
+        return failure("This worktree no longer exists. Refresh and try again.");
+      }
+      if (requested === current) return failure("The current worktree cannot be removed.");
+      const candidate = state.value.worktrees.find((item) => item.path === command.path);
+      if (!candidate) return failure("This path is not a registered worktree for this repository.");
+      const status = await run(command.path, ["status", "--porcelain", "--ignored", "-z"]);
+      if (!status.ok) return status;
+      if (status.value)
+        return failure(
+          "This worktree contains local or ignored files. Move or remove them before removing it.",
+        );
+      return run(repo, ["worktree", "remove", "--", command.path]);
+    }
   }
 }
 

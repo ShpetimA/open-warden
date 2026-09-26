@@ -2,7 +2,7 @@
 
 Open Warden's pull request list stays scoped to the active project. A cross-project inbox is a separate product decision and is outside this plan.
 
-Progress: slices 1–5 are implemented; slice 6 is in progress.
+Progress: slices 1–6 are implemented. Slice 6 awaits the requested manual app test.
 
 ## 1. Checks and merge readiness
 
@@ -41,9 +41,9 @@ Current limits: GitHub viewed marks live on GitHub; Bitbucket marks are stored o
 - Add GitHub labels, reactions, workflows, and stack relationships when useful for a project review. Keep Bitbucket-specific limits visible.
 - Audit and fill Git client gaps in blame, tags, and worktree lifecycle with the same keyboard and confirmation rules as the command composer.
 
-Current progress: GitHub PR labels and issue-comment reaction counts are visible in project review. Bitbucket shows that GitHub labels are unavailable. Reopening PR branches and worktrees now requires a clean checkout and fast-forwards without resetting local commits or deleting files. Existing managed worktree paths are never removed to make room for a new checkout.
+GitHub project review now supports label editing, comment reactions, workflow rerun and cancellation, and parent/child PR links. A parent link is stored as `Depends on #<number>` in the PR description; branch relationships are also shown when both PRs are in the first page of open project PRs. Missing provider permissions and truncated results are shown rather than treated as empty data. Bitbucket identifies these GitHub-only extras as unavailable.
 
-Next: label editing, workflow-run actions, explicit PR stack links, blame, tags, and safe worktree removal. These need their own provider or Git operations and interaction checks before slice 6 is complete.
+The file viewer and command composer expose blame. The composer lists, creates, and deletes local tags and creates or removes linked worktrees. Removal refuses the active worktree and any checkout with tracked, untracked, or ignored local files. Reopening PR branches and worktrees fast-forwards without resetting local commits or deleting files. The app interaction pass is deferred at the user's request.
 
 ## Delivery rules
 

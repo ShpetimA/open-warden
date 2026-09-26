@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, GitBranch, LoaderCircle } from "lucide-react";
+import { useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,10 @@ import {
   setCommitMessageValue,
   stageAllAction,
   unstageAllAction,
+  openRepo,
+  selectHistoryPullRequestCommit,
 } from "@/features/source-control/actions";
+import { forgetProject } from "@/features/workspaces/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
   useGetGitRepositoryStateQuery,
@@ -39,6 +43,8 @@ import {
   selectionActions,
   specialActions,
   stashActions,
+  tagActions,
+  worktreeActions,
 } from "./commandComposerModel";
 import type { ComposerAction } from "./commandComposerModel";
 import { paneAfterAction, previousPane } from "./commandComposerFlow";
@@ -57,6 +63,7 @@ export function ChangeCommandComposer({
   onOpenSpecial: (action: ComposerAction) => void;
 }) {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
   const existingMessage = useAppSelector((state) => state.sourceControl.commitMessage);
@@ -111,7 +118,8 @@ export function ChangeCommandComposer({
     if (pane === "action" || pane === "choice") searchRef.current?.focus();
     else if (pane === "execute") rootRef.current?.focus({ preventScroll: true });
     else if (action === "commit") messageRef.current?.focus();
-    else if (action && nameActions.has(action)) nameRef.current?.focus();
+    else if (action && (nameActions.has(action) || action === "create-worktree"))
+      nameRef.current?.focus();
     else runButtonRef.current?.focus();
   }, [action, pane]);
 
@@ -131,6 +139,11 @@ export function ChangeCommandComposer({
     repository?.branches.filter((branch) =>
       eligibleBranch("delete-branch", branch, repoPath, repository.branch),
     ) ?? [];
+  const worktreeBranches =
+    repository?.branches.filter((branch) =>
+      eligibleBranch("create-worktree", branch, repoPath, repository.branch),
+    ) ?? [];
+  const removableWorktrees = repository?.worktrees.filter((item) => item.path !== repoPath) ?? [];
   const hasStashes = Boolean(repository?.stashes.length);
   const availability: Record<ComposerAction, boolean> = {
     "open-repository": true,
@@ -183,6 +196,12 @@ export function ChangeCommandComposer({
     "drop-stash": hasStashes && !repository?.operation,
     "view-incoming": Boolean(repository?.incoming.length),
     "view-outgoing": Boolean(repository?.outgoing.length),
+    "view-tags": Boolean(repoPath),
+    "blame-file": Boolean(repoPath),
+    "create-tag": Boolean(repoPath && repository?.lastCommit && !repository.operation),
+    "delete-tag": Boolean(repository?.tags.length && !repository.operation),
+    "create-worktree": Boolean(worktreeBranches.length && !repository?.operation),
+    "remove-worktree": Boolean(removableWorktrees.length && !repository?.operation),
   };
   const details: Record<ComposerAction, string> = {
     "open-repository": "Recent repository or folder path",
@@ -242,6 +261,16 @@ export function ChangeCommandComposer({
     "view-outgoing": repository?.outgoing.length
       ? count(repository.outgoing.length, "outgoing commit")
       : "No outgoing commits",
+    "view-tags": `${repository?.tags.length ?? 0} local tags`,
+    "blame-file": "Show who last changed each line of a file",
+    "create-tag": "Name an annotated tag at HEAD",
+    "delete-tag": repository?.tags.length ? "Delete a local tag" : "No local tags",
+    "create-worktree": worktreeBranches.length
+      ? "Choose a branch and folder"
+      : "No free local branch",
+    "remove-worktree": removableWorktrees.length
+      ? "Remove a clean linked checkout"
+      : "No other worktree",
   };
   const normalizedQuery = query.trim().toLowerCase();
   const actionChoices = actions
@@ -282,7 +311,19 @@ export function ChangeCommandComposer({
               label: stash.label,
               detail: stash.oid.slice(0, 8),
             })) ?? [])
-          : [];
+          : action && tagActions.has(action)
+            ? (repository?.tags.map((tag) => ({
+                id: tag.name,
+                label: tag.name,
+                detail: tag.commitId.slice(0, 8),
+              })) ?? [])
+            : action && worktreeActions.has(action)
+              ? removableWorktrees.map((item) => ({
+                  id: item.path,
+                  label: item.path,
+                  detail: item.branch || "Detached HEAD",
+                }))
+              : [];
   const matchingChoices =
     pane === "action"
       ? actionChoices
@@ -309,9 +350,13 @@ export function ChangeCommandComposer({
             ? "Remote"
             : action && stashActions.has(action)
               ? "Stash"
-              : action === "view-incoming" || action === "view-outgoing"
-                ? "Commits"
-                : "Scope";
+              : action && tagActions.has(action)
+                ? "Tag"
+                : action && worktreeActions.has(action)
+                  ? "Worktree"
+                  : action === "view-incoming" || action === "view-outgoing"
+                    ? "Commits"
+                    : "Scope";
   const choiceSearchLabel =
     operandLabel === "Branch"
       ? "branches"
@@ -342,15 +387,18 @@ export function ChangeCommandComposer({
     !draft.includes("\r") &&
     !draft.includes("\n"),
   );
-  const isReadOnly = action === "view-incoming" || action === "view-outgoing";
+  const isReadOnly =
+    action === "view-incoming" || action === "view-outgoing" || action === "view-tags";
   function canRunAction(requestedAction: ComposerAction, requestedSelection: string) {
     return Boolean(
       availability[requestedAction] &&
       !busy &&
       requestedAction !== "view-incoming" &&
       requestedAction !== "view-outgoing" &&
+      requestedAction !== "view-tags" &&
       (requestedAction !== "commit" || message.trim()) &&
       (!nameActions.has(requestedAction) || validName) &&
+      (requestedAction !== "create-worktree" || draft.trim().startsWith("/")) &&
       (!selectionActions.has(requestedAction) || requestedSelection),
     );
   }
@@ -366,7 +414,12 @@ export function ChangeCommandComposer({
     setHighlightedId(null);
     setError("");
     setDraft(nextAction === "save-stash" ? "Work in progress" : "");
-    if (branchActions.has(nextAction) || stashActions.has(nextAction)) {
+    if (
+      branchActions.has(nextAction) ||
+      stashActions.has(nextAction) ||
+      tagActions.has(nextAction) ||
+      worktreeActions.has(nextAction)
+    ) {
       setSelection("");
     } else if (remoteActions.has(nextAction)) {
       if (repository?.remotes.length === 1 && repository.remotes[0]) {
@@ -380,6 +433,7 @@ export function ChangeCommandComposer({
 
   function chooseOperand(id: string) {
     setSelection(id);
+    if (action === "create-worktree") setDraft(`${repoPath}-${id.replaceAll("/", "-")}`);
     setHighlightedId(null);
     setPane("review");
     setError("");
@@ -472,14 +526,33 @@ export function ChangeCommandComposer({
           return;
         }
         if (
-          requestedAction === "drop-stash" &&
+          (requestedAction === "drop-stash" ||
+            requestedAction === "delete-tag" ||
+            requestedAction === "remove-worktree") &&
           !(await desktop.confirm(
-            "Delete this saved stash? Its changes will no longer be available from the stash list.",
-            { title: "Delete stash", kind: "warning", okLabel: "Delete" },
+            requestedAction === "drop-stash"
+              ? "Delete this saved stash? Its changes will no longer be available from the stash list."
+              : requestedAction === "delete-tag"
+                ? `Delete local tag ${requestedSelection}?`
+                : `Remove worktree at ${requestedSelection}? The checkout folder will be removed only if it is clean.`,
+            {
+              title:
+                requestedAction === "drop-stash"
+                  ? "Delete stash"
+                  : requestedAction === "delete-tag"
+                    ? "Delete tag"
+                    : "Remove worktree",
+              kind: "warning",
+              okLabel: requestedAction === "remove-worktree" ? "Remove" : "Delete",
+            },
           ))
-        )
+        ) {
+          setPane("review");
           return;
+        }
         await execute({ repoPath, command }).unwrap();
+        if (requestedAction === "create-worktree") await dispatch(openRepo(draft.trim()));
+        if (requestedAction === "remove-worktree") dispatch(forgetProject(requestedSelection));
       }
       onClose();
     } catch (cause) {
@@ -493,7 +566,12 @@ export function ChangeCommandComposer({
   const ActionIcon = actionInfo?.icon ?? GitBranch;
   const OperandIcon = action && branchActions.has(action) ? GitBranch : ActionIcon;
   const selectedStash = repository?.stashes.find((stash) => stash.oid === selection);
-  const commits = action === "view-incoming" ? repository?.incoming : repository?.outgoing;
+  const commits =
+    action === "view-incoming"
+      ? repository?.incoming
+      : action === "view-outgoing"
+        ? repository?.outgoing
+        : repository?.tags.map((tag) => ({ id: tag.commitId.slice(0, 8), subject: tag.name }));
 
   return (
     <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
@@ -513,7 +591,8 @@ export function ChangeCommandComposer({
             if (activeChoice) chooseOperand(activeChoice.id);
             else searchRef.current?.focus();
           } else if (action === "commit") messageRef.current?.focus();
-          else if (action && nameActions.has(action)) nameRef.current?.focus();
+          else if (action && (nameActions.has(action) || action === "create-worktree"))
+            nameRef.current?.focus();
           else runButtonRef.current?.focus();
         }}
       />
@@ -605,10 +684,16 @@ export function ChangeCommandComposer({
                   {count(stagedCount, "staged file")}
                 </p>
               </>
-            ) : action && nameActions.has(action) ? (
+            ) : action && (nameActions.has(action) || action === "create-worktree") ? (
               <>
                 <label className="change-composer-panel-label" htmlFor="change-composer-name">
-                  {action === "save-stash" ? "Stash name" : "Branch name"}
+                  {action === "save-stash"
+                    ? "Stash name"
+                    : action === "create-tag"
+                      ? "Tag name"
+                      : action === "create-worktree"
+                        ? "Worktree folder"
+                        : "Branch name"}
                 </label>
                 <Input
                   id="change-composer-name"
@@ -616,7 +701,15 @@ export function ChangeCommandComposer({
                   className="min-w-0 max-w-full text-sm"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder={action === "save-stash" ? "Work in progress" : "feature/my-change"}
+                  placeholder={
+                    action === "save-stash"
+                      ? "Work in progress"
+                      : action === "create-tag"
+                        ? "v1.0.0"
+                        : action === "create-worktree"
+                          ? "/path/to/worktree"
+                          : "feature/my-change"
+                  }
                   disabled={busy}
                 />
                 {action === "save-stash" ? (
@@ -629,12 +722,41 @@ export function ChangeCommandComposer({
                   </label>
                 ) : (
                   <p className="change-composer-help text-muted-foreground text-xs">
-                    {action === "create-branch"
-                      ? `Start from ${repository?.branch || "HEAD"}`
-                      : `Current branch: ${repository?.branch || "none"}`}
+                    {action === "create-worktree"
+                      ? `Check out ${selection} in a new folder. Existing folders are never replaced.`
+                      : action === "create-tag"
+                        ? `Tag current commit ${repository?.lastCommit?.id.slice(0, 8) ?? "HEAD"}`
+                        : action === "create-branch"
+                          ? `Start from ${repository?.branch || "HEAD"}`
+                          : `Current branch: ${repository?.branch || "none"}`}
                   </p>
                 )}
               </>
+            ) : action === "view-tags" ? (
+              <div className="change-composer-commit-list" role="list" aria-label="Local tags">
+                {repository?.tags.length ? (
+                  repository.tags.map((tag) => (
+                    <button
+                      key={tag.name}
+                      type="button"
+                      role="listitem"
+                      className="hover:bg-surface-toolbar flex w-full items-center gap-3 rounded px-2 py-2 text-left text-sm"
+                      onClick={() => {
+                        void dispatch(selectHistoryPullRequestCommit(tag.commitId));
+                        navigate(`/history?commit=${tag.commitId}`);
+                        onClose();
+                      }}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{tag.name}</span>
+                      <code className="text-muted-foreground text-xs">
+                        {tag.commitId.slice(0, 8)}
+                      </code>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-muted-foreground text-xs">No local tags.</p>
+                )}
+              </div>
             ) : isReadOnly ? (
               <div className="change-composer-commit-list" role="list" aria-label={actionLabel}>
                 {commits?.map((commit) => (
@@ -659,9 +781,11 @@ export function ChangeCommandComposer({
                           ? "Save staged changes in a stash"
                           : action && stashActions.has(action)
                             ? selectedStash?.label
-                            : action && (branchActions.has(action) || remoteActions.has(action))
+                            : action && (tagActions.has(action) || worktreeActions.has(action))
                               ? selectionLabel
-                              : repository?.branch || "Current branch"}
+                              : action && (branchActions.has(action) || remoteActions.has(action))
+                                ? selectionLabel
+                                : repository?.branch || "Current branch"}
                   </p>
                   <p className="text-muted-foreground text-xs tabular-nums">
                     {action === "stage-all"
@@ -718,7 +842,10 @@ export function ChangeCommandComposer({
                   ref={runButtonRef}
                   className="min-w-0 max-w-full justify-center"
                   variant={
-                    action === "drop-stash" || action === "delete-branch"
+                    action === "drop-stash" ||
+                    action === "delete-branch" ||
+                    action === "delete-tag" ||
+                    action === "remove-worktree"
                       ? "destructive"
                       : "default"
                   }

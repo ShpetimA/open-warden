@@ -31,6 +31,8 @@ const meta = {
         { name: "fix/login", remote: false, worktree: "/projects/login-worktree" },
         { name: "origin/main", remote: true, worktree: "" },
       ],
+      tags: [{ name: "v1.0.0", commitId: "a".repeat(40) }],
+      worktrees: [{ path: "/projects/warden", branch: "feature/tabs", commitId: "a".repeat(40) }],
       incoming: [],
       outgoing: [{ id: "def5678", subject: "Polish project tabs" }],
     },

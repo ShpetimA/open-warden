@@ -182,6 +182,19 @@ const workspacesSlice = createSlice({
     projectRemoved(state, action: PayloadAction<{ repoPath: string }>) {
       removeProject(state, action.payload.repoPath);
     },
+    projectForgotten(state, action: PayloadAction<{ repoPath: string }>) {
+      const { repoPath } = action.payload;
+      const affected = [
+        ...state.items.filter((item) => item.repoPath === repoPath),
+        ...(state.closedProjects[repoPath] ?? []),
+        ...state.closed.filter((item) => item.repoPath === repoPath),
+      ];
+      removeProject(state, repoPath);
+      state.closed = state.closed.filter((item) => item.repoPath !== repoPath);
+      delete state.closedProjects[repoPath];
+      delete state.activeByProject[repoPath];
+      for (const workspace of affected) delete state.locations[workspace.id];
+    },
     projectReopened(state, action: PayloadAction<{ repoPath: string }>) {
       const { repoPath } = action.payload;
       const items = state.closedProjects[repoPath] ?? [createRepoWorkspace(repoPath)];
@@ -224,6 +237,7 @@ export const workspacesReducer = workspacesSlice.reducer;
 export const {
   projectActivated,
   projectRemoved,
+  projectForgotten,
   projectReopened,
   workspaceMemoryChanged,
   workspaceSessionRestored,

@@ -245,7 +245,7 @@ export type SubmitPullRequestReviewResult = {
 export type PullRequestLifecycleInput = PullRequestLocatorInput & {
   expectedHeadSha: string;
 } & (
-    | { action: "edit"; title: string; body: string }
+    | { action: "edit"; title: string; body: string; expectedTitle: string; expectedBody: string }
     | { action: "close" | "reopen" | "draft" | "ready" | "update-branch" | "revert" }
     | { action: "auto-merge"; method: "merge" | "squash" | "rebase" }
   );
@@ -292,6 +292,54 @@ export type PullRequestChecksResult = {
   checks: PullRequestCheck[];
   complete: boolean;
   mergeability: "mergeable" | "conflicting" | "unknown";
+};
+
+export type PullRequestLabel = { name: string; description: string | null };
+export type PullRequestWorkflowRun = {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  url: string;
+  attempt: number;
+};
+export type PullRequestStackLink = {
+  number: number;
+  title: string;
+  relationship: "parent" | "child";
+};
+
+export type GitBlameLine = {
+  line: number;
+  commitId: string;
+  author: string;
+  authoredAt: string | null;
+  summary: string;
+};
+export type GitBlameResult = { lines: GitBlameLine[]; truncated: boolean };
+export type PullRequestExtras = {
+  providerId: GitProviderId;
+  labelsAvailable: boolean;
+  workflowsAvailable: boolean;
+  stackAvailable: boolean;
+  availableLabels: PullRequestLabel[];
+  workflowRuns: PullRequestWorkflowRun[];
+  stack: PullRequestStackLink[];
+  stackCandidates: Array<{ number: number; title: string }>;
+  truncated: boolean;
+};
+export type SetPullRequestLabelsInput = PullRequestLocatorInput & {
+  labels: string[];
+  expectedLabels: string[];
+  expectedHeadSha: string;
+};
+export type RerunPullRequestWorkflowInput = PullRequestLocatorInput & {
+  runId: number;
+  expectedHeadSha: string;
+};
+export type AddPullRequestReactionInput = PullRequestLocatorInput & {
+  commentId: number;
+  content: PullRequestIssueComment["reactions"][number]["content"];
 };
 
 export type PullRequestChangedFile = {
@@ -518,6 +566,11 @@ export type DesktopApi = {
   setPullRequestFileViewed(input: SetPullRequestFileViewedInput): Promise<void>;
   getPullRequestActivity(input: PullRequestLocatorInput): Promise<PullRequestActivity>;
   getPullRequestChecks(input: PullRequestLocatorInput): Promise<PullRequestChecksResult>;
+  getPullRequestExtras(input: PullRequestLocatorInput): Promise<PullRequestExtras>;
+  setPullRequestLabels(input: SetPullRequestLabelsInput): Promise<void>;
+  rerunPullRequestWorkflow(input: RerunPullRequestWorkflowInput): Promise<void>;
+  cancelPullRequestWorkflow(input: RerunPullRequestWorkflowInput): Promise<void>;
+  addPullRequestReaction(input: AddPullRequestReactionInput): Promise<void>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
@@ -566,6 +619,7 @@ export type DesktopApi = {
   discardAll(repoPath: string): Promise<void>;
   commitStaged(repoPath: string, message: string): Promise<string>;
   getRepoFile(input: GetRepoFileInput): Promise<DiffFile | null>;
+  getGitBlame(repoPath: string, relPath: string, revision?: string | null): Promise<GitBlameResult>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;
   getLspHover(input: GetLspHoverInput): Promise<LspHoverResult | null>;

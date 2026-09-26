@@ -22,6 +22,7 @@ import { PullRequestDiscussionSection } from "@/features/pull-requests/component
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
 import { PullRequestReviewersSection } from "@/features/pull-requests/components/PullRequestReviewersSection";
 import { PullRequestLifecycleSection } from "@/features/pull-requests/components/PullRequestLifecycleSection";
+import { PullRequestProviderExtras } from "@/features/pull-requests/components/PullRequestProviderExtras";
 import { PullRequestActivitySection } from "@/features/pull-requests/components/PullRequestActivitySection";
 import { PullRequestPreviewHeader } from "@/features/pull-requests/components/PullRequestPreviewHeader";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
@@ -293,6 +294,7 @@ function PullRequestOverviewDetailsSidebar({
         open={detail.state === "open"}
       />
       <PullRequestLifecycleSection repoPath={activeRepo} detail={detail} />
+      <PullRequestProviderExtras repoPath={activeRepo} detail={detail} />
       <section className="rounded-lg border bg-surface-0 p-4">
         <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
           Details
@@ -314,30 +316,14 @@ function PullRequestOverviewDetailsSidebar({
             }
           />
           <OverviewDetailRow label="Pending drafts" value={pendingActions.pendingDraftCount} />
-          <OverviewDetailRow
-            label="Labels"
-            value={
-              detail.providerId === "github" ? (
-                detail.labels.length ? (
-                  <span className="flex max-w-44 flex-wrap justify-end gap-1">
-                    {detail.labels.map((label) => (
-                      <span
-                        key={label.name}
-                        title={label.description ?? label.name}
-                        className="border-border bg-surface-toolbar rounded border px-1.5 py-0.5 text-xs"
-                      >
-                        {label.name}
-                      </span>
-                    ))}
-                  </span>
-                ) : (
-                  "None"
-                )
-              ) : (
+          {detail.providerId !== "github" ? (
+            <OverviewDetailRow
+              label="Labels, workflows, and stack"
+              value={
                 <span className="text-muted-foreground text-xs">Unavailable on Bitbucket</span>
-              )
-            }
-          />
+              }
+            />
+          ) : null}
           <OverviewDetailRow label="Base" value={detail.baseRef} />
           <OverviewDetailRow label="Head" value={detail.headRef} />
         </dl>
@@ -566,7 +552,10 @@ export const PullRequestOverview = () => {
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
             <div className="flex min-w-0 flex-col gap-6">
               <PullRequestSummarySection body={detail.body} />
-              <PullRequestDiscussionSection conversation={conversation} />
+              <PullRequestDiscussionSection
+                conversation={conversation}
+                repoPath={activeRepo ?? ""}
+              />
               <PullRequestActivitySection
                 repoPath={activeRepo ?? ""}
                 pullRequestNumber={parsedPullRequestNumber}

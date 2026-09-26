@@ -39,6 +39,8 @@ export async function runPullRequestLifecycle(
     switch (input.action) {
       case "edit": {
         if (!input.title.trim()) throw new Error("A pull request title is required.");
+        if (current.title !== input.expectedTitle || (current.body ?? "") !== input.expectedBody)
+          throw new Error("The pull request description changed. Refresh before editing it.");
         await githubJsonRequest(path, connection.token, {
           method: "PATCH",
           body: { title: input.title.trim(), body: input.body.trim() },
@@ -115,6 +117,11 @@ export async function runPullRequestLifecycle(
     const path = bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber);
     if (input.action === "edit") {
       if (!input.title.trim()) throw new Error("A pull request title is required.");
+      if (
+        current.title !== input.expectedTitle ||
+        (current.description ?? "") !== input.expectedBody
+      )
+        throw new Error("The pull request description changed. Refresh before editing it.");
       await bitbucketRequest(path, connection, {
         method: "PUT",
         body: { title: input.title.trim(), description: input.body.trim() },

@@ -1,9 +1,9 @@
 import { selectActiveWorkspace, type Workspace } from "@/features/workspaces/workspacesSlice";
 import { workspacePath } from "@/features/workspaces/workspaceRoutes";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile, Virtualizer } from "@pierre/diffs/react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, GitCommitHorizontal } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useTheme } from "next-themes";
 
@@ -16,6 +16,7 @@ import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocumen
 import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
+import { GitBlamePanel } from "@/features/source-control/components/GitBlamePanel";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { DiffReturnTarget, FileViewerTarget } from "@/features/source-control/types";
 
@@ -92,6 +93,10 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const reduxTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
   const target = props.target ?? reduxTarget;
   const viewerRef = useRef<HTMLDivElement | null>(null);
+  const [showBlame, setShowBlame] = useState(Boolean(target?.blame));
+  useEffect(() => {
+    setShowBlame(Boolean(target?.blame));
+  }, [target?.repoPath, target?.relPath, target?.revision, target?.blame]);
   const returnToDiffTarget = target?.returnToDiff ?? null;
 
   const repoFileQuery = useGetRepoFileQuery(
@@ -144,9 +149,9 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
-      {returnToDiffTarget ? (
-        <div className="border-border/70 bg-surface-toolbar border-b px-4 py-2">
-          <div className="flex min-w-0 items-center gap-3">
+      <div className="border-border/70 bg-surface-toolbar border-b px-4 py-2">
+        <div className="flex min-w-0 items-center gap-3">
+          {returnToDiffTarget ? (
             <Button
               size="sm"
               variant="secondary"
@@ -158,36 +163,55 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
               <ArrowLeft className="h-3.5 w-3.5" />
               Back to diff
             </Button>
-            <div className="text-muted-foreground truncate text-xs">
-              {formatReturnToDiffLabel(returnToDiffTarget)}
-            </div>
+          ) : null}
+          <div className="text-muted-foreground truncate text-xs">
+            {returnToDiffTarget ? formatReturnToDiffLabel(returnToDiffTarget) : target?.relPath}
           </div>
+          <Button
+            className="ml-auto shrink-0"
+            size="sm"
+            variant={showBlame ? "secondary" : "ghost"}
+            onClick={() => setShowBlame((value) => !value)}
+          >
+            <GitCommitHorizontal className="size-4" /> Blame
+          </Button>
         </div>
-      ) : null}
-      <div
-        key={file.name}
-        ref={viewerRef}
-        className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
-      >
-        <Virtualizer className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
-          <PierreFile
-            file={file}
-            className="block min-w-0 max-w-full"
-            selectedLines={selectedLine ? { start: selectedLine, end: selectedLine } : null}
-            options={{
-              theme: getDiffTheme(),
-              themeType: getDiffThemeType(resolvedTheme),
-              unsafeCSS: FILE_VIEWER_CSS,
-              disableLineNumbers: false,
-              disableFileHeader: false,
-              onTokenClick,
-            }}
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div
+          key={file.name}
+          ref={viewerRef}
+          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+        >
+          <Virtualizer className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
+            <PierreFile
+              file={file}
+              className="block min-w-0 max-w-full"
+              selectedLines={selectedLine ? { start: selectedLine, end: selectedLine } : null}
+              options={{
+                theme: getDiffTheme(),
+                themeType: getDiffThemeType(resolvedTheme),
+                unsafeCSS: FILE_VIEWER_CSS,
+                disableLineNumbers: false,
+                disableFileHeader: false,
+                onTokenClick,
+              }}
+            />
+          </Virtualizer>
+          <LspSymbolPeekContainer
+            document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
+            containerRef={viewerRef}
           />
-        </Virtualizer>
-        <LspSymbolPeekContainer
-          document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
-          containerRef={viewerRef}
-        />
+        </div>
+        {showBlame && target ? (
+          <GitBlamePanel
+            key={`${target.repoPath}:${target.relPath}:${target.revision ?? ""}`}
+            repoPath={target.repoPath}
+            relPath={target.relPath}
+            revision={target.revision}
+            onClose={() => setShowBlame(false)}
+          />
+        ) : null}
       </div>
     </section>
   );

@@ -92,6 +92,7 @@ export type DiffFocusTarget = {
 export type FileViewerTarget = {
   repoPath: string;
   relPath: string;
+  blame?: boolean;
   revision?: string | null;
   line?: number | null;
   column?: number | null;
