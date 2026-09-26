@@ -11,6 +11,7 @@ import type { PullRequestOpenMode } from "@/platform/desktop";
 
 export type OpenPullRequestReviewResult = {
   errorMessage: string | null;
+  repoPath: string | null;
 };
 
 export const openPullRequestReview =
@@ -22,7 +23,7 @@ export const openPullRequestReview =
     const activeRepo = getState().sourceControl.activeRepo;
     const workspace = selectActiveWorkspace(getState());
     if (!activeRepo) {
-      return { errorMessage: "No repository is currently active." };
+      return { errorMessage: "No repository is currently active.", repoPath: null };
     }
 
     try {
@@ -36,6 +37,7 @@ export const openPullRequestReview =
           return {
             errorMessage:
               "Branch checkout needs a clean repository. Commit, stash, or discard local changes first.",
+            repoPath: null,
           };
         }
       }
@@ -53,9 +55,9 @@ export const openPullRequestReview =
         );
       }
       await dispatch(refreshActiveRepo());
-      return { errorMessage: null };
+      return { errorMessage: null, repoPath: preparedWorkspace.repoPath };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return { errorMessage: message };
+      return { errorMessage: message, repoPath: null };
     }
   };

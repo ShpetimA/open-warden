@@ -433,12 +433,9 @@
         <div class="section-head">
           <div>
             <div class="eyebrow">Inventory</div>
-            <h2 id="commands-title">Commands worth composing next</h2>
+            <h2 id="commands-title">Commands added to the composer</h2>
           </div>
-          <p>
-            Prioritize short paths that replace crowded dialogs or repeated clicks. Current API
-            coverage determines what can ship first.
-          </p>
+          <p>Short paths now share the floating composer and an explicit confirmation step.</p>
         </div>
         <div class="table-wrap">
           <table>
@@ -454,50 +451,52 @@
               <tr>
                 <td>Open repository</td>
                 <td>Recent or path → repository → confirm open</td>
-                <td>Reuses the current ⌘O picker behavior in one surface.</td>
-                <td><span class="tag now">Existing</span></td>
+                <td>⌘O and ⌘T open the same repository picker inside the composer.</td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Open pull request</td>
                 <td>PR list → worktree or branch → confirm open</td>
                 <td>Fast review entry from anywhere; PR rows can prefill the target.</td>
-                <td><span class="tag now">Existing</span></td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Copy PR link</td>
                 <td>PR → confirm copy</td>
                 <td>Quick action after selecting a PR, with no full review screen.</td>
-                <td><span class="tag now">Existing</span></td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Comment on PR</td>
                 <td>PR → message → confirm post</td>
                 <td>Short reply path for a general PR comment.</td>
-                <td><span class="tag now">Existing</span></td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Submit review comments</td>
                 <td>Current PR → review summary → confirm submit</td>
                 <td>Finishes pending inline comments from review context.</td>
-                <td><span class="tag now">Existing</span></td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Create pull request</td>
                 <td>Head/base → title/body → confirm create</td>
-                <td>Useful after pushing, but needs provider mutation and validation.</td>
-                <td><span class="tag later">API needed</span></td>
+                <td>Creates a PR from two local branches after the source branch is pushed.</td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Approve or request changes</td>
                 <td>PR → review text → confirm decision</td>
-                <td>Needs review submission semantics and provider permissions.</td>
-                <td><span class="tag later">API needed</span></td>
+                <td>
+                  GitHub accepts a review note; Bitbucket records the decision without a note.
+                </td>
+                <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Merge pull request</td>
                 <td>PR → merge method → explicit confirm</td>
-                <td>Requires checks, permissions, merge state, and provider API.</td>
-                <td><span class="tag later">API needed</span></td>
+                <td>Checks the displayed head commit before asking the provider to merge.</td>
+                <td><span class="tag now">Added</span></td>
               </tr>
             </tbody>
           </table>
@@ -508,9 +507,12 @@
         <div class="section-head">
           <div>
             <div class="eyebrow">Build sequence</div>
-            <h2 id="sequence-title">Three contained slices</h2>
+            <h2 id="sequence-title">Implementation notes</h2>
           </div>
-          <p>Keep each slice functional before expanding the action catalog.</p>
+          <p>
+            The three slices now share the action cards, choice list, keyboard handling, and review
+            state.
+          </p>
         </div>
         <div class="two-up">
           <div class="panel">
@@ -564,8 +566,8 @@
                 contextual.
               </li>
               <li>
-                Only add create, approve, and merge after provider contracts and permission checks
-                exist.
+                Create, approve, request changes, and merge use the provider bridge and report
+                provider errors in the review state.
               </li>
             </ul>
           </div>
@@ -593,8 +595,8 @@
         </div>
       </section>
       <footer class="footer">
-        Plan based on the current desktop picker and hosted-repository APIs. “Existing” means the
-        underlying operation exists; the composer integration is proposed work.
+        Implementation snapshot. The provider still enforces repository permissions, branch
+        protection, and merge checks. Bitbucket request-changes decisions have no review note.
       </footer>
     </main>
   </body>

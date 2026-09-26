@@ -9,13 +9,13 @@ export function RepoRequiredLayout() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
-  const { openRecentProjectsPicker } = useOutletContext<AppShellOutletContext>();
+  const { openRepositoryComposer } = useOutletContext<AppShellOutletContext>();
 
   if (!activeRepo) {
     return (
       <EmptyRepoState
         recentRepos={recentRepos}
-        onOpenPicker={openRecentProjectsPicker}
+        onOpenPicker={openRepositoryComposer}
         onOpenRepo={(repo) => {
           void dispatch(openRepo(repo));
         }}

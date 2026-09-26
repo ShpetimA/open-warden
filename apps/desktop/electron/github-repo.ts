@@ -242,7 +242,7 @@ export async function githubJsonRequest<T>(
   pathname: string,
   token: string,
   init?: {
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PUT";
     body?: unknown;
   },
 ) {

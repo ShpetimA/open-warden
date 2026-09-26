@@ -2,9 +2,11 @@ import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
 import type {
   AddPullRequestCommentInput,
+  CreatePullRequestInput,
   ConnectProviderInput,
   HostedRepoRef,
   ListPullRequestsInput,
+  MergePullRequestInput,
   ProviderConnection,
   PullRequestChangedFile,
   PullRequestCompareRefs,
@@ -18,9 +20,11 @@ import type {
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
+  SubmitPullRequestDecisionInput,
 } from "@/platform/desktop";
 import {
   addPullRequestComment,
+  createPullRequest,
   connectProvider,
   disconnectProvider,
   getPullRequestConversation,
@@ -28,12 +32,14 @@ import {
   getPullRequestPatch,
   listProviderConnections,
   listPullRequests,
+  mergePullRequest,
   resolveActivePullRequestForBranch,
   preparePullRequestCompareRefs,
   replyToPullRequestThread,
   resolveHostedRepo,
   setPullRequestThreadResolved,
   submitPullRequestReviewComments,
+  submitPullRequestDecision,
 } from "./services/hostedRepos";
 
 type ErrorResult = { message: string };
@@ -182,6 +188,42 @@ export const hostedReposApi = createApi({
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
+    createPullRequest: builder.mutation<PullRequestSummary, CreatePullRequestInput>({
+      async queryFn(input) {
+        try {
+          return { data: await createPullRequest(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
+    }),
+    submitPullRequestDecision: builder.mutation<void, SubmitPullRequestDecisionInput>({
+      async queryFn(input) {
+        try {
+          await submitPullRequestDecision(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
+    mergePullRequest: builder.mutation<"merged" | "queued", MergePullRequestInput>({
+      async queryFn(input) {
+        try {
+          return { data: await mergePullRequest(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
+        { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+      ],
+    }),
     replyToPullRequestThread: builder.mutation<
       PullRequestReviewThread,
       ReplyToPullRequestThreadInput
@@ -233,6 +275,9 @@ export const hostedReposApi = createApi({
 export const {
   useConnectProviderMutation,
   useAddPullRequestCommentMutation,
+  useCreatePullRequestMutation,
+  useSubmitPullRequestDecisionMutation,
+  useMergePullRequestMutation,
   useDisconnectProviderMutation,
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,

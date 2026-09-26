@@ -20,6 +20,7 @@ import {
   useRunGitCommandMutation,
 } from "@/features/source-control/gitOperationsApi";
 import { desktop } from "@/platform/desktop";
+import { useResolveHostedRepoQuery } from "@/features/hosted-repos/api";
 
 import { CommandComposerCards } from "./CommandComposerCards";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
@@ -36,6 +37,7 @@ import {
   nameActions,
   remoteActions,
   selectionActions,
+  specialActions,
   stashActions,
 } from "./commandComposerModel";
 import type { ComposerAction } from "./commandComposerModel";
@@ -48,9 +50,11 @@ import "./ChangeCommandComposer.css";
 export function ChangeCommandComposer({
   initialAction,
   onClose,
+  onOpenSpecial,
 }: {
   initialAction: ComposerAction | null;
   onClose: () => void;
+  onOpenSpecial: (action: ComposerAction) => void;
 }) {
   const dispatch = useAppDispatch();
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -61,6 +65,10 @@ export function ChangeCommandComposer({
     pollingInterval: 15000,
     refetchOnFocus: true,
     selectFromResult: ({ currentData }) => ({ repository: currentData }),
+  });
+  const { hostedRepo } = useResolveHostedRepoQuery(repoPath, {
+    skip: !repoPath,
+    selectFromResult: ({ currentData }) => ({ hostedRepo: currentData }),
   });
   const { stagedCount, unstageableCount, hasMixedFile } = useGetGitSnapshotQuery(repoPath, {
     skip: !repoPath,
@@ -132,6 +140,15 @@ export function ChangeCommandComposer({
     ) ?? [];
   const hasStashes = Boolean(repository?.stashes.length);
   const availability: Record<ComposerAction, boolean> = {
+    "open-repository": true,
+    "open-pr": Boolean(repoPath && hostedRepo),
+    "copy-pr-link": Boolean(repoPath && hostedRepo),
+    "comment-pr": Boolean(repoPath && hostedRepo),
+    "submit-review": Boolean(repoPath && hostedRepo),
+    "create-pr": Boolean(repoPath && hostedRepo && repository?.branch),
+    "approve-pr": Boolean(repoPath && hostedRepo),
+    "request-changes": Boolean(repoPath && hostedRepo),
+    "merge-pr": Boolean(repoPath && hostedRepo),
     pull: Boolean(
       repoPath &&
       repository?.upstream &&
@@ -174,6 +191,15 @@ export function ChangeCommandComposer({
     "view-outgoing": Boolean(repository?.outgoing.length),
   };
   const details: Record<ComposerAction, string> = {
+    "open-repository": "Recent repository or folder path",
+    "open-pr": "Find a pull request and open its review",
+    "copy-pr-link": "Copy a pull request URL",
+    "comment-pr": "Write a pull request comment",
+    "submit-review": "Publish pending inline review comments",
+    "create-pr": "Choose branches, write details, then confirm",
+    "approve-pr": "Approve a reviewed pull request",
+    "request-changes": "Send a review requesting changes",
+    "merge-pr": "Choose a merge method and confirm",
     pull: !repository?.upstream
       ? "No upstream branch"
       : repository.ahead && repository.behind
@@ -336,6 +362,10 @@ export function ChangeCommandComposer({
   const canRun = action ? canRunAction(action, selection) : false;
   function chooseAction(nextAction: ComposerAction) {
     if (!availability[nextAction] || busy) return;
+    if (specialActions.has(nextAction)) {
+      onOpenSpecial(nextAction);
+      return;
+    }
     setAction(nextAction);
     setQuery("");
     setHighlightedId(null);
@@ -497,7 +527,7 @@ export function ChangeCommandComposer({
         <div className="change-composer-panel-heading">
           <p className="change-composer-panel-title">
             {pane === "action"
-              ? "All Git actions"
+              ? "All actions"
               : pane === "choice"
                 ? `Choose ${operandLabel.toLowerCase()}`
                 : pane === "execute"

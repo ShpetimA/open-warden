@@ -285,12 +285,14 @@ export async function bitbucketRequest<T>(
     return {
       data: (await response.text()) as T,
       headers: response.headers,
+      status: response.status,
     };
   }
 
   return {
     data: (await response.json()) as T,
     headers: response.headers,
+    status: response.status,
   };
 }
 
@@ -627,10 +629,14 @@ function toBitbucketConversation(
   };
 }
 
-export function bitbucketPullRequestPath(hostedRepo: HostedRepoRef, pullRequestNumber: number) {
+export function bitbucketPullRequestsPath(hostedRepo: HostedRepoRef) {
   return `/repositories/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(
     hostedRepo.repo,
-  )}/pullrequests/${String(pullRequestNumber)}`;
+  )}/pullrequests`;
+}
+
+export function bitbucketPullRequestPath(hostedRepo: HostedRepoRef, pullRequestNumber: number) {
+  return `${bitbucketPullRequestsPath(hostedRepo)}/${String(pullRequestNumber)}`;
 }
 
 async function fetchBitbucketPaginatedValues<T>(

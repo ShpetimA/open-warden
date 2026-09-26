@@ -128,6 +128,12 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Pull request patch";
     case "addPullRequestComment":
       return "Pull request comments";
+    case "createPullRequest":
+      return "Pull request creation";
+    case "submitPullRequestDecision":
+      return "Pull request review decisions";
+    case "mergePullRequest":
+      return "Pull request merging";
     case "replyToPullRequestThread":
       return "Pull request thread replies";
     case "submitPullRequestReviewComments":

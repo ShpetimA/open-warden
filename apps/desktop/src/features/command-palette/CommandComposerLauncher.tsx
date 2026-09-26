@@ -1,8 +1,9 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 import type { ComposerAction } from "./commandComposerModel";
+import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
-type OpenComposer = (action?: ComposerAction) => void;
+type OpenComposer = (action?: ComposerAction, pullRequest?: PullRequestSummary) => void;
 
 const CommandComposerLauncherContext = createContext<OpenComposer | null>(null);
 

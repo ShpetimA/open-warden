@@ -11,6 +11,18 @@ const mocks = vi.hoisted(() => ({
   useGetGitStashPatchQuery: vi.fn(),
   useRunGitCommandMutation: vi.fn(),
   useHotkey: vi.fn(),
+  browseDirectory: vi.fn(),
+  selectFolder: vi.fn(),
+  useListPullRequestsQuery: vi.fn(),
+  useGetPullRequestConversationQuery: vi.fn(),
+  useResolveHostedRepoQuery: vi.fn(),
+  usePreparePullRequestCompareRefsQuery: vi.fn(),
+  addComment: vi.fn(),
+  submitReview: vi.fn(),
+  submitDecision: vi.fn(),
+  mergePullRequest: vi.fn(),
+  createPullRequest: vi.fn(),
+  comments: [] as unknown[],
 }));
 
 vi.mock("@tanstack/react-hotkeys", () => ({ useHotkey: mocks.useHotkey }));
@@ -21,9 +33,12 @@ vi.mock("@/app/hooks", () => ({
     selector({
       sourceControl: {
         activeRepo: "/tmp/repo",
+        recentRepos: ["/tmp/repo", "/tmp/other"],
         runningAction: "",
         commitMessage: "",
       },
+      comments: mocks.comments,
+      workspaces: { items: [], activeWorkspaceId: "" },
     }),
 }));
 
@@ -38,10 +53,45 @@ vi.mock("@/features/source-control/gitOperationsApi", () => ({
 }));
 
 vi.mock("@/features/source-control/actions", () => ({
+  openRepo: (path: string) => ({ type: "test/open-repo", payload: path }),
   commitAction: () => ({ type: "test/commit" }),
   stageAllAction: () => ({ type: "test/stage-all" }),
   unstageAllAction: () => ({ type: "test/unstage-all" }),
   setCommitMessageValue: (message: string) => ({ type: "test/message", payload: message }),
+}));
+
+vi.mock("@/platform/desktop", () => ({
+  desktop: {
+    browseDirectory: mocks.browseDirectory,
+    selectFolder: mocks.selectFolder,
+    confirm: vi.fn(),
+  },
+}));
+
+vi.mock("@/features/hosted-repos/api", () => ({
+  useListPullRequestsQuery: mocks.useListPullRequestsQuery,
+  useGetPullRequestConversationQuery: mocks.useGetPullRequestConversationQuery,
+  useResolveHostedRepoQuery: mocks.useResolveHostedRepoQuery,
+  usePreparePullRequestCompareRefsQuery: mocks.usePreparePullRequestCompareRefsQuery,
+  useAddPullRequestCommentMutation: () => [mocks.addComment],
+  useSubmitPullRequestReviewCommentsMutation: () => [mocks.submitReview],
+  useSubmitPullRequestDecisionMutation: () => [mocks.submitDecision],
+  useMergePullRequestMutation: () => [mocks.mergePullRequest],
+  useCreatePullRequestMutation: () => [mocks.createPullRequest],
+}));
+
+vi.mock("@/features/hosted-repos/actions", () => ({
+  openPullRequestReview: (number: number, mode: string) => ({
+    type: "test/open-pr-review",
+    payload: { number, mode },
+  }),
+}));
+
+vi.mock("@/features/workspaces/actions", () => ({
+  openPullRequestWorkspace: (input: unknown) => ({
+    type: "test/open-pr-workspace",
+    payload: input,
+  }),
 }));
 
 async function pressHotkey(key: string, target?: EventTarget) {
@@ -73,9 +123,27 @@ const baseRepository = {
   outgoing: [],
 };
 
+const pullRequest = {
+  id: "github:42",
+  providerId: "github" as const,
+  number: 42,
+  title: "Improve the composer",
+  state: "open" as const,
+  isDraft: false,
+  authorLogin: "timi",
+  authorDisplayName: "Timi",
+  url: "https://example.test/pull/42",
+  baseRef: "main",
+  headRef: "composer",
+  headOwner: "team",
+  headRepo: "repo",
+  updatedAt: "2026-09-26T00:00:00Z",
+};
+
 describe("AppCommandPalette", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.comments = [];
     mocks.useGetGitSnapshotQuery.mockReturnValue({
       stagedCount: 1,
       unstageableCount: 2,
@@ -87,10 +155,46 @@ describe("AppCommandPalette", () => {
     mocks.useRunGitCommandMutation.mockReturnValue([mocks.execute, { isLoading: false }]);
     mocks.useGetGitStashPatchQuery.mockReturnValue({ currentData: "", isFetching: false });
     mocks.execute.mockReturnValue({ unwrap: () => Promise.resolve("done") });
+    mocks.browseDirectory.mockResolvedValue({
+      ok: true,
+      path: "/tmp",
+      parentPath: "/",
+      entries: [{ name: "project", path: "/tmp/project" }],
+    });
+    mocks.selectFolder.mockResolvedValue("/tmp/project");
+    mocks.useListPullRequestsQuery.mockReturnValue({
+      pullRequestPage: { pullRequests: [pullRequest], page: 1, perPage: 25, hasNextPage: false },
+      loadingPullRequests: false,
+      listError: null,
+    });
+    mocks.useGetPullRequestConversationQuery.mockReturnValue({
+      currentConversation: null,
+      selectedConversation: null,
+    });
+    mocks.useResolveHostedRepoQuery.mockReturnValue({
+      hostedRepo: { providerId: "github", owner: "team", repo: "repo" },
+    });
+    mocks.usePreparePullRequestCompareRefsQuery.mockReturnValue({
+      compareRefs: null,
+      loadingCompareRefs: false,
+    });
+    mocks.addComment.mockReturnValue({ unwrap: () => Promise.resolve() });
+    mocks.submitReview.mockReturnValue({
+      unwrap: () => Promise.resolve({ submittedDraftIds: [] }),
+    });
+    mocks.submitDecision.mockReturnValue({ unwrap: () => Promise.resolve() });
+    mocks.mergePullRequest.mockReturnValue({ unwrap: () => Promise.resolve("merged") });
+    mocks.createPullRequest.mockReturnValue({ unwrap: () => Promise.resolve(pullRequest) });
     mocks.dispatch.mockImplementation((action) =>
       ["test/commit", "test/stage-all", "test/unstage-all"].includes(action.type)
         ? Promise.resolve(true)
-        : undefined,
+        : action.type === "test/open-repo"
+          ? Promise.resolve(true)
+          : action.type === "test/open-pr-review"
+            ? Promise.resolve({ errorMessage: null, repoPath: "/tmp/review" })
+            : action.type === "test/open-pr-workspace"
+              ? Promise.resolve()
+              : undefined,
     );
   });
 
@@ -104,10 +208,10 @@ describe("AppCommandPalette", () => {
   test("shows every Git action before search and keeps unavailable actions explained", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
-    expect(screen.getByRole("dialog", { name: "Compose a Git command" })).toHaveClass(
+    expect(screen.getByRole("dialog", { name: "Command composer" })).toHaveClass(
       "command-composer-dialog",
     );
-    expect(screen.getByRole("textbox", { name: "Search Git actions" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Search actions" })).toHaveFocus();
     expect(actionChoice(/^Pull/)).toBeEnabled();
     expect(actionChoice(/^Push/)).toBeDisabled();
     expect(actionChoice(/^Commit/)).toBeEnabled();
@@ -118,12 +222,12 @@ describe("AppCommandPalette", () => {
     expect(actionChoice(/^Fetch/)).toBeEnabled();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button"),
-    ).toHaveLength(21);
+    ).toHaveLength(30);
     expect(screen.getByText("Available now")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Stage changes")).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search Git actions" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "switch" },
     });
     expect(actionChoice(/^Switch branch/)).toBeEnabled();
@@ -132,7 +236,7 @@ describe("AppCommandPalette", () => {
   test("typing narrows the same action list without matching incidental status text", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search Git actions" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "s" },
     });
 
@@ -141,7 +245,7 @@ describe("AppCommandPalette", () => {
     expect(screen.queryByRole("button", { name: /^Fetch/ })).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button").length,
-    ).toBeLessThan(21);
+    ).toBeLessThan(30);
   });
 
   test("a focused Fetch still requires confirmation with one remote", async () => {
@@ -168,6 +272,10 @@ describe("AppCommandPalette", () => {
   test("the action card selects its previewed action without executing it", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
+      target: { value: "Pull" },
+    });
+    fireEvent.mouseEnter(actionChoice(/^Pull/));
     fireEvent.click(screen.getByRole("button", { name: "Action: Pull" }));
     expect(screen.getByRole("button", { name: "Confirm Pull" })).toBeEnabled();
     expect(mocks.execute).not.toHaveBeenCalled();
@@ -180,12 +288,13 @@ describe("AppCommandPalette", () => {
     try {
       render(<AppCommandPalette open onOpenChange={onOpenChange} />);
 
-      const search = screen.getByRole("textbox", { name: "Search Git actions" });
+      const search = screen.getByRole("textbox", { name: "Search actions" });
       fireEvent.keyDown(search, { key: "ArrowDown" });
       expect(behindKeydown).not.toHaveBeenCalled();
 
+      fireEvent.change(search, { target: { value: "stage all" } });
       await pressHotkey("ArrowDown");
-      await pressHotkey("ArrowDown");
+      await pressHotkey("ArrowUp");
       expect(actionChoice(/^Stage all/)).toHaveAttribute("data-highlighted", "true");
 
       await pressHotkey("Enter");
@@ -234,7 +343,7 @@ describe("AppCommandPalette", () => {
   test("Right selects and Left goes back for actions that need input", async () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
-    const search = screen.getByRole("textbox", { name: "Search Git actions" });
+    const search = screen.getByRole("textbox", { name: "Search actions" });
     fireEvent.change(search, { target: { value: "Commit" } });
     await pressHotkey("ArrowRight");
     expect(screen.getByRole("textbox", { name: "Commit message" })).toBeInTheDocument();
@@ -246,7 +355,7 @@ describe("AppCommandPalette", () => {
   test("Right advances to a commit message and Left returns to actions", async () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search Git actions" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "Commit" },
     });
     await pressHotkey("ArrowRight");
@@ -351,7 +460,7 @@ describe("AppCommandPalette", () => {
     });
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search Git actions" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "Push" },
     });
     expect(actionChoice(/^Push/)).toBeDisabled();
@@ -446,7 +555,7 @@ describe("AppCommandPalette", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
     expect(actionChoice(/^Stage all/)).toBeDisabled();
-    fireEvent.change(screen.getByRole("textbox", { name: "Search Git actions" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "stage" },
     });
     expect(actionChoice(/^Stage all/)).toBeDisabled();
@@ -462,10 +571,300 @@ describe("AppCommandPalette", () => {
     });
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Search Git actions" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "stash staged" },
     });
     expect(actionChoice(/^Stash staged/)).toBeDisabled();
     expect(actionChoice(/^Stash staged/)).toHaveTextContent("Staged path has other changes");
+  });
+
+  test("opens a recent repository only after its confirmation step", async () => {
+    const onOpenChange = vi.fn();
+    render(<AppCommandPalette open initialAction="open-repository" onOpenChange={onOpenChange} />);
+
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Repository" })).getByRole("button", {
+        name: /other/,
+      }),
+    );
+    expect(mocks.dispatch).not.toHaveBeenCalledWith({
+      type: "test/open-repo",
+      payload: "/tmp/other",
+    });
+    expect(screen.getByRole("button", { name: "Confirm open repository" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm open repository" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      type: "test/open-repo",
+      payload: "/tmp/other",
+    });
+  });
+
+  test("completes a directory and reviews it before opening", async () => {
+    render(<AppCommandPalette open initialAction="open-repository" onOpenChange={() => {}} />);
+
+    const search = screen.getByRole("textbox", { name: "Repository name or directory path" });
+    fireEvent.change(search, { target: { value: "/tmp/" } });
+    await waitFor(() => expect(mocks.browseDirectory).toHaveBeenCalledWith("/tmp/"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /project\/tmp\/project/ })).toBeInTheDocument(),
+    );
+    await act(async () => fireEvent.keyDown(search, { key: "Tab" }));
+    expect(search).toHaveValue("/tmp/project/");
+    expect(mocks.dispatch).not.toHaveBeenCalledWith({
+      type: "test/open-repo",
+      payload: "/tmp/project/",
+    });
+  });
+
+  test("opens a selected pull request in the chosen mode after confirmation", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="open-pr"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Current checkout" }));
+    expect(mocks.dispatch).not.toHaveBeenCalledWith({
+      type: "test/open-pr-review",
+      payload: { number: 42, mode: "branch" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm open pull request" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      type: "test/open-pr-review",
+      payload: { number: 42, mode: "branch" },
+    });
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      type: "test/open-pr-workspace",
+      payload: expect.objectContaining({ repoPath: "/tmp/review", pullRequestNumber: 42 }),
+    });
+  });
+
+  test("posts a pull request comment only after writing and confirming it", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="comment-pr"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    const confirm = screen.getByRole("button", { name: "Confirm comment on pull request" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Comment" }), {
+      target: { value: "Looks good to me" },
+    });
+    expect(mocks.addComment).not.toHaveBeenCalled();
+    fireEvent.click(confirm);
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.addComment).toHaveBeenCalledWith({
+      repoPath: "/tmp/repo",
+      pullRequestNumber: 42,
+      body: "Looks good to me",
+    });
+  });
+
+  test("copies the selected pull request URL after confirmation", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="copy-pr-link"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    expect(writeText).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm copy pull request link" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(writeText).toHaveBeenCalledWith(pullRequest.url);
+  });
+
+  test("submits only pending comments for the selected review after confirmation", async () => {
+    mocks.comments = [
+      {
+        id: "draft-1",
+        repoPath: "/tmp/repo",
+        contextKind: "review",
+        baseRef: "origin/main",
+        headRef: "composer",
+        filePath: "src/app.ts",
+        text: "Please adjust this",
+        startLine: 12,
+        endLine: 12,
+        side: "additions",
+      },
+      {
+        id: "other-draft",
+        repoPath: "/tmp/other",
+        contextKind: "review",
+        baseRef: "origin/main",
+        headRef: "composer",
+        filePath: "src/other.ts",
+        text: "Other repo",
+        startLine: 3,
+        endLine: 3,
+        side: "additions",
+      },
+    ];
+    mocks.usePreparePullRequestCompareRefsQuery.mockReturnValue({
+      compareRefs: { compareBaseRef: "origin/main", compareHeadRef: "composer" },
+      loadingCompareRefs: false,
+    });
+    mocks.submitReview.mockReturnValue({
+      unwrap: () => Promise.resolve({ submittedDraftIds: ["draft-1"], failedMessage: null }),
+    });
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="submit-review"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    expect(screen.getByText("1 pending inline comment will be published.")).toBeInTheDocument();
+    expect(mocks.submitReview).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm submit review comments" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.submitReview).toHaveBeenCalledWith({
+      repoPath: "/tmp/repo",
+      pullRequestNumber: 42,
+      comments: [
+        expect.objectContaining({
+          draftId: "draft-1",
+          path: "src/app.ts",
+          body: "Please adjust this",
+        }),
+      ],
+    });
+  });
+
+  test("creates a pull request after choosing branches, writing details, and confirming", async () => {
+    const onOpenChange = vi.fn();
+    render(<AppCommandPalette open initialAction="create-pr" onOpenChange={onOpenChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /main.*Current branch/ }));
+    fireEvent.click(screen.getByRole("button", { name: /feature.*Local branch/ }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "Improve composer" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Description" }), {
+      target: { value: "Adds PR commands" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review pull request" }));
+    expect(mocks.createPullRequest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm create pull request" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.createPullRequest).toHaveBeenCalledWith({
+      repoPath: "/tmp/repo",
+      title: "Improve composer",
+      body: "Adds PR commands",
+      headRef: "main",
+      baseRef: "feature",
+    });
+  });
+
+  test("requires a review body before requesting changes", async () => {
+    mocks.useGetPullRequestConversationQuery.mockReturnValue({
+      currentConversation: null,
+      selectedConversation: { detail: { state: "open", isDraft: false, headSha: "abc123" } },
+    });
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="request-changes"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    const confirm = screen.getByRole("button", { name: "Confirm request changes" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Changes requested" }), {
+      target: { value: "Please add a test" },
+    });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.submitDecision).toHaveBeenCalledWith({
+      repoPath: "/tmp/repo",
+      pullRequestNumber: 42,
+      decision: "request-changes",
+      body: "Please add a test",
+    });
+  });
+
+  test("Bitbucket can request changes without a review note", async () => {
+    mocks.useResolveHostedRepoQuery.mockReturnValue({
+      hostedRepo: { providerId: "bitbucket", owner: "team", repo: "repo" },
+    });
+    mocks.useGetPullRequestConversationQuery.mockReturnValue({
+      currentConversation: null,
+      selectedConversation: { detail: { state: "open", isDraft: false, headSha: "abc123" } },
+    });
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="request-changes"
+        initialPullRequest={{ ...pullRequest, providerId: "bitbucket" }}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    expect(
+      screen.getByText("Bitbucket records the change request without a review note."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm request changes" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.submitDecision).toHaveBeenCalledWith({
+      repoPath: "/tmp/repo",
+      pullRequestNumber: 42,
+      decision: "request-changes",
+      body: "",
+    });
+  });
+
+  test("pins a merge to the reviewed head commit", async () => {
+    mocks.useGetPullRequestConversationQuery.mockReturnValue({
+      currentConversation: null,
+      selectedConversation: { detail: { state: "open", isDraft: false, headSha: "abc123" } },
+    });
+    const onOpenChange = vi.fn();
+    render(
+      <AppCommandPalette
+        open
+        initialAction="merge-pr"
+        initialPullRequest={pullRequest}
+        onOpenChange={onOpenChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /squash/i }));
+    expect(mocks.mergePullRequest).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm merge pull request" }));
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(mocks.mergePullRequest).toHaveBeenCalledWith({
+      repoPath: "/tmp/repo",
+      pullRequestNumber: 42,
+      method: "squash",
+      expectedHeadSha: "abc123",
+    });
   });
 });

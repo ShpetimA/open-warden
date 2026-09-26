@@ -1,6 +1,7 @@
 import { Fragment } from "react";
-import type { RefObject } from "react";
+import type { KeyboardEvent, RefObject } from "react";
 import { Archive, ArrowRight, GitBranch, Search } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 
@@ -29,6 +30,10 @@ type Props = {
   onQueryChange: (value: string) => void;
   onHighlight: (id: string) => void;
   onSelect: (id: string) => void;
+  searchPlaceholder?: string;
+  searchLabel?: string;
+  choiceIcon?: LucideIcon;
+  onSearchKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 };
 
 export function CommandComposerChoiceStep({
@@ -45,6 +50,10 @@ export function CommandComposerChoiceStep({
   onQueryChange,
   onHighlight,
   onSelect,
+  searchPlaceholder,
+  searchLabel,
+  choiceIcon,
+  onSearchKeyDown,
 }: Props) {
   return (
     <>
@@ -52,11 +61,17 @@ export function CommandComposerChoiceStep({
         <Search className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
         <Input
           ref={searchRef}
-          aria-label={pane === "action" ? "Search Git actions" : `Search ${choiceSearchLabel}`}
+          aria-label={
+            searchLabel ?? (pane === "action" ? "Search actions" : `Search ${choiceSearchLabel}`)
+          }
           className="h-9 min-w-0 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
-          placeholder={pane === "action" ? "Search Git actions…" : `Search ${choiceSearchLabel}…`}
+          placeholder={
+            searchPlaceholder ??
+            (pane === "action" ? "Search actions…" : `Search ${choiceSearchLabel}…`)
+          }
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
+          onKeyDown={onSearchKeyDown}
         />
       </div>
       <div
@@ -67,7 +82,10 @@ export function CommandComposerChoiceStep({
         {choices.length ? (
           choices.map((choice, index) => {
             const info = pane === "action" ? actions.find((item) => item.id === choice.id) : null;
-            const Icon = info?.icon ?? (action && stashActions.has(action) ? Archive : GitBranch);
+            const Icon =
+              info?.icon ??
+              choiceIcon ??
+              (action && stashActions.has(action) ? Archive : GitBranch);
             const showSection = pane === "action" && choice.section !== choices[index - 1]?.section;
             return (
               <Fragment key={choice.id}>

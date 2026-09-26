@@ -49,6 +49,7 @@ export const desktop: DesktopBridge = {
 export type {
   AppSettings,
   AddPullRequestCommentInput,
+  CreatePullRequestInput,
   ApiError,
   Bucket,
   ConfirmOptions,
@@ -100,6 +101,7 @@ export type {
   ProviderAuthType,
   ProviderConnectionMethod,
   ListPullRequestsInput,
+  MergePullRequestInput,
   ResolveActivePullRequestForBranchInput,
   PullRequestPage,
   PullRequestSummary,
@@ -108,5 +110,6 @@ export type {
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
+  SubmitPullRequestDecisionInput,
   WorkspaceSession,
 } from "./contracts";

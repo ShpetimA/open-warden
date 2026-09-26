@@ -2,19 +2,44 @@ import {
   Archive,
   ArrowDown,
   ArrowUp,
+  Check,
   GitBranch,
   GitCommitHorizontal,
   GitMerge,
+  GitPullRequest,
+  FolderOpen,
+  Link,
+  MessageSquarePlus,
   Minus,
   Plus,
   RefreshCw,
   Trash2,
+  XCircle,
 } from "lucide-react";
 
 import type { GitSnapshot } from "@/features/source-control/types";
 import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOperations";
 
 export const actions = [
+  { id: "open-repository", label: "Open repository", group: "Workspace", icon: FolderOpen },
+  { id: "open-pr", label: "Open pull request", group: "Pull requests", icon: GitPullRequest },
+  { id: "copy-pr-link", label: "Copy pull request link", group: "Pull requests", icon: Link },
+  {
+    id: "comment-pr",
+    label: "Comment on pull request",
+    group: "Pull requests",
+    icon: MessageSquarePlus,
+  },
+  {
+    id: "submit-review",
+    label: "Submit review comments",
+    group: "Pull requests",
+    icon: MessageSquarePlus,
+  },
+  { id: "create-pr", label: "Create pull request", group: "Pull requests", icon: Plus },
+  { id: "approve-pr", label: "Approve pull request", group: "Pull requests", icon: Check },
+  { id: "request-changes", label: "Request changes", group: "Pull requests", icon: XCircle },
+  { id: "merge-pr", label: "Merge pull request", group: "Pull requests", icon: GitMerge },
   { id: "pull", label: "Pull", group: "Quick", icon: ArrowDown },
   { id: "push", label: "Push", group: "Quick", icon: ArrowUp },
   { id: "commit", label: "Commit", group: "Quick", icon: GitCommitHorizontal },
@@ -39,6 +64,42 @@ export const actions = [
 ] as const;
 
 export type ComposerAction = (typeof actions)[number]["id"];
+
+export const specialActions = new Set<ComposerAction>([
+  "open-repository",
+  "open-pr",
+  "copy-pr-link",
+  "comment-pr",
+  "submit-review",
+  "create-pr",
+  "approve-pr",
+  "request-changes",
+  "merge-pr",
+]);
+export const pullRequestActions = new Set<ComposerAction>([
+  "open-pr",
+  "copy-pr-link",
+  "comment-pr",
+  "submit-review",
+  "approve-pr",
+  "request-changes",
+  "merge-pr",
+]);
+export type PullRequestComposerAction = Extract<
+  ComposerAction,
+  | "open-pr"
+  | "copy-pr-link"
+  | "comment-pr"
+  | "submit-review"
+  | "approve-pr"
+  | "request-changes"
+  | "merge-pr"
+>;
+export function isPullRequestAction(
+  action: ComposerAction | null,
+): action is PullRequestComposerAction {
+  return action !== null && pullRequestActions.has(action);
+}
 
 export const branchActions = new Set<ComposerAction>([
   "switch-branch",
@@ -101,6 +162,16 @@ export function commandFor(
   repository: GitRepositoryState,
 ): GitCommand | null {
   switch (action) {
+    case "open-repository":
+    case "open-pr":
+    case "copy-pr-link":
+    case "comment-pr":
+    case "submit-review":
+    case "create-pr":
+    case "approve-pr":
+    case "request-changes":
+    case "merge-pr":
+      return null;
     case "pull":
       return { kind: "pull" };
     case "push":

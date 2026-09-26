@@ -6,48 +6,42 @@ import { useAppNavigationHotkeys } from "./useAppNavigationHotkeys";
 import { AppHeader } from "@/app/AppHeader";
 import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { featureKeyFromPath } from "@/app/featureNavigation";
-import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { SidebarPanelRegistryProvider } from "@/components/layout/SidebarPanelRegistry";
 import { AppCommandPalette } from "@/features/command-palette/AppCommandPalette";
 import { CommandComposerLauncherProvider } from "@/features/command-palette/CommandComposerLauncher";
 import type { ComposerAction } from "@/features/command-palette/commandComposerModel";
-import { openRepo, selectFolder } from "@/features/source-control/actions";
-import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
+import type { PullRequestSummary } from "@/platform/desktop/contracts";
 import { WorkspaceContent } from "@/features/workspaces/components/WorkspaceContent";
 import { WorkspaceNavigation } from "@/features/workspaces/components/WorkspaceNavigation";
 import { WorkspaceRail } from "@/features/workspaces/components/WorkspaceRail";
 
 export type AppShellOutletContext = {
-  openRecentProjectsPicker: () => void;
+  openRepositoryComposer: () => void;
 };
 
 export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [composerInitialAction, setComposerInitialAction] = useState<ComposerAction | null>(null);
-  const [recentProjectsPickerOpen, setRecentProjectsPickerOpen] = useState(false);
+  const [composerInitialPullRequest, setComposerInitialPullRequest] =
+    useState<PullRequestSummary | null>(null);
   const isSettingsRoute = location.pathname.startsWith("/settings");
   const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
 
-  const openRecentProjectsPicker = () => {
-    setCommandPaletteOpen(false);
-    setRecentProjectsPickerOpen(true);
+  const openRepositoryComposer = () => {
+    openComposer("open-repository");
   };
 
-  const openComposer = (action?: ComposerAction) => {
+  const openComposer = (action?: ComposerAction, pullRequest?: PullRequestSummary) => {
     setComposerInitialAction(action ?? null);
-    setRecentProjectsPickerOpen(false);
+    setComposerInitialPullRequest(pullRequest ?? null);
     setCommandPaletteOpen(true);
   };
 
   useAppNavigationHotkeys({
-    openProject: openRecentProjectsPicker,
+    openProject: openRepositoryComposer,
     openSettings: () => {
-      setRecentProjectsPickerOpen(false);
       setCommandPaletteOpen(false);
       navigate("/settings");
     },
@@ -65,33 +59,26 @@ export function AppShell() {
                   activeFeature={activeFeature}
                   currentPath={location.pathname}
                   showWorkspaceTabs
-                  onOpenWorkspaces={openRecentProjectsPicker}
+                  onOpenWorkspaces={openRepositoryComposer}
                   onOpenCommandPalette={() => openComposer()}
                 />
               }
               rail={!isSettingsRoute ? <WorkspaceRail /> : null}
             >
               <WorkspaceContent>
-                <Outlet context={{ openRecentProjectsPicker }} />
+                <Outlet context={{ openRepositoryComposer }} />
               </WorkspaceContent>
             </WorkspaceChrome>
 
-            <RecentProjectsPicker
-              open={recentProjectsPickerOpen}
-              activeRepo={activeRepo}
-              recentRepos={recentRepos}
-              onOpenChange={setRecentProjectsPickerOpen}
-              onSelectRepo={(repoPath) => dispatch(openRepo(repoPath))}
-              onChooseFolder={() => {
-                void dispatch(selectFolder());
-              }}
-            />
             <AppCommandPalette
               open={commandPaletteOpen}
               initialAction={composerInitialAction}
+              initialPullRequest={composerInitialPullRequest}
               onOpenChange={(open) => {
-                if (open) setRecentProjectsPickerOpen(false);
-                if (!open) setComposerInitialAction(null);
+                if (!open) {
+                  setComposerInitialAction(null);
+                  setComposerInitialPullRequest(null);
+                }
                 setCommandPaletteOpen(open);
               }}
             />

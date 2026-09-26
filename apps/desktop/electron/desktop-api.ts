@@ -4,6 +4,7 @@ import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/co
 import { getAppSettingsPath, loadAppSettings, saveAppSettings } from "./appSettings";
 import {
   addPullRequestComment,
+  createPullRequest,
   connectProvider,
   disconnectProvider,
   getPullRequestConversation,
@@ -11,6 +12,7 @@ import {
   getPullRequestPatch,
   listProviderConnections,
   listPullRequests,
+  mergePullRequest,
   resolveActivePullRequestForBranch,
   preparePullRequestCompareRefs,
   preparePullRequestWorkspace,
@@ -18,6 +20,7 @@ import {
   resolveHostedRepo,
   setPullRequestThreadResolved,
   submitPullRequestReviewComments,
+  submitPullRequestDecision,
 } from "./hostedRepos";
 import {
   commitStaged,
@@ -74,6 +77,9 @@ export const desktopApi: DesktopApi = {
   getPullRequestFiles,
   getPullRequestPatch,
   addPullRequestComment,
+  createPullRequest,
+  submitPullRequestDecision,
+  mergePullRequest,
   replyToPullRequestThread,
   submitPullRequestReviewComments,
   setPullRequestThreadResolved,

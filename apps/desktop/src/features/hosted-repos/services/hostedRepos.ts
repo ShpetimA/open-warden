@@ -2,6 +2,7 @@ import { desktop } from "@/platform/desktop";
 
 import type {
   AddPullRequestCommentInput,
+  CreatePullRequestInput,
   ConnectProviderInput,
   HostedRepoRef,
   PreparedPullRequestWorkspace,
@@ -9,6 +10,7 @@ import type {
   ProviderConnection,
   ResolveActivePullRequestForBranchInput,
   ListPullRequestsInput,
+  MergePullRequestInput,
   PullRequestChangedFile,
   PullRequestCompareRefs,
   PullRequestConversation,
@@ -20,6 +22,8 @@ import type {
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
+  SubmitPullRequestDecisionInput,
+  PullRequestSummary,
 } from "@/platform/desktop";
 
 export async function listProviderConnections() {
@@ -62,6 +66,18 @@ export async function getPullRequestPatch(input: PullRequestLocatorInput) {
 
 export async function addPullRequestComment(input: AddPullRequestCommentInput) {
   return desktop.addPullRequestComment(input) as Promise<PullRequestIssueComment>;
+}
+
+export async function createPullRequest(input: CreatePullRequestInput) {
+  return desktop.createPullRequest(input) as Promise<PullRequestSummary>;
+}
+
+export async function submitPullRequestDecision(input: SubmitPullRequestDecisionInput) {
+  await desktop.submitPullRequestDecision(input);
+}
+
+export async function mergePullRequest(input: MergePullRequestInput) {
+  return desktop.mergePullRequest(input);
 }
 
 export async function replyToPullRequestThread(input: ReplyToPullRequestThreadInput) {

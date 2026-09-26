@@ -240,6 +240,24 @@ export type AddPullRequestCommentInput = PullRequestLocatorInput & {
   body: string;
 };
 
+export type CreatePullRequestInput = {
+  repoPath: string;
+  title: string;
+  body: string;
+  baseRef: string;
+  headRef: string;
+};
+
+export type SubmitPullRequestDecisionInput = PullRequestLocatorInput & {
+  decision: "approve" | "request-changes";
+  body: string;
+};
+
+export type MergePullRequestInput = PullRequestLocatorInput & {
+  method: "merge" | "squash" | "rebase";
+  expectedHeadSha: string;
+};
+
 export type ReplyToPullRequestThreadInput = PullRequestLocatorInput & {
   threadId: string;
   body: string;
@@ -402,6 +420,9 @@ export type DesktopApi = {
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
+  createPullRequest(input: CreatePullRequestInput): Promise<PullRequestSummary>;
+  submitPullRequestDecision(input: SubmitPullRequestDecisionInput): Promise<void>;
+  mergePullRequest(input: MergePullRequestInput): Promise<"merged" | "queued">;
   replyToPullRequestThread(input: ReplyToPullRequestThreadInput): Promise<PullRequestReviewThread>;
   submitPullRequestReviewComments(
     input: SubmitPullRequestReviewCommentsInput,

@@ -12,7 +12,7 @@ import {
   Unplug,
 } from "lucide-react";
 
-import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
   useDisconnectProviderMutation,
@@ -23,7 +23,7 @@ import {
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import { CommentBody } from "@/features/pull-requests/components/pullRequestCommentParts";
-import { openPullRequestWorkspace } from "@/features/workspaces/actions";
+import { useCommandComposerLauncher } from "@/features/command-palette/CommandComposerLauncher";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { isTypingTarget } from "@/features/source-control/utils";
 import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
@@ -143,10 +143,12 @@ function PullRequestPreviewPane({
   activeRepo,
   pullRequest,
   onOpen,
+  onActions,
 }: {
   activeRepo: string;
   pullRequest: PullRequestSummary | null;
   onOpen: (pullRequest: PullRequestSummary) => void;
+  onActions: (pullRequest: PullRequestSummary) => void;
 }) {
   const queryArg = pullRequest
     ? { repoPath: activeRepo, pullRequestNumber: pullRequest.number }
@@ -288,10 +290,13 @@ function PullRequestPreviewPane({
         )}
       </div>
 
-      <div className="border-t border-border/70 px-5 py-3">
-        <Button className="h-8 w-full gap-1.5 text-xs" onClick={() => onOpen(pullRequest)}>
+      <div className="flex gap-2 border-t border-border/70 px-5 py-3">
+        <Button className="h-8 min-w-0 flex-1 gap-1.5 text-xs" onClick={() => onOpen(pullRequest)}>
           Open full review
           <ExternalLink className="h-3.5 w-3.5" />
+        </Button>
+        <Button variant="outline" className="h-8 text-xs" onClick={() => onActions(pullRequest)}>
+          Actions
         </Button>
       </div>
     </aside>
@@ -299,7 +304,7 @@ function PullRequestPreviewPane({
 }
 
 export function PullRequestsScreen() {
-  const dispatch = useAppDispatch();
+  const openComposer = useCommandComposerLauncher();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
@@ -419,21 +424,8 @@ export function PullRequestsScreen() {
     }
   }
 
-  function onOpenPullRequest(pullRequest: { providerId: GitProviderId; number: number }) {
-    if (!hostedRepo) {
-      return;
-    }
-
-    void dispatch(
-      openPullRequestWorkspace({
-        repoPath: activeRepo,
-        providerId: pullRequest.providerId,
-        owner: hostedRepo.owner,
-        repo: hostedRepo.repo,
-        pullRequestNumber: pullRequest.number,
-        title: pullRequests.find((item) => item.number === pullRequest.number)?.title ?? "",
-      }),
-    );
+  function onOpenPullRequest(pullRequest: PullRequestSummary) {
+    openComposer("open-pr", pullRequest);
   }
 
   function moveSelection(direction: 1 | -1) {
@@ -697,6 +689,7 @@ export function PullRequestsScreen() {
           activeRepo={activeRepo}
           pullRequest={selectedPullRequest}
           onOpen={onOpenPullRequest}
+          onActions={(pullRequest) => openComposer(undefined, pullRequest)}
         />
       </div>
     );
