@@ -7,9 +7,13 @@ import { commentsReducer } from "@/features/comments/commentsSlice";
 import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice";
 import { settingsReducer } from "@/features/settings/settingsSlice";
 import { desktop } from "@/platform/desktop";
+import { gitApi } from "./api";
 
 import {
   closeRepo,
+  commitAction,
+  stageAllAction,
+  unstageAllAction,
   navigateBackToDiffFromFileViewer,
   openRepo,
   restoreWorkspaceSession,
@@ -80,6 +84,58 @@ describe("source control workspace actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(desktop.saveWorkspaceSession).mockImplementation(async (session) => session);
+  });
+
+  it("reports whether a commit completed and preserves the message on failure", async () => {
+    const store = configureStore({
+      reducer: rootReducer,
+      middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+    });
+    store.dispatch(
+      hydrateWorkspaceSession({
+        openRepos: ["/repo/a"],
+        activeRepo: "/repo/a",
+        recentRepos: ["/repo/a"],
+      }),
+    );
+    store.dispatch(setCommitMessage("A commit"));
+    vi.mocked(desktop.commitStaged).mockResolvedValue("abc123");
+
+    expect(await store.dispatch(commitAction())).toBe(true);
+    expect(store.getState().sourceControl.commitMessage).toBe("");
+
+    store.dispatch(setCommitMessage("Retry this commit"));
+    vi.mocked(desktop.commitStaged).mockRejectedValue(new Error("Git rejected the commit"));
+
+    expect(await store.dispatch(commitAction())).toBe(false);
+    expect(store.getState().sourceControl.commitMessage).toBe("Retry this commit");
+    expect(store.getState().sourceControl.runningAction).toBe("");
+  });
+
+  it("reports whether stage all and unstage all completed", async () => {
+    const store = configureStore({
+      reducer: rootReducer,
+      middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+    });
+    store.dispatch(
+      hydrateWorkspaceSession({
+        openRepos: ["/repo/a"],
+        activeRepo: "/repo/a",
+        recentRepos: ["/repo/a"],
+      }),
+    );
+    vi.mocked(desktop.stageAll).mockResolvedValue();
+    vi.mocked(desktop.unstageAll).mockResolvedValue();
+
+    expect(await store.dispatch(stageAllAction())).toBe(true);
+    expect(await store.dispatch(unstageAllAction())).toBe(true);
+
+    vi.mocked(desktop.stageAll).mockRejectedValue(new Error("Git could not stage"));
+    vi.mocked(desktop.unstageAll).mockRejectedValue(new Error("Git could not unstage"));
+
+    expect(await store.dispatch(stageAllAction())).toBe(false);
+    expect(await store.dispatch(unstageAllAction())).toBe(false);
+    expect(store.getState().sourceControl.runningAction).toBe("");
   });
 
   it("restores a saved session, drops invalid repos, and persists the sanitized state", async () => {

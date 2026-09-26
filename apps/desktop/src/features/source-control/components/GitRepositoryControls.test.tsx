@@ -1,18 +1,16 @@
-import { useState } from "react";
-import { configureStore } from "@reduxjs/toolkit";
-import { Provider } from "react-redux";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it } from "vitest";
-import { rootReducer } from "@/app/store";
-import { gitApi } from "../api";
-import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOperations";
-import { RepositoryActions } from "./GitRepositoryControls";
+import { useState } from "react";
+import { expect, it, vi } from "vitest";
+
+import type { GitRepositoryState } from "@/platform/desktop/gitOperations";
+
+import { RepositoryControlButtons } from "./GitRepositoryControls";
 import { GitOperationStatus } from "./GitOperationBanner";
 
 const state: GitRepositoryState = {
   branch: "main",
-  upstream: "",
-  ahead: 0,
+  upstream: "origin/main",
+  ahead: 2,
   behind: 0,
   remotes: ["origin"],
   operation: null,
@@ -24,46 +22,36 @@ const state: GitRepositoryState = {
   branches: [
     { name: "main", remote: false, worktree: "/repo" },
     { name: "feature", remote: false, worktree: "" },
-    { name: "busy", remote: false, worktree: "/other" },
-    { name: "origin/topic", remote: true, worktree: "" },
   ],
 };
-function Harness() {
-  const [command, setCommand] = useState<GitCommand | null>(null);
-  return (
-    <>
-      <RepositoryActions
-        repoPath="/repo"
-        state={state}
-        busy={false}
-        run={async (next) => setCommand(next)}
-      />
-      <output>{JSON.stringify(command)}</output>
-    </>
-  );
-}
-it("switches local branches, tracks remotes, and prevents switching an occupied worktree", () => {
-  const store = configureStore({
-    reducer: rootReducer,
-    middleware: (getDefault) => getDefault().concat(gitApi.middleware),
-  });
-  render(
-    <Provider store={store}>
-      <Harness />
-    </Provider>,
-  );
-  expect(screen.getByRole("button", { name: "Switch branch", exact: true })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: /busy/ }));
-  expect(screen.getByRole("button", { name: "Switch branch", exact: true })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: /feature/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Switch branch", exact: true }));
-  expect(screen.getByRole("status")).toHaveTextContent('"kind":"switch","branch":"feature"');
-  fireEvent.click(screen.getByRole("button", { name: /origin\/topic/ }));
-  fireEvent.click(screen.getByRole("button", { name: "Switch branch", exact: true }));
-  expect(screen.getByRole("status")).toHaveTextContent(
-    '"kind":"track","remoteBranch":"origin/topic","branch":"topic"',
-  );
+
+it("opens focused composer actions from the repository controls", () => {
+  const open = vi.fn();
+  render(<RepositoryControlButtons state={state} busy={false} open={open} />);
+
+  fireEvent.click(screen.getByRole("button", { name: /main/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Fetch remote changes" }));
+  fireEvent.click(screen.getByRole("button", { name: "Push commits" }));
+
+  expect(open.mock.calls.map(([action]) => action)).toEqual(["switch-branch", "fetch", "push"]);
+  expect(screen.getByRole("button", { name: "Pull (fast-forward only)" })).toBeDisabled();
 });
+
+it("opens Publish branch when there is no upstream", () => {
+  const open = vi.fn();
+  render(
+    <RepositoryControlButtons
+      state={{ ...state, upstream: "", ahead: 0 }}
+      busy={false}
+      open={open}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Publish branch" }));
+
+  expect(open).toHaveBeenCalledWith("publish");
+});
+
 it("keeps Continue disabled until conflicts are resolved", () => {
   function Operation() {
     const [count, setCount] = useState(1);

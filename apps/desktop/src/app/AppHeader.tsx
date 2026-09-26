@@ -1,4 +1,4 @@
-import { Copy, RotateCcw, Search, Settings2 } from "lucide-react";
+import { Command, Copy, RotateCcw, Settings2 } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -209,10 +209,10 @@ function HeaderActions({ activeFeature, currentPath, onOpenCommandPalette }: Hea
         type="button"
         className="text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-7 w-7 items-center justify-center rounded-md transition-[transform] duration-150 ease-[var(--ease-out)] active:scale-[0.95]"
         onClick={onOpenCommandPalette}
-        title="Open Command Palette (⌘K)"
-        aria-label="Open command palette"
+        title="Compose a Git command (⌘K)"
+        aria-label="Compose a Git command"
       >
-        <Search className="h-3.5 w-3.5" />
+        <Command className="h-3.5 w-3.5" />
       </button>
     </div>
   );

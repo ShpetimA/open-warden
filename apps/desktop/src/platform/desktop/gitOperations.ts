@@ -26,6 +26,7 @@ export const gitCommandSchema = z.discriminatedUnion("kind", [
     message,
     includeUntracked: z.boolean(),
   }),
+  z.object({ kind: z.literal("stash-staged") }),
   z.object({ kind: z.literal("stash-apply"), oid }),
   z.object({ kind: z.literal("stash-pop"), oid }),
   z.object({ kind: z.literal("stash-drop"), oid }),

@@ -490,16 +490,18 @@ function repoActionLabel(action: RunningAction): string {
 }
 
 const runRepoAction =
-  (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
+  (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const { activeRepo, runningAction } = getState().sourceControl;
-    if (!activeRepo || runningAction) return;
+    if (!activeRepo || runningAction) return false;
     dispatch(setRunningAction(action));
     try {
       await dispatch(thunk);
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
+      return false;
     } finally {
       dispatch(setRunningAction(""));
     }
@@ -671,11 +673,11 @@ export const stageOrUnstageSelectionAction = (): AppThunk => async (dispatch, ge
   await dispatch(stageFilesAction(toStage));
 };
 
-export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
+export const stageAllAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
-  if (!activeRepo) return;
+  if (!activeRepo) return false;
 
-  await dispatch(
+  return dispatch(
     runRepoAction("stage-all", async (innerDispatch) => {
       const result = innerDispatch(gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }));
       await result.unwrap();
@@ -683,11 +685,11 @@ export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
   );
 };
 
-export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
+export const unstageAllAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
-  if (!activeRepo) return;
+  if (!activeRepo) return false;
 
-  await dispatch(
+  return dispatch(
     runRepoAction("unstage-all", async (innerDispatch) => {
       const result = innerDispatch(gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }));
       await result.unwrap();
@@ -719,13 +721,13 @@ export const discardChangesGroupAction =
     );
   };
 
-export const commitAction = (): AppThunk => async (dispatch, getState) => {
+export const commitAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo, commitMessage } = getState().sourceControl;
-  if (!activeRepo) return;
+  if (!activeRepo) return false;
   const trimmed = commitMessage.trim();
-  if (!trimmed) return;
+  if (!trimmed) return false;
 
-  await dispatch(
+  return dispatch(
     runRepoAction("commit", async (innerDispatch) => {
       const result = innerDispatch(
         gitApi.endpoints.commitStaged.initiate({ repoPath: activeRepo, message: trimmed }),

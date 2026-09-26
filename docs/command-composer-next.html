@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Open Warden · Command composer next steps</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page: #f5f6f8;
+        --surface: #fff;
+        --surface-soft: #f4f5f7;
+        --ink: #17202d;
+        --muted: #647080;
+        --border: #d8dde5;
+        --accent: #1868d6;
+        --accent-soft: #e6f0ff;
+        --shadow: 0 14px 38px #17202d12;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--ink);
+      }
+      a {
+        color: inherit;
+      }
+      button {
+        font: inherit;
+      }
+      .wrap {
+        width: min(1120px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+      .eyebrow {
+        color: var(--accent);
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .masthead {
+        padding: 72px 0 48px;
+      }
+      .masthead h1 {
+        max-width: 760px;
+        margin: 15px 0 16px;
+        font-size: clamp(34px, 5vw, 58px);
+        line-height: 1.06;
+        letter-spacing: -0.05em;
+      }
+      .masthead p {
+        max-width: 700px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 17px;
+        line-height: 1.6;
+      }
+      .jump {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 30px;
+      }
+      .jump a {
+        padding: 9px 13px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        font-size: 13px;
+        font-weight: 650;
+        text-decoration: none;
+      }
+      .jump a:hover,
+      .jump a:focus-visible {
+        border-color: var(--accent);
+        outline-color: var(--accent);
+      }
+      section {
+        margin: 0 0 58px;
+      }
+      .section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 18px;
+      }
+      .section-head h2 {
+        margin: 6px 0 0;
+        font-size: 24px;
+        letter-spacing: -0.03em;
+      }
+      .section-head p {
+        max-width: 510px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .lead-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
+        gap: 16px;
+      }
+      .panel {
+        min-width: 0;
+        padding: 24px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+      .panel h3 {
+        margin: 0 0 6px;
+        font-size: 17px;
+        letter-spacing: -0.02em;
+      }
+      .panel p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
+        margin: 22px 0 18px;
+      }
+      .step {
+        padding: 9px 11px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-soft);
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .step.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .arrow {
+        color: var(--muted);
+      }
+      .note {
+        padding: 13px 15px;
+        border-left: 3px solid var(--accent);
+        border-radius: 0 9px 9px 0;
+        background: var(--accent-soft);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .shortcut-row {
+        display: grid;
+        grid-template-columns: 76px minmax(0, 1fr);
+        gap: 14px;
+        align-items: center;
+        padding: 13px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .shortcut-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      kbd {
+        display: inline-block;
+        width: fit-content;
+        padding: 5px 7px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface-soft);
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .shortcut-row strong {
+        display: block;
+        font-size: 13px;
+      }
+      .shortcut-row span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      td {
+        padding: 16px;
+        border-bottom: 1px solid var(--border);
+        font-size: 13px;
+        line-height: 1.5;
+        vertical-align: top;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      td:first-child {
+        width: 190px;
+        font-weight: 700;
+      }
+      td:nth-child(2) {
+        min-width: 260px;
+      }
+      td:nth-child(3) {
+        min-width: 235px;
+        color: var(--muted);
+      }
+      .tag {
+        display: inline-block;
+        padding: 4px 7px;
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        background: var(--surface-soft);
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tag.now {
+        border-color: #a9d5c1;
+        background: #e5f7ef;
+        color: #146746;
+      }
+      .tag.later {
+        border-color: #e9d098;
+        background: #fff5d9;
+        color: #795411;
+      }
+      .two-up {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .number {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        margin-bottom: 18px;
+        border-radius: 8px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 750;
+      }
+      .panel ul {
+        margin: 15px 0 0;
+        padding-left: 18px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.7;
+      }
+      .panel li + li {
+        margin-top: 7px;
+      }
+      .panel code {
+        overflow-wrap: anywhere;
+        color: var(--ink);
+        font-size: 12px;
+      }
+      .footer {
+        padding: 4px 0 44px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      @media (max-width: 720px) {
+        .wrap {
+          width: min(100% - 28px, 1120px);
+        }
+        .masthead {
+          padding-top: 44px;
+        }
+        .lead-grid,
+        .two-up {
+          grid-template-columns: 1fr;
+        }
+        .section-head {
+          display: block;
+        }
+        .section-head p {
+          margin-top: 9px;
+        }
+        .panel {
+          padding: 19px;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page: #101318;
+          --surface: #191e25;
+          --surface-soft: #222932;
+          --ink: #f0f3f7;
+          --muted: #a6b0bd;
+          --border: #35404d;
+          --accent: #8cbaff;
+          --accent-soft: #1d3454;
+          --shadow: 0 14px 38px #0004;
+        }
+        .tag.now {
+          border-color: #326a55;
+          background: #183e30;
+          color: #a5e4c7;
+        }
+        .tag.later {
+          border-color: #6f5929;
+          background: #3b311c;
+          color: #f1d58b;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="masthead">
+        <div class="eyebrow">Open Warden · product plan</div>
+        <h1>One composer for the next useful actions.</h1>
+        <p>
+          Keep the floating cards and focused, two-step command flow. Add repository opening and
+          pull request work as separate, contextual actions inside the same surface.
+        </p>
+        <nav class="jump" aria-label="Page sections">
+          <a href="#entry">Entry and flow</a>
+          <a href="#commands">Command candidates</a>
+          <a href="#sequence">Build sequence</a>
+        </nav>
+      </header>
+
+      <section id="entry" aria-labelledby="entry-title">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Interaction</div>
+            <h2 id="entry-title">Keep one surface, multiple entry points</h2>
+          </div>
+          <p>
+            The composer should open with the relevant action or target already selected when
+            launched from a shortcut, repository row, or pull request.
+          </p>
+        </div>
+        <div class="lead-grid">
+          <div class="panel">
+            <h3>A command has a visible path</h3>
+            <p>
+              Cards hold the action and selected target. The lower panel handles one choice at a
+              time; the final panel previews and confirms execution.
+            </p>
+            <div class="flow" aria-label="Composer flow">
+              <span class="step active">Action</span><span class="arrow">→</span>
+              <span class="step">Target</span><span class="arrow">→</span>
+              <span class="step">Input, if needed</span><span class="arrow">→</span>
+              <span class="step">Confirm</span>
+            </div>
+            <div class="note">
+              For navigation, the final step says exactly what will open and where. For a mutation,
+              it shows the repository, PR, or branch and requires explicit confirmation.
+            </div>
+          </div>
+          <div class="panel">
+            <h3>Shortcut mapping</h3>
+            <div class="shortcut-row">
+              <kbd>⌘K</kbd>
+              <div>
+                <strong>All composer actions</strong
+                ><span
+                  >Show the complete action list, including unavailable items with a reason.</span
+                >
+              </div>
+            </div>
+            <div class="shortcut-row">
+              <kbd>⌘O</kbd>
+              <div>
+                <strong>Open repository</strong
+                ><span
+                  >Start the same composer at the repository picker. Keep recent, path completion,
+                  and Choose folder.</span
+                >
+              </div>
+            </div>
+            <div class="shortcut-row">
+              <kbd>PR row</kbd>
+              <div>
+                <strong>Open pull request</strong
+                ><span>Prefill the selected PR; choose worktree or branch, then confirm.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="commands" aria-labelledby="commands-title">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Inventory</div>
+            <h2 id="commands-title">Commands worth composing next</h2>
+          </div>
+          <p>
+            Prioritize short paths that replace crowded dialogs or repeated clicks. Current API
+            coverage determines what can ship first.
+          </p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Composer path</th>
+                <th>Why it belongs here</th>
+                <th>API</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Open repository</td>
+                <td>Recent or path → repository → confirm open</td>
+                <td>Reuses the current ⌘O picker behavior in one surface.</td>
+                <td><span class="tag now">Existing</span></td>
+              </tr>
+              <tr>
+                <td>Open pull request</td>
+                <td>PR list → worktree or branch → confirm open</td>
+                <td>Fast review entry from anywhere; PR rows can prefill the target.</td>
+                <td><span class="tag now">Existing</span></td>
+              </tr>
+              <tr>
+                <td>Copy PR link</td>
+                <td>PR → confirm copy</td>
+                <td>Quick action after selecting a PR, with no full review screen.</td>
+                <td><span class="tag now">Existing</span></td>
+              </tr>
+              <tr>
+                <td>Comment on PR</td>
+                <td>PR → message → confirm post</td>
+                <td>Short reply path for a general PR comment.</td>
+                <td><span class="tag now">Existing</span></td>
+              </tr>
+              <tr>
+                <td>Submit review comments</td>
+                <td>Current PR → review summary → confirm submit</td>
+                <td>Finishes pending inline comments from review context.</td>
+                <td><span class="tag now">Existing</span></td>
+              </tr>
+              <tr>
+                <td>Create pull request</td>
+                <td>Head/base → title/body → confirm create</td>
+                <td>Useful after pushing, but needs provider mutation and validation.</td>
+                <td><span class="tag later">API needed</span></td>
+              </tr>
+              <tr>
+                <td>Approve or request changes</td>
+                <td>PR → review text → confirm decision</td>
+                <td>Needs review submission semantics and provider permissions.</td>
+                <td><span class="tag later">API needed</span></td>
+              </tr>
+              <tr>
+                <td>Merge pull request</td>
+                <td>PR → merge method → explicit confirm</td>
+                <td>Requires checks, permissions, merge state, and provider API.</td>
+                <td><span class="tag later">API needed</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="sequence" aria-labelledby="sequence-title">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">Build sequence</div>
+            <h2 id="sequence-title">Three contained slices</h2>
+          </div>
+          <p>Keep each slice functional before expanding the action catalog.</p>
+        </div>
+        <div class="two-up">
+          <div class="panel">
+            <div class="number">1</div>
+            <h3>Fold ⌘O into the composer</h3>
+            <p>
+              Make repository opening a composer action. ⌘O lands directly on its picker; ⌘K shows
+              it among all actions.
+            </p>
+            <ul>
+              <li>
+                Move recent repository filtering, <code>~/</code> and absolute path completion,
+                native folder choice, loading, and errors out of the separate dialog.
+              </li>
+              <li>Use the selected repository card and a final “Open repository” confirmation.</li>
+              <li>Remove the old picker once its behavior is covered.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <div class="number">2</div>
+            <h3>Find and open a PR</h3>
+            <p>
+              Start with the list and open behavior already available, including a direct entry from
+              a selected PR.
+            </p>
+            <ul>
+              <li>
+                Show PR number, title, author, draft state, and updated time in searchable choice
+                rows.
+              </li>
+              <li>
+                Paginate explicitly; the current list endpoint has pages but no server-side search.
+              </li>
+              <li>
+                Let the user choose worktree or branch and show the clean-tree requirement before
+                confirming.
+              </li>
+            </ul>
+          </div>
+          <div class="panel">
+            <div class="number">3</div>
+            <h3>Add compact PR actions</h3>
+            <p>
+              Bring copy link and comment submission into context menus and the composer, prefilled
+              with the current PR.
+            </p>
+            <ul>
+              <li>Use the existing comment and pending-review endpoints.</li>
+              <li>
+                Keep file-level thread resolution next to the thread because its target is highly
+                contextual.
+              </li>
+              <li>
+                Only add create, approve, and merge after provider contracts and permission checks
+                exist.
+              </li>
+            </ul>
+          </div>
+          <div class="panel">
+            <div class="number">↗</div>
+            <h3>Shared code shape</h3>
+            <p>
+              Expand the current intent model without turning the composer into another screen full
+              of controls.
+            </p>
+            <ul>
+              <li>
+                Action definitions own labels, availability, required operands, preview text, and
+                executor.
+              </li>
+              <li>
+                Pure flow transitions own Back, arrow keys, Enter, and the final confirmation state.
+              </li>
+              <li>
+                Choice, text, and review steps remain reusable components; repo and PR data stay
+                subscribed near those steps.
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+      <footer class="footer">
+        Plan based on the current desktop picker and hosted-repository APIs. “Existing” means the
+        underlying operation exists; the composer integration is proposed work.
+      </footer>
+    </main>
+  </body>
+</html>

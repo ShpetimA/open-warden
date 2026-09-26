@@ -1,29 +1,20 @@
-import { Provider } from "react-redux";
-import { configureStore } from "@reduxjs/toolkit";
-import { rootReducer } from "@/app/store";
-import { gitApi } from "../api";
-const storyStore = configureStore({
-  reducer: rootReducer,
-  middleware: (getDefault) => getDefault().concat(gitApi.middleware),
-});
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { RepositoryActions } from "./GitRepositoryControls";
+
+import { RepositoryControlButtons } from "./GitRepositoryControls";
+
 const meta = {
-  title: "Features/Git/Repository actions",
-  component: RepositoryActions,
+  title: "Features/Git/Repository controls",
+  component: RepositoryControlButtons,
   decorators: [
     (Story) => (
-      <Provider store={storyStore}>
-        <div className="bg-background text-foreground w-[520px] max-w-full p-4">
-          <Story />
-        </div>
-      </Provider>
+      <div className="bg-background text-foreground w-[320px] max-w-full p-4">
+        <Story />
+      </div>
     ),
   ],
   args: {
-    repoPath: "/projects/warden",
     busy: false,
-    run: async () => {},
+    open: () => {},
     state: {
       operation: null,
       conflicts: [],
@@ -32,7 +23,7 @@ const meta = {
       branch: "feature/tabs",
       upstream: "origin/feature/tabs",
       ahead: 2,
-      behind: 1,
+      behind: 0,
       remotes: ["origin"],
       branches: [
         { name: "feature/tabs", remote: false, worktree: "/projects/warden" },
@@ -40,11 +31,11 @@ const meta = {
         { name: "fix/login", remote: false, worktree: "/projects/login-worktree" },
         { name: "origin/main", remote: true, worktree: "" },
       ],
-      incoming: [{ id: "abc1234", subject: "Fix branch sync" }],
+      incoming: [],
       outgoing: [{ id: "def5678", subject: "Polish project tabs" }],
     },
   },
-} satisfies Meta<typeof RepositoryActions>;
+} satisfies Meta<typeof RepositoryControlButtons>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 export const TrackingBranch: Story = {};

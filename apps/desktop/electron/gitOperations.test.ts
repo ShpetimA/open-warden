@@ -150,6 +150,47 @@ it("saves untracked files, previews and applies a stash using its stable identit
   expect(git(repo, "stash", "list")).not.toContain("Notes");
 });
 
+it("stashes staged changes while leaving unstaged and untracked work in place", async () => {
+  const { repo } = await fixture();
+  await writeFile(path.join(repo, "unstaged.txt"), "unstaged\n");
+  git(repo, "add", "unstaged.txt");
+  git(repo, "commit", "-m", "Add another file");
+  await writeFile(path.join(repo, "file.txt"), "staged\n");
+  git(repo, "add", "file.txt");
+  await writeFile(path.join(repo, "unstaged.txt"), "working tree\n");
+  await writeFile(path.join(repo, "untracked.txt"), "untracked\n");
+
+  const result = await runGitCommand(repo, { kind: "stash-staged" });
+
+  expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
+  expect(git(repo, "diff", "--cached", "--name-only")).toBe("");
+  expect(await readFile(path.join(repo, "file.txt"), "utf8")).toBe("initial\n");
+  expect(await readFile(path.join(repo, "unstaged.txt"), "utf8")).toBe("working tree\n");
+  expect(await readFile(path.join(repo, "untracked.txt"), "utf8")).toBe("untracked\n");
+  expect(git(repo, "stash", "show", "--name-only", "stash@{0}")).toBe("file.txt");
+  expect((await runGitCommand(repo, { kind: "stash-staged" })).ok).toBe(false);
+  expect(git(repo, "stash", "list").split("\n")).toHaveLength(1);
+});
+
+it("rejects a staged stash before changing a partially staged file", async () => {
+  const { repo } = await fixture();
+  await writeFile(path.join(repo, "file.txt"), "staged\n");
+  git(repo, "add", "file.txt");
+  await writeFile(path.join(repo, "file.txt"), "staged\nunstaged on the same file\n");
+
+  const result = await runGitCommand(repo, { kind: "stash-staged" });
+
+  expect(result).toMatchObject({
+    ok: false,
+    error: { message: "A staged path has other local changes. Stash those changes separately." },
+  });
+  expect(git(repo, "stash", "list")).toBe("");
+  expect(git(repo, "diff", "--cached")).toContain("staged");
+  expect(await readFile(path.join(repo, "file.txt"), "utf8")).toContain(
+    "unstaged on the same file",
+  );
+});
+
 it("retains the stash if applying it causes conflicts", async () => {
   const { repo } = await fixture();
   await writeFile(path.join(repo, "file.txt"), "stashed\n");

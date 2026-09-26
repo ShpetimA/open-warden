@@ -204,6 +204,24 @@ async function execute(repo: string, command: GitCommand): Promise<GitResult<str
         "-m",
         command.message,
       ]);
+    case "stash-staged": {
+      const staged = await run(repo, ["diff", "--cached", "--name-only", "-z"]);
+      if (!staged.ok) return staged;
+      const unstaged = await run(repo, ["diff", "--name-only", "-z"]);
+      if (!unstaged.ok) return unstaged;
+      const untracked = await run(repo, ["ls-files", "--others", "--exclude-standard", "-z"]);
+      if (!untracked.ok) return untracked;
+      const stagedPaths = new Set(staged.value.split("\0").filter(Boolean));
+      if (stagedPaths.size === 0) return failure("No staged changes to stash.");
+      if (
+        [...unstaged.value.split("\0"), ...untracked.value.split("\0")].some((file) =>
+          stagedPaths.has(file),
+        )
+      ) {
+        return failure("A staged path has other local changes. Stash those changes separately.");
+      }
+      return run(repo, ["stash", "push", "--staged"]);
+    }
     case "stash-apply":
       return run(repo, ["stash", "apply", command.oid]);
     case "stash-pop":
