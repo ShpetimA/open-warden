@@ -358,8 +358,8 @@
         <div class="eyebrow">Open Warden · product plan</div>
         <h1>One composer for the next useful actions.</h1>
         <p>
-          Keep the floating cards and focused, two-step command flow. Add repository opening and
-          pull request work as separate, contextual actions inside the same surface.
+          Keep the floating cards and focused command flow. Repository and pull request navigation
+          opens on selection; commands that change Git or pull request state show a final review.
         </p>
         <nav class="jump" aria-label="Page sections">
           <a href="#entry">Entry and flow</a>
@@ -384,17 +384,17 @@
             <h3>A command has a visible path</h3>
             <p>
               Cards hold the action and selected target. The lower panel handles one choice at a
-              time; the final panel previews and confirms execution.
+              time; consequential commands end with a preview and confirmation.
             </p>
             <div class="flow" aria-label="Composer flow">
               <span class="step active">Action</span><span class="arrow">→</span>
               <span class="step">Target</span><span class="arrow">→</span>
               <span class="step">Input, if needed</span><span class="arrow">→</span>
-              <span class="step">Confirm</span>
+              <span class="step">Confirm changes</span>
             </div>
             <div class="note">
-              For navigation, the final step says exactly what will open and where. For a mutation,
-              it shows the repository, PR, or branch and requires explicit confirmation.
+              Opening a repository or PR runs when selected. A mutation shows its repository, PR, or
+              branch and requires explicit confirmation.
             </div>
           </div>
           <div class="panel">
@@ -438,7 +438,9 @@
             <div class="eyebrow">Inventory</div>
             <h2 id="commands-title">Commands added to the composer</h2>
           </div>
-          <p>Short paths now share the floating composer and an explicit confirmation step.</p>
+          <p>
+            Short paths share the floating composer, with confirmation for consequential actions.
+          </p>
         </div>
         <div class="table-wrap">
           <table>
@@ -453,19 +455,25 @@
             <tbody>
               <tr>
                 <td>Open repository</td>
-                <td>Recent or path → repository → confirm open</td>
+                <td>Recent or path → open repository</td>
                 <td>⌘O and ⌘T open the same repository picker inside the composer.</td>
                 <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
                 <td>Open pull request</td>
-                <td>PR list → review tab or new worktree → confirm open</td>
+                <td>PR list → open review tab</td>
                 <td>Fast review entry from anywhere; PR rows open the review tab directly.</td>
                 <td><span class="tag now">Added</span></td>
               </tr>
               <tr>
+                <td>Open PR in worktree</td>
+                <td>PR list → confirm worktree</td>
+                <td>Creates a separate checkout for the selected pull request.</td>
+                <td><span class="tag now">Added</span></td>
+              </tr>
+              <tr>
                 <td>Copy PR link</td>
-                <td>PR → confirm copy</td>
+                <td>PR → copy link</td>
                 <td>Quick action after selecting a PR, with no full review screen.</td>
                 <td><span class="tag now">Added</span></td>
               </tr>
@@ -530,7 +538,9 @@
                 Move recent repository filtering, <code>~/</code> and absolute path completion,
                 native folder choice, loading, and errors out of the separate dialog.
               </li>
-              <li>Use the selected repository card and a final “Open repository” confirmation.</li>
+              <li>
+                Open the selected repository immediately and keep the choice in view as arrows move.
+              </li>
               <li>Remove the old picker once its behavior is covered.</li>
             </ul>
           </div>
@@ -550,8 +560,8 @@
                 Paginate explicitly; the current list endpoint has pages but no server-side search.
               </li>
               <li>
-                Let the user choose a review tab in the current repository or a separate worktree
-                before confirming.
+                Keep opening a review tab direct. Make worktree checkout a separate action with a
+                confirmation step.
               </li>
             </ul>
           </div>
@@ -587,7 +597,7 @@
                 executor.
               </li>
               <li>
-                Pure flow transitions own Back, arrow keys, Enter, and the final confirmation state.
+                Pure flow transitions own Back, arrow keys, Enter, and confirmation when required.
               </li>
               <li>
                 Choice, text, and review steps remain reusable components; repo and PR data stay

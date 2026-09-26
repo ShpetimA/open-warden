@@ -56,7 +56,8 @@ export function AppCommandPalette({
       >
         <DialogTitle className="sr-only">Command composer</DialogTitle>
         <DialogDescription className="sr-only">
-          Choose an action and any required details, then confirm the command.
+          Choose an action and any required details. Changes to Git or pull requests require
+          confirmation.
         </DialogDescription>
         {open ? (
           specialAction === "open-repository" ? (

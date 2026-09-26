@@ -115,13 +115,6 @@ export function ChangeCommandComposer({
     else runButtonRef.current?.focus();
   }, [action, pane]);
 
-  useEffect(() => {
-    const active = rootRef.current?.querySelector<HTMLElement>(
-      '.change-composer-choice[data-highlighted="true"]',
-    );
-    active?.scrollIntoView?.({ block: "nearest" });
-  }, [highlightedId, pane, query]);
-
   const { currentData: stashPatch, isFetching: stashPatchLoading } = useGetGitStashPatchQuery(
     { repoPath, oid: selection },
     {
@@ -142,6 +135,7 @@ export function ChangeCommandComposer({
   const availability: Record<ComposerAction, boolean> = {
     "open-repository": true,
     "open-pr": Boolean(repoPath && hostedRepo),
+    "open-pr-worktree": Boolean(repoPath && hostedRepo),
     "copy-pr-link": Boolean(repoPath && hostedRepo),
     "comment-pr": Boolean(repoPath && hostedRepo),
     "submit-review": Boolean(repoPath && hostedRepo),
@@ -193,6 +187,7 @@ export function ChangeCommandComposer({
   const details: Record<ComposerAction, string> = {
     "open-repository": "Recent repository or folder path",
     "open-pr": "Find a pull request and open its review",
+    "open-pr-worktree": "Check out a PR in a separate worktree",
     "copy-pr-link": "Copy a pull request URL",
     "comment-pr": "Write a pull request comment",
     "submit-review": "Publish pending inline review comments",

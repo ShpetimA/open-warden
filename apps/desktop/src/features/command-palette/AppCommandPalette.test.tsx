@@ -222,7 +222,7 @@ describe("AppCommandPalette", () => {
     expect(actionChoice(/^Fetch/)).toBeEnabled();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button"),
-    ).toHaveLength(30);
+    ).toHaveLength(31);
     expect(screen.getByText("Available now")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Stage changes")).not.toBeInTheDocument();
@@ -245,7 +245,7 @@ describe("AppCommandPalette", () => {
     expect(screen.queryByRole("button", { name: /^Fetch/ })).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button").length,
-    ).toBeLessThan(30);
+    ).toBeLessThan(31);
   });
 
   test("a focused Fetch still requires confirmation with one remote", async () => {
@@ -578,30 +578,28 @@ describe("AppCommandPalette", () => {
     expect(actionChoice(/^Stash staged/)).toHaveTextContent("Staged path has other changes");
   });
 
-  test("opens a recent repository only after its confirmation step", async () => {
+  test("opens a recent repository directly from its choice", async () => {
     const onOpenChange = vi.fn();
     render(<AppCommandPalette open initialAction="open-repository" onOpenChange={onOpenChange} />);
 
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Repository" })).getByRole("button", {
-        name: /other/,
-      }),
+    await act(async () =>
+      fireEvent.click(
+        within(screen.getByRole("group", { name: "Repository" })).getByRole("button", {
+          name: /other/,
+        }),
+      ),
     );
-    expect(mocks.dispatch).not.toHaveBeenCalledWith({
-      type: "test/open-repo",
-      payload: "/tmp/other",
-    });
-    expect(screen.getByRole("button", { name: "Confirm open repository" })).toBeEnabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Confirm open repository" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(
+      screen.queryByRole("button", { name: "Confirm open repository" }),
+    ).not.toBeInTheDocument();
     expect(mocks.dispatch).toHaveBeenCalledWith({
       type: "test/open-repo",
       payload: "/tmp/other",
     });
   });
 
-  test("completes a directory and reviews it before opening", async () => {
+  test("completes a directory without opening it", async () => {
     render(<AppCommandPalette open initialAction="open-repository" onOpenChange={() => {}} />);
 
     const search = screen.getByRole("textbox", { name: "Repository name or directory path" });
@@ -618,20 +616,79 @@ describe("AppCommandPalette", () => {
     });
   });
 
+  test("scrolls the highlighted repository folder into view while navigating", async () => {
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    mocks.browseDirectory.mockResolvedValue({
+      ok: true,
+      path: "/tmp",
+      parentPath: "/",
+      entries: Array.from({ length: 24 }, (_, index) => ({
+        name: `folder-${String(index).padStart(2, "0")}`,
+        path: `/tmp/folder-${String(index).padStart(2, "0")}`,
+      })),
+    });
+    try {
+      render(<AppCommandPalette open initialAction="open-repository" onOpenChange={() => {}} />);
+      fireEvent.change(screen.getByRole("textbox", { name: "Repository name or directory path" }), {
+        target: { value: "/tmp/" },
+      });
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: /folder-00/ })).toBeInTheDocument(),
+      );
+      scrollIntoView.mockClear();
+
+      await pressHotkey("ArrowDown");
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+      expect(screen.getByRole("button", { name: /Parent folder/ })).toHaveAttribute(
+        "data-highlighted",
+        "true",
+      );
+    } finally {
+      if (originalScrollIntoView) HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+      else
+        delete (HTMLElement.prototype as { scrollIntoView?: typeof scrollIntoView }).scrollIntoView;
+    }
+  });
+
+  test("opens a pull request from the chooser without a confirmation step", async () => {
+    const onOpenChange = vi.fn();
+    render(<AppCommandPalette open initialAction="open-pr" onOpenChange={onOpenChange} />);
+
+    await act(async () =>
+      fireEvent.click(
+        within(screen.getByRole("group", { name: "Pull request" })).getByRole("button", {
+          name: /#42 Improve the composer/,
+        }),
+      ),
+    );
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(
+      screen.queryByRole("button", { name: "Confirm open pull request" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      type: "test/open-pr-workspace",
+      payload: expect.objectContaining({ repoPath: "/tmp/repo", pullRequestNumber: 42 }),
+    });
+  });
+
   test("opens a selected pull request as a tab without checking it out", async () => {
     const onOpenChange = vi.fn();
-    render(
-      <AppCommandPalette
-        open
-        initialAction="open-pr"
-        initialPullRequest={pullRequest}
-        onOpenChange={onOpenChange}
-      />,
+    await act(async () =>
+      render(
+        <AppCommandPalette
+          open
+          initialAction="open-pr"
+          initialPullRequest={pullRequest}
+          onOpenChange={onOpenChange}
+        />,
+      ),
     );
-
-    expect(screen.getByRole("button", { name: "Review tab" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm open pull request" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(
+      screen.queryByRole("button", { name: "Confirm open pull request" }),
+    ).not.toBeInTheDocument();
     expect(mocks.dispatch).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "test/open-pr-review" }),
     );
@@ -646,18 +703,17 @@ describe("AppCommandPalette", () => {
     render(
       <AppCommandPalette
         open
-        initialAction="open-pr"
+        initialAction="open-pr-worktree"
         initialPullRequest={pullRequest}
         onOpenChange={onOpenChange}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "New worktree" }));
     expect(mocks.dispatch).not.toHaveBeenCalledWith({
       type: "test/open-pr-review",
       payload: { number: 42, mode: "worktree" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Confirm open pull request" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm open pr in worktree" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
     expect(mocks.dispatch).toHaveBeenCalledWith({
       type: "test/open-pr-review",
@@ -695,25 +751,27 @@ describe("AppCommandPalette", () => {
     });
   });
 
-  test("copies the selected pull request URL after confirmation", async () => {
+  test("copies the selected pull request URL directly", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
       value: { writeText },
     });
     const onOpenChange = vi.fn();
-    render(
-      <AppCommandPalette
-        open
-        initialAction="copy-pr-link"
-        initialPullRequest={pullRequest}
-        onOpenChange={onOpenChange}
-      />,
+    await act(async () =>
+      render(
+        <AppCommandPalette
+          open
+          initialAction="copy-pr-link"
+          initialPullRequest={pullRequest}
+          onOpenChange={onOpenChange}
+        />,
+      ),
     );
-
-    expect(writeText).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm copy pull request link" }));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+    expect(
+      screen.queryByRole("button", { name: "Confirm copy pull request link" }),
+    ).not.toBeInTheDocument();
     expect(writeText).toHaveBeenCalledWith(pullRequest.url);
   });
 

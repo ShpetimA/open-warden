@@ -1,4 +1,5 @@
 import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
+import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { useAppNavigationHotkeys } from "./useAppNavigationHotkeys";
@@ -51,24 +52,26 @@ export function AppShell() {
     <NuqsAdapter>
       <SidebarPanelRegistryProvider>
         <CommandComposerLauncherProvider open={openComposer}>
-          <WorkspaceNavigation />
           <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-            <WorkspaceChrome
-              header={
-                <AppHeader
-                  activeFeature={activeFeature}
-                  currentPath={location.pathname}
-                  showWorkspaceTabs
-                  onOpenWorkspaces={openRepositoryComposer}
-                  onOpenCommandPalette={() => openComposer()}
-                />
-              }
-              rail={!isSettingsRoute ? <WorkspaceRail /> : null}
-            >
-              <WorkspaceContent>
-                <Outlet context={{ openRepositoryComposer }} />
-              </WorkspaceContent>
-            </WorkspaceChrome>
+            <HotkeysProvider defaultOptions={{ hotkey: { enabled: !commandPaletteOpen } }}>
+              <WorkspaceNavigation />
+              <WorkspaceChrome
+                header={
+                  <AppHeader
+                    activeFeature={activeFeature}
+                    currentPath={location.pathname}
+                    showWorkspaceTabs
+                    onOpenWorkspaces={openRepositoryComposer}
+                    onOpenCommandPalette={() => openComposer()}
+                  />
+                }
+                rail={!isSettingsRoute ? <WorkspaceRail /> : null}
+              >
+                <WorkspaceContent>
+                  <Outlet context={{ openRepositoryComposer }} />
+                </WorkspaceContent>
+              </WorkspaceChrome>
+            </HotkeysProvider>
 
             <AppCommandPalette
               open={commandPaletteOpen}

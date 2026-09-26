@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import type { KeyboardEvent, RefObject } from "react";
 import { Archive, ArrowRight, GitBranch, Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -55,6 +55,13 @@ export function CommandComposerChoiceStep({
   choiceIcon,
   onSearchKeyDown,
 }: Props) {
+  const choicesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    choicesRef.current
+      ?.querySelector<HTMLElement>('.change-composer-choice[data-highlighted="true"]')
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [activeChoiceId, choices.length]);
+
   return (
     <>
       <div className="change-composer-search">
@@ -75,6 +82,7 @@ export function CommandComposerChoiceStep({
         />
       </div>
       <div
+        ref={choicesRef}
         className="change-composer-choices"
         role="group"
         aria-label={pane === "action" ? "Actions" : operandLabel}

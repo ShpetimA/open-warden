@@ -25,7 +25,7 @@ export function RepositoryCommandComposer({
   const dispatch = useAppDispatch();
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const [pane, setPane] = useState<"choice" | "review" | "execute">("choice");
+  const [pane, setPane] = useState<"choice" | "execute">("choice");
   const [query, setQuery] = useState("");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState("");
@@ -34,7 +34,6 @@ export function RepositoryCommandComposer({
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const runRef = useRef<HTMLButtonElement>(null);
   const runningRef = useRef(false);
 
   const pathMode = query.startsWith("/") || query === "~" || query.startsWith("~/");
@@ -53,7 +52,13 @@ export function RepositoryCommandComposer({
   const choices: ComposerChoice[] = pathMode
     ? [
         ...(candidate
-          ? [{ id: `open:${candidate}`, label: `Open ${candidate}`, detail: "Review this folder" }]
+          ? [
+              {
+                id: `open:${candidate}`,
+                label: `Open ${candidate}`,
+                detail: "Open this repository",
+              },
+            ]
           : []),
         ...(result?.ok && result.parentPath !== result.path
           ? [{ id: `browse:${result.parentPath}`, label: "..", detail: "Parent folder" }]
@@ -79,7 +84,6 @@ export function RepositoryCommandComposer({
 
   useEffect(() => {
     if (pane === "choice") searchRef.current?.focus();
-    else if (pane === "review") runRef.current?.focus();
     else rootRef.current?.focus({ preventScroll: true });
   }, [pane]);
 
@@ -118,19 +122,13 @@ export function RepositoryCommandComposer({
       return;
     }
     if (id.startsWith("open:")) {
-      setSelectedPath(id.slice(5));
-      setPane("review");
-      setError("");
+      void run(id.slice(5));
     }
   }
 
   function goBack() {
     if (busy) return;
-    if (pane === "choice") onBack();
-    else {
-      setPane("choice");
-      setError("");
-    }
+    onBack();
   }
 
   async function chooseFolder() {
@@ -138,30 +136,28 @@ export function RepositoryCommandComposer({
     setError("");
     try {
       const path = await desktop.selectFolder();
-      if (path) {
-        setSelectedPath(path);
-        setPane("review");
-      }
+      if (path) await run(path);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not choose a folder.");
     }
   }
 
-  async function run() {
-    if (pane !== "review" || !selectedPath || runningRef.current) return;
+  async function run(path: string) {
+    if (pane !== "choice" || !path || runningRef.current) return;
     runningRef.current = true;
+    setSelectedPath(path);
     setBusy(true);
     setError("");
     setPane("execute");
     try {
-      if (await dispatch(openRepo(selectedPath))) onClose();
+      if (await dispatch(openRepo(path))) onClose();
       else {
         setError("This folder could not be opened as a Git repository.");
-        setPane("review");
+        setPane("choice");
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not open this repository.");
-      setPane("review");
+      setPane("choice");
     } finally {
       runningRef.current = false;
       setBusy(false);
@@ -175,14 +171,14 @@ export function RepositoryCommandComposer({
     query,
     enabledChoiceIds: choices.map((choice) => choice.id),
     activeChoiceId: activeChoice?.id,
-    canRun: pane === "review" && Boolean(selectedPath),
+    canRun: false,
     hasError: Boolean(error),
     busy,
     onHighlight: setHighlightedId,
     onSelect: selectChoice,
     onBack: goBack,
     onClose,
-    onRun: () => void run(),
+    onRun: () => {},
   });
 
   useHotkey(
@@ -207,17 +203,12 @@ export function RepositoryCommandComposer({
         onActionPress={goBack}
         onOperandPress={() => {
           if (pane === "choice" && activeChoice) selectChoice(activeChoice.id);
-          else if (pane === "review") runRef.current?.focus();
         }}
       />
       <div className="change-composer-panel">
         <div className="change-composer-panel-heading">
           <p className="change-composer-panel-title">
-            {pane === "choice"
-              ? "Choose repository"
-              : pane === "review"
-                ? "Confirm open repository"
-                : "Opening repository"}
+            {pane === "choice" ? "Choose repository" : "Opening repository"}
           </p>
           <Button variant="ghost" size="sm" onClick={goBack} disabled={busy}>
             Back
@@ -268,21 +259,6 @@ export function RepositoryCommandComposer({
               <FolderOpen className="size-4" /> Choose folder…
             </Button>
           </>
-        ) : pane === "review" ? (
-          <div className="change-composer-review-content">
-            <div className="change-composer-review" role="group" aria-label="Repository preview">
-              <span className="change-composer-review-icon">
-                <FolderOpen className="size-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium">{repoLabel(selectedPath)}</p>
-                <p className="change-composer-help text-muted-foreground text-xs">{selectedPath}</p>
-              </div>
-            </div>
-            <Button ref={runRef} onClick={() => void run()} disabled={busy}>
-              Confirm open repository
-            </Button>
-          </div>
         ) : (
           <div className="change-composer-execution" role="status">
             <LoaderCircle className="size-5 animate-spin" /> Opening {repoLabel(selectedPath)}…
@@ -298,7 +274,7 @@ export function RepositoryCommandComposer({
             <Kbd>↑↓</Kbd> Choose
           </span>
           <span>
-            <Kbd>↵</Kbd> {pane === "review" ? "Open" : "Select"}
+            <Kbd>↵</Kbd> Open or browse
           </span>
           <span>
             <Kbd>Esc</Kbd> Back

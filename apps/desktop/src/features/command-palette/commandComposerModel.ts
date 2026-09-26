@@ -23,6 +23,12 @@ import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOpera
 export const actions = [
   { id: "open-repository", label: "Open repository", group: "Workspace", icon: FolderOpen },
   { id: "open-pr", label: "Open pull request", group: "Pull requests", icon: GitPullRequest },
+  {
+    id: "open-pr-worktree",
+    label: "Open PR in worktree",
+    group: "Pull requests",
+    icon: GitPullRequest,
+  },
   { id: "copy-pr-link", label: "Copy pull request link", group: "Pull requests", icon: Link },
   {
     id: "comment-pr",
@@ -68,6 +74,7 @@ export type ComposerAction = (typeof actions)[number]["id"];
 export const specialActions = new Set<ComposerAction>([
   "open-repository",
   "open-pr",
+  "open-pr-worktree",
   "copy-pr-link",
   "comment-pr",
   "submit-review",
@@ -78,6 +85,7 @@ export const specialActions = new Set<ComposerAction>([
 ]);
 export const pullRequestActions = new Set<ComposerAction>([
   "open-pr",
+  "open-pr-worktree",
   "copy-pr-link",
   "comment-pr",
   "submit-review",
@@ -88,6 +96,7 @@ export const pullRequestActions = new Set<ComposerAction>([
 export type PullRequestComposerAction = Extract<
   ComposerAction,
   | "open-pr"
+  | "open-pr-worktree"
   | "copy-pr-link"
   | "comment-pr"
   | "submit-review"
@@ -164,6 +173,7 @@ export function commandFor(
   switch (action) {
     case "open-repository":
     case "open-pr":
+    case "open-pr-worktree":
     case "copy-pr-link":
     case "comment-pr":
     case "submit-review":

@@ -1,5 +1,5 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { GitPullRequest, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -52,7 +52,7 @@ export function PullRequestCommandComposer({
   const activePullRequestWorkspace =
     activeWorkspace?.kind === "pull-request" ? activeWorkspace : null;
   const [pane, setPane] = useState<"choice" | "review" | "execute">(
-    initialPullRequest ? "review" : "choice",
+    initialPullRequest && action !== "open-pr" && action !== "copy-pr-link" ? "review" : "choice",
   );
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
@@ -60,7 +60,6 @@ export function PullRequestCommandComposer({
   const [selectedPullRequest, setSelectedPullRequest] = useState<PullRequestSummary | null>(
     initialPullRequest ?? null,
   );
-  const [openMode, setOpenMode] = useState<"tab" | "worktree">("tab");
   const [mergeMethod, setMergeMethod] = useState<"merge" | "squash" | "rebase">("merge");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,6 +70,8 @@ export function PullRequestCommandComposer({
   const runRef = useRef<HTMLButtonElement>(null);
   const runningRef = useRef(false);
   const contextAppliedRef = useRef(false);
+  const initialActionAppliedRef = useRef(false);
+  const directAction = action === "open-pr" || action === "copy-pr-link";
   const { currentConversation } = useGetPullRequestConversationQuery(
     !initialPullRequest && activePullRequestWorkspace
       ? { repoPath, pullRequestNumber: activePullRequestWorkspace.pullRequestNumber }
@@ -142,7 +143,7 @@ export function PullRequestCommandComposer({
     pane === "review" &&
     selectedPullRequest &&
     !busy &&
-    (action !== "open-pr" || hostedRepo) &&
+    (action !== "open-pr-worktree" || hostedRepo) &&
     (action !== "comment-pr" || message.trim()) &&
     (action !== "submit-review" || pendingDrafts.length > 0) &&
     (action !== "request-changes" || hostedRepo?.providerId !== "github" || message.trim()) &&
@@ -150,35 +151,6 @@ export function PullRequestCommandComposer({
       (selectedConversation?.detail.state === "open" && !selectedConversation.detail.isDraft)) &&
     (action !== "merge-pr" || selectedConversation?.detail.headSha),
   );
-
-  useEffect(() => {
-    if (
-      contextAppliedRef.current ||
-      initialPullRequest ||
-      !activePullRequestWorkspace ||
-      !currentConversation
-    )
-      return;
-    const detail = currentConversation.detail;
-    contextAppliedRef.current = true;
-    setSelectedPullRequest({
-      id: detail.id,
-      providerId: detail.providerId,
-      number: detail.number,
-      title: detail.title,
-      state: detail.state,
-      isDraft: detail.isDraft,
-      authorLogin: detail.author?.login ?? "",
-      authorDisplayName: detail.author?.displayName ?? null,
-      url: detail.url,
-      baseRef: detail.baseRef,
-      headRef: detail.headRef,
-      headOwner: activePullRequestWorkspace.owner,
-      headRepo: activePullRequestWorkspace.repo,
-      updatedAt: detail.updatedAt,
-    });
-    setPane("review");
-  }, [activePullRequestWorkspace, currentConversation, initialPullRequest]);
 
   useEffect(() => {
     if (pane === "choice") searchRef.current?.focus();
@@ -199,7 +171,8 @@ export function PullRequestCommandComposer({
     setSelectedPullRequest(item);
     setHighlightedId(null);
     setError("");
-    setPane("review");
+    if (directAction) void run(item);
+    else setPane("review");
   }
 
   function goBack() {
@@ -212,20 +185,18 @@ export function PullRequestCommandComposer({
     }
   }
 
-  async function run() {
-    if (!canRun || !selectedPullRequest || runningRef.current) return;
+  async function run(target = selectedPullRequest) {
+    if (!target || runningRef.current || (!directAction && !canRun)) return;
     runningRef.current = true;
     setBusy(true);
     setError("");
     setPane("execute");
     try {
-      if (action === "open-pr") {
+      if (action === "open-pr" || action === "open-pr-worktree") {
         if (!hostedRepo) throw new Error("Connect a supported hosted repository first.");
         let reviewRepoPath = repoPath;
-        if (openMode === "worktree") {
-          const result = await dispatch(
-            openPullRequestReview(selectedPullRequest.number, "worktree"),
-          );
+        if (action === "open-pr-worktree") {
+          const result = await dispatch(openPullRequestReview(target.number, "worktree"));
           if (result.errorMessage || !result.repoPath)
             throw new Error(result.errorMessage ?? "The review worktree could not be opened.");
           reviewRepoPath = result.repoPath;
@@ -233,25 +204,25 @@ export function PullRequestCommandComposer({
         await dispatch(
           openPullRequestWorkspace({
             repoPath: reviewRepoPath,
-            providerId: selectedPullRequest.providerId,
+            providerId: target.providerId,
             owner: hostedRepo.owner,
             repo: hostedRepo.repo,
-            pullRequestNumber: selectedPullRequest.number,
-            title: selectedPullRequest.title,
+            pullRequestNumber: target.number,
+            title: target.title,
           }),
         );
       } else if (action === "copy-pr-link") {
-        await navigator.clipboard.writeText(selectedPullRequest.url);
+        await navigator.clipboard.writeText(target.url);
       } else if (action === "comment-pr") {
         await addComment({
           repoPath,
-          pullRequestNumber: selectedPullRequest.number,
+          pullRequestNumber: target.number,
           body: message.trim(),
         }).unwrap();
       } else if (action === "approve-pr" || action === "request-changes") {
         await submitDecision({
           repoPath,
-          pullRequestNumber: selectedPullRequest.number,
+          pullRequestNumber: target.number,
           decision: action === "approve-pr" ? "approve" : "request-changes",
           body: message.trim(),
         }).unwrap();
@@ -261,7 +232,7 @@ export function PullRequestCommandComposer({
         if (!expectedHeadSha) throw new Error("Load the latest pull request before merging.");
         const status = await mergePullRequest({
           repoPath,
-          pullRequestNumber: selectedPullRequest.number,
+          pullRequestNumber: target.number,
           method: mergeMethod,
           expectedHeadSha,
         }).unwrap();
@@ -270,7 +241,7 @@ export function PullRequestCommandComposer({
         const result = await submitReview(
           buildSubmitPullRequestReviewCommentsInput({
             repoPath,
-            pullRequestNumber: selectedPullRequest.number,
+            pullRequestNumber: target.number,
             comments: pendingDrafts,
           }),
         ).unwrap();
@@ -281,12 +252,62 @@ export function PullRequestCommandComposer({
       onClose();
     } catch (cause) {
       setError(failureMessage(cause));
-      setPane("review");
+      setPane(directAction ? "choice" : "review");
     } finally {
       runningRef.current = false;
       setBusy(false);
     }
   }
+
+  const runFromContext = useEffectEvent((target: PullRequestSummary) => {
+    void run(target);
+  });
+
+  useEffect(() => {
+    if (
+      contextAppliedRef.current ||
+      initialPullRequest ||
+      !activePullRequestWorkspace ||
+      !currentConversation
+    )
+      return;
+    const detail = currentConversation.detail;
+    const contextPullRequest: PullRequestSummary = {
+      id: detail.id,
+      providerId: detail.providerId,
+      number: detail.number,
+      title: detail.title,
+      state: detail.state,
+      isDraft: detail.isDraft,
+      authorLogin: detail.author?.login ?? "",
+      authorDisplayName: detail.author?.displayName ?? null,
+      url: detail.url,
+      baseRef: detail.baseRef,
+      headRef: detail.headRef,
+      headOwner: activePullRequestWorkspace.owner,
+      headRepo: activePullRequestWorkspace.repo,
+      updatedAt: detail.updatedAt,
+    };
+    if (action === "open-pr" && !hostedRepo) return;
+    contextAppliedRef.current = true;
+    setSelectedPullRequest(contextPullRequest);
+    if (directAction) runFromContext(contextPullRequest);
+    else setPane("review");
+  }, [
+    action,
+    activePullRequestWorkspace,
+    currentConversation,
+    directAction,
+    hostedRepo,
+    initialPullRequest,
+  ]);
+
+  useEffect(() => {
+    if (!directAction || !initialPullRequest || initialActionAppliedRef.current) return;
+    if (action === "open-pr" && !hostedRepo) return;
+    initialActionAppliedRef.current = true;
+    runFromContext(initialPullRequest);
+  }, [action, directAction, hostedRepo, initialPullRequest]);
 
   useCommandComposerHotkeys({
     rootRef,
@@ -411,26 +432,10 @@ export function PullRequestCommandComposer({
                 </p>
               </div>
             </div>
-            {action === "open-pr" ? (
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Open mode">
-                <Button
-                  variant={openMode === "tab" ? "default" : "outline"}
-                  onClick={() => setOpenMode("tab")}
-                >
-                  Review tab
-                </Button>
-                <Button
-                  variant={openMode === "worktree" ? "default" : "outline"}
-                  onClick={() => setOpenMode("worktree")}
-                >
-                  New worktree
-                </Button>
-                <p className="change-composer-help text-muted-foreground col-span-2 text-xs">
-                  {openMode === "tab"
-                    ? "Open the review as a tab in this repository."
-                    : "Check out the pull request in a separate worktree and open its review tab."}
-                </p>
-              </div>
+            {action === "open-pr-worktree" ? (
+              <p className="change-composer-help text-muted-foreground text-xs">
+                Check out this pull request in a separate worktree and open its review tab.
+              </p>
             ) : action === "request-changes" && hostedRepo?.providerId === "bitbucket" ? (
               <p className="change-composer-help text-muted-foreground text-xs">
                 Bitbucket records the change request without a review note.
