@@ -1,9 +1,10 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { Filter } from "lucide-react";
+import { Check, Filter } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +13,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
-import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
+import {
+  useGetPullRequestConversationQuery,
+  useGetPullRequestViewedFilesQuery,
+  useSetPullRequestFileViewedMutation,
+} from "@/features/hosted-repos/api";
+import { toast } from "sonner";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useSimpleFileListKeyboardNav } from "@/features/source-control/hooks/useSimpleFileListKeyboardNav";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
@@ -60,17 +66,66 @@ export default function PullRequestFileList({
   const comments = useAppSelector((state) => state.comments);
   const [searchQuery, setSearchQuery] = useState("");
   const [commentFilter, setCommentFilter] = useState<FileCommentFilter>("all");
-  const { reviewThreads } = useGetPullRequestConversationQuery(
-    repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken,
-    {
-      selectFromResult: ({ data }) => ({
-        reviewThreads: data?.reviewThreads ?? EMPTY_REVIEW_THREADS,
-      }),
-      pollingInterval: 10000,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
-    },
+  const [deviceViewedPaths, setDeviceViewedPaths] = useState<string[]>([]);
+  const [setViewed, { isLoading: changingViewed }] = useSetPullRequestFileViewedMutation();
+  const queryArg = repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
+  const { reviewThreads, headSha } = useGetPullRequestConversationQuery(queryArg, {
+    selectFromResult: ({ data }) => ({
+      reviewThreads: data?.reviewThreads ?? EMPTY_REVIEW_THREADS,
+      headSha: data?.detail.headSha ?? "",
+    }),
+    pollingInterval: 10000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+  const { viewedFiles } = useGetPullRequestViewedFilesQuery(queryArg, {
+    selectFromResult: ({ data }) => ({ viewedFiles: data }),
+  });
+  const deviceKey = `open-warden:pr-viewed:${repoPath}:${pullRequestNumber}:${headSha}`;
+  useEffect(() => {
+    if (viewedFiles?.storage !== "device" || !headSha) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(deviceKey) ?? "[]") as unknown;
+      setDeviceViewedPaths(
+        Array.isArray(saved)
+          ? saved.filter((path): path is string => typeof path === "string")
+          : [],
+      );
+    } catch {
+      setDeviceViewedPaths([]);
+    }
+  }, [deviceKey, headSha, viewedFiles?.storage]);
+  const viewedPaths = new Set(
+    viewedFiles?.storage === "device" ? deviceViewedPaths : (viewedFiles?.viewedPaths ?? []),
   );
+  const viewedCount = files.filter((file) => viewedPaths.has(file.path)).length;
+
+  async function toggleViewed() {
+    if (!activePath || !viewedFiles) return;
+    const viewed = !viewedPaths.has(activePath);
+    if (viewedFiles.storage === "device") {
+      const next = new Set(deviceViewedPaths);
+      if (viewed) next.add(activePath);
+      else next.delete(activePath);
+      const paths = Array.from(next);
+      try {
+        localStorage.setItem(deviceKey, JSON.stringify(paths));
+        setDeviceViewedPaths(paths);
+      } catch {
+        toast.error("Viewed files could not be saved on this device.");
+      }
+      return;
+    }
+    try {
+      await setViewed({ repoPath, pullRequestNumber, path: activePath, viewed }).unwrap();
+    } catch (cause) {
+      toast.error(
+        cause && typeof cause === "object" && "message" in cause
+          ? String(cause.message)
+          : "Could not update viewed file.",
+      );
+    }
+  }
   const pendingCommentCountByPath = useMemo(() => {
     const counts: Record<string, number> = {};
 
@@ -134,7 +189,7 @@ export default function PullRequestFileList({
   const subtitle =
     isLoading && files.length === 0
       ? "Loading changed files..."
-      : `${visibleFiles.length}/${files.length} file${files.length === 1 ? "" : "s"} · navigate with j/k`;
+      : `${visibleFiles.length}/${files.length} files · ${viewedCount} viewed · navigate with j/k`;
 
   return (
     <>
@@ -145,6 +200,26 @@ export default function PullRequestFileList({
             PR FILES
           </div>
           <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div>
+          {viewedFiles?.storage === "device" ? (
+            <div className="text-muted-foreground mt-1 text-[11px]">Viewed on this device</div>
+          ) : null}
+          {viewedFiles?.truncated ? (
+            <div className="text-amber-600 mt-1 text-[11px]">
+              Some provider viewed states could not be loaded.
+            </div>
+          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2 h-7 w-full justify-start gap-1.5 text-xs"
+            disabled={!activePath || !viewedFiles || changingViewed}
+            onClick={() => void toggleViewed()}
+          >
+            <Check className="size-3.5" />{" "}
+            {viewedPaths.has(activePath)
+              ? "Mark selected file unviewed"
+              : "Mark selected file viewed"}
+          </Button>
           <div className="mt-2 flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -206,6 +281,7 @@ export default function PullRequestFileList({
               dispatch(setPullRequestPreviewActiveFilePath(path));
             }}
             getCommentCount={(file) => commentCountByPath[file.path] ?? 0}
+            isViewed={(file) => viewedPaths.has(file.path)}
             getFileStatus={(file) => file.status}
           />
         )}

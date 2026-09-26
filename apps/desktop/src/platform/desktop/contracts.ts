@@ -237,6 +237,42 @@ export type SubmitPullRequestReviewResult = {
   failedMessage: string | null;
 };
 
+export type PullRequestLifecycleInput = PullRequestLocatorInput & {
+  expectedHeadSha: string;
+} & (
+    | { action: "edit"; title: string; body: string }
+    | { action: "close" | "reopen" | "draft" | "ready" | "update-branch" | "revert" }
+    | { action: "auto-merge"; method: "merge" | "squash" | "rebase" }
+  );
+
+export type PullRequestLifecycleResult = { createdPullRequestUrl: string | null };
+
+export type PullRequestViewedFiles = {
+  storage: "provider" | "device";
+  viewedPaths: string[];
+  truncated: boolean;
+};
+
+export type SetPullRequestFileViewedInput = PullRequestLocatorInput & {
+  path: string;
+  viewed: boolean;
+};
+
+export type PullRequestActivityItem = {
+  id: string;
+  kind: "event" | "commit";
+  label: string;
+  detail: string | null;
+  actor: string | null;
+  occurredAt: string;
+  url: string | null;
+};
+
+export type PullRequestActivity = {
+  items: PullRequestActivityItem[];
+  truncated: boolean;
+};
+
 export type PullRequestCheckState = "passed" | "failed" | "pending";
 
 export type PullRequestCheck = {
@@ -473,6 +509,10 @@ export type DesktopApi = {
   submitPullRequestReview(
     input: SubmitPullRequestReviewInput,
   ): Promise<SubmitPullRequestReviewResult>;
+  runPullRequestLifecycle(input: PullRequestLifecycleInput): Promise<PullRequestLifecycleResult>;
+  getPullRequestViewedFiles(input: PullRequestLocatorInput): Promise<PullRequestViewedFiles>;
+  setPullRequestFileViewed(input: SetPullRequestFileViewedInput): Promise<void>;
+  getPullRequestActivity(input: PullRequestLocatorInput): Promise<PullRequestActivity>;
   getPullRequestChecks(input: PullRequestLocatorInput): Promise<PullRequestChecksResult>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;

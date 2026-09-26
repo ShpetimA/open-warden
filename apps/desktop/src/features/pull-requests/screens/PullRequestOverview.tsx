@@ -21,6 +21,8 @@ import {
 import { PullRequestDiscussionSection } from "@/features/pull-requests/components/PullRequestDiscussionSection";
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
 import { PullRequestReviewersSection } from "@/features/pull-requests/components/PullRequestReviewersSection";
+import { PullRequestLifecycleSection } from "@/features/pull-requests/components/PullRequestLifecycleSection";
+import { PullRequestActivitySection } from "@/features/pull-requests/components/PullRequestActivitySection";
 import { PullRequestPreviewHeader } from "@/features/pull-requests/components/PullRequestPreviewHeader";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
@@ -290,6 +292,7 @@ function PullRequestOverviewDetailsSidebar({
         pullRequestNumber={pullRequestNumber}
         open={detail.state === "open"}
       />
+      <PullRequestLifecycleSection repoPath={activeRepo} detail={detail} />
       <section className="rounded-lg border bg-surface-0 p-4">
         <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
           Details
@@ -540,6 +543,10 @@ export const PullRequestOverview = () => {
             <div className="flex min-w-0 flex-col gap-6">
               <PullRequestSummarySection body={detail.body} />
               <PullRequestDiscussionSection conversation={conversation} />
+              <PullRequestActivitySection
+                repoPath={activeRepo ?? ""}
+                pullRequestNumber={parsedPullRequestNumber}
+              />
               <PullRequestOverviewReviewSections
                 queryArg={queryArg}
                 activeRepo={activeRepo ?? ""}

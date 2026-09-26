@@ -168,14 +168,14 @@ function PullRequestPreviewPane({
     ? { repoPath: activeRepo, pullRequestNumber: pullRequest.number }
     : skipToken;
   const { conversation, loadingConversation } = useGetPullRequestConversationQuery(queryArg, {
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
-      conversation: data ?? null,
+    selectFromResult: ({ currentData, isLoading, isFetching }) => ({
+      conversation: currentData ?? null,
       loadingConversation: isLoading || isFetching,
     }),
   });
   const { files } = useGetPullRequestFilesQuery(queryArg, {
-    selectFromResult: ({ data }) => ({
-      files: data ?? [],
+    selectFromResult: ({ currentData }) => ({
+      files: currentData ?? [],
     }),
   });
 
@@ -387,10 +387,10 @@ export function PullRequestsScreen() {
         }
       : skipToken,
     {
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        pullRequests: data?.pullRequests ?? [],
-        hasNextPullRequestsPage: data?.hasNextPage ?? false,
-        pullRequestsError: data ? "" : errorMessageFrom(error, ""),
+      selectFromResult: ({ currentData, error, isLoading, isFetching }) => ({
+        pullRequests: currentData?.pullRequests ?? [],
+        hasNextPullRequestsPage: currentData?.hasNextPage ?? false,
+        pullRequestsError: currentData ? "" : errorMessageFrom(error, ""),
         loadingPullRequests: isLoading,
         fetchingPullRequests: isFetching,
       }),

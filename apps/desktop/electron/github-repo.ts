@@ -29,6 +29,7 @@ type GitHubRepoSummary = {
 
 export type GitHubPullRequestResponse = {
   id: number;
+  node_id?: string;
   number: number;
   title: string;
   draft: boolean;

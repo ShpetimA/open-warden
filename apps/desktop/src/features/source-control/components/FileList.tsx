@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
 import { buildDisplayFiles, compareFlatPierreEntries } from "./flatPierreTree";
-import { buildCommentCountDecoration, buildGitStatusForDisplayFiles } from "./pierreFileTree";
+import { buildGitStatusForDisplayFiles } from "./pierreFileTree";
 import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 
 export type FileListContextMenuItem = {
@@ -23,6 +23,7 @@ type FileListProps<TFile extends { path: string }> = {
   className?: string;
   onActivatePath: (path: string, file: TFile) => void;
   getCommentCount?: (file: TFile) => number;
+  isViewed?: (file: TFile) => boolean;
   getFileStatus?: (file: TFile) => FileStatus | undefined;
   renderContextMenu?: (
     file: TFile,
@@ -41,6 +42,7 @@ export function FileList<TFile extends { path: string }>({
   className,
   onActivatePath,
   getCommentCount,
+  isViewed,
   getFileStatus,
   renderContextMenu,
 }: FileListProps<TFile>) {
@@ -77,11 +79,18 @@ export function FileList<TFile extends { path: string }>({
         }
       }}
       gitStatus={gitStatus}
-      renderRowDecoration={
-        getCommentCount
-          ? buildCommentCountDecoration((path) => sourceByDisplayPath.get(path), getCommentCount)
-          : undefined
-      }
+      renderRowDecoration={({ item }) => {
+        if (item.kind === "directory") return null;
+        const file = sourceByDisplayPath.get(item.path);
+        if (!file) return null;
+        const viewed = isViewed?.(file) ?? false;
+        const commentCount = getCommentCount?.(file) ?? 0;
+        if (!viewed && commentCount === 0) return null;
+        return {
+          text: `${viewed ? "✓" : ""}${viewed && commentCount ? " " : ""}${commentCount || ""}`,
+          title: `${viewed ? "Viewed" : ""}${viewed && commentCount ? " · " : ""}${commentCount ? `${commentCount} comment${commentCount === 1 ? "" : "s"}` : ""}`,
+        };
+      }}
       renderContextMenu={
         renderContextMenu
           ? (item, context) => {

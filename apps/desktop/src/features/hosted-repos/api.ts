@@ -14,6 +14,11 @@ import type {
   PullRequestReviewOverview,
   PullRequestChecksResult,
   PullRequestLocatorInput,
+  PullRequestLifecycleInput,
+  PullRequestLifecycleResult,
+  PullRequestActivity,
+  PullRequestViewedFiles,
+  SetPullRequestFileViewedInput,
   PullRequestPage,
   PullRequestReviewThread,
   PullRequestSummary,
@@ -36,6 +41,10 @@ import {
   getPullRequestReviewOverview,
   setPullRequestReviewer,
   submitPullRequestReview,
+  runPullRequestLifecycle,
+  getPullRequestActivity,
+  getPullRequestViewedFiles,
+  setPullRequestFileViewed,
   getPullRequestChecks,
   getPullRequestFiles,
   getPullRequestPatch,
@@ -66,6 +75,8 @@ export const hostedReposApi = createApi({
     "PullRequests",
     "PullRequestConversation",
     "PullRequestReviewOverview",
+    "PullRequestActivity",
+    "PullRequestViewedFiles",
     "PullRequestChecks",
     "PullRequestFiles",
     "PullRequestPatch",
@@ -191,6 +202,62 @@ export const hostedReposApi = createApi({
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
         { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    runPullRequestLifecycle: builder.mutation<
+      PullRequestLifecycleResult,
+      PullRequestLifecycleInput
+    >({
+      async queryFn(input) {
+        try {
+          return { data: await runPullRequestLifecycle(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
+        { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestChecks", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    getPullRequestActivity: builder.query<PullRequestActivity, PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await getPullRequestActivity(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    getPullRequestViewedFiles: builder.query<PullRequestViewedFiles, PullRequestLocatorInput>({
+      async queryFn(input) {
+        try {
+          return { data: await getPullRequestViewedFiles(input) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
+      ],
+    }),
+    setPullRequestFileViewed: builder.mutation<void, SetPullRequestFileViewedInput>({
+      async queryFn(input) {
+        try {
+          await setPullRequestFileViewed(input);
+          return { data: undefined };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     getPullRequestChecks: builder.query<PullRequestChecksResult, PullRequestLocatorInput>({
@@ -350,6 +417,10 @@ export const {
   useGetPullRequestReviewOverviewQuery,
   useSetPullRequestReviewerMutation,
   useSubmitPullRequestReviewMutation,
+  useRunPullRequestLifecycleMutation,
+  useGetPullRequestActivityQuery,
+  useGetPullRequestViewedFilesQuery,
+  useSetPullRequestFileViewedMutation,
   useGetPullRequestChecksQuery,
   useGetPullRequestFilesQuery,
   useGetPullRequestPatchQuery,

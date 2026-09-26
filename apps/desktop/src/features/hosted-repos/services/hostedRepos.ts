@@ -21,6 +21,11 @@ import type {
   PullRequestChecksResult,
   PullRequestIssueComment,
   PullRequestLocatorInput,
+  PullRequestLifecycleInput,
+  PullRequestLifecycleResult,
+  PullRequestActivity,
+  PullRequestViewedFiles,
+  SetPullRequestFileViewedInput,
   PullRequestPage,
   PullRequestReviewThread,
   ReplyToPullRequestThreadInput,
@@ -71,6 +76,22 @@ export async function setPullRequestReviewer(input: SetPullRequestReviewerInput)
 
 export async function submitPullRequestReview(input: SubmitPullRequestReviewInput) {
   return desktop.submitPullRequestReview(input) as Promise<SubmitPullRequestReviewResult>;
+}
+
+export async function runPullRequestLifecycle(input: PullRequestLifecycleInput) {
+  return desktop.runPullRequestLifecycle(input) as Promise<PullRequestLifecycleResult>;
+}
+
+export async function getPullRequestActivity(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestActivity(input) as Promise<PullRequestActivity>;
+}
+
+export async function getPullRequestViewedFiles(input: PullRequestLocatorInput) {
+  return desktop.getPullRequestViewedFiles(input) as Promise<PullRequestViewedFiles>;
+}
+
+export async function setPullRequestFileViewed(input: SetPullRequestFileViewedInput) {
+  await desktop.setPullRequestFileViewed(input);
 }
 
 export async function getPullRequestChecks(input: PullRequestLocatorInput) {

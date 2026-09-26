@@ -125,6 +125,10 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
     case "getPullRequestReviewOverview":
     case "setPullRequestReviewer":
     case "submitPullRequestReview":
+    case "runPullRequestLifecycle":
+    case "getPullRequestActivity":
+    case "getPullRequestViewedFiles":
+    case "setPullRequestFileViewed":
       return "Pull request review workflow";
     case "getPullRequestChecks":
       return "Pull request checks";
