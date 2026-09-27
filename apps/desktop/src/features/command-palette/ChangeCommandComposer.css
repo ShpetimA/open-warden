@@ -92,12 +92,19 @@
 
 .change-composer-card-position {
   position: absolute;
+  z-index: 1;
   top: 0;
   left: 0;
   width: var(--composer-card-width);
   --slot-offset: 0px;
+  --enter-shift: 12px;
   transform: translateX(calc(var(--slot-offset) + var(--start-offset)));
+  animation: change-composer-slot-enter 150ms var(--composer-motion-ease) both;
   transition: transform 150ms var(--composer-motion-ease);
+}
+
+.change-composer-card-position[data-slot="0"] {
+  --enter-shift: -12px;
 }
 
 .change-composer-card-position[data-slot="1"] {
@@ -118,6 +125,40 @@
 
 .change-composer-card-surface[data-count="3"] {
   --start-offset: 0px;
+}
+
+.change-composer-card-position[data-exit-count="1"] {
+  --start-offset: calc(var(--composer-card-width) + 8px);
+}
+
+.change-composer-card-position[data-exit-count="2"] {
+  --start-offset: calc((var(--composer-card-width) + 8px) / 2);
+}
+
+.change-composer-card-position[data-exit-count="3"] {
+  --start-offset: 0px;
+}
+
+.change-composer-card-exit {
+  z-index: 0;
+  pointer-events: none;
+  animation: change-composer-slot-exit 150ms var(--composer-motion-ease) both;
+}
+
+.change-composer-card-exit[data-exit-direction="left"] {
+  --exit-shift: calc((var(--composer-card-width) + 8px) / -2);
+}
+
+.change-composer-card-exit[data-exit-direction="right"] {
+  --exit-shift: calc((var(--composer-card-width) + 8px) / 2);
+}
+
+.change-composer-card-exit[data-exit-direction="stay"] {
+  --exit-shift: 0px;
+}
+
+.change-composer-card-exit .change-composer-card {
+  animation: none;
 }
 
 .change-composer-card {
@@ -442,12 +483,28 @@
 
 @keyframes change-composer-card-enter {
   from {
-    opacity: 0.6;
     scale: 0.96;
   }
   to {
-    opacity: 1;
     scale: 1;
+  }
+}
+
+@keyframes change-composer-slot-enter {
+  from {
+    translate: var(--enter-shift) 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+@keyframes change-composer-slot-exit {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: var(--exit-shift) 0;
   }
 }
 
@@ -498,6 +555,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .change-composer-card-exit {
+    display: none;
+  }
+
   .change-composer *,
   .change-composer *::before,
   .change-composer *::after,
