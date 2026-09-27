@@ -87,7 +87,11 @@ export function useCommandComposerHotkeys({
   useHotkey(
     "Enter",
     (event) => {
-      if (event.target instanceof HTMLButtonElement) return;
+      if (event.target instanceof HTMLButtonElement) {
+        event.preventDefault();
+        event.target.click();
+        return;
+      }
       if ((pane === "action" || pane === "choice") && activeChoiceId) {
         event.preventDefault();
         onSelect(activeChoiceId);
@@ -118,6 +122,7 @@ export function useCommandComposerHotkeys({
         (event.target === searchRef.current && query)
       )
         return;
+
       if ((pane === "action" || pane === "choice") && activeChoiceId) {
         event.preventDefault();
         onSelect(activeChoiceId);
