@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -26,12 +26,25 @@ export function AppCommandPalette({
   initialPullRequest,
   onOpenChange,
 }: AppCommandPaletteProps) {
-  const [specialAction, setSpecialAction] = useState<ComposerAction | null>(
-    initialAction && specialActions.has(initialAction) ? initialAction : null,
+  const [specialAction, setSpecialAction] = useState<ComposerAction | "pull-requests" | null>(
+    initialAction && specialActions.has(initialAction)
+      ? initialAction
+      : initialPullRequest
+        ? "pull-requests"
+        : null,
   );
-  useEffect(() => {
-    setSpecialAction(initialAction && specialActions.has(initialAction) ? initialAction : null);
-  }, [open, initialAction]);
+  const [prefillPullRequest, setPrefillPullRequest] = useState(true);
+
+  useLayoutEffect(() => {
+    setPrefillPullRequest(true);
+    setSpecialAction(
+      initialAction && specialActions.has(initialAction)
+        ? initialAction
+        : initialPullRequest
+          ? "pull-requests"
+          : null,
+    );
+  }, [open, initialAction, initialPullRequest]);
 
   useHotkey(
     "Mod+K",
@@ -49,7 +62,7 @@ export function AppCommandPalette({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="command-composer-dialog top-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] translate-y-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[560px]"
+        className="command-composer-dialog top-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] translate-y-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[680px]"
         showCloseButton={false}
         onEscapeKeyDown={(event) => event.preventDefault()}
         onKeyDown={(event) => event.stopPropagation()}
@@ -57,7 +70,7 @@ export function AppCommandPalette({
       >
         <DialogTitle className="sr-only">Command composer</DialogTitle>
         <DialogDescription className="sr-only">
-          Choose an action and any required details. Changes to Git or pull requests require
+          Choose a command or scope, then any required details. Consequential changes require
           confirmation.
         </DialogDescription>
         {open ? (
@@ -73,13 +86,29 @@ export function AppCommandPalette({
             />
           ) : specialAction === "create-pr" ? (
             <CreatePullRequestComposer
-              onBack={() => setSpecialAction(null)}
+              onBack={() => setSpecialAction("pull-requests")}
               onClose={() => onOpenChange(false)}
             />
-          ) : isPullRequestAction(specialAction) ? (
+          ) : specialAction === "pull-requests" ? (
+            <PullRequestCommandComposer
+              action={null}
+              initialPullRequest={prefillPullRequest ? initialPullRequest : null}
+              prefillFromWorkspace={prefillPullRequest}
+              onCreate={() => {
+                setPrefillPullRequest(false);
+                setSpecialAction("create-pr");
+              }}
+              onBack={() => {
+                setPrefillPullRequest(true);
+                setSpecialAction(null);
+              }}
+              onClose={() => onOpenChange(false)}
+            />
+          ) : specialAction !== null && isPullRequestAction(specialAction) ? (
             <PullRequestCommandComposer
               action={specialAction}
               initialPullRequest={initialPullRequest}
+              onCreate={() => setSpecialAction("create-pr")}
               onBack={() => setSpecialAction(null)}
               onClose={() => onOpenChange(false)}
             />

@@ -80,6 +80,62 @@ export const actions = [
 
 export type ComposerAction = (typeof actions)[number]["id"];
 
+export const composerScopes = [
+  {
+    id: "pull-requests",
+    label: "Pull requests",
+    icon: GitPullRequest,
+    actionIds: [
+      "open-pr",
+      "open-pr-worktree",
+      "copy-pr-link",
+      "comment-pr",
+      "submit-review",
+      "create-pr",
+      "approve-pr",
+      "request-changes",
+      "merge-pr",
+    ],
+  },
+  {
+    id: "branches",
+    label: "Branches",
+    icon: GitBranch,
+    actionIds: [
+      "switch-branch",
+      "create-branch",
+      "rename-branch",
+      "stash-switch",
+      "delete-branch",
+      "merge-branch",
+      "rebase-branch",
+      "create-worktree",
+    ],
+  },
+  {
+    id: "stashes",
+    label: "Stashes",
+    icon: Archive,
+    actionIds: ["save-stash", "apply-stash", "pop-stash", "drop-stash"],
+  },
+  {
+    id: "tags",
+    label: "Tags",
+    icon: Tag,
+    actionIds: ["view-tags", "create-tag", "delete-tag"],
+  },
+] as const;
+
+export type ComposerScope = (typeof composerScopes)[number]["id"];
+
+export function scopeForAction(action: ComposerAction): ComposerScope | null {
+  return composerScopes.find((scope) => scope.actionIds.some((id) => id === action))?.id ?? null;
+}
+
+export function scopeFromId(id: string): ComposerScope | null {
+  return composerScopes.find((scope) => scope.id === id)?.id ?? null;
+}
+
 export const specialActions = new Set<ComposerAction>([
   "open-repository",
   "blame-file",

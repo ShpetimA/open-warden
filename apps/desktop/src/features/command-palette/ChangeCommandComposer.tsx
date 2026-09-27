@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, GitBranch, LoaderCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, GitBranch, LoaderCircle, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -27,6 +27,7 @@ import { desktop } from "@/platform/desktop";
 import { useResolveHostedRepoQuery } from "@/features/hosted-repos/api";
 
 import { CommandComposerCards } from "./CommandComposerCards";
+import type { ComposerCardStep } from "./CommandComposerCards";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import {
@@ -34,6 +35,7 @@ import {
   actions,
   branchActions,
   commandFor,
+  composerScopes,
   count,
   eligibleBranch,
   failureMessage,
@@ -41,12 +43,15 @@ import {
   nameActions,
   remoteActions,
   selectionActions,
+  scopeForAction,
+  scopeFromId,
   specialActions,
   stashActions,
   tagActions,
   worktreeActions,
 } from "./commandComposerModel";
 import type { ComposerAction } from "./commandComposerModel";
+import type { ComposerScope } from "./commandComposerModel";
 import { paneAfterAction, previousPane } from "./commandComposerFlow";
 import type { ComposerPane } from "./commandComposerFlow";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
@@ -60,7 +65,7 @@ export function ChangeCommandComposer({
 }: {
   initialAction: ComposerAction | null;
   onClose: () => void;
-  onOpenSpecial: (action: ComposerAction) => void;
+  onOpenSpecial: (action: ComposerAction | "pull-requests") => void;
 }) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -90,6 +95,7 @@ export function ChangeCommandComposer({
     paneAfterAction(initialAction, repository?.remotes.length ?? 0),
   );
   const [action, setAction] = useState<ComposerAction | null>(initialAction);
+  const [scope, setScope] = useState<Exclude<ComposerScope, "pull-requests"> | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selection, setSelection] = useState(
@@ -273,30 +279,188 @@ export function ChangeCommandComposer({
       : "No other worktree",
   };
   const normalizedQuery = query.trim().toLowerCase();
-  const actionChoices = actions
+  const scopeAvailability: Record<ComposerScope, boolean> = {
+    "pull-requests": Boolean(repoPath && hostedRepo),
+    branches: Boolean(repoPath && repository),
+    stashes: Boolean(repoPath && repository),
+    tags: Boolean(repoPath && repository),
+  };
+  const scopeDetails: Record<ComposerScope, string> = {
+    "pull-requests": "Choose a PR, then an action",
+    branches: "Choose a branch, then an action",
+    stashes: "Choose a stash, then an action",
+    tags: "Choose a tag, then an action",
+  };
+  const scopeSearchAliases: Record<ComposerScope, string> = {
+    "pull-requests": "open review tab open in worktree",
+    branches: "",
+    stashes: "",
+    tags: "open tagged commit",
+  };
+  const rootChoices: ComposerChoice[] = [
+    ...composerScopes.map((item) => ({
+      id: item.id,
+      label: item.label,
+      detail: scopeDetails[item.id],
+      icon: item.icon,
+      disabled: !scopeAvailability[item.id],
+      section: scopeAvailability[item.id] ? "Available now" : "Unavailable",
+    })),
+    ...actions
+      .filter((item) => scopeForAction(item.id) === null)
+      .map((item) => ({
+        id: item.id,
+        label: item.label,
+        detail: details[item.id],
+        icon: item.icon,
+        disabled: !availability[item.id],
+        section: availability[item.id] ? "Available now" : "Unavailable",
+      })),
+  ];
+  const matchingRootChoices = rootChoices
+    .filter((item) => {
+      if (!normalizedQuery) return true;
+      if (`${item.label} ${item.detail}`.toLowerCase().includes(normalizedQuery)) return true;
+      const matchingScope = scopeFromId(item.id);
+      if (matchingScope && scopeSearchAliases[matchingScope].includes(normalizedQuery)) return true;
+      return Boolean(
+        matchingScope &&
+        composerScopes
+          .find((candidate) => candidate.id === matchingScope)
+          ?.actionIds.some((id) =>
+            actions
+              .find((actionItem) => actionItem.id === id)
+              ?.label.toLowerCase()
+              .includes(normalizedQuery),
+          ),
+      );
+    })
+    .toSorted(
+      (first, second) => Number(Boolean(first.disabled)) - Number(Boolean(second.disabled)),
+    );
+  const availableActionCount = rootChoices.filter((item) => !item.disabled).length;
+  const selectedBranch = repository?.branches.find((branch) => branch.name === selection);
+  const scopeActionIds: ComposerAction[] = [];
+  if (scope === "branches") {
+    scopeActionIds.push(
+      "switch-branch",
+      "stash-switch",
+      "merge-branch",
+      "rebase-branch",
+      "delete-branch",
+      "create-worktree",
+    );
+  } else if (scope === "stashes") {
+    scopeActionIds.push("apply-stash", "pop-stash", "drop-stash");
+  } else if (scope === "tags") {
+    scopeActionIds.push("view-tags", "delete-tag");
+  }
+  const matchingScopeActions: ComposerChoice[] = scopeActionIds
+    .map((id) => actions.find((item) => item.id === id))
+    .filter((item) => item !== undefined)
     .filter(
       (item) =>
         !normalizedQuery ||
         item.label.toLowerCase().includes(normalizedQuery) ||
-        (normalizedQuery.length > 1 && item.group.toLowerCase().includes(normalizedQuery)),
+        (item.id === "view-tags" && "open tagged commit".includes(normalizedQuery)),
     )
-    .map((item) => ({
-      id: item.id,
-      label: item.label,
-      detail: details[item.id],
-      disabled: !availability[item.id],
-      section: availability[item.id] ? "Available now" : "Unavailable",
-    }))
-    .toSorted((first, second) => Number(first.disabled) - Number(second.disabled));
-  const availableActionCount = actions.filter((item) => availability[item.id]).length;
+    .map((item) => {
+      const eligible =
+        scope !== "branches" ||
+        (selectedBranch !== undefined &&
+          eligibleBranch(item.id, selectedBranch, repoPath, repository?.branch ?? ""));
+      const enabled = item.id === "view-tags" || (availability[item.id] && eligible);
+      return {
+        id: item.id,
+        label: item.id === "view-tags" ? "Open tagged commit" : item.label,
+        detail: item.id === "view-tags" ? "Open this tag in History" : details[item.id],
+        icon: item.icon,
+        disabled: !enabled,
+        section: enabled ? "Available now" : "Unavailable",
+      };
+    })
+    .toSorted(
+      (first, second) => Number(Boolean(first.disabled)) - Number(Boolean(second.disabled)),
+    );
+  const actionChoices = scope ? matchingScopeActions : matchingRootChoices;
   const branches =
     action && branchActions.has(action)
       ? (repository?.branches.filter((branch) =>
           eligibleBranch(action, branch, repoPath, repository.branch),
         ) ?? [])
       : [];
-  const operandChoices: ComposerChoice[] =
-    action && branchActions.has(action)
+  function buildScopeObjectChoices(): ComposerChoice[] {
+    if (scope === "branches") {
+      return [
+        {
+          id: "new:create-branch",
+          label: "Create branch",
+          detail: "Create from HEAD and switch",
+          icon: Plus,
+          disabled: !availability["create-branch"],
+          section: "New",
+        },
+        {
+          id: "new:rename-branch",
+          label: "Rename current branch",
+          detail: repository?.branch ?? "No current branch",
+          disabled: !availability["rename-branch"],
+          section: "Current branch",
+        },
+        ...otherBranches.map((branch) => ({
+          id: branch.name,
+          label: branch.name,
+          detail: branch.remote ? "Remote branch" : "Local branch",
+          section: "Branches",
+        })),
+      ];
+    }
+
+    if (scope === "stashes") {
+      return [
+        {
+          id: "new:save-stash",
+          label: "Save stash",
+          detail: "Save local changes",
+          icon: Plus,
+          disabled: !availability["save-stash"],
+          section: "New",
+        },
+        ...(repository?.stashes.map((stash) => ({
+          id: stash.oid,
+          label: stash.label,
+          detail: stash.oid.slice(0, 8),
+          section: "Saved stashes",
+        })) ?? []),
+      ];
+    }
+
+    if (scope === "tags") {
+      return [
+        {
+          id: "new:create-tag",
+          label: "Create tag",
+          detail: "Tag the current commit",
+          icon: Plus,
+          disabled: !availability["create-tag"],
+          section: "New",
+        },
+        ...(repository?.tags.map((tag) => ({
+          id: tag.name,
+          label: tag.name,
+          detail: tag.commitId.slice(0, 8),
+          section: "Local tags",
+        })) ?? []),
+      ];
+    }
+
+    return [];
+  }
+
+  const scopeObjectChoices = buildScopeObjectChoices();
+  const operandChoices: ComposerChoice[] = scope
+    ? scopeObjectChoices
+    : action && branchActions.has(action)
       ? branches.map((branch) => ({
           id: branch.name,
           label: branch.name,
@@ -335,28 +499,37 @@ export function ChangeCommandComposer({
     visibleChoices.find((item) => item.id === highlightedId && !item.disabled) ??
     visibleChoices.find((item) => !item.disabled);
   const previewAction = pane === "action" ? actionFromId(activeChoice?.id ?? "") : action;
+  const previewScope = pane === "action" && !scope ? scopeFromId(activeChoice?.id ?? "") : null;
   const actionInfo = actions.find((item) => item.id === previewAction);
-  const actionLabel = actionInfo?.label ?? "Choose action";
+  const actionLabel = previewScope
+    ? (composerScopes.find((item) => item.id === previewScope)?.label ?? "Choose a scope")
+    : (actionInfo?.label ?? "Choose action");
   const selectionLabel =
     operandChoices.find((item) => item.id === selection)?.label ?? "Choose one";
   const operandLabel =
-    action === "commit"
-      ? "Message"
-      : action && nameActions.has(action)
-        ? "Name"
-        : action && branchActions.has(action)
-          ? "Branch"
-          : (action && remoteActions.has(action)) || action === "pull" || action === "push"
-            ? "Remote"
-            : action && stashActions.has(action)
-              ? "Stash"
-              : action && tagActions.has(action)
-                ? "Tag"
-                : action && worktreeActions.has(action)
-                  ? "Worktree"
-                  : action === "view-incoming" || action === "view-outgoing"
-                    ? "Commits"
-                    : "Scope";
+    scope && !action
+      ? scope === "branches"
+        ? "Branch"
+        : scope === "stashes"
+          ? "Stash"
+          : "Tag"
+      : action === "commit"
+        ? "Message"
+        : action && nameActions.has(action)
+          ? "Name"
+          : action && branchActions.has(action)
+            ? "Branch"
+            : (action && remoteActions.has(action)) || action === "pull" || action === "push"
+              ? "Remote"
+              : action && stashActions.has(action)
+                ? "Stash"
+                : action && tagActions.has(action)
+                  ? "Tag"
+                  : action && worktreeActions.has(action)
+                    ? "Worktree"
+                    : action === "view-incoming" || action === "view-outgoing"
+                      ? "Commits"
+                      : "Scope";
   const choiceSearchLabel =
     operandLabel === "Branch"
       ? "branches"
@@ -364,21 +537,25 @@ export function ChangeCommandComposer({
         ? "stashes"
         : `${operandLabel.toLowerCase()}s`;
   const operandValue =
-    action === "commit"
-      ? message.trim().split("\n")[0] || "Write a message"
-      : action && nameActions.has(action)
-        ? draft.trim() || "Enter a name"
-        : action && selectionActions.has(action)
-          ? selectionLabel
-          : action === "pull" || action === "push"
-            ? repository?.upstream || "No upstream"
-            : action === "view-incoming"
-              ? count(repository?.incoming.length ?? 0, "commit")
-              : action === "view-outgoing"
-                ? count(repository?.outgoing.length ?? 0, "commit")
-                : action === "stage-all"
-                  ? count(unstageableCount, "change")
-                  : count(stagedCount, "staged file");
+    scope && !action
+      ? pane === "choice"
+        ? (activeChoice?.label ?? `Choose a ${operandLabel.toLowerCase()}`)
+        : selectionLabel
+      : action === "commit"
+        ? message.trim().split("\n")[0] || "Write a message"
+        : action && nameActions.has(action)
+          ? draft.trim() || "Enter a name"
+          : action && selectionActions.has(action)
+            ? selectionLabel
+            : action === "pull" || action === "push"
+              ? repository?.upstream || "No upstream"
+              : action === "view-incoming"
+                ? count(repository?.incoming.length ?? 0, "commit")
+                : action === "view-outgoing"
+                  ? count(repository?.outgoing.length ?? 0, "commit")
+                  : action === "stage-all"
+                    ? count(unstageableCount, "change")
+                    : count(stagedCount, "staged file");
   const validName = Boolean(
     draft.trim() &&
     draft.length <= 1024 &&
@@ -414,6 +591,14 @@ export function ChangeCommandComposer({
     setHighlightedId(null);
     setError("");
     setDraft(nextAction === "save-stash" ? "Work in progress" : "");
+    if (scope) {
+      if (nextAction === "create-worktree") {
+        setDraft(`${repoPath}-${selection.replaceAll("/", "-")}`);
+      }
+      if (nameActions.has(nextAction)) setSelection("");
+      setPane("review");
+      return;
+    }
     if (
       branchActions.has(nextAction) ||
       stashActions.has(nextAction) ||
@@ -431,7 +616,37 @@ export function ChangeCommandComposer({
     setPane(paneAfterAction(nextAction, repository?.remotes.length ?? 0));
   }
 
+  function chooseScope(nextScope: ComposerScope) {
+    if (!scopeAvailability[nextScope] || busy) return;
+    if (nextScope === "pull-requests") {
+      onOpenSpecial("pull-requests");
+      return;
+    }
+    setScope(nextScope);
+    setAction(null);
+    setSelection("");
+    setQuery("");
+    setHighlightedId(null);
+    setError("");
+    setPane("choice");
+  }
+
   function chooseOperand(id: string) {
+    if (scope && !action) {
+      const choice = scopeObjectChoices.find((item) => item.id === id);
+      if (!choice || choice.disabled) return;
+      if (id.startsWith("new:")) {
+        const nextAction = actionFromId(id.slice(4));
+        if (nextAction) chooseAction(nextAction);
+        return;
+      }
+      setSelection(id);
+      setQuery("");
+      setHighlightedId(null);
+      setPane("action");
+      setError("");
+      return;
+    }
     setSelection(id);
     if (action === "create-worktree") setDraft(`${repoPath}-${id.replaceAll("/", "-")}`);
     setHighlightedId(null);
@@ -441,6 +656,31 @@ export function ChangeCommandComposer({
 
   function goBack() {
     if (busy) return;
+    if (scope) {
+      if (pane === "execute") {
+        setPane("review");
+      } else if (pane === "review") {
+        if (selection) {
+          setPane("action");
+          setHighlightedId(action);
+        } else {
+          setPane("choice");
+          setHighlightedId(action ? `new:${action}` : null);
+        }
+        setAction(null);
+      } else if (pane === "action") {
+        setPane("choice");
+        setHighlightedId(selection);
+      } else {
+        setPane("action");
+        setHighlightedId(scope);
+        setScope(null);
+        setSelection("");
+      }
+      setQuery("");
+      setError("");
+      return;
+    }
     const previous = previousPane(pane, action, repository?.remotes.length ?? 0);
     setPane(previous);
     if (previous === "choice") {
@@ -454,6 +694,25 @@ export function ChangeCommandComposer({
 
   function selectChoice(id: string) {
     if (pane === "action") {
+      if (scope) {
+        if (id === "view-tags") {
+          const tag = repository?.tags.find((item) => item.name === selection);
+          if (!tag) return;
+          void dispatch(selectHistoryPullRequestCommit(tag.commitId));
+          navigate(`/history?commit=${tag.commitId}`);
+          onClose();
+          return;
+        }
+        const selected = actionFromId(id);
+        const choice = actionChoices.find((item) => item.id === id);
+        if (selected && !choice?.disabled) chooseAction(selected);
+        return;
+      }
+      const selectedScope = scopeFromId(id);
+      if (selectedScope) {
+        chooseScope(selectedScope);
+        return;
+      }
       const selected = actionFromId(id);
       if (selected) chooseAction(selected);
     } else if (pane === "choice") {
@@ -473,6 +732,7 @@ export function ChangeCommandComposer({
     canRun,
     hasError: Boolean(error),
     busy,
+    actionIsRoot: !scope,
     onHighlight: setHighlightedId,
     onSelect: selectChoice,
     onBack: goBack,
@@ -564,7 +824,9 @@ export function ChangeCommandComposer({
   }
 
   const ActionIcon = actionInfo?.icon ?? GitBranch;
-  const OperandIcon = action && branchActions.has(action) ? GitBranch : ActionIcon;
+  const ScopeIcon = composerScopes.find((item) => item.id === scope)?.icon;
+  const PreviewScopeIcon = composerScopes.find((item) => item.id === previewScope)?.icon;
+  const OperandIcon = ScopeIcon ?? (action && branchActions.has(action) ? GitBranch : ActionIcon);
   const selectedStash = repository?.stashes.find((stash) => stash.oid === selection);
   const commits =
     action === "view-incoming"
@@ -573,23 +835,114 @@ export function ChangeCommandComposer({
         ? repository?.outgoing
         : repository?.tags.map((tag) => ({ id: tag.commitId.slice(0, 8), subject: tag.name }));
 
+  let cardSteps: ComposerCardStep[] | undefined;
+  const scopeInfo = composerScopes.find((item) => item.id === scope);
+
+  if (scopeInfo) {
+    cardSteps = [
+      {
+        id: "scope",
+        label: "Scope",
+        value: scopeInfo.label,
+        icon: scopeInfo.icon,
+        active: false,
+        onPress: () => {
+          if (busy) return;
+          setScope(null);
+          setAction(null);
+          setSelection("");
+          setPane("action");
+          setQuery("");
+          setHighlightedId(scope);
+        },
+      },
+    ];
+
+    if (selection || !action) {
+      cardSteps.push({
+        id: "target",
+        label: scope === "branches" ? "Branch" : scope === "stashes" ? "Stash" : "Tag",
+        value:
+          pane === "choice"
+            ? operandValue
+            : (scopeObjectChoices.find((item) => item.id === selection)?.label ?? selectionLabel),
+        icon: scopeInfo.icon,
+        active: pane === "choice",
+        onPress: () => {
+          if (busy) return;
+          if (pane === "choice" && activeChoice) chooseOperand(activeChoice.id);
+          else {
+            setAction(null);
+            setPane("choice");
+            setQuery("");
+            setHighlightedId(selection);
+          }
+        },
+      });
+    }
+
+    if (action || pane === "action") {
+      cardSteps.push({
+        id: "action",
+        label: "Action",
+        value: pane === "action" ? (activeChoice?.label ?? "Choose action") : actionLabel,
+        icon: ActionIcon,
+        active: pane === "action" || Boolean(selection),
+        onPress: () => {
+          if (busy) return;
+          if (pane === "action" && activeChoice) selectChoice(activeChoice.id);
+          else if (selection) {
+            setAction(null);
+            setPane("action");
+            setQuery("");
+            setHighlightedId(action);
+          } else {
+            setAction(null);
+            setPane("choice");
+            setQuery("");
+            setHighlightedId(action ? `new:${action}` : null);
+          }
+        },
+      });
+    }
+
+    if (action && !selection && pane !== "action") {
+      cardSteps.push({
+        id: "input",
+        label: operandLabel,
+        value: operandValue,
+        icon: OperandIcon,
+        active: true,
+        onPress: () => {
+          if (busy) return;
+          nameRef.current?.focus();
+        },
+      });
+    }
+  }
+
   return (
     <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
       <CommandComposerCards
         pane={pane}
+        steps={cardSteps}
         actionLabel={actionLabel}
         previewAction={previewAction}
+        previewIcon={PreviewScopeIcon}
         operandLabel={operandLabel}
         operandValue={operandValue}
         operandIcon={OperandIcon}
+        objectFirst={scope !== null && (pane === "choice" || Boolean(selection))}
         onActionPress={() => {
-          if (pane === "action" && previewAction) chooseAction(previewAction);
+          if (pane === "action" && activeChoice) selectChoice(activeChoice.id);
           else if (pane !== "action") goBack();
         }}
         onOperandPress={() => {
           if (pane === "choice") {
             if (activeChoice) chooseOperand(activeChoice.id);
             else searchRef.current?.focus();
+          } else if (pane === "action" && scope) {
+            goBack();
           } else if (action === "commit") messageRef.current?.focus();
           else if (action && (nameActions.has(action) || action === "create-worktree"))
             nameRef.current?.focus();
@@ -601,7 +954,9 @@ export function ChangeCommandComposer({
         <div className="change-composer-panel-heading">
           <p className="change-composer-panel-title">
             {pane === "action"
-              ? "All actions"
+              ? scope
+                ? "Choose an action"
+                : "All actions"
               : pane === "choice"
                 ? `Choose ${operandLabel.toLowerCase()}`
                 : pane === "execute"
@@ -612,9 +967,11 @@ export function ChangeCommandComposer({
           </p>
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-[11px]">
             {repoPath.split("/").findLast(Boolean) || "No repository"}
-            {pane === "action" ? ` · ${availableActionCount} of ${actions.length} ready` : ""}
+            {pane === "action" && !scope
+              ? ` · ${availableActionCount} of ${rootChoices.length} ready`
+              : ""}
           </span>
-          {pane !== "action" && (pane !== "execute" || error) ? (
+          {(pane !== "action" || scope) && (pane !== "execute" || error) ? (
             <Button variant="ghost" size="sm" className="shrink-0" onClick={goBack} disabled={busy}>
               <ArrowLeft className="size-4" /> Back
             </Button>
@@ -639,6 +996,14 @@ export function ChangeCommandComposer({
             }}
             onHighlight={setHighlightedId}
             onSelect={selectChoice}
+            choiceIcon={ScopeIcon}
+            searchPlaceholder={
+              pane === "action" && scope
+                ? `Search ${scope} actions…`
+                : pane === "action"
+                  ? "Search commands…"
+                  : undefined
+            }
           />
         ) : pane === "execute" ? (
           <div className="change-composer-execution" role="status" aria-live="polite">
@@ -875,9 +1240,9 @@ export function ChangeCommandComposer({
               <span>
                 <Kbd>↵</Kbd> Select
               </span>
-              {pane === "action" && !query ? (
+              {pane === "action" && !scope && !query ? (
                 <span className="change-composer-action-count">
-                  Scroll for all {actions.length}
+                  Scroll for all {rootChoices.length}
                 </span>
               ) : null}
             </>
@@ -895,7 +1260,7 @@ export function ChangeCommandComposer({
           ) : null}
           {pane !== "execute" || error ? (
             <span>
-              <Kbd>Esc</Kbd> {pane === "action" ? "Close" : "Back"}
+              <Kbd>Esc</Kbd> {pane === "action" && !scope ? "Close" : "Back"}
             </span>
           ) : null}
         </div>

@@ -12,6 +12,7 @@ export type ComposerChoice = {
   id: string;
   label: string;
   detail: string;
+  icon?: LucideIcon;
   disabled?: boolean;
   section?: string;
 };
@@ -91,10 +92,11 @@ export function CommandComposerChoiceStep({
           choices.map((choice, index) => {
             const info = pane === "action" ? actions.find((item) => item.id === choice.id) : null;
             const Icon =
+              choice.icon ??
               info?.icon ??
               choiceIcon ??
               (action && stashActions.has(action) ? Archive : GitBranch);
-            const showSection = pane === "action" && choice.section !== choices[index - 1]?.section;
+            const showSection = choice.section && choice.section !== choices[index - 1]?.section;
             return (
               <Fragment key={choice.id}>
                 {showSection ? (

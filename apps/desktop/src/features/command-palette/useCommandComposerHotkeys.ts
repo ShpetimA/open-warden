@@ -13,6 +13,7 @@ type Props = {
   canRun: boolean;
   hasError: boolean;
   busy: boolean;
+  actionIsRoot?: boolean;
   onHighlight: (id: string) => void;
   onSelect: (id: string) => void;
   onBack: () => void;
@@ -37,6 +38,7 @@ export function useCommandComposerHotkeys({
   canRun,
   hasError,
   busy,
+  actionIsRoot = true,
   onHighlight,
   onSelect,
   onBack,
@@ -118,7 +120,7 @@ export function useCommandComposerHotkeys({
   useHotkey(
     "ArrowLeft",
     (event) => {
-      if (pane === "action" || hasEditableValue(event.target)) return;
+      if ((pane === "action" && actionIsRoot) || hasEditableValue(event.target)) return;
       event.preventDefault();
       onBack();
     },
@@ -128,7 +130,7 @@ export function useCommandComposerHotkeys({
   useHotkey(
     "Backspace",
     (event) => {
-      if (pane === "action" || hasEditableValue(event.target)) return;
+      if ((pane === "action" && actionIsRoot) || hasEditableValue(event.target)) return;
       event.preventDefault();
       onBack();
     },
@@ -150,7 +152,7 @@ export function useCommandComposerHotkeys({
     (event) => {
       event.preventDefault();
       if (busy) return;
-      if (pane === "action") onClose();
+      if (pane === "action" && actionIsRoot) onClose();
       else onBack();
     },
     options,

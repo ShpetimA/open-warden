@@ -1,6 +1,6 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { GitPullRequest, LoaderCircle } from "lucide-react";
+import { GitPullRequest, LoaderCircle, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -28,6 +28,7 @@ import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
 import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
 import { CommandComposerCards } from "./CommandComposerCards";
+import type { ComposerCardStep } from "./CommandComposerCards";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import type { PullRequestComposerAction } from "./commandComposerModel";
@@ -35,25 +36,37 @@ import { actions, failureMessage } from "./commandComposerModel";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
 export function PullRequestCommandComposer({
-  action,
+  action: initialAction,
   initialPullRequest,
+  prefillFromWorkspace = true,
+  onCreate,
   onBack,
   onClose,
 }: {
-  action: PullRequestComposerAction;
+  action: PullRequestComposerAction | null;
   initialPullRequest?: PullRequestSummary | null;
+  prefillFromWorkspace?: boolean;
+  onCreate: () => void;
   onBack: () => void;
   onClose: () => void;
 }) {
+  const objectFirst = initialAction === null;
   const dispatch = useAppDispatch();
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
   const comments = useAppSelector((state) => state.comments);
   const activeWorkspace = useAppSelector(selectActiveWorkspace);
   const activePullRequestWorkspace =
     activeWorkspace?.kind === "pull-request" ? activeWorkspace : null;
-  const [pane, setPane] = useState<"choice" | "review" | "execute">(
-    initialPullRequest && action !== "open-pr" && action !== "copy-pr-link" ? "review" : "choice",
+  const [pane, setPane] = useState<"choice" | "action" | "review" | "execute">(
+    objectFirst
+      ? initialPullRequest
+        ? "action"
+        : "choice"
+      : initialPullRequest && initialAction !== "open-pr" && initialAction !== "copy-pr-link"
+        ? "review"
+        : "choice",
   );
+  const [action, setAction] = useState<PullRequestComposerAction | null>(initialAction);
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -76,7 +89,7 @@ export function PullRequestCommandComposer({
   const initialActionAppliedRef = useRef(false);
   const directAction = action === "open-pr" || action === "copy-pr-link";
   const { currentConversation } = useGetPullRequestConversationQuery(
-    !initialPullRequest && activePullRequestWorkspace
+    prefillFromWorkspace && !initialPullRequest && activePullRequestWorkspace
       ? { repoPath, pullRequestNumber: activePullRequestWorkspace.pullRequestNumber }
       : skipToken,
     { selectFromResult: ({ currentData }) => ({ currentConversation: currentData }) },
@@ -127,26 +140,93 @@ export function PullRequestCommandComposer({
         headRef: compareRefs.compareHeadRef,
       })
     : [];
-  const actionInfo = actions.find((item) => item.id === action)!;
-  const pullRequests = pullRequestPage?.pullRequests ?? [];
+  const actionInfo = actions.find((item) => item.id === action);
+  const actionLabel = actionInfo?.label ?? "Choose action";
+  const pullRequestsOnPage = pullRequestPage?.pullRequests ?? [];
+  const pullRequests =
+    selectedPullRequest &&
+    !pullRequestsOnPage.some((item) => item.number === selectedPullRequest.number)
+      ? [selectedPullRequest, ...pullRequestsOnPage]
+      : pullRequestsOnPage;
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPullRequests = pullRequests.filter((item) =>
     `${item.number} ${item.title} ${item.authorLogin} ${item.headRef}`
       .toLowerCase()
       .includes(normalizedQuery),
   );
-  const choices: ComposerChoice[] = filteredPullRequests.map((item) => ({
+  const pullRequestChoices: ComposerChoice[] = filteredPullRequests.map((item) => ({
     id: String(item.number),
     label: `#${item.number} ${item.title}`,
     detail: `${item.authorLogin} · ${item.headRef}${item.isDraft ? " · Draft" : ""}`,
+    section:
+      item === selectedPullRequest && !pullRequestsOnPage.includes(item)
+        ? "Current pull request"
+        : "Pull requests",
   }));
-  const activeChoice = choices.find((item) => item.id === highlightedId) ?? choices[0];
+  if (objectFirst && (!normalizedQuery || "create pull request".includes(normalizedQuery))) {
+    pullRequestChoices.unshift({
+      id: "create-pr",
+      label: "Create pull request",
+      detail: "Create from the current branch",
+      icon: Plus,
+      section: "New",
+    });
+  }
+  const actionIds: PullRequestComposerAction[] = [
+    "open-pr",
+    "open-pr-worktree",
+    "copy-pr-link",
+    "comment-pr",
+    "submit-review",
+    "merge-pr",
+  ];
+  const actionChoices: ComposerChoice[] = actionIds.flatMap((id) => {
+    const item = actions.find((candidate) => candidate.id === id);
+    if (!item) return [];
+
+    const label =
+      id === "open-pr"
+        ? "Open review tab"
+        : id === "open-pr-worktree"
+          ? "Open in worktree"
+          : item.label;
+    if (normalizedQuery && !label.toLowerCase().includes(normalizedQuery)) return [];
+
+    return [
+      {
+        id,
+        label,
+        detail:
+          id === "open-pr"
+            ? "Open this PR in an Open Warden tab"
+            : id === "submit-review"
+              ? "Comment, approve, or request changes"
+              : id === "open-pr-worktree"
+                ? "Open in a separate checkout"
+                : id === "merge-pr"
+                  ? "Choose a merge method"
+                  : "For the selected pull request",
+        disabled:
+          (id === "submit-review" || id === "merge-pr") &&
+          (selectedPullRequest?.state !== "open" || selectedPullRequest?.isDraft),
+      },
+    ];
+  });
+  const choices = pane === "action" && objectFirst ? actionChoices : pullRequestChoices;
+  const activeChoice =
+    choices.find((item) => item.id === highlightedId && !item.disabled) ??
+    choices.find((item) => !item.disabled);
   const previewPullRequest =
     pane === "choice"
       ? pullRequests.find((item) => String(item.number) === activeChoice?.id)
       : selectedPullRequest;
+  const previewAction =
+    pane === "action" && objectFirst
+      ? (actionIds.find((id) => id === activeChoice?.id) ?? null)
+      : action;
   const canRun = Boolean(
     pane === "review" &&
+    action &&
     selectedPullRequest &&
     !busy &&
     (action !== "open-pr-worktree" || hostedRepo) &&
@@ -164,7 +244,7 @@ export function PullRequestCommandComposer({
   );
 
   useEffect(() => {
-    if (pane === "choice") searchRef.current?.focus();
+    if (pane === "choice" || pane === "action") searchRef.current?.focus();
     else if (
       pane === "review" &&
       (action === "comment-pr" ||
@@ -178,36 +258,72 @@ export function PullRequestCommandComposer({
   }, [action, hostedRepo?.providerId, pane]);
 
   function selectChoice(id: string) {
+    if (pane === "action" && objectFirst) {
+      const nextAction = actionIds.find((candidate) => candidate === id);
+      const choice = actionChoices.find((item) => item.id === id);
+      if (!nextAction || choice?.disabled) return;
+      setAction(nextAction);
+      setQuery("");
+      setHighlightedId(null);
+      setError("");
+      if (nextAction === "open-pr" || nextAction === "copy-pr-link") {
+        void run(selectedPullRequest, nextAction);
+      } else {
+        setPane("review");
+      }
+      return;
+    }
+    if (id === "create-pr" && objectFirst) {
+      onCreate();
+      return;
+    }
     const item = pullRequests.find((pullRequest) => String(pullRequest.number) === id);
     if (!item) return;
+    contextAppliedRef.current = true;
     setSelectedPullRequest(item);
     setHighlightedId(null);
+    setQuery("");
     setError("");
-    if (directAction) void run(item);
+    if (objectFirst) setPane("action");
+    else if (directAction) void run(item);
     else setPane("review");
   }
 
   function goBack() {
     if (busy) return;
     if (pane === "choice") onBack();
-    else {
+    else if (pane === "action" && objectFirst) {
       setPane("choice");
       setHighlightedId(selectedPullRequest ? String(selectedPullRequest.number) : null);
+      setQuery("");
+      setError("");
+    } else {
+      setPane(objectFirst ? "action" : "choice");
+      setHighlightedId(
+        objectFirst ? action : selectedPullRequest ? String(selectedPullRequest.number) : null,
+      );
+      setQuery("");
       setError("");
     }
   }
 
-  async function run(target = selectedPullRequest) {
-    if (!target || runningRef.current || (!directAction && !canRun)) return;
+  async function run(target = selectedPullRequest, requestedAction = action) {
+    if (
+      !target ||
+      !requestedAction ||
+      runningRef.current ||
+      (requestedAction !== "open-pr" && requestedAction !== "copy-pr-link" && !canRun)
+    )
+      return;
     runningRef.current = true;
     setBusy(true);
     setError("");
     setPane("execute");
     try {
-      if (action === "open-pr" || action === "open-pr-worktree") {
+      if (requestedAction === "open-pr" || requestedAction === "open-pr-worktree") {
         if (!hostedRepo) throw new Error("Connect a supported hosted repository first.");
         let reviewRepoPath = repoPath;
-        if (action === "open-pr-worktree") {
+        if (requestedAction === "open-pr-worktree") {
           const result = await dispatch(openPullRequestReview(target.number, "worktree"));
           if (result.errorMessage || !result.repoPath)
             throw new Error(result.errorMessage ?? "The review worktree could not be opened.");
@@ -223,23 +339,25 @@ export function PullRequestCommandComposer({
             title: target.title,
           }),
         );
-      } else if (action === "copy-pr-link") {
+      } else if (requestedAction === "copy-pr-link") {
         await navigator.clipboard.writeText(target.url);
-      } else if (action === "comment-pr") {
+      } else if (requestedAction === "comment-pr") {
         await addComment({
           repoPath,
           pullRequestNumber: target.number,
           body: message.trim(),
         }).unwrap();
-      } else if (action === "approve-pr" || action === "request-changes") {
+      } else if (requestedAction === "approve-pr" || requestedAction === "request-changes") {
         await submitDecision({
           repoPath,
           pullRequestNumber: target.number,
-          decision: action === "approve-pr" ? "approve" : "request-changes",
+          decision: requestedAction === "approve-pr" ? "approve" : "request-changes",
           body: message.trim(),
         }).unwrap();
-        toast.success(action === "approve-pr" ? "Pull request approved" : "Changes requested");
-      } else if (action === "merge-pr") {
+        toast.success(
+          requestedAction === "approve-pr" ? "Pull request approved" : "Changes requested",
+        );
+      } else if (requestedAction === "merge-pr") {
         const expectedHeadSha = selectedConversation?.detail.headSha;
         if (!expectedHeadSha) throw new Error("Load the latest pull request before merging.");
         const status = await mergePullRequest({
@@ -270,7 +388,13 @@ export function PullRequestCommandComposer({
       onClose();
     } catch (cause) {
       setError(failureMessage(cause));
-      setPane(directAction ? "choice" : "review");
+      setPane(
+        requestedAction === "open-pr" || requestedAction === "copy-pr-link"
+          ? objectFirst
+            ? "action"
+            : "choice"
+          : "review",
+      );
     } finally {
       runningRef.current = false;
       setBusy(false);
@@ -284,6 +408,7 @@ export function PullRequestCommandComposer({
   useEffect(() => {
     if (
       contextAppliedRef.current ||
+      !prefillFromWorkspace ||
       initialPullRequest ||
       !activePullRequestWorkspace ||
       !currentConversation
@@ -309,7 +434,8 @@ export function PullRequestCommandComposer({
     if (action === "open-pr" && !hostedRepo) return;
     contextAppliedRef.current = true;
     setSelectedPullRequest(contextPullRequest);
-    if (directAction) runFromContext(contextPullRequest);
+    if (objectFirst) setPane("action");
+    else if (directAction) runFromContext(contextPullRequest);
     else setPane("review");
   }, [
     action,
@@ -318,25 +444,29 @@ export function PullRequestCommandComposer({
     directAction,
     hostedRepo,
     initialPullRequest,
+    objectFirst,
+    prefillFromWorkspace,
   ]);
 
   useEffect(() => {
-    if (!directAction || !initialPullRequest || initialActionAppliedRef.current) return;
+    if (objectFirst || !directAction || !initialPullRequest || initialActionAppliedRef.current)
+      return;
     if (action === "open-pr" && !hostedRepo) return;
     initialActionAppliedRef.current = true;
     runFromContext(initialPullRequest);
-  }, [action, directAction, hostedRepo, initialPullRequest]);
+  }, [action, directAction, hostedRepo, initialPullRequest, objectFirst]);
 
   useCommandComposerHotkeys({
     rootRef,
     searchRef,
     pane,
     query,
-    enabledChoiceIds: choices.map((item) => item.id),
+    enabledChoiceIds: choices.filter((item) => !item.disabled).map((item) => item.id),
     activeChoiceId: activeChoice?.id,
     canRun,
     hasError: Boolean(error),
     busy,
+    actionIsRoot: !objectFirst,
     onHighlight: setHighlightedId,
     onSelect: selectChoice,
     onBack: goBack,
@@ -344,12 +474,72 @@ export function PullRequestCommandComposer({
     onRun: () => void run(),
   });
 
+  let cardSteps: ComposerCardStep[] | undefined;
+
+  if (objectFirst) {
+    cardSteps = [
+      {
+        id: "scope",
+        label: "Scope",
+        value: "Pull requests",
+        icon: GitPullRequest,
+        active: false,
+        onPress: () => {
+          if (!busy) onBack();
+        },
+      },
+      {
+        id: "pull-request",
+        label: "Pull request",
+        value: previewPullRequest
+          ? `#${previewPullRequest.number} ${previewPullRequest.title}`
+          : "Choose a PR",
+        icon: GitPullRequest,
+        active: pane === "choice",
+        onPress: () => {
+          if (busy) return;
+          if (pane === "choice" && activeChoice) selectChoice(activeChoice.id);
+          else {
+            setPane("choice");
+            setHighlightedId(selectedPullRequest ? String(selectedPullRequest.number) : null);
+            setQuery("");
+          }
+        },
+      },
+    ];
+
+    if (pane !== "choice") {
+      const previewChoice = actionChoices.find((item) => item.id === previewAction);
+      cardSteps.push({
+        id: "action",
+        label: "Action",
+        value: pane === "action" ? (previewChoice?.label ?? "Choose action") : actionLabel,
+        icon: actions.find((item) => item.id === previewAction)?.icon ?? GitPullRequest,
+        active: true,
+        onPress: () => {
+          if (busy) return;
+          if (pane === "action" && activeChoice) selectChoice(activeChoice.id);
+          else {
+            setPane("action");
+            setHighlightedId(action);
+            setQuery("");
+          }
+        },
+      });
+    }
+  }
+
   return (
     <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
       <CommandComposerCards
         pane={pane}
-        actionLabel={actionInfo.label}
-        previewAction={action}
+        steps={cardSteps}
+        actionLabel={
+          pane === "action" && objectFirst
+            ? (actionChoices.find((item) => item.id === previewAction)?.label ?? "Choose action")
+            : actionLabel
+        }
+        previewAction={previewAction}
         operandLabel="Pull request"
         operandValue={
           previewPullRequest
@@ -357,9 +547,14 @@ export function PullRequestCommandComposer({
             : "Choose a PR"
         }
         operandIcon={GitPullRequest}
-        onActionPress={goBack}
+        objectFirst={objectFirst}
+        onActionPress={() => {
+          if (pane === "action" && activeChoice) selectChoice(activeChoice.id);
+          else goBack();
+        }}
         onOperandPress={() => {
           if (pane === "choice" && activeChoice) selectChoice(activeChoice.id);
+          else if (pane === "action" && objectFirst) goBack();
           else if (pane === "review") runRef.current?.focus();
         }}
       />
@@ -368,21 +563,23 @@ export function PullRequestCommandComposer({
           <p className="change-composer-panel-title">
             {pane === "choice"
               ? "Choose pull request"
-              : pane === "review"
-                ? `Confirm ${actionInfo.label.toLowerCase()}`
-                : actionInfo.label}
+              : pane === "action"
+                ? "Choose an action"
+                : pane === "review"
+                  ? `Confirm ${actionLabel.toLowerCase()}`
+                  : actionLabel}
           </p>
           <Button variant="ghost" size="sm" onClick={goBack} disabled={busy}>
             Back
           </Button>
         </div>
-        {pane === "choice" ? (
+        {pane === "choice" || pane === "action" ? (
           <>
             <CommandComposerChoiceStep
-              pane="choice"
+              pane={pane}
               action={action}
-              operandLabel="Pull request"
-              choiceSearchLabel="pull requests"
+              operandLabel={pane === "action" ? "Actions" : "Pull request"}
+              choiceSearchLabel={pane === "action" ? "actions" : "pull requests"}
               query={query}
               choices={choices}
               matchingCount={choices.length}
@@ -395,44 +592,48 @@ export function PullRequestCommandComposer({
               }}
               onHighlight={setHighlightedId}
               onSelect={selectChoice}
-              searchPlaceholder="Search pull requests on this page…"
+              searchPlaceholder={
+                pane === "action" ? "Search PR actions…" : "Search pull requests on this page…"
+              }
               choiceIcon={GitPullRequest}
             />
-            {loadingPullRequests ? (
+            {pane === "choice" && loadingPullRequests ? (
               <p role="status" className="text-muted-foreground text-xs">
                 Loading pull requests…
               </p>
             ) : null}
-            {listError ? (
+            {pane === "choice" && listError ? (
               <p role="alert" className="text-destructive text-xs">
                 {failureMessage(listError)}
               </p>
             ) : null}
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPage(page - 1);
-                  setHighlightedId(null);
-                }}
-                disabled={page === 1 || loadingPullRequests}
-              >
-                Previous
-              </Button>
-              <span className="text-muted-foreground tabular-nums">Page {page}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPage(page + 1);
-                  setHighlightedId(null);
-                }}
-                disabled={!pullRequestPage?.hasNextPage || loadingPullRequests}
-              >
-                Next
-              </Button>
-            </div>
+            {pane === "choice" ? (
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPage(page - 1);
+                    setHighlightedId(null);
+                  }}
+                  disabled={page === 1 || loadingPullRequests}
+                >
+                  Previous
+                </Button>
+                <span className="text-muted-foreground tabular-nums">Page {page}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPage(page + 1);
+                    setHighlightedId(null);
+                  }}
+                  disabled={!pullRequestPage?.hasNextPage || loadingPullRequests}
+                >
+                  Next
+                </Button>
+              </div>
+            ) : null}
           </>
         ) : pane === "review" && selectedPullRequest ? (
           <div className="change-composer-review-content">
@@ -547,12 +748,12 @@ export function PullRequestCommandComposer({
               </p>
             )}
             <Button ref={runRef} onClick={() => void run()} disabled={!canRun}>
-              Confirm {actionInfo.label.toLowerCase()}
+              Confirm {actionLabel.toLowerCase()}
             </Button>
           </div>
         ) : (
           <div className="change-composer-execution" role="status">
-            <LoaderCircle className="size-5 animate-spin" /> {actionInfo.label}…
+            <LoaderCircle className="size-5 animate-spin" /> {actionLabel}…
           </div>
         )}
         {error ? (

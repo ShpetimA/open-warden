@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, GitPullRequest, LoaderCircle } from "lucide-react";
+import { GitBranch, GitPullRequest, LoaderCircle, PencilLine } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAppSelector } from "@/app/hooks";
@@ -14,6 +14,7 @@ import {
 import { useGetGitRepositoryStateQuery } from "@/features/source-control/gitOperationsApi";
 
 import { CommandComposerCards } from "./CommandComposerCards";
+import type { ComposerCardStep } from "./CommandComposerCards";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import { failureMessage } from "./commandComposerModel";
@@ -154,10 +155,74 @@ export function CreatePullRequestComposer({
     onRun: () => void advanceOrRun(),
   });
 
+  const cardSteps: ComposerCardStep[] = [
+    {
+      id: "action",
+      label: "Action",
+      value: "Create pull request",
+      icon: GitPullRequest,
+      active: false,
+      onPress: () => {
+        if (!busy) onBack();
+      },
+    },
+    {
+      id: "head",
+      label: "Head",
+      value: step === "head" ? (activeChoice?.label ?? "Choose head") : headRef,
+      icon: GitBranch,
+      active: step === "head",
+      onPress: () => {
+        if (busy) return;
+        if (step === "head" && activeChoice) selectBranch(activeChoice.id);
+        else {
+          setQuery("");
+          setHighlightedId(headRef);
+          setStep("head");
+        }
+      },
+    },
+  ];
+
+  if (step !== "head") {
+    cardSteps.push({
+      id: "base",
+      label: "Base",
+      value: step === "base" ? (activeChoice?.label ?? "Choose base") : baseRef,
+      icon: GitBranch,
+      active: step === "base",
+      onPress: () => {
+        if (busy) return;
+        if (step === "base" && activeChoice) selectBranch(activeChoice.id);
+        else {
+          setQuery("");
+          setHighlightedId(baseRef);
+          setStep("base");
+        }
+      },
+    });
+  }
+
+  if (step === "details" || step === "confirm" || step === "execute") {
+    cardSteps.push({
+      id: "details",
+      label: "Details",
+      value: title.trim() || "Write details",
+      icon: PencilLine,
+      active: true,
+      onPress: () => {
+        if (busy) return;
+        if (step === "details") titleRef.current?.focus();
+        else setStep("details");
+      },
+    });
+  }
+
   return (
     <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
       <CommandComposerCards
         pane={pane}
+        steps={cardSteps}
         actionLabel="Create pull request"
         previewAction="create-pr"
         operandLabel={step === "head" ? "Head" : step === "base" ? "Base" : "Branches"}

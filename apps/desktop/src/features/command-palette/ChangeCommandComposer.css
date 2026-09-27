@@ -50,6 +50,44 @@
   width: calc(var(--composer-card-width) + 24px);
 }
 
+.change-composer-card-surface[data-count="3"] {
+  width: calc(var(--composer-card-width) * 3 + 40px);
+}
+
+.change-composer-card-surface[data-count="3"] .change-composer-cards {
+  grid-template-columns: repeat(3, var(--composer-card-width));
+}
+
+.change-composer-card-history {
+  position: absolute;
+  top: -14px;
+  left: 16px;
+  display: flex;
+  max-width: calc(100% - 32px);
+  gap: 6px;
+}
+
+.change-composer-card-history-item {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-toolbar);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: var(--elevation-surface);
+}
+
+.change-composer-card-history-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
 .change-composer-cards {
   display: grid;
   grid-template-columns: repeat(2, var(--composer-card-width));
@@ -89,7 +127,7 @@
     transform 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.change-composer-card-surface[data-count="1"] .change-composer-action-card {
+.change-composer-card-surface[data-count="1"] .change-composer-card {
   transform: translateX(calc(var(--composer-card-width) / 2 + 4px));
 }
 
@@ -434,6 +472,12 @@
   }
   .change-composer-panel {
     padding: 12px;
+  }
+}
+
+@media (max-width: 680px) {
+  .change-composer-card-surface[data-count="3"] {
+    --composer-card-width: min(192px, calc((100vw - 72px) / 3));
   }
 }
 
