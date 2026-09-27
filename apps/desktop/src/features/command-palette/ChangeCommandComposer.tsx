@@ -724,6 +724,7 @@ export function ChangeCommandComposer({
   useCommandComposerHotkeys({
     rootRef,
     searchRef,
+    runButtonRef,
     pane,
     query,
     enabledChoiceIds: visibleChoices

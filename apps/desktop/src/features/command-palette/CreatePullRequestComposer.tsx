@@ -142,6 +142,7 @@ export function CreatePullRequestComposer({
   useCommandComposerHotkeys({
     rootRef,
     searchRef,
+    runButtonRef: runRef,
     pane,
     query,
     enabledChoiceIds: branchChoices.map((choice) => choice.id),

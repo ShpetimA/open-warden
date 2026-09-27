@@ -1,3 +1,4 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { GitBranch } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -23,6 +24,17 @@ export type ComposerCardStep = {
   icon: LucideIcon;
   active: boolean;
   onPress: () => void;
+};
+
+type CardSlot = {
+  id: string;
+  node: ReactNode;
+};
+
+type LeavingCard = CardSlot & {
+  slot: number;
+  count: number;
+  sequence: number;
 };
 
 function CommandCardFrame({ label, value, previewKey, icon, active, onPress }: CardProps) {
@@ -72,6 +84,62 @@ function ActionPreviewIcon({
   );
 }
 
+function AnimatedCardSlots({ cards }: { cards: CardSlot[] }) {
+  const previousCardsRef = useRef(cards);
+  const sequenceRef = useRef(0);
+  const [leavingCard, setLeavingCard] = useState<LeavingCard | null>(null);
+
+  useLayoutEffect(() => {
+    const previousCards = previousCardsRef.current;
+    const removedCard = previousCards.find(
+      (previous) => !cards.some((current) => current.id === previous.id),
+    );
+    previousCardsRef.current = cards;
+
+    if (removedCard) {
+      sequenceRef.current += 1;
+      setLeavingCard({
+        ...removedCard,
+        slot: previousCards.indexOf(removedCard),
+        count: previousCards.length,
+        sequence: sequenceRef.current,
+      });
+    }
+  }, [cards]);
+
+  useEffect(() => {
+    if (!leavingCard) return;
+
+    const timeout = window.setTimeout(() => {
+      setLeavingCard((current) => (current?.sequence === leavingCard.sequence ? null : current));
+    }, 130);
+
+    return () => window.clearTimeout(timeout);
+  }, [leavingCard]);
+
+  return (
+    <div className="change-composer-cards">
+      {cards.map(({ id, node }, index) => (
+        <div key={id} className="change-composer-card-position" data-slot={index}>
+          {node}
+        </div>
+      ))}
+      {leavingCard && !cards.some((card) => card.id === leavingCard.id) ? (
+        <div
+          key={`exit-${leavingCard.sequence}`}
+          className="change-composer-card-position change-composer-card-exit"
+          data-slot={leavingCard.slot}
+          data-exit-count={leavingCard.count}
+          aria-hidden="true"
+          inert
+        >
+          {leavingCard.node}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type Props = {
   pane: ComposerPane;
   steps?: readonly ComposerCardStep[];
@@ -102,6 +170,31 @@ export function CommandComposerCards({
   if (steps) {
     const olderSteps = steps.slice(0, -3);
     const visibleSteps = steps.slice(-3);
+    const visibleCards = visibleSteps.map((step): CardSlot => {
+      const Icon = step.icon;
+
+      return {
+        id: step.id,
+        node: (
+          <CommandCardFrame
+            label={step.label}
+            value={step.value}
+            previewKey={step.previewKey}
+            active={step.active}
+            onPress={step.onPress}
+            icon={
+              step.id === "action" ? (
+                <ActionPreviewIcon previewAction={previewAction} fallbackIcon={Icon} />
+              ) : (
+                <span className="change-composer-card-icon" aria-hidden="true">
+                  <Icon className="size-8" />
+                </span>
+              )
+            }
+          />
+        ),
+      };
+    });
 
     return (
       <div
@@ -109,47 +202,20 @@ export function CommandComposerCards({
         data-count={visibleSteps.length}
         data-progressive="true"
       >
-        {olderSteps.length ? (
-          <div className="change-composer-card-history" aria-label="Earlier command steps">
-            {olderSteps.map((step) => (
-              <button
-                key={step.id}
-                type="button"
-                className="change-composer-card-history-item"
-                onClick={step.onPress}
-                title={`${step.label}: ${step.value}`}
-              >
-                {step.label}: {step.value}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div className="change-composer-cards">
-          {visibleSteps.map((step, index) => {
-            const Icon = step.icon;
-
-            return (
-              <div key={step.id} className="change-composer-card-position" data-slot={index}>
-                <CommandCardFrame
-                  label={step.label}
-                  value={step.value}
-                  previewKey={step.previewKey}
-                  active={step.active}
-                  onPress={step.onPress}
-                  icon={
-                    step.id === "action" ? (
-                      <ActionPreviewIcon previewAction={previewAction} fallbackIcon={Icon} />
-                    ) : (
-                      <span className="change-composer-card-icon" aria-hidden="true">
-                        <Icon className="size-8" />
-                      </span>
-                    )
-                  }
-                />
-              </div>
-            );
-          })}
+        <div className="change-composer-card-history" aria-label="Earlier command steps">
+          {olderSteps.map((step) => (
+            <button
+              key={step.id}
+              type="button"
+              className="change-composer-card-history-item"
+              onClick={step.onPress}
+              title={`${step.label}: ${step.value}`}
+            >
+              {step.label}: {step.value}
+            </button>
+          ))}
         </div>
+        <AnimatedCardSlots cards={visibleCards} />
       </div>
     );
   }
@@ -198,13 +264,8 @@ export function CommandComposerCards({
       data-count={visibleCards.length}
       data-object-first={objectFirst}
     >
-      <div className="change-composer-cards">
-        {visibleCards.map(({ id, node }, index) => (
-          <div key={id} className="change-composer-card-position" data-slot={index}>
-            {node}
-          </div>
-        ))}
-      </div>
+      <div className="change-composer-card-history" />
+      <AnimatedCardSlots cards={visibleCards} />
     </div>
   );
 }

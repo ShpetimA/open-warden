@@ -460,6 +460,7 @@ export function PullRequestCommandComposer({
   useCommandComposerHotkeys({
     rootRef,
     searchRef,
+    runButtonRef: runRef,
     pane,
     query,
     enabledChoiceIds: choices.filter((item) => !item.disabled).map((item) => item.id),

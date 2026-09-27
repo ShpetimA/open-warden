@@ -6,6 +6,7 @@ import type { ComposerPane } from "./commandComposerFlow";
 type Props = {
   rootRef: RefObject<HTMLDivElement | null>;
   searchRef: RefObject<HTMLInputElement | null>;
+  runButtonRef?: RefObject<HTMLButtonElement | null>;
   pane: ComposerPane;
   query: string;
   enabledChoiceIds: string[];
@@ -28,9 +29,20 @@ function hasEditableValue(target: EventTarget | null): boolean {
   );
 }
 
+function isAtTextBoundary(target: EventTarget | null, boundary: "start" | "end"): boolean {
+  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+    return true;
+  }
+  if (target.selectionStart === null || target.selectionEnd === null) return true;
+
+  const caret = boundary === "start" ? 0 : target.value.length;
+  return target.selectionStart === caret && target.selectionEnd === caret;
+}
+
 export function useCommandComposerHotkeys({
   rootRef,
   searchRef,
+  runButtonRef,
   pane,
   query,
   enabledChoiceIds,
@@ -103,6 +115,13 @@ export function useCommandComposerHotkeys({
   useHotkey(
     "ArrowRight",
     (event) => {
+      if (pane === "review") {
+        if (!isAtTextBoundary(event.target, "end") || !canRun || !runButtonRef?.current) return;
+        event.preventDefault();
+        runButtonRef.current.focus();
+        return;
+      }
+
       if (
         event.target instanceof HTMLTextAreaElement ||
         (event.target instanceof HTMLInputElement && event.target !== searchRef.current) ||
@@ -120,7 +139,13 @@ export function useCommandComposerHotkeys({
   useHotkey(
     "ArrowLeft",
     (event) => {
-      if ((pane === "action" && actionIsRoot) || hasEditableValue(event.target)) return;
+      if (pane === "action" && actionIsRoot) return;
+      if (pane === "review") {
+        if (!isAtTextBoundary(event.target, "start")) return;
+      } else if (hasEditableValue(event.target)) {
+        return;
+      }
+
       event.preventDefault();
       onBack();
     },
