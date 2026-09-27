@@ -29,16 +29,6 @@ function hasEditableValue(target: EventTarget | null): boolean {
   );
 }
 
-function isAtTextBoundary(target: EventTarget | null, boundary: "start" | "end"): boolean {
-  if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
-    return true;
-  }
-  if (target.selectionStart === null || target.selectionEnd === null) return true;
-
-  const caret = boundary === "start" ? 0 : target.value.length;
-  return target.selectionStart === caret && target.selectionEnd === caret;
-}
-
 export function useCommandComposerHotkeys({
   rootRef,
   searchRef,
@@ -116,7 +106,7 @@ export function useCommandComposerHotkeys({
     "ArrowRight",
     (event) => {
       if (pane === "review") {
-        if (!isAtTextBoundary(event.target, "end") || !canRun || !runButtonRef?.current) return;
+        if (!runButtonRef?.current) return;
         event.preventDefault();
         runButtonRef.current.focus();
         return;
@@ -140,12 +130,7 @@ export function useCommandComposerHotkeys({
     "ArrowLeft",
     (event) => {
       if (pane === "action" && actionIsRoot) return;
-      if (pane === "review") {
-        if (!isAtTextBoundary(event.target, "start")) return;
-      } else if (hasEditableValue(event.target)) {
-        return;
-      }
-
+      if (pane !== "review" && hasEditableValue(event.target)) return;
       event.preventDefault();
       onBack();
     },

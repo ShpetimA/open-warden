@@ -120,28 +120,6 @@
   --start-offset: 0px;
 }
 
-.change-composer-card-position[data-exit-count="1"] {
-  --start-offset: calc(var(--composer-card-width) + 8px);
-}
-
-.change-composer-card-position[data-exit-count="2"] {
-  --start-offset: calc((var(--composer-card-width) + 8px) / 2);
-}
-
-.change-composer-card-position[data-exit-count="3"] {
-  --start-offset: 0px;
-}
-
-.change-composer-card-exit {
-  z-index: 1;
-  pointer-events: none;
-  animation: change-composer-card-exit 130ms ease-in both;
-}
-
-.change-composer-card-exit .change-composer-card {
-  animation: none;
-}
-
 .change-composer-card {
   display: grid;
   width: var(--composer-card-width);
@@ -473,19 +451,6 @@
   }
 }
 
-@keyframes change-composer-card-exit {
-  from {
-    opacity: 1;
-    translate: 0 0;
-    scale: 1;
-  }
-  to {
-    opacity: 0;
-    translate: -8px 0;
-    scale: 0.98;
-  }
-}
-
 @keyframes change-composer-value-enter {
   from {
     opacity: 0.6;
@@ -533,10 +498,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .change-composer-card-exit {
-    display: none;
-  }
-
   .change-composer *,
   .change-composer *::before,
   .change-composer *::after,
