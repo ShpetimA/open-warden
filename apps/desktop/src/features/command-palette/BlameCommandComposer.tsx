@@ -9,6 +9,7 @@ import { useGetRepoFilesQuery } from "@/features/source-control/api";
 import { openFileViewer } from "@/features/source-control/sourceControlSlice";
 
 import { CommandComposerCards } from "./CommandComposerCards";
+import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
@@ -24,7 +25,7 @@ export function BlameCommandComposer({
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const { data: files = [], isLoading } = useGetRepoFilesQuery(repoPath, { skip: !repoPath });
   const matches = files.filter((file) =>
@@ -65,7 +66,7 @@ export function BlameCommandComposer({
   });
 
   return (
-    <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane="choice">
+    <CommandComposerLayout pane="choice">
       <CommandComposerCards
         pane="choice"
         actionLabel="Blame file"
@@ -119,6 +120,6 @@ export function BlameCommandComposer({
           </span>
         </div>
       </div>
-    </div>
+    </CommandComposerLayout>
   );
 }

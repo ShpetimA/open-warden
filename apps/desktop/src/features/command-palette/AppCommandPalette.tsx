@@ -11,6 +11,7 @@ import { RepositoryCommandComposer } from "./RepositoryCommandComposer";
 import { CreatePullRequestComposer } from "./CreatePullRequestComposer";
 import { PullRequestCommandComposer } from "./PullRequestCommandComposer";
 import { BlameCommandComposer } from "./BlameCommandComposer";
+import { CommandComposerLayoutHost } from "./CommandComposerLayout";
 import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
 type AppCommandPaletteProps = {
@@ -64,6 +65,7 @@ export function AppCommandPalette({
       <DialogContent
         className="command-composer-dialog top-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] translate-y-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[680px]"
         showCloseButton={false}
+        contentAnimated={false}
         onEscapeKeyDown={(event) => event.preventDefault()}
         onKeyDown={(event) => event.stopPropagation()}
         onKeyUp={(event) => event.stopPropagation()}
@@ -74,57 +76,59 @@ export function AppCommandPalette({
           confirmation.
         </DialogDescription>
         {open ? (
-          specialAction === "open-repository" ? (
-            <RepositoryCommandComposer
-              onBack={() => setSpecialAction(null)}
-              onClose={() => onOpenChange(false)}
-            />
-          ) : specialAction === "blame-file" ? (
-            <BlameCommandComposer
-              onBack={() => setSpecialAction(null)}
-              onClose={() => onOpenChange(false)}
-            />
-          ) : specialAction === "create-pr" ? (
-            <CreatePullRequestComposer
-              onBack={() => setSpecialAction("pull-requests")}
-              onClose={() => onOpenChange(false)}
-            />
-          ) : specialAction === "pull-requests" ? (
-            <PullRequestCommandComposer
-              action={null}
-              initialPullRequest={prefillPullRequest ? initialPullRequest : null}
-              prefillFromWorkspace={prefillPullRequest}
-              onCreate={() => {
-                setPrefillPullRequest(false);
-                setSpecialAction("create-pr");
-              }}
-              onBack={() => {
-                setPrefillPullRequest(true);
-                setSpecialAction(null);
-              }}
-              onClose={() => onOpenChange(false)}
-            />
-          ) : specialAction !== null && isPullRequestAction(specialAction) ? (
-            <PullRequestCommandComposer
-              action={specialAction}
-              initialPullRequest={initialPullRequest}
-              onCreate={() => setSpecialAction("create-pr")}
-              onBack={() => setSpecialAction(null)}
-              onClose={() => onOpenChange(false)}
-            />
-          ) : (
-            <ChangeCommandComposer
-              initialAction={
-                specialAction
-                  ? null
-                  : initialAction && !specialActions.has(initialAction)
-                    ? initialAction
-                    : null
-              }
-              onClose={() => onOpenChange(false)}
-              onOpenSpecial={setSpecialAction}
-            />
-          )
+          <CommandComposerLayoutHost>
+            {specialAction === "open-repository" ? (
+              <RepositoryCommandComposer
+                onBack={() => setSpecialAction(null)}
+                onClose={() => onOpenChange(false)}
+              />
+            ) : specialAction === "blame-file" ? (
+              <BlameCommandComposer
+                onBack={() => setSpecialAction(null)}
+                onClose={() => onOpenChange(false)}
+              />
+            ) : specialAction === "create-pr" ? (
+              <CreatePullRequestComposer
+                onBack={() => setSpecialAction("pull-requests")}
+                onClose={() => onOpenChange(false)}
+              />
+            ) : specialAction === "pull-requests" ? (
+              <PullRequestCommandComposer
+                action={null}
+                initialPullRequest={prefillPullRequest ? initialPullRequest : null}
+                prefillFromWorkspace={prefillPullRequest}
+                onCreate={() => {
+                  setPrefillPullRequest(false);
+                  setSpecialAction("create-pr");
+                }}
+                onBack={() => {
+                  setPrefillPullRequest(true);
+                  setSpecialAction(null);
+                }}
+                onClose={() => onOpenChange(false)}
+              />
+            ) : specialAction !== null && isPullRequestAction(specialAction) ? (
+              <PullRequestCommandComposer
+                action={specialAction}
+                initialPullRequest={initialPullRequest}
+                onCreate={() => setSpecialAction("create-pr")}
+                onBack={() => setSpecialAction(null)}
+                onClose={() => onOpenChange(false)}
+              />
+            ) : (
+              <ChangeCommandComposer
+                initialAction={
+                  specialAction
+                    ? null
+                    : initialAction && !specialActions.has(initialAction)
+                      ? initialAction
+                      : null
+                }
+                onClose={() => onOpenChange(false)}
+                onOpenSpecial={setSpecialAction}
+              />
+            )}
+          </CommandComposerLayoutHost>
         ) : null}
       </DialogContent>
     </Dialog>

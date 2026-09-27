@@ -15,6 +15,7 @@ import { useGetGitRepositoryStateQuery } from "@/features/source-control/gitOper
 
 import { CommandComposerCards } from "./CommandComposerCards";
 import type { ComposerCardStep } from "./CommandComposerCards";
+import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import { failureMessage } from "./commandComposerModel";
@@ -48,7 +49,7 @@ export function CreatePullRequestComposer({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const runRef = useRef<HTMLButtonElement>(null);
@@ -78,7 +79,7 @@ export function CreatePullRequestComposer({
     else if (step === "details") titleRef.current?.focus();
     else if (step === "confirm") runRef.current?.focus();
     else rootRef.current?.focus({ preventScroll: true });
-  }, [step]);
+  }, [rootRef, step]);
 
   function selectBranch(branch: string) {
     if (!localBranches.includes(branch)) return;
@@ -170,6 +171,7 @@ export function CreatePullRequestComposer({
       id: "head",
       label: "Head",
       value: step === "head" ? (activeChoice?.label ?? "Choose head") : headRef,
+      previewKey: step === "head" ? activeChoice?.id : undefined,
       icon: GitBranch,
       active: step === "head",
       onPress: () => {
@@ -189,6 +191,7 @@ export function CreatePullRequestComposer({
       id: "base",
       label: "Base",
       value: step === "base" ? (activeChoice?.label ?? "Choose base") : baseRef,
+      previewKey: step === "base" ? activeChoice?.id : undefined,
       icon: GitBranch,
       active: step === "base",
       onPress: () => {
@@ -219,7 +222,7 @@ export function CreatePullRequestComposer({
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
+    <CommandComposerLayout pane={pane}>
       <CommandComposerCards
         pane={pane}
         steps={cardSteps}
@@ -352,6 +355,6 @@ export function CreatePullRequestComposer({
           </span>
         </div>
       </div>
-    </div>
+    </CommandComposerLayout>
   );
 }

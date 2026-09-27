@@ -11,6 +11,7 @@
 .change-composer {
   --composer-card-width: 192px;
   --composer-card-height: 132px;
+  --composer-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
   display: grid;
   gap: 12px;
@@ -24,7 +25,7 @@
 
 .change-composer-card-surface {
   position: relative;
-  width: calc(var(--composer-card-width) * 2 + 32px);
+  width: calc(var(--composer-card-width) * 3 + 40px);
   max-width: 100%;
   padding: 12px;
   margin-inline: auto;
@@ -36,26 +37,22 @@
   z-index: -1;
   inset-block: 0;
   left: 50%;
-  width: 100%;
+  width: calc(var(--composer-card-width) * 3 + 40px);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) + 12px);
   background: var(--surface-toolbar);
   box-shadow: var(--elevation-overlay);
   content: "";
   transform: translateX(-50%);
-  transition: width 150ms cubic-bezier(0.2, 0, 0, 1);
+  transition: width 150ms var(--composer-motion-ease);
 }
 
 .change-composer-card-surface[data-count="1"]::before {
   width: calc(var(--composer-card-width) + 24px);
 }
 
-.change-composer-card-surface[data-count="3"] {
-  width: calc(var(--composer-card-width) * 3 + 40px);
-}
-
-.change-composer-card-surface[data-count="3"] .change-composer-cards {
-  grid-template-columns: repeat(3, var(--composer-card-width));
+.change-composer-card-surface[data-count="2"]::before {
+  width: calc(var(--composer-card-width) * 2 + 32px);
 }
 
 .change-composer-card-history {
@@ -89,9 +86,38 @@
 }
 
 .change-composer-cards {
-  display: grid;
-  grid-template-columns: repeat(2, var(--composer-card-width));
-  gap: 8px;
+  position: relative;
+  height: var(--composer-card-height);
+}
+
+.change-composer-card-position {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--composer-card-width);
+  --slot-offset: 0px;
+  transform: translateX(calc(var(--slot-offset) + var(--start-offset)));
+  transition: transform 150ms var(--composer-motion-ease);
+}
+
+.change-composer-card-position[data-slot="1"] {
+  --slot-offset: calc(var(--composer-card-width) + 8px);
+}
+
+.change-composer-card-position[data-slot="2"] {
+  --slot-offset: calc(var(--composer-card-width) * 2 + 16px);
+}
+
+.change-composer-card-surface[data-count="1"] {
+  --start-offset: calc(var(--composer-card-width) + 8px);
+}
+
+.change-composer-card-surface[data-count="2"] {
+  --start-offset: calc((var(--composer-card-width) + 8px) / 2);
+}
+
+.change-composer-card-surface[data-count="3"] {
+  --start-offset: 0px;
 }
 
 .change-composer-card {
@@ -109,26 +135,13 @@
   text-align: center;
   cursor: pointer;
   box-shadow: var(--elevation-surface);
-  animation: change-composer-card-enter 150ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: change-composer-card-enter 150ms var(--composer-motion-ease) both;
   transition:
-    border-color 150ms var(--ease-out),
-    background-color 150ms var(--ease-out),
-    box-shadow 150ms var(--ease-out),
-    transform 150ms var(--ease-out),
-    scale 150ms var(--ease-out);
-}
-
-.change-composer-action-card {
-  transform: translateX(0);
-  transition:
-    border-color 150ms var(--ease-out),
-    background-color 150ms var(--ease-out),
-    box-shadow 150ms var(--ease-out),
-    transform 150ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.change-composer-card-surface[data-count="1"] .change-composer-card {
-  transform: translateX(calc(var(--composer-card-width) / 2 + 4px));
+    border-color 120ms var(--composer-motion-ease),
+    background-color 120ms var(--composer-motion-ease),
+    box-shadow 120ms var(--composer-motion-ease),
+    transform 120ms var(--composer-motion-ease),
+    scale 120ms var(--composer-motion-ease);
 }
 
 .change-composer-card[data-active="true"] {
@@ -181,9 +194,9 @@
   filter: blur(4px);
   transform: scale(0.25);
   transition:
-    opacity 130ms cubic-bezier(0.2, 0, 0, 1),
-    filter 130ms cubic-bezier(0.2, 0, 0, 1),
-    transform 130ms cubic-bezier(0.2, 0, 0, 1);
+    opacity 130ms var(--composer-motion-ease),
+    filter 130ms var(--composer-motion-ease),
+    transform 130ms var(--composer-motion-ease);
 }
 
 .change-composer-icon-layer[data-visible="true"] {
@@ -209,7 +222,10 @@
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
-  animation: change-composer-value-enter 130ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.change-composer-card-value[data-preview="true"] {
+  animation: change-composer-value-enter 130ms var(--composer-motion-ease) both;
 }
 
 .change-composer-panel {
@@ -228,7 +244,7 @@
   border-radius: calc(var(--radius) + 4px);
   background: var(--surface-elevated);
   box-shadow: var(--elevation-overlay);
-  animation: change-composer-panel-enter 140ms cubic-bezier(0.2, 0, 0, 1) both;
+  animation: change-composer-panel-enter 140ms var(--composer-motion-ease) both;
 }
 
 .change-composer-panel-title {
@@ -312,9 +328,9 @@
   color: var(--foreground);
   cursor: pointer;
   transition:
-    background-color 130ms var(--ease-out),
-    border-color 130ms var(--ease-out),
-    transform 130ms var(--ease-out);
+    background-color 120ms var(--composer-motion-ease),
+    border-color 120ms var(--composer-motion-ease),
+    transform 120ms var(--composer-motion-ease);
 }
 
 .change-composer-choice[data-highlighted="true"],
@@ -476,7 +492,7 @@
 }
 
 @media (max-width: 680px) {
-  .change-composer-card-surface[data-count="3"] {
+  .change-composer-card-surface {
     --composer-card-width: min(192px, calc((100vw - 72px) / 3));
   }
 }

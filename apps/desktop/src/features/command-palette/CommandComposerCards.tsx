@@ -9,36 +9,66 @@ import type { ComposerPane } from "./commandComposerFlow";
 type CardProps = {
   label: string;
   value: string;
+  previewKey?: string;
   icon: ReactNode;
   active: boolean;
   onPress: () => void;
-  className?: string;
 };
 
 export type ComposerCardStep = {
   id: string;
   label: string;
   value: string;
+  previewKey?: string;
   icon: LucideIcon;
   active: boolean;
   onPress: () => void;
 };
 
-function CommandCardFrame({ label, value, icon, active, onPress, className = "" }: CardProps) {
+function CommandCardFrame({ label, value, previewKey, icon, active, onPress }: CardProps) {
   return (
     <button
       type="button"
-      className={`change-composer-card ${className}`}
+      className="change-composer-card"
       data-active={active}
       onClick={onPress}
       aria-label={`${label}: ${value}`}
     >
       {icon}
       <span className="change-composer-card-label">{label}</span>
-      <span className="change-composer-card-value" title={value}>
+      <span
+        key={previewKey}
+        className="change-composer-card-value"
+        data-preview={previewKey !== undefined}
+        title={value}
+      >
         {value}
       </span>
     </button>
+  );
+}
+
+function ActionPreviewIcon({
+  previewAction,
+  fallbackIcon: FallbackIcon,
+}: {
+  previewAction: ComposerAction | null;
+  fallbackIcon: LucideIcon;
+}) {
+  return (
+    <span className="change-composer-card-icon change-composer-icon-stack" aria-hidden="true">
+      <FallbackIcon className="change-composer-icon-layer" data-visible={!previewAction} />
+      {actions.map((item) => {
+        const Icon = item.icon;
+        return (
+          <Icon
+            key={item.id}
+            className="change-composer-icon-layer"
+            data-visible={previewAction === item.id}
+          />
+        );
+      })}
+    </span>
   );
 }
 
@@ -95,22 +125,28 @@ export function CommandComposerCards({
           </div>
         ) : null}
         <div className="change-composer-cards">
-          {visibleSteps.map((step) => {
+          {visibleSteps.map((step, index) => {
             const Icon = step.icon;
 
             return (
-              <CommandCardFrame
-                key={step.id}
-                label={step.label}
-                value={step.value}
-                active={step.active}
-                onPress={step.onPress}
-                icon={
-                  <span className="change-composer-card-icon" aria-hidden="true">
-                    <Icon className="size-8" />
-                  </span>
-                }
-              />
+              <div key={step.id} className="change-composer-card-position" data-slot={index}>
+                <CommandCardFrame
+                  label={step.label}
+                  value={step.value}
+                  previewKey={step.previewKey}
+                  active={step.active}
+                  onPress={step.onPress}
+                  icon={
+                    step.id === "action" ? (
+                      <ActionPreviewIcon previewAction={previewAction} fallbackIcon={Icon} />
+                    ) : (
+                      <span className="change-composer-card-icon" aria-hidden="true">
+                        <Icon className="size-8" />
+                      </span>
+                    )
+                  }
+                />
+              </div>
             );
           })}
         </div>
@@ -122,26 +158,12 @@ export function CommandComposerCards({
   const hasActionCard = !objectFirst || pane !== "choice";
   const actionCard = hasActionCard ? (
     <CommandCardFrame
-      className="change-composer-action-card"
       active={pane === "action" || pane === "execute"}
       label="Action"
       value={actionLabel}
+      previewKey={previewAction ?? "choose"}
       onPress={onActionPress}
-      icon={
-        <span className="change-composer-card-icon change-composer-icon-stack" aria-hidden="true">
-          {actions.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Icon
-                key={item.id}
-                className="change-composer-icon-layer"
-                data-visible={previewAction === item.id}
-              />
-            );
-          })}
-          {!previewAction ? <PreviewIcon className="size-8" /> : null}
-        </span>
-      }
+      icon={<ActionPreviewIcon previewAction={previewAction} fallbackIcon={PreviewIcon} />}
     />
   ) : null;
   const operandCard = hasOperandCard ? (
@@ -149,6 +171,7 @@ export function CommandComposerCards({
       active={objectFirst ? pane === "choice" || pane === "review" : true}
       label={operandLabel}
       value={operandValue}
+      previewKey={pane === "choice" ? operandValue : undefined}
       onPress={onOperandPress}
       icon={
         <span className="change-composer-card-icon" aria-hidden="true">
@@ -158,15 +181,29 @@ export function CommandComposerCards({
     />
   ) : null;
 
+  const orderedCards = objectFirst
+    ? [
+        { id: "operand", node: operandCard },
+        { id: "action", node: actionCard },
+      ]
+    : [
+        { id: "action", node: actionCard },
+        { id: "operand", node: operandCard },
+      ];
+  const visibleCards = orderedCards.filter(({ node }) => node !== null);
+
   return (
     <div
       className="change-composer-card-surface"
-      data-count={hasOperandCard && hasActionCard ? "2" : "1"}
+      data-count={visibleCards.length}
       data-object-first={objectFirst}
     >
       <div className="change-composer-cards">
-        {objectFirst ? operandCard : actionCard}
-        {objectFirst ? actionCard : operandCard}
+        {visibleCards.map(({ id, node }, index) => (
+          <div key={id} className="change-composer-card-position" data-slot={index}>
+            {node}
+          </div>
+        ))}
       </div>
     </div>
   );

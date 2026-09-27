@@ -28,6 +28,7 @@ import { useResolveHostedRepoQuery } from "@/features/hosted-repos/api";
 
 import { CommandComposerCards } from "./CommandComposerCards";
 import type { ComposerCardStep } from "./CommandComposerCards";
+import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import {
@@ -108,7 +109,7 @@ export function ChangeCommandComposer({
   const [includeUntracked, setIncludeUntracked] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -127,7 +128,7 @@ export function ChangeCommandComposer({
     else if (action && (nameActions.has(action) || action === "create-worktree"))
       nameRef.current?.focus();
     else runButtonRef.current?.focus();
-  }, [action, pane]);
+  }, [action, pane, rootRef]);
 
   const { currentData: stashPatch, isFetching: stashPatchLoading } = useGetGitStashPatchQuery(
     { repoPath, oid: selection },
@@ -866,6 +867,7 @@ export function ChangeCommandComposer({
           pane === "choice"
             ? operandValue
             : (scopeObjectChoices.find((item) => item.id === selection)?.label ?? selectionLabel),
+        previewKey: pane === "choice" ? activeChoice?.id : undefined,
         icon: scopeInfo.icon,
         active: pane === "choice",
         onPress: () => {
@@ -886,6 +888,7 @@ export function ChangeCommandComposer({
         id: "action",
         label: "Action",
         value: pane === "action" ? (activeChoice?.label ?? "Choose action") : actionLabel,
+        previewKey: pane === "action" ? activeChoice?.id : (action ?? undefined),
         icon: ActionIcon,
         active: pane === "action" || Boolean(selection),
         onPress: () => {
@@ -922,7 +925,7 @@ export function ChangeCommandComposer({
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
+    <CommandComposerLayout pane={pane}>
       <CommandComposerCards
         pane={pane}
         steps={cardSteps}
@@ -1265,6 +1268,6 @@ export function ChangeCommandComposer({
           ) : null}
         </div>
       </div>
-    </div>
+    </CommandComposerLayout>
   );
 }

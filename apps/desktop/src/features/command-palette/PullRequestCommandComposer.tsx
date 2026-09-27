@@ -29,6 +29,7 @@ import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
 import { CommandComposerCards } from "./CommandComposerCards";
 import type { ComposerCardStep } from "./CommandComposerCards";
+import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import type { PullRequestComposerAction } from "./commandComposerModel";
@@ -80,7 +81,7 @@ export function PullRequestCommandComposer({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const runRef = useRef<HTMLButtonElement>(null);
@@ -255,7 +256,7 @@ export function PullRequestCommandComposer({
       messageRef.current?.focus();
     else if (pane === "review") runRef.current?.focus();
     else rootRef.current?.focus({ preventScroll: true });
-  }, [action, hostedRepo?.providerId, pane]);
+  }, [action, hostedRepo?.providerId, pane, rootRef]);
 
   function selectChoice(id: string) {
     if (pane === "action" && objectFirst) {
@@ -494,6 +495,7 @@ export function PullRequestCommandComposer({
         value: previewPullRequest
           ? `#${previewPullRequest.number} ${previewPullRequest.title}`
           : "Choose a PR",
+        previewKey: pane === "choice" ? activeChoice?.id : undefined,
         icon: GitPullRequest,
         active: pane === "choice",
         onPress: () => {
@@ -514,6 +516,7 @@ export function PullRequestCommandComposer({
         id: "action",
         label: "Action",
         value: pane === "action" ? (previewChoice?.label ?? "Choose action") : actionLabel,
+        previewKey: pane === "action" ? activeChoice?.id : (action ?? undefined),
         icon: actions.find((item) => item.id === previewAction)?.icon ?? GitPullRequest,
         active: true,
         onPress: () => {
@@ -530,7 +533,7 @@ export function PullRequestCommandComposer({
   }
 
   return (
-    <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
+    <CommandComposerLayout pane={pane}>
       <CommandComposerCards
         pane={pane}
         steps={cardSteps}
@@ -773,6 +776,6 @@ export function PullRequestCommandComposer({
           </span>
         </div>
       </div>
-    </div>
+    </CommandComposerLayout>
   );
 }

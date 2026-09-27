@@ -11,6 +11,7 @@ import { desktop } from "@/platform/desktop";
 import type { DirectoryListing } from "@/platform/desktop/contracts";
 
 import { CommandComposerCards } from "./CommandComposerCards";
+import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
@@ -32,7 +33,7 @@ export function RepositoryCommandComposer({
   const [listing, setListing] = useState<{ query: string; result: DirectoryListing } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const runningRef = useRef(false);
 
@@ -85,7 +86,7 @@ export function RepositoryCommandComposer({
   useEffect(() => {
     if (pane === "choice") searchRef.current?.focus();
     else rootRef.current?.focus({ preventScroll: true });
-  }, [pane]);
+  }, [pane, rootRef]);
 
   useEffect(() => {
     if (pane !== "choice" || !pathMode || !directory) return;
@@ -192,7 +193,7 @@ export function RepositoryCommandComposer({
   );
 
   return (
-    <div ref={rootRef} tabIndex={-1} className="change-composer" data-pane={pane}>
+    <CommandComposerLayout pane={pane}>
       <CommandComposerCards
         pane={pane}
         actionLabel="Open repository"
@@ -281,6 +282,6 @@ export function RepositoryCommandComposer({
           </span>
         </div>
       </div>
-    </div>
+    </CommandComposerLayout>
   );
 }
