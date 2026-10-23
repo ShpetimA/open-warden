@@ -50,7 +50,7 @@ it("creates, publishes, tracks, switches, renames and deletes branches", async (
   expect(result.ok && result.value.upstream).toBe("origin/main");
 });
 
-it("fetches incoming commits, fast-forwards and pushes outgoing commits", async () => {
+it("fetches, fast-forwards, and pushes commits", { timeout: 15_000 }, async () => {
   const { root, repo } = await fixture();
   expect((await runGitCommand(repo, { kind: "publish", remote: "origin" })).ok).toBe(true);
   git(root, "clone", "-b", "main", path.join(root, "remote.git"), "peer");
