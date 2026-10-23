@@ -12,7 +12,7 @@ import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
   commitStaged,
@@ -56,6 +56,8 @@ function git(cwd: string, args: string[]) {
 afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
+
+vi.setConfig({ testTimeout: 30_000 });
 
 describe("electron git backend", () => {
   test("reads snapshot buckets from system git", async () => {

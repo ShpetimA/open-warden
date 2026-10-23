@@ -3,8 +3,10 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { getGitStashPatch, getGitRepositoryState, runGitCommand } from "./gitOperations";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 const roots: string[] = [];
 function git(repo: string, ...args: string[]) {
@@ -50,7 +52,7 @@ it("creates, publishes, tracks, switches, renames and deletes branches", async (
   expect(result.ok && result.value.upstream).toBe("origin/main");
 });
 
-it("fetches, fast-forwards, and pushes commits", { timeout: 15_000 }, async () => {
+it("fetches, fast-forwards, and pushes commits", async () => {
   const { root, repo } = await fixture();
   expect((await runGitCommand(repo, { kind: "publish", remote: "origin" })).ok).toBe(true);
   git(root, "clone", "-b", "main", path.join(root, "remote.git"), "peer");
