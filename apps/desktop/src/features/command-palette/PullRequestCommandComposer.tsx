@@ -151,14 +151,14 @@ export function PullRequestCommandComposer({
       : pullRequestsOnPage;
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPullRequests = pullRequests.filter((item) =>
-    `${item.number} ${item.title} ${item.authorLogin} ${item.headRef}`
+    `${item.number} ${item.title} ${item.author.login} ${item.author.displayName ?? ""} ${item.headRef}`
       .toLowerCase()
       .includes(normalizedQuery),
   );
   const pullRequestChoices: ComposerChoice[] = filteredPullRequests.map((item) => ({
     id: String(item.number),
     label: `#${item.number} ${item.title}`,
-    detail: `${item.authorLogin} · ${item.headRef}${item.isDraft ? " · Draft" : ""}`,
+    detail: `${item.author.displayName ?? item.author.login} · ${item.headRef}${item.isDraft ? " · Draft" : ""}`,
     section:
       item === selectedPullRequest && !pullRequestsOnPage.includes(item)
         ? "Current pull request"
@@ -423,14 +423,21 @@ export function PullRequestCommandComposer({
       title: detail.title,
       state: detail.state,
       isDraft: detail.isDraft,
-      authorLogin: detail.author?.login ?? "",
-      authorDisplayName: detail.author?.displayName ?? null,
+      author: detail.author ?? { login: "", displayName: null, avatarUrl: null },
       url: detail.url,
       baseRef: detail.baseRef,
       headRef: detail.headRef,
       headOwner: activePullRequestWorkspace.owner,
       headRepo: activePullRequestWorkspace.repo,
+      createdAt: detail.createdAt,
       updatedAt: detail.updatedAt,
+      reviewers: [],
+      reviewDecision: null,
+      checksState: null,
+      commentCount: null,
+      additions: null,
+      deletions: null,
+      changedFiles: null,
     };
     if (action === "open-pr" && !hostedRepo) return;
     contextAppliedRef.current = true;
@@ -650,8 +657,8 @@ export function PullRequestCommandComposer({
                   #{selectedPullRequest.number} {selectedPullRequest.title}
                 </p>
                 <p className="change-composer-help text-muted-foreground text-xs">
-                  {selectedPullRequest.authorLogin} · {selectedPullRequest.headRef} →{" "}
-                  {selectedPullRequest.baseRef}
+                  {selectedPullRequest.author.displayName ?? selectedPullRequest.author.login} ·{" "}
+                  {selectedPullRequest.headRef} → {selectedPullRequest.baseRef}
                 </p>
               </div>
             </div>

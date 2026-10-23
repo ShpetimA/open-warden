@@ -9,6 +9,7 @@ import type {
 import {
   bitbucketPullRequestPath,
   bitbucketRequest,
+  bitbucketReviewers,
   fetchBitbucketPullRequest,
 } from "../bitbucket-repo";
 import { fetchGitHubPullRequest, githubJsonRequest, githubRequest } from "../github-repo";
@@ -104,25 +105,7 @@ export async function getPullRequestReviewOverview(
       connection,
       input.pullRequestNumber,
     );
-    const reviewers = (pullRequest.reviewers ?? []).map((reviewer): PullRequestReviewer => {
-      const participation = pullRequest.participants?.find(
-        (item) => item.user?.uuid && item.user.uuid === reviewer.uuid,
-      );
-      const state =
-        participation?.state === "changes_requested"
-          ? "changes-requested"
-          : participation?.approved || participation?.state === "approved"
-            ? "approved"
-            : "requested";
-      return {
-        id: reviewer.uuid ?? reviewer.nickname ?? reviewer.username ?? "",
-        login: reviewer.nickname ?? reviewer.username ?? reviewer.uuid ?? "unknown",
-        displayName: reviewer.display_name ?? null,
-        avatarUrl: reviewer.links?.avatar?.href ?? null,
-        state,
-        reviewedAt: participation?.participated_on ?? null,
-      };
-    });
+    const reviewers = bitbucketReviewers(pullRequest);
     return { reviewers, viewerLogin: connection.login, canManageReviewers: null };
   }
   throw new Error(

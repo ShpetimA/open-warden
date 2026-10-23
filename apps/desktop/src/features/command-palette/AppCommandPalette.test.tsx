@@ -9,6 +9,8 @@ import {
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import type { ReactElement } from "react";
+
+import type { PullRequestSummary } from "@/platform/desktop";
 import { MemoryRouter } from "react-router";
 
 import { AppCommandPalette } from "./AppCommandPalette";
@@ -140,21 +142,28 @@ const baseRepository = {
   outgoing: [],
 };
 
-const pullRequest = {
+const pullRequest: PullRequestSummary = {
   id: "github:42",
-  providerId: "github" as const,
+  providerId: "github",
   number: 42,
   title: "Improve the composer",
-  state: "open" as const,
+  state: "open",
   isDraft: false,
-  authorLogin: "timi",
-  authorDisplayName: "Timi",
+  author: { login: "timi", displayName: "Timi", avatarUrl: null },
   url: "https://example.test/pull/42",
   baseRef: "main",
   headRef: "composer",
   headOwner: "team",
   headRepo: "repo",
+  createdAt: "2026-09-25T00:00:00Z",
   updatedAt: "2026-09-26T00:00:00Z",
+  reviewers: [],
+  reviewDecision: null,
+  checksState: null,
+  commentCount: null,
+  additions: null,
+  deletions: null,
+  changedFiles: null,
 };
 
 describe("AppCommandPalette", () => {

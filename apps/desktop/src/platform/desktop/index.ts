@@ -116,6 +116,7 @@ export type {
   PullRequestActivityEvent,
   PullRequestReviewComment,
   PullRequestReviewer,
+  PullRequestInvolvement,
   PullRequestReviewOverview,
   PullRequestReviewDraftCommentInput,
   PullRequestReviewThread,

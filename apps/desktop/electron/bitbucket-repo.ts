@@ -3,9 +3,11 @@ import type {
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestDetail,
+  PullRequestInvolvement,
   PullRequestIssueComment,
   PullRequestPerson,
   PullRequestReviewComment,
+  PullRequestReviewer,
   PullRequestReviewThread,
   PullRequestState,
   PullRequestSummary,
@@ -53,6 +55,7 @@ export type BitbucketPullRequestResponse = {
   draft?: boolean;
   created_on?: string;
   updated_on?: string;
+  comment_count?: number;
   links?: {
     html?: {
       href?: string;
@@ -397,6 +400,67 @@ function bitbucketRepoIdentity(
   return { owner, repo: name };
 }
 
+type BitbucketParticipant = NonNullable<BitbucketPullRequestResponse["participants"]>[number];
+
+function bitbucketVerdict(participation: BitbucketParticipant | undefined) {
+  if (participation?.state === "changes_requested") return "changes-requested" as const;
+  return participation?.approved || participation?.state === "approved"
+    ? ("approved" as const)
+    : null;
+}
+
+/**
+ * Requested reviewers with their latest verdict, plus anyone else who approved or asked for
+ * changes without being asked. Bitbucket keeps verdicts on the participant list.
+ */
+export function bitbucketReviewers(
+  pullRequest: BitbucketPullRequestResponse,
+): PullRequestReviewer[] {
+  const participants = pullRequest.participants ?? [];
+  const reviewers = (pullRequest.reviewers ?? []).map((reviewer): PullRequestReviewer => {
+    const participation = participants.find(
+      (item) => item.user?.uuid && item.user.uuid === reviewer.uuid,
+    );
+    return {
+      id: reviewer.uuid ?? reviewer.nickname ?? reviewer.username ?? "",
+      login: reviewer.nickname ?? reviewer.username ?? reviewer.uuid ?? "unknown",
+      displayName: reviewer.display_name ?? null,
+      avatarUrl: reviewer.links?.avatar?.href ?? null,
+      state: bitbucketVerdict(participation) ?? "requested",
+      reviewedAt: participation?.participated_on ?? null,
+    };
+  });
+  const reviewerIds = new Set(reviewers.map((reviewer) => reviewer.id));
+  for (const participation of participants) {
+    const state = bitbucketVerdict(participation);
+    const user = participation.user;
+    if (!state || !user?.uuid || reviewerIds.has(user.uuid)) continue;
+    reviewers.push({
+      id: user.uuid,
+      login: user.nickname ?? user.username ?? user.uuid,
+      displayName: user.display_name ?? null,
+      avatarUrl: user.links?.avatar?.href ?? null,
+      state,
+      reviewedAt: participation.participated_on ?? null,
+    });
+  }
+  return reviewers;
+}
+
+export function reviewDecisionFromReviewers(
+  reviewers: PullRequestReviewer[],
+): PullRequestSummary["reviewDecision"] {
+  if (reviewers.some((reviewer) => reviewer.state === "changes-requested")) {
+    return "changes-requested";
+  }
+  if (reviewers.length === 0) return null;
+  return reviewers.some((reviewer) => reviewer.state === "requested")
+    ? "review-required"
+    : reviewers.some((reviewer) => reviewer.state === "approved")
+      ? "approved"
+      : "review-required";
+}
+
 export function toBitbucketPullRequestSummary(
   pullRequest: BitbucketPullRequestResponse,
   hostedRepo: HostedRepoRef,
@@ -406,8 +470,9 @@ export function toBitbucketPullRequestSummary(
     hostedRepo.owner,
     hostedRepo.repo,
   );
-  const updatedAt = pullRequest.updated_on ?? pullRequest.created_on ?? new Date(0).toISOString();
+  const createdAt = pullRequest.created_on ?? new Date(0).toISOString();
   const author = pullRequest.author ?? null;
+  const reviewers = bitbucketReviewers(pullRequest);
 
   return {
     id: `${hostedRepo.providerId}:${String(pullRequest.id)}`,
@@ -416,8 +481,11 @@ export function toBitbucketPullRequestSummary(
     title: pullRequest.title ?? "",
     state: mapBitbucketPullRequestState(pullRequest.state),
     isDraft: pullRequest.draft ?? false,
-    authorLogin: bitbucketAuthorLogin(author),
-    authorDisplayName: author?.display_name ?? null,
+    author: {
+      login: bitbucketAuthorLogin(author),
+      displayName: author?.display_name ?? null,
+      avatarUrl: author?.links?.avatar?.href ?? null,
+    },
     url:
       pullRequest.links?.html?.href ??
       `${hostedRepo.webUrl}/pull-requests/${String(pullRequest.id)}`,
@@ -425,7 +493,15 @@ export function toBitbucketPullRequestSummary(
     headRef: pullRequest.source?.branch?.name ?? "",
     headOwner: sourceRepoIdentity.owner,
     headRepo: sourceRepoIdentity.repo,
-    updatedAt,
+    createdAt,
+    updatedAt: pullRequest.updated_on ?? createdAt,
+    reviewers,
+    reviewDecision: reviewDecisionFromReviewers(reviewers),
+    checksState: null,
+    commentCount: pullRequest.comment_count ?? null,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
   };
 }
 
@@ -697,7 +773,7 @@ export async function listBitbucketPullRequests(
     state?: "open" | "merged" | "closed" | "all";
     query?: string;
     author?: string;
-    involvement?: "all" | "mine";
+    involvement?: PullRequestInvolvement;
   },
 ): Promise<PullRequestPage> {
   const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
@@ -719,19 +795,35 @@ export async function listBitbucketPullRequests(
   }
   const author = filters?.author?.trim() ?? "";
   if (author) predicates.push(`author.nickname = "${bitbucketFilterLiteral(author)}"`);
-  if (filters?.involvement === "mine") {
+  const involvement = filters?.involvement ?? "all";
+  let viewerId: string | null = null;
+  if (involvement !== "all") {
     const { data: viewer } = await bitbucketRequest<BitbucketUserResponse>("/user", connection);
     if (!viewer.uuid) throw new Error("The connected Bitbucket account could not be identified.");
+    viewerId = viewer.uuid;
     const id = bitbucketFilterLiteral(viewer.uuid);
-    predicates.push(`(author.uuid = "${id}" OR reviewers.uuid = "${id}")`);
+    predicates.push(
+      {
+        authored: `author.uuid = "${id}"`,
+        "review-requested": `reviewers.uuid = "${id}"`,
+        involved: `(author.uuid = "${id}" OR reviewers.uuid = "${id}")`,
+      }[involvement],
+    );
   }
   const params = new URLSearchParams({
     sort: "-updated_on",
+    // Collections leave reviewers and participants out unless asked for.
+    fields: "+values.reviewers,+values.participants",
     pagelen: String(normalizedPerPage),
     page: String(normalizedPage),
   });
-  for (const value of states) params.append("state", value);
-  if (predicates.length > 0) params.set("q", predicates.join(" AND "));
+  if (predicates.length > 0) {
+    // Bitbucket ignores the `state` parameter once `q` is present, so the states join the query.
+    const stateFilter = states.map((value) => `state = "${value}"`).join(" OR ");
+    params.set("q", [`(${stateFilter})`, ...predicates].join(" AND "));
+  } else {
+    for (const value of states) params.append("state", value);
+  }
   const pathname = `${bitbucketPullRequestsPath(hostedRepo)}?${params.toString()}`;
 
   const { data } = await bitbucketRequest<BitbucketPaginatedResponse<BitbucketPullRequestResponse>>(
@@ -741,10 +833,20 @@ export async function listBitbucketPullRequests(
 
   const values = Array.isArray(data.values) ? data.values : [];
 
+  const summaries = values.map((pullRequest) =>
+    toBitbucketPullRequestSummary(pullRequest, hostedRepo),
+  );
+
   return {
-    pullRequests: values
-      .map((pullRequest) => toBitbucketPullRequestSummary(pullRequest, hostedRepo))
-      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+    // The query can only say "I am a reviewer"; whether my review is still owed is in the verdicts.
+    pullRequests: (involvement === "review-requested"
+      ? summaries.filter((summary) =>
+          summary.reviewers.some(
+            (reviewer) => reviewer.id === viewerId && reviewer.state === "requested",
+          ),
+        )
+      : summaries
+    ).toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     page: normalizedPage,
     perPage: normalizedPerPage,
     hasNextPage: typeof data.next === "string" && data.next.trim().length > 0,

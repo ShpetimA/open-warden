@@ -3,9 +3,11 @@ import type {
   HostedRepoRef,
   PullRequestChangedFile,
   PullRequestDetail,
+  PullRequestInvolvement,
   PullRequestIssueComment,
   PullRequestPerson,
   PullRequestReviewComment,
+  PullRequestReviewer,
   PullRequestReviewThread,
   PullRequestState,
   PullRequestSummary,
@@ -41,6 +43,7 @@ export type GitHubPullRequestResponse = {
   user: {
     login: string;
     name?: string | null;
+    avatar_url?: string | null;
   } | null;
   base: {
     ref: string;
@@ -138,47 +141,9 @@ type GitHubReviewThreadCommentNode = NonNullable<
 >[number];
 
 type GitHubPullRequestByHeadGraphResponse = {
-  data?: {
-    repository?: {
-      pullRequests?: {
-        nodes?: Array<{
-          number: number;
-          title: string;
-          isDraft: boolean;
-          url: string;
-          updatedAt: string;
-          baseRefName: string;
-          headRefName: string;
-          headRepository?: {
-            name: string;
-            owner?: {
-              login: string;
-            } | null;
-          } | null;
-          baseRepository?: {
-            name: string;
-            owner?: {
-              login: string;
-            } | null;
-          } | null;
-          author?: {
-            login?: string | null;
-            name?: string | null;
-          } | null;
-        }>;
-      };
-    };
-  };
+  data?: { repository?: { pullRequests?: { nodes?: GitHubSummaryNode[] } } };
   errors?: Array<{ message: string }>;
 };
-
-type GitHubPullRequestByHeadNode = NonNullable<
-  NonNullable<
-    NonNullable<
-      NonNullable<GitHubPullRequestByHeadGraphResponse["data"]>["repository"]
-    >["pullRequests"]
-  >["nodes"]
->[number];
 
 export async function githubRequest<T>(pathname: string, token: string) {
   const response = await fetch(`https://api.github.com${pathname}`, {
@@ -338,6 +303,16 @@ export function toPullRequestSummary(
   pullRequest: GitHubPullRequestResponse,
   providerId: GitProviderId,
 ): PullRequestSummary {
+  const reviewers = (pullRequest.requested_reviewers ?? []).map(
+    (reviewer): PullRequestReviewer => ({
+      id: reviewer.login,
+      login: reviewer.login,
+      displayName: reviewer.name ?? null,
+      avatarUrl: reviewer.avatar_url ?? null,
+      state: "requested",
+      reviewedAt: null,
+    }),
+  );
   return {
     id: `${providerId}:${pullRequest.number}`,
     providerId,
@@ -345,24 +320,26 @@ export function toPullRequestSummary(
     title: pullRequest.title,
     state: mapGitHubPullRequestState(pullRequest),
     isDraft: pullRequest.draft,
-    authorLogin: pullRequest.user?.login ?? "unknown",
-    authorDisplayName: pullRequest.user?.name ?? null,
+    author: {
+      login: pullRequest.user?.login ?? "unknown",
+      displayName: pullRequest.user?.name ?? null,
+      avatarUrl: pullRequest.user?.avatar_url ?? null,
+    },
     url: pullRequest.html_url,
     baseRef: pullRequest.base.ref,
     headRef: pullRequest.head.ref,
     headOwner: pullRequest.head.repo?.owner.login ?? pullRequest.base.repo.owner.login,
     headRepo: pullRequest.head.repo?.name ?? pullRequest.base.repo.name,
+    createdAt: pullRequest.created_at,
     updatedAt: pullRequest.updated_at,
+    reviewers,
+    reviewDecision: reviewers.length > 0 ? "review-required" : null,
+    checksState: null,
+    commentCount: null,
+    additions: null,
+    deletions: null,
+    changedFiles: null,
   };
-}
-
-function hasGitHubNextPage(headers: Headers) {
-  const linkHeader = headers.get("link");
-  if (!linkHeader) {
-    return false;
-  }
-
-  return linkHeader.split(",").some((entry) => entry.includes('rel="next"'));
 }
 
 export async function listGitHubPullRequests(
@@ -374,53 +351,155 @@ export async function listGitHubPullRequests(
     state?: "open" | "merged" | "closed" | "all";
     query?: string;
     author?: string;
-    involvement?: "all" | "mine";
+    involvement?: PullRequestInvolvement;
     viewerLogin?: string;
   },
 ): Promise<PullRequestPage> {
   const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const normalizedPerPage =
     Number.isFinite(perPage) && perPage > 0 ? Math.min(100, Math.floor(perPage)) : 25;
-  const state = filters?.state ?? "open";
-  const query = filters?.query?.trim() ?? "";
-  const author = filters?.author?.trim() ?? "";
-  const involvement = filters?.involvement ?? "all";
-  if (state !== "open" || query || author || involvement !== "all") {
-    return searchGitHubPullRequests(hostedRepo, token, normalizedPage, normalizedPerPage, {
-      state,
-      query,
-      author,
-      involvement,
-      viewerLogin: filters?.viewerLogin ?? "",
-    });
-  }
-  const pathname = `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls?state=open&per_page=${String(normalizedPerPage)}&page=${String(normalizedPage)}`;
-  const { data, headers } = await githubRequest<GitHubPullRequestResponse[]>(pathname, token);
-
-  return {
-    pullRequests: data
-      .map((pullRequest) => toPullRequestSummary(pullRequest, hostedRepo.providerId))
-      .toSorted((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
-    page: normalizedPage,
-    perPage: normalizedPerPage,
-    hasNextPage: hasGitHubNextPage(headers),
-  };
+  // Search is the one listing that also returns review decisions, checks, and counts.
+  return searchGitHubPullRequests(hostedRepo, token, normalizedPage, normalizedPerPage, {
+    state: filters?.state ?? "open",
+    query: filters?.query?.trim() ?? "",
+    author: filters?.author?.trim() ?? "",
+    involvement: filters?.involvement ?? "all",
+    viewerLogin: filters?.viewerLogin ?? "",
+  });
 }
 
-type GitHubSearchPullRequestNode = {
-  __typename: "PullRequest";
+type GitHubGraphActor = { login: string; avatarUrl?: string | null; name?: string | null } | null;
+
+/** Everything a list row shows, shared by search and the head-branch lookup. */
+const PULL_REQUEST_SUMMARY_FIELDS = `
+  number title state isDraft url createdAt updatedAt baseRefName headRefName
+  additions deletions changedFiles reviewDecision totalCommentsCount
+  author { login avatarUrl ... on User { name } }
+  baseRepository { name owner { login } }
+  headRepository { name owner { login } }
+  reviewRequests(first: 10) {
+    nodes { requestedReviewer { ... on User { login name avatarUrl } } }
+  }
+  latestOpinionatedReviews(first: 10) {
+    nodes { state submittedAt author { login avatarUrl ... on User { name } } }
+  }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+`;
+
+type GitHubSummaryNode = {
   number: number;
   title: string;
   state: "OPEN" | "CLOSED" | "MERGED";
   isDraft: boolean;
   url: string;
+  createdAt: string;
   updatedAt: string;
   baseRefName: string;
   headRefName: string;
+  additions?: number | null;
+  deletions?: number | null;
+  changedFiles?: number | null;
+  reviewDecision?: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+  totalCommentsCount?: number | null;
+  author: GitHubGraphActor;
   headRepository: { name: string; owner: { login: string } } | null;
   baseRepository: { name: string; owner: { login: string } } | null;
-  author: { login: string; name: string | null } | null;
+  reviewRequests?: {
+    nodes?: Array<{ requestedReviewer: GitHubGraphActor | Record<string, never> } | null>;
+  };
+  latestOpinionatedReviews?: {
+    nodes?: Array<{ state: string; submittedAt: string | null; author: GitHubGraphActor } | null>;
+  };
+  commits?: { nodes?: Array<{ commit: { statusCheckRollup: { state: string } | null } } | null> };
 };
+
+type GitHubSearchPullRequestNode = GitHubSummaryNode & { __typename: "PullRequest" };
+
+function githubSummaryReviewers(node: GitHubSummaryNode): PullRequestReviewer[] {
+  const byLogin = new Map<string, PullRequestReviewer>();
+  for (const review of node.latestOpinionatedReviews?.nodes ?? []) {
+    const login = review?.author?.login;
+    const state =
+      review?.state === "APPROVED"
+        ? "approved"
+        : review?.state === "CHANGES_REQUESTED"
+          ? "changes-requested"
+          : null;
+    if (!login || !state) continue;
+    byLogin.set(login, {
+      id: login,
+      login,
+      displayName: review.author?.name ?? null,
+      avatarUrl: review.author?.avatarUrl ?? null,
+      state,
+      reviewedAt: review.submittedAt,
+    });
+  }
+  // A re-requested review is owed again, whatever the reviewer said before.
+  for (const request of node.reviewRequests?.nodes ?? []) {
+    const reviewer = request?.requestedReviewer;
+    if (!reviewer || !("login" in reviewer) || !reviewer.login) continue;
+    byLogin.set(reviewer.login, {
+      id: reviewer.login,
+      login: reviewer.login,
+      displayName: reviewer.name ?? null,
+      avatarUrl: reviewer.avatarUrl ?? null,
+      state: "requested",
+      reviewedAt: null,
+    });
+  }
+  return Array.from(byLogin.values());
+}
+
+function githubChecksState(node: GitHubSummaryNode): PullRequestSummary["checksState"] {
+  const state = node.commits?.nodes?.[0]?.commit.statusCheckRollup?.state;
+  if (state === "SUCCESS") return "passed";
+  if (state === "FAILURE" || state === "ERROR") return "failed";
+  if (state === "PENDING" || state === "EXPECTED") return "pending";
+  return null;
+}
+
+function toPullRequestSummaryFromNode(
+  node: GitHubSummaryNode,
+  hostedRepo: HostedRepoRef,
+): PullRequestSummary {
+  const baseOwner = node.baseRepository?.owner?.login ?? hostedRepo.owner;
+  const baseRepo = node.baseRepository?.name ?? hostedRepo.repo;
+  return {
+    id: `${hostedRepo.providerId}:${String(node.number)}`,
+    providerId: hostedRepo.providerId,
+    number: node.number,
+    title: node.title,
+    state: node.state === "MERGED" ? "merged" : node.state === "CLOSED" ? "closed" : "open",
+    isDraft: node.isDraft,
+    author: {
+      login: node.author?.login?.trim() || "unknown",
+      displayName: node.author?.name ?? null,
+      avatarUrl: node.author?.avatarUrl ?? null,
+    },
+    url: node.url,
+    baseRef: node.baseRefName,
+    headRef: node.headRefName,
+    headOwner: node.headRepository?.owner?.login ?? baseOwner,
+    headRepo: node.headRepository?.name ?? baseRepo,
+    createdAt: node.createdAt,
+    updatedAt: node.updatedAt,
+    reviewers: githubSummaryReviewers(node),
+    reviewDecision:
+      node.reviewDecision === "APPROVED"
+        ? "approved"
+        : node.reviewDecision === "CHANGES_REQUESTED"
+          ? "changes-requested"
+          : node.reviewDecision === "REVIEW_REQUIRED"
+            ? "review-required"
+            : null,
+    checksState: githubChecksState(node),
+    commentCount: node.totalCommentsCount ?? null,
+    additions: node.additions ?? null,
+    deletions: node.deletions ?? null,
+    changedFiles: node.changedFiles ?? null,
+  };
+}
 
 type GitHubPullRequestSearchResponse = {
   data?: {
@@ -436,13 +515,13 @@ function githubSearchQuery(input: {
   state: "open" | "merged" | "closed" | "all";
   query: string;
   author: string;
-  involvement: "all" | "mine";
+  involvement: PullRequestInvolvement;
   viewerLogin: string;
 }) {
   if (input.author && !/^[a-zA-Z0-9-]+$/.test(input.author)) {
     throw new Error("Enter a GitHub username without spaces or punctuation.");
   }
-  if (input.involvement === "mine" && !/^[a-zA-Z0-9-]+$/.test(input.viewerLogin)) {
+  if (input.involvement !== "all" && !/^[a-zA-Z0-9-]+$/.test(input.viewerLogin)) {
     throw new Error("The connected GitHub account could not be identified.");
   }
   const states = {
@@ -457,7 +536,15 @@ function githubSearchQuery(input: {
     ...states,
     ...(input.query ? [JSON.stringify(input.query), "in:title,body"] : []),
     ...(input.author ? [`author:${input.author}`] : []),
-    ...(input.involvement === "mine" ? [`involves:${input.viewerLogin}`] : []),
+    ...(input.involvement === "all"
+      ? []
+      : [
+          {
+            authored: `author:${input.viewerLogin}`,
+            "review-requested": `review-requested:${input.viewerLogin}`,
+            involved: `involves:${input.viewerLogin}`,
+          }[input.involvement],
+        ]),
     "sort:updated-desc",
   ].join(" ");
 }
@@ -471,7 +558,7 @@ async function searchGitHubPullRequests(
     state: "open" | "merged" | "closed" | "all";
     query: string;
     author: string;
-    involvement: "all" | "mine";
+    involvement: PullRequestInvolvement;
     viewerLogin: string;
   },
 ): Promise<PullRequestPage> {
@@ -482,12 +569,7 @@ async function searchGitHubPullRequests(
         pageInfo { endCursor hasNextPage }
         nodes {
           __typename
-          ... on PullRequest {
-            number title state isDraft url updatedAt baseRefName headRefName
-            author { login ... on User { name } }
-            baseRepository { name owner { login } }
-            headRepository { name owner { login } }
-          }
+          ... on PullRequest { ${PULL_REQUEST_SUMMARY_FIELDS} }
         }
       }
     }
@@ -508,55 +590,10 @@ async function searchGitHubPullRequests(
     }
     cursor = search.pageInfo.endCursor;
   }
-  const pullRequests = (search?.nodes ?? []).flatMap((node): PullRequestSummary[] => {
-    if (!node || node.__typename !== "PullRequest") return [];
-    return [
-      {
-        id: `github:${node.number}`,
-        providerId: "github",
-        number: node.number,
-        title: node.title,
-        state: node.state === "MERGED" ? "merged" : node.state === "CLOSED" ? "closed" : "open",
-        isDraft: node.isDraft,
-        authorLogin: node.author?.login ?? "unknown",
-        authorDisplayName: node.author?.name ?? null,
-        url: node.url,
-        baseRef: node.baseRefName,
-        headRef: node.headRefName,
-        headOwner: node.headRepository?.owner.login ?? hostedRepo.owner,
-        headRepo: node.headRepository?.name ?? hostedRepo.repo,
-        updatedAt: node.updatedAt,
-      },
-    ];
-  });
+  const pullRequests = (search?.nodes ?? []).flatMap((node): PullRequestSummary[] =>
+    node?.__typename === "PullRequest" ? [toPullRequestSummaryFromNode(node, hostedRepo)] : [],
+  );
   return { pullRequests, page, perPage, hasNextPage: search?.pageInfo.hasNextPage ?? false };
-}
-
-function toPullRequestSummaryFromHeadNode(
-  node: GitHubPullRequestByHeadNode,
-  hostedRepo: HostedRepoRef,
-): PullRequestSummary {
-  const baseOwner = node.baseRepository?.owner?.login ?? hostedRepo.owner;
-  const baseRepo = node.baseRepository?.name ?? hostedRepo.repo;
-  const headOwner = node.headRepository?.owner?.login ?? baseOwner;
-  const headRepo = node.headRepository?.name ?? baseRepo;
-
-  return {
-    id: `${hostedRepo.providerId}:${String(node.number)}`,
-    providerId: hostedRepo.providerId,
-    number: node.number,
-    title: node.title,
-    state: "open",
-    isDraft: node.isDraft,
-    authorLogin: node.author?.login?.trim() || "unknown",
-    authorDisplayName: node.author?.name ?? null,
-    url: node.url,
-    baseRef: node.baseRefName,
-    headRef: node.headRefName,
-    headOwner,
-    headRepo,
-    updatedAt: node.updatedAt,
-  };
 }
 
 export async function resolveGitHubOpenPullRequestForBranch(
@@ -578,33 +615,7 @@ export async function resolveGitHubOpenPullRequestForBranch(
           headRefName: $headRefName
           orderBy: { field: UPDATED_AT, direction: DESC }
         ) {
-          nodes {
-            number
-            title
-            isDraft
-            url
-            updatedAt
-            baseRefName
-            headRefName
-            author {
-              login
-              ... on User {
-                name
-              }
-            }
-            baseRepository {
-              name
-              owner {
-                login
-              }
-            }
-            headRepository {
-              name
-              owner {
-                login
-              }
-            }
-          }
+          nodes { ${PULL_REQUEST_SUMMARY_FIELDS} }
         }
       }
     }
@@ -618,7 +629,7 @@ export async function resolveGitHubOpenPullRequestForBranch(
     });
     const nodes = payload.data?.repository?.pullRequests?.nodes ?? [];
     const match = nodes.find((node) => node.headRefName === normalizedBranch) ?? nodes[0] ?? null;
-    return match ? toPullRequestSummaryFromHeadNode(match, hostedRepo) : null;
+    return match ? toPullRequestSummaryFromNode(match, hostedRepo) : null;
   } catch {
     const page = await listGitHubPullRequests(hostedRepo, token, 1, 100);
     return (

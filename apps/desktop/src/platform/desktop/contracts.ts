@@ -110,15 +110,26 @@ export type PullRequestSummary = {
   title: string;
   state: PullRequestState;
   isDraft: boolean;
-  authorLogin: string;
-  authorDisplayName: string | null;
+  author: PullRequestPerson;
   url: string;
   baseRef: string;
   headRef: string;
   headOwner: string;
   headRepo: string;
+  createdAt: string;
   updatedAt: string;
+  /** Requested reviewers and everyone whose latest review approved or asked for changes. */
+  reviewers: PullRequestReviewer[];
+  reviewDecision: "approved" | "changes-requested" | "review-required" | null;
+  /** Null when the provider does not report checks in its listing. */
+  checksState: PullRequestCheckState | null;
+  commentCount: number | null;
+  additions: number | null;
+  deletions: number | null;
+  changedFiles: number | null;
 };
+
+export type PullRequestInvolvement = "all" | "authored" | "review-requested" | "involved";
 
 export type ListPullRequestsInput = {
   repoPath: string;
@@ -127,7 +138,7 @@ export type ListPullRequestsInput = {
   state?: "open" | "merged" | "closed" | "all";
   query?: string;
   author?: string;
-  involvement?: "all" | "mine";
+  involvement?: PullRequestInvolvement;
 };
 
 export type ResolveActivePullRequestForBranchInput = {
