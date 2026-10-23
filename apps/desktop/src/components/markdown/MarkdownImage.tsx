@@ -1,7 +1,7 @@
 import { ImageOff } from "lucide-react";
 import { useState, type ComponentProps } from "react";
 
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ImageLightbox, type LightboxImage } from "@/components/markdown/ImageLightbox";
 import { hasElectronRuntime } from "@/platform/desktop";
 import { providerMediaSourceUrl, providerMediaTarget } from "@/platform/desktop/providerMedia";
 
@@ -10,8 +10,22 @@ function resolveImageSource(source: string | undefined) {
   return providerMediaSourceUrl(source);
 }
 
+/** Every image of the document the clicked one belongs to, in reading order. */
+function documentImages(trigger: HTMLElement) {
+  const root = trigger.closest("[data-markdown-root]") ?? trigger.parentElement;
+  const elements = Array.from(
+    root?.querySelectorAll<HTMLImageElement>("img[data-markdown-image]") ?? [],
+  );
+  const images: LightboxImage[] = elements.map((image) => ({
+    src: image.currentSrc || image.src,
+    alt: image.alt,
+  }));
+  const index = elements.findIndex((image) => trigger.contains(image));
+  return { images, index: Math.max(0, index) };
+}
+
 export function MarkdownImage({ src, alt, ...props }: ComponentProps<"img">) {
-  const [open, setOpen] = useState(false);
+  const [gallery, setGallery] = useState<{ images: LightboxImage[]; index: number } | null>(null);
   const [failed, setFailed] = useState(false);
   const source = resolveImageSource(typeof src === "string" ? src : undefined);
 
@@ -34,10 +48,11 @@ export function MarkdownImage({ src, alt, ...props }: ComponentProps<"img">) {
       <button
         type="button"
         className="my-2 inline-block max-w-full cursor-zoom-in rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        onClick={() => setOpen(true)}
+        onClick={(event) => setGallery(documentImages(event.currentTarget))}
       >
         <img
           {...props}
+          data-markdown-image
           src={source}
           alt={alt}
           loading="lazy"
@@ -45,16 +60,12 @@ export function MarkdownImage({ src, alt, ...props }: ComponentProps<"img">) {
           onError={() => setFailed(true)}
         />
       </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="flex max-h-[92vh] w-auto max-w-[92vw] items-center justify-center p-3 sm:max-w-[92vw]">
-          <DialogTitle className="sr-only">{alt || "Image"}</DialogTitle>
-          <img
-            src={source}
-            alt={alt}
-            className="max-h-[86vh] max-w-full rounded-md object-contain"
-          />
-        </DialogContent>
-      </Dialog>
+      <ImageLightbox
+        images={gallery?.images ?? []}
+        index={gallery?.index ?? null}
+        onIndexChange={(index) => setGallery((current) => (current ? { ...current, index } : null))}
+        onClose={() => setGallery(null)}
+      />
     </>
   );
 }

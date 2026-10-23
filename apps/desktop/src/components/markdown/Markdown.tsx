@@ -347,7 +347,10 @@ export function Markdown({ children, className }: { children: string; className?
   );
 
   return (
-    <div className={cn("text-foreground min-w-0 max-w-full overflow-hidden", className)}>
+    <div
+      data-markdown-root
+      className={cn("text-foreground min-w-0 max-w-full overflow-hidden", className)}
+    >
       <Md remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
         {safeMarkdown}
       </Md>

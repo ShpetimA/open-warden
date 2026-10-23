@@ -44,7 +44,9 @@ Scanned receipts mix number formats: lines use \`54,958\` while the total is \`6
 | \`amounts_reinterpreted\` | Scanned was read as Value instead of Alternative |
 | \`amounts_unreconciled\` | Subtotal + tax never matches the total |
 
-![Invoice preview](${screenshot})`;
+![Invoice preview](${screenshot})
+
+![Invoice preview after the fix](${screenshot})`;
 
 const pullRequest: PullRequestOverviewView = {
   number: 111,
