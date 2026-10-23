@@ -65,7 +65,11 @@ export function AppShell() {
                     onOpenCommandPalette={() => openComposer()}
                   />
                 }
-                rail={!isSettingsRoute ? <WorkspaceRail /> : null}
+                rail={
+                  !isSettingsRoute && location.pathname !== "/repository-setup" ? (
+                    <WorkspaceRail />
+                  ) : null
+                }
               >
                 <WorkspaceContent>
                   <Outlet context={{ openRepositoryComposer }} />

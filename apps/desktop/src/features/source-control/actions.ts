@@ -195,10 +195,13 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
 export const openRepo =
   (
     repoPath: string,
-    options: { workspace: "repo" | "preserve" } = { workspace: "repo" },
+    options: { workspace: "repo" | "preserve"; canActivate?: () => boolean } = {
+      workspace: "repo",
+    },
   ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const resolvedRepoPath = await resolveRepoPath(repoPath);
+    if (options.canActivate && !options.canActivate()) return false;
 
     if (!resolvedRepoPath) {
       toast.error(`Could not open repository: ${repoPath}`);

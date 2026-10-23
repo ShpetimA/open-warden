@@ -14,6 +14,7 @@ import { CommandComposerCards } from "./CommandComposerCards";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
+import { usePullRequestLinkChoice } from "./usePullRequestLinkChoice";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
 export function RepositoryCommandComposer({
@@ -37,6 +38,7 @@ export function RepositoryCommandComposer({
   const searchRef = useRef<HTMLInputElement>(null);
   const runningRef = useRef(false);
 
+  const { choice: linkChoice, openLink } = usePullRequestLinkChoice(query, onClose);
   const pathMode = query.startsWith("/") || query === "~" || query.startsWith("~/");
   const slash = query.lastIndexOf("/");
   const directory = query === "~" ? "~/" : query.slice(0, slash + 1);
@@ -50,33 +52,35 @@ export function RepositoryCommandComposer({
       )
     : [];
   const candidate = result?.ok ? `${result.path === "/" ? "" : result.path}/${prefix}` : null;
-  const choices: ComposerChoice[] = pathMode
-    ? [
-        ...(candidate
-          ? [
-              {
-                id: `open:${candidate}`,
-                label: `Open ${candidate}`,
-                detail: "Open this repository",
-              },
-            ]
-          : []),
-        ...(result?.ok && result.parentPath !== result.path
-          ? [{ id: `browse:${result.parentPath}`, label: "..", detail: "Parent folder" }]
-          : []),
-        ...folders.map((folder) => ({
-          id: `browse:${folder.path}`,
-          label: folder.name,
-          detail: folder.path,
-        })),
-      ]
-    : recentRepos
-        .filter((repo) => repo.toLowerCase().includes(query.trim().toLowerCase()))
-        .map((repo) => ({
-          id: `open:${repo}`,
-          label: repoLabel(repo),
-          detail: `${repoParentPath(repo)}${repo === activeRepo ? " · Open" : ""}`,
-        }));
+  const choices: ComposerChoice[] = linkChoice
+    ? [linkChoice]
+    : pathMode
+      ? [
+          ...(candidate
+            ? [
+                {
+                  id: `open:${candidate}`,
+                  label: `Open ${candidate}`,
+                  detail: "Open this repository",
+                },
+              ]
+            : []),
+          ...(result?.ok && result.parentPath !== result.path
+            ? [{ id: `browse:${result.parentPath}`, label: "..", detail: "Parent folder" }]
+            : []),
+          ...folders.map((folder) => ({
+            id: `browse:${folder.path}`,
+            label: folder.name,
+            detail: folder.path,
+          })),
+        ]
+      : recentRepos
+          .filter((repo) => repo.toLowerCase().includes(query.trim().toLowerCase()))
+          .map((repo) => ({
+            id: `open:${repo}`,
+            label: repoLabel(repo),
+            detail: `${repoParentPath(repo)}${repo === activeRepo ? " · Open" : ""}`,
+          }));
   const activeChoice = choices.find((choice) => choice.id === highlightedId) ?? choices[0];
   const previewPath =
     pane === "choice" && activeChoice?.id.startsWith("open:")
@@ -118,6 +122,10 @@ export function RepositoryCommandComposer({
   }
 
   function selectChoice(id: string) {
+    if (id === linkChoice?.id) {
+      openLink();
+      return;
+    }
     if (id.startsWith("browse:")) {
       browse(id.slice(7));
       return;
@@ -235,8 +243,8 @@ export function RepositoryCommandComposer({
               }}
               onHighlight={setHighlightedId}
               onSelect={selectChoice}
-              searchLabel="Repository name or directory path"
-              searchPlaceholder="Search recent repositories or type ~/proj/…"
+              searchLabel="Repository name, directory path, or pull request URL"
+              searchPlaceholder="Search repositories, type ~/proj/…, or paste a PR link"
               choiceIcon={FolderOpen}
               onSearchKeyDown={(event) => {
                 if (event.key === "Tab" && !event.shiftKey && folders.length) {

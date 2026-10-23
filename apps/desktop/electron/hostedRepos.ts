@@ -40,4 +40,5 @@ export {
 export {
   preparePullRequestCompareRefs,
   preparePullRequestWorkspace,
+  preparePullRequestFromUrl,
 } from "./hosted-repos/workspace";

@@ -1,10 +1,10 @@
+import { FolderGit2 } from "lucide-react";
 import { ProjectMonogram } from "@/components/ui/project-monogram";
 import type { Hotkey } from "@tanstack/hotkeys";
 import { useLocation, useNavigate } from "react-router";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
-const WORKSPACE_HOTKEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
-
+import { repositorySetupPath, setupClosed } from "@/features/repository-setup/repositorySetupSlice";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import { closeProject, closeWorkspace, reopenWorkspace } from "@/features/workspaces/actions";
@@ -16,6 +16,8 @@ import {
 } from "@/features/workspaces/workspacesSlice";
 import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import { repoLabel, repoParentPath } from "@/features/source-control/utils";
+
+const WORKSPACE_HOTKEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 type WorkspaceTabBarProps = {
   onOpenWorkspaces?: () => void;
@@ -37,31 +39,39 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
   const location = useLocation();
 
   const workspaces = useAppSelector(selectWorkspaces);
+  const setupItems = useAppSelector((state) => state.repositorySetup.items);
+  const setups = setupItems.filter((item) => item.visible);
+  const setupUrl =
+    location.pathname === "/repository-setup"
+      ? new URLSearchParams(location.search).get("url")
+      : null;
   const locations = useAppSelector((state) => state.workspaces.locations);
   const activeByProject = useAppSelector((state) => state.workspaces.activeByProject);
   const activeWorkspaceId = useAppSelector(selectActiveWorkspaceId);
   const projects = workspaces.filter((item) => item.kind === "repo");
   const activeProject = workspaces.find((item) => item.id === activeWorkspaceId)?.repoPath ?? "";
 
+  const tabIds = [...projects.map((item) => item.id), ...setups.map((item) => item.link.url)];
   function cycle(direction: number) {
-    const index = projects.findIndex((item) => item.repoPath === activeProject);
-    const target = projects[(index + direction + projects.length) % projects.length];
-    if (target) activate(target.id);
+    const index = tabIds.indexOf(setupUrl ?? activeProject);
+    const target = tabIds[(index + direction + tabIds.length) % tabIds.length];
+    if (target) activate(target);
   }
   useHotkey(
     "Mod+W",
     () => {
-      if (location.pathname === "/settings") {
+      if (setupUrl) close(setupUrl);
+      else if (location.pathname === "/settings") {
         const active = workspaces.find((item) => item.id === activeWorkspaceId);
         if (active) navigate(locations[active.id] ?? workspacePath(active));
       } else if (workspaces.find((item) => item.id === activeWorkspaceId)?.kind === "pull-request")
         dispatch(closeWorkspace(activeWorkspaceId));
       else dispatch(closeProject(activeProject));
     },
-    { enabled: workspaces.length > 0, ignoreInputs: false },
+    { enabled: tabIds.length > 0, ignoreInputs: false },
   );
-  useHotkey("Mod+Shift+W", () => dispatch(closeProject(activeProject)), {
-    enabled: Boolean(activeProject),
+  useHotkey("Mod+Shift+W", () => close(setupUrl ?? activeProject), {
+    enabled: Boolean(setupUrl ?? activeProject),
     ignoreInputs: false,
   });
   useHotkey("Mod+Shift+T", () => dispatch(reopenWorkspace()), { ignoreInputs: false });
@@ -69,8 +79,12 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
   useHotkey("Control+Shift+Tab", () => cycle(-1), { ignoreInputs: false });
 
   function activate(id: string) {
+    if (setups.some((item) => item.link.url === id)) {
+      navigate(repositorySetupPath(id));
+      return;
+    }
     dispatch(projectActivated({ repoPath: id }));
-    if (location.pathname === "/settings") {
+    if (location.pathname === "/settings" || setupUrl) {
       const workspace =
         workspaces.find((item) => item.id === activeByProject[id]) ??
         workspaces.find((item) => item.repoPath === id);
@@ -78,6 +92,14 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
     }
   }
   function close(id: string) {
+    if (setups.some((item) => item.link.url === id)) {
+      dispatch(setupClosed(id));
+      if (setupUrl === id) {
+        const active = workspaces.find((item) => item.id === activeWorkspaceId);
+        navigate(active ? (locations[active.id] ?? workspacePath(active)) : "/changes");
+      }
+      return;
+    }
     dispatch(closeProject(id));
   }
 
@@ -88,8 +110,8 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
           key={number}
           number={number}
           onActivate={() => {
-            const target = number === 9 ? projects.at(-1) : projects[number - 1];
-            if (target) activate(target.id);
+            const target = number === 9 ? tabIds.at(-1) : tabIds[number - 1];
+            if (target) activate(target);
           }}
         />
       ))}
@@ -99,21 +121,35 @@ export function WorkspaceTabBar({ onOpenWorkspaces }: WorkspaceTabBarProps) {
         overflowLabel="All open projects"
         addLabel="New project tab (⌘T)"
         closeShortcut="⌘⇧W"
-        items={projects.map((workspace) => {
-          const tab = workspaceTabFor(workspace);
-          const duplicate =
-            workspace.kind === "repo" &&
-            workspaces.some(
-              (other) =>
-                other.id !== workspace.id &&
-                other.kind === "repo" &&
-                repoLabel(other.repoPath) === tab.label,
-            );
-          if (duplicate)
-            tab.label = `${tab.label} · ${repoLabel(repoParentPath(workspace.repoPath))}`;
-          return tab;
-        })}
-        activeId={activeProject}
+        items={[
+          ...projects.map((workspace) => {
+            const tab = workspaceTabFor(workspace);
+            const duplicate =
+              workspace.kind === "repo" &&
+              workspaces.some(
+                (other) =>
+                  other.id !== workspace.id &&
+                  other.kind === "repo" &&
+                  repoLabel(other.repoPath) === tab.label,
+              );
+            if (duplicate)
+              tab.label = `${tab.label} · ${repoLabel(repoParentPath(workspace.repoPath))}`;
+            return tab;
+          }),
+          ...setups.map((setup) => ({
+            id: setup.link.url,
+            label: `${setup.link.repo} · #${setup.link.pullRequestNumber}`,
+            context:
+              setup.progress.stage === "error"
+                ? "Setup failed"
+                : setup.progress.stage === "ready"
+                  ? "Ready to open"
+                  : "Setting up repository…",
+            icon: <FolderGit2 />,
+            closable: true,
+          })),
+        ]}
+        activeId={setupUrl ?? activeProject}
         onActivate={activate}
         onClose={close}
         onAdd={onOpenWorkspaces}

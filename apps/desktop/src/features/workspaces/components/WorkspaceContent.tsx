@@ -19,10 +19,11 @@ export function WorkspaceContent({ children }: { children: ReactNode }) {
   const workspace = useAppSelector(selectActiveWorkspace);
   const id = workspace?.id ?? "";
   const { pathname } = useLocation();
+  const isSetup = pathname === "/repository-setup";
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <ProjectReviewTabs />
-      {workspace && pathname !== "/settings" ? <GitOperationBanner /> : null}
+      {!isSetup ? <ProjectReviewTabs /> : null}
+      {workspace && pathname !== "/settings" && !isSetup ? <GitOperationBanner /> : null}
       <div className="min-h-0 flex-1">
         <WorkspaceContentView key={`${id}:${pathname}`} memoryId={`${id}:${pathname}`}>
           {children}

@@ -18,10 +18,13 @@ import { gitApi } from "@/features/source-control/api";
 import { sourceControlReducer } from "@/features/source-control/sourceControlSlice";
 import { workspacesReducer } from "@/features/workspaces/workspacesSlice";
 
+import { repositorySetupReducer } from "@/features/repository-setup/repositorySetupSlice";
+
 import { reduceWorkspaceState } from "@/features/workspaces/workspaceState";
 
 const combinedReducer = combineReducers({
   settings: settingsReducer,
+  repositorySetup: repositorySetupReducer,
   desktopUpdate: desktopUpdateReducer,
   lsp: lspReducer,
   sourceControl: sourceControlReducer,

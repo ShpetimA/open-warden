@@ -1,7 +1,21 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as renderUI,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router";
+
 import { AppCommandPalette } from "./AppCommandPalette";
+
+function render(ui: ReactElement) {
+  return renderUI(ui, { wrapper: MemoryRouter });
+}
 
 const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
@@ -108,6 +122,8 @@ function actionChoice(name: RegExp) {
 }
 
 const baseRepository = {
+  tags: [],
+  worktrees: [],
   branch: "main",
   upstream: "origin/main",
   ahead: 0,
@@ -603,7 +619,9 @@ describe("AppCommandPalette", () => {
   test("completes a directory without opening it", async () => {
     render(<AppCommandPalette open initialAction="open-repository" onOpenChange={() => {}} />);
 
-    const search = screen.getByRole("textbox", { name: "Repository name or directory path" });
+    const search = screen.getByRole("textbox", {
+      name: "Repository name, directory path, or pull request URL",
+    });
     fireEvent.change(search, { target: { value: "/tmp/" } });
     await waitFor(() => expect(mocks.browseDirectory).toHaveBeenCalledWith("/tmp/"));
     await waitFor(() =>
@@ -632,9 +650,14 @@ describe("AppCommandPalette", () => {
     });
     try {
       render(<AppCommandPalette open initialAction="open-repository" onOpenChange={() => {}} />);
-      fireEvent.change(screen.getByRole("textbox", { name: "Repository name or directory path" }), {
-        target: { value: "/tmp/" },
-      });
+      fireEvent.change(
+        screen.getByRole("textbox", {
+          name: "Repository name, directory path, or pull request URL",
+        }),
+        {
+          target: { value: "/tmp/" },
+        },
+      );
       await waitFor(() =>
         expect(screen.getByRole("button", { name: /folder-00/ })).toBeInTheDocument(),
       );

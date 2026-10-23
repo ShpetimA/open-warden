@@ -585,6 +585,7 @@ export type DesktopApi = {
     input: SetPullRequestThreadResolvedInput,
   ): Promise<PullRequestReviewThread>;
   preparePullRequestCompareRefs(input: PullRequestLocatorInput): Promise<PullRequestCompareRefs>;
+  preparePullRequestFromUrl(url: string): Promise<PreparedPullRequestWorkspace>;
   preparePullRequestWorkspace(
     input: PreparePullRequestWorkspaceInput,
   ): Promise<PreparedPullRequestWorkspace>;

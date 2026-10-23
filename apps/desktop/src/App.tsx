@@ -1,6 +1,7 @@
 import { Navigate, RouterProvider, createHashRouter } from "react-router";
 
 import { AppThemeProvider } from "@/app/AppThemeProvider";
+import { RepositorySetupScreen } from "@/features/repository-setup/RepositorySetupScreen";
 import { AppShell } from "@/app/AppShell";
 import { ChangesRouteLayout } from "@/app/routes/ChangesRouteLayout";
 import { HistoryRouteLayout } from "@/app/routes/HistoryRouteLayout";
@@ -28,6 +29,7 @@ const router = createHashRouter([
         index: true,
         element: <Navigate to="/changes" replace />,
       },
+      { path: "repository-setup", element: <RepositorySetupScreen /> },
       {
         path: "settings",
         element: <SettingsScreen />,

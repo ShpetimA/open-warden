@@ -55,6 +55,7 @@ import type { ComposerAction } from "./commandComposerModel";
 import type { ComposerScope } from "./commandComposerModel";
 import { paneAfterAction, previousPane } from "./commandComposerFlow";
 import type { ComposerPane } from "./commandComposerFlow";
+import { usePullRequestLinkChoice } from "./usePullRequestLinkChoice";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
 import "./ChangeCommandComposer.css";
@@ -280,6 +281,7 @@ export function ChangeCommandComposer({
       : "No other worktree",
   };
   const normalizedQuery = query.trim().toLowerCase();
+  const { choice: linkChoice, openLink } = usePullRequestLinkChoice(query, onClose);
   const scopeAvailability: Record<ComposerScope, boolean> = {
     "pull-requests": Boolean(repoPath && hostedRepo),
     branches: Boolean(repoPath && repository),
@@ -383,7 +385,11 @@ export function ChangeCommandComposer({
     .toSorted(
       (first, second) => Number(Boolean(first.disabled)) - Number(Boolean(second.disabled)),
     );
-  const actionChoices = scope ? matchingScopeActions : matchingRootChoices;
+  const actionChoices = linkChoice
+    ? [linkChoice]
+    : scope
+      ? matchingScopeActions
+      : matchingRootChoices;
   const branches =
     action && branchActions.has(action)
       ? (repository?.branches.filter((branch) =>
@@ -499,12 +505,16 @@ export function ChangeCommandComposer({
   const activeChoice =
     visibleChoices.find((item) => item.id === highlightedId && !item.disabled) ??
     visibleChoices.find((item) => !item.disabled);
-  const previewAction = pane === "action" ? actionFromId(activeChoice?.id ?? "") : action;
+  const previewAction =
+    pane === "action" ? (linkChoice ? "open-pr" : actionFromId(activeChoice?.id ?? "")) : action;
   const previewScope = pane === "action" && !scope ? scopeFromId(activeChoice?.id ?? "") : null;
   const actionInfo = actions.find((item) => item.id === previewAction);
-  const actionLabel = previewScope
-    ? (composerScopes.find((item) => item.id === previewScope)?.label ?? "Choose a scope")
-    : (actionInfo?.label ?? "Choose action");
+  const actionLabel =
+    pane === "action" && linkChoice
+      ? linkChoice.label
+      : previewScope
+        ? (composerScopes.find((item) => item.id === previewScope)?.label ?? "Choose a scope")
+        : (actionInfo?.label ?? "Choose action");
   const selectionLabel =
     operandChoices.find((item) => item.id === selection)?.label ?? "Choose one";
   const operandLabel =
@@ -694,6 +704,10 @@ export function ChangeCommandComposer({
   }
 
   function selectChoice(id: string) {
+    if (id === linkChoice?.id) {
+      openLink();
+      return;
+    }
     if (pane === "action") {
       if (scope) {
         if (id === "view-tags") {
@@ -970,8 +984,8 @@ export function ChangeCommandComposer({
                     : `Confirm ${actionLabel.toLowerCase()}`}
           </p>
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-[11px]">
-            {repoPath.split("/").findLast(Boolean) || "No repository"}
-            {pane === "action" && !scope
+            {linkChoice?.detail ?? (repoPath.split("/").findLast(Boolean) || "No repository")}
+            {pane === "action" && !scope && !linkChoice
               ? ` · ${availableActionCount} of ${rootChoices.length} ready`
               : ""}
           </span>
@@ -1005,7 +1019,7 @@ export function ChangeCommandComposer({
               pane === "action" && scope
                 ? `Search ${scope} actions…`
                 : pane === "action"
-                  ? "Search commands…"
+                  ? "Search commands or paste a PR link…"
                   : undefined
             }
           />

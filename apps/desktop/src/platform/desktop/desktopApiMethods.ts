@@ -47,6 +47,7 @@ export const DESKTOP_API_METHODS = [
   "setPullRequestThreadResolved",
   "preparePullRequestCompareRefs",
   "preparePullRequestWorkspace",
+  "preparePullRequestFromUrl",
   "getGitSnapshot",
   "getRepoFiles",
   "getCommitHistory",

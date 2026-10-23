@@ -37,13 +37,20 @@ export const reopenWorkspace = (): AppThunk => (dispatch, getState) => {
 };
 
 export const openPullRequestWorkspace =
-  (input: Omit<PullRequestWorkspace, "id" | "kind">): AppThunk<Promise<void>> =>
+  (
+    input: Omit<PullRequestWorkspace, "id" | "kind">,
+    options: { canActivate?: () => boolean } = {},
+  ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     if (!getState().sourceControl.repos.includes(input.repoPath)) {
-      await dispatch(openRepo(input.repoPath, { workspace: "preserve" }));
+      await dispatch(
+        openRepo(input.repoPath, { workspace: "preserve", canActivate: options.canActivate }),
+      );
     }
-    if (!getState().sourceControl.repos.includes(input.repoPath)) return;
+    if (!getState().sourceControl.repos.includes(input.repoPath)) return false;
+    if (options.canActivate && !options.canActivate()) return false;
     dispatch(pullRequestWorkspaceUpserted(input));
+    return true;
   };
 
 export const closeProject =

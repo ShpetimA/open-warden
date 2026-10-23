@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { parsePullRequestLink } from "../../src/platform/desktop/pullRequestLink";
 import type {
   GitProviderId,
   HostedRepoRef,
@@ -682,12 +683,43 @@ export async function preparePullRequestCompareRefs(
 export async function preparePullRequestWorkspace(
   input: PreparePullRequestWorkspaceInput,
 ): Promise<PreparedPullRequestWorkspace> {
-  const openMode = input.openMode ?? "worktree";
   const hostedRepo = await resolveHostedRepo(input.repoPath);
   if (!hostedRepo) {
     throw new Error("No supported hosted repository was found for the selected repo.");
   }
 
+  return prepareHostedPullRequestWorkspace(input, hostedRepo);
+}
+
+export async function preparePullRequestFromUrl(
+  url: string,
+): Promise<PreparedPullRequestWorkspace> {
+  const link = parsePullRequestLink(url);
+  if (!link) throw new Error("Enter a valid GitHub or Bitbucket pull request URL.");
+
+  const hostedRepo: HostedRepoRef = {
+    providerId: link.providerId,
+    owner: link.owner,
+    repo: link.repo,
+    remoteName: "origin",
+    remoteUrl: `${link.repositoryUrl}.git`,
+    webUrl: link.repositoryUrl,
+  };
+  return prepareHostedPullRequestWorkspace(
+    {
+      repoPath: managedSourceRepoPath(hostedRepo),
+      pullRequestNumber: link.pullRequestNumber,
+      openMode: "worktree",
+    },
+    hostedRepo,
+  );
+}
+
+async function prepareHostedPullRequestWorkspace(
+  input: PreparePullRequestWorkspaceInput,
+  hostedRepo: HostedRepoRef,
+): Promise<PreparedPullRequestWorkspace> {
+  const openMode = input.openMode ?? "worktree";
   const connection = await getProviderConnection(hostedRepo.providerId);
   if (!connection) {
     throw new Error(missingConnectionMessage(hostedRepo.providerId));
