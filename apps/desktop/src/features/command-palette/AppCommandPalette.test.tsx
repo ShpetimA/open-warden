@@ -222,24 +222,24 @@ describe("AppCommandPalette", () => {
     expect(mocks.useGetGitRepositoryStateQuery).not.toHaveBeenCalled();
   });
 
-  test("shows every Git action before search and keeps unavailable actions explained", () => {
+  test("shows command scopes and keeps unavailable actions explained", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
     expect(screen.getByRole("dialog", { name: "Command composer" })).toHaveClass(
       "command-composer-dialog",
     );
     expect(screen.getByRole("textbox", { name: "Search actions" })).toHaveFocus();
-    expect(actionChoice(/^Pull/)).toBeEnabled();
+    expect(actionChoice(/^Pull(?! requests)/)).toBeEnabled();
     expect(actionChoice(/^Push/)).toBeDisabled();
     expect(actionChoice(/^Commit/)).toBeEnabled();
     expect(actionChoice(/^Stage all/)).toBeEnabled();
     expect(actionChoice(/^Unstage all/)).toBeEnabled();
     expect(actionChoice(/^Stash staged/)).toBeEnabled();
-    expect(actionChoice(/^Switch branch/)).toBeEnabled();
+    expect(actionChoice(/^Branches/)).toBeEnabled();
     expect(actionChoice(/^Fetch/)).toBeEnabled();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button"),
-    ).toHaveLength(31);
+    ).toHaveLength(17);
     expect(screen.getByText("Available now")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Stage changes")).not.toBeInTheDocument();
@@ -247,14 +247,14 @@ describe("AppCommandPalette", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "switch" },
     });
-    expect(actionChoice(/^Switch branch/)).toBeEnabled();
+    expect(actionChoice(/^Branches/)).toBeEnabled();
   });
 
-  test("typing narrows the same action list without matching incidental status text", () => {
+  test("typing narrows commands and scopes", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
-      target: { value: "s" },
+      target: { value: "stage" },
     });
 
     expect(actionChoice(/^Stage all/)).toBeEnabled();
@@ -262,7 +262,7 @@ describe("AppCommandPalette", () => {
     expect(screen.queryByRole("button", { name: /^Fetch/ })).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button").length,
-    ).toBeLessThan(31);
+    ).toBeLessThan(17);
   });
 
   test("a focused Fetch still requires confirmation with one remote", async () => {
@@ -292,7 +292,7 @@ describe("AppCommandPalette", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "Pull" },
     });
-    fireEvent.mouseEnter(actionChoice(/^Pull/));
+    fireEvent.mouseEnter(actionChoice(/^Pull(?! requests)/));
     fireEvent.click(screen.getByRole("button", { name: "Action: Pull" }));
     expect(screen.getByRole("button", { name: "Confirm Pull" })).toBeEnabled();
     expect(mocks.execute).not.toHaveBeenCalled();
@@ -362,6 +362,7 @@ describe("AppCommandPalette", () => {
 
     const search = screen.getByRole("textbox", { name: "Search actions" });
     fireEvent.change(search, { target: { value: "Commit" } });
+    fireEvent.mouseEnter(actionChoice(/^Commit/));
     await pressHotkey("ArrowRight");
     expect(screen.getByRole("textbox", { name: "Commit message" })).toBeInTheDocument();
 
@@ -375,6 +376,7 @@ describe("AppCommandPalette", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "Commit" },
     });
+    fireEvent.mouseEnter(actionChoice(/^Commit/));
     await pressHotkey("ArrowRight");
     expect(screen.getByRole("textbox", { name: "Commit message" })).toBeInTheDocument();
 
@@ -382,23 +384,23 @@ describe("AppCommandPalette", () => {
     expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
   });
 
-  test("Left and Backspace leave an empty stash branch search instead of trapping the flow", async () => {
-    render(<AppCommandPalette open initialAction="stash-switch" onOpenChange={() => {}} />);
+  test.each(["ArrowLeft", "Backspace"])(
+    "%s leaves an empty stash branch search and preserves a nonempty query",
+    async (key) => {
+      render(<AppCommandPalette open initialAction="stash-switch" onOpenChange={() => {}} />);
 
-    const search = screen.getByRole("textbox", { name: "Search branches" });
-    expect(search).toHaveFocus();
-    await pressHotkey("ArrowLeft", search);
-    expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
+      const search = screen.getByRole("textbox", { name: "Search branches" });
+      expect(search).toHaveFocus();
+      fireEvent.change(search, { target: { value: "feature" } });
+      await pressHotkey(key, search);
+      expect(search).toBeInTheDocument();
+      expect(search).toHaveValue("feature");
 
-    fireEvent.click(actionChoice(/^Stash & switch/));
-    const branchSearch = screen.getByRole("textbox", { name: "Search branches" });
-    fireEvent.change(branchSearch, { target: { value: "feature" } });
-    await pressHotkey("Backspace", branchSearch);
-    expect(screen.getByRole("textbox", { name: "Search branches" })).toBeInTheDocument();
-    fireEvent.change(branchSearch, { target: { value: "" } });
-    await pressHotkey("Backspace", branchSearch);
-    expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
-  });
+      fireEvent.change(search, { target: { value: "" } });
+      await pressHotkey(key, search);
+      expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
+    },
+  );
 
   test("pressing the action card returns from the stash branch step", () => {
     render(<AppCommandPalette open initialAction="stash-switch" onOpenChange={() => {}} />);
@@ -407,17 +409,17 @@ describe("AppCommandPalette", () => {
     expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
   });
 
-  test("an empty branch name goes back with Left while a nonempty name stays editable", async () => {
-    render(<AppCommandPalette open initialAction="create-branch" onOpenChange={() => {}} />);
+  test.each(["", "feature/new"])(
+    "Left returns from branch-name review with draft %j",
+    async (draft) => {
+      render(<AppCommandPalette open initialAction="create-branch" onOpenChange={() => {}} />);
 
-    const name = screen.getByRole("textbox", { name: "Branch name" });
-    fireEvent.change(name, { target: { value: "feature/new" } });
-    await pressHotkey("ArrowLeft", name);
-    expect(screen.getByRole("textbox", { name: "Branch name" })).toBeInTheDocument();
-    fireEvent.change(name, { target: { value: "" } });
-    await pressHotkey("ArrowLeft", name);
-    expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
-  });
+      const name = screen.getByRole("textbox", { name: "Branch name" });
+      fireEvent.change(name, { target: { value: draft } });
+      await pressHotkey("ArrowLeft", name);
+      expect(screen.getByRole("group", { name: "Actions" })).toBeInTheDocument();
+    },
+  );
 
   test("back from a stash confirmation returns to branch choice, then actions", async () => {
     render(<AppCommandPalette open initialAction="stash-switch" onOpenChange={() => {}} />);
@@ -434,7 +436,7 @@ describe("AppCommandPalette", () => {
     const onOpenChange = vi.fn();
     render(<AppCommandPalette open onOpenChange={onOpenChange} />);
 
-    fireEvent.click(actionChoice(/^Pull/));
+    fireEvent.click(actionChoice(/^Pull(?! requests)/));
     expect(mocks.execute).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Confirm Pull" }));
 
@@ -491,7 +493,7 @@ describe("AppCommandPalette", () => {
     const onOpenChange = vi.fn();
     render(<AppCommandPalette open onOpenChange={onOpenChange} />);
 
-    fireEvent.click(actionChoice(/^Pull/));
+    fireEvent.click(actionChoice(/^Pull(?! requests)/));
     fireEvent.click(screen.getByRole("button", { name: "Confirm Pull" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Remote rejected the command");
