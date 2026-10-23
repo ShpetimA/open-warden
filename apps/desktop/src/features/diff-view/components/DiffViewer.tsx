@@ -50,7 +50,7 @@ export type DiffViewerProps = {
   oldFile: DiffFile | null;
   newFile: DiffFile | null;
   activePath: string;
-  options?: Partial<FileDiffOptions<DiffAnnotationItem>>;
+  options?: Partial<FileDiffOptions<DiffAnnotationItem, undefined>>;
   lineAnnotations?: DiffLineAnnotation<DiffAnnotationItem>[];
   renderAnnotation?: (annotation: { metadata?: DiffAnnotationItem }) => React.ReactNode;
   renderHeaderMetadata?: (controls: {
@@ -66,7 +66,7 @@ export type DiffViewerProps = {
   children?: React.ReactNode;
 };
 
-const EMPTY_OPTIONS: Partial<FileDiffOptions<DiffAnnotationItem>> = {};
+const EMPTY_OPTIONS: Partial<FileDiffOptions<DiffAnnotationItem, undefined>> = {};
 const EMPTY_LINE_ANNOTATIONS: DiffLineAnnotation<DiffAnnotationItem>[] = [];
 const EMPTY_HUNK_OPERATIONS: DiffHunkOperation[] = [];
 
@@ -226,7 +226,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     enabled: Boolean(currentFileDiff),
   });
 
-  const mergedOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
+  const mergedOptions = useMemo<FileDiffOptions<DiffAnnotationItem, undefined>>(
     () => ({
       diffStyle,
       theme: diffTheme,

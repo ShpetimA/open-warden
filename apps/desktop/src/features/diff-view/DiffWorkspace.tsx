@@ -217,7 +217,7 @@ export function DiffWorkspace({
   });
 
   const handleTokenClick = useCallback<
-    NonNullable<FileDiffOptions<DiffAnnotationItem>["onTokenClick"]>
+    NonNullable<FileDiffOptions<DiffAnnotationItem, undefined>["onTokenClick"]>
   >(
     (props, event) => {
       if (onHoverTokenClick(props, event)) {
@@ -290,7 +290,7 @@ export function DiffWorkspace({
     [comments.annotations, annotationItems],
   );
 
-  const options = useMemo<Partial<FileDiffOptions<DiffAnnotationItem>>>(
+  const options = useMemo<Partial<FileDiffOptions<DiffAnnotationItem, undefined>>>(
     () => ({
       disableFileHeader,
       enableLineSelection: canComment,

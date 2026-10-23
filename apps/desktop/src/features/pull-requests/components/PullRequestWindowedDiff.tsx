@@ -5,6 +5,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useReducer,
   useState,
 } from "react";
 import { useTheme } from "next-themes";
@@ -215,12 +216,13 @@ function WindowedFileDiff({
 }: {
   fileDiff: FileDiffMetadata;
   renderRange: RenderRange;
-  options: FileDiffOptions<DiffAnnotationItem>;
+  options: FileDiffOptions<DiffAnnotationItem, undefined>;
   lineAnnotations: DiffLineAnnotation<DiffAnnotationItem>[];
   selectedLines: SelectionRange | null;
   renderAnnotation: (annotation: { metadata?: DiffAnnotationItem }) => React.ReactNode;
 }) {
   const poolManager = useContext(WorkerPoolContext);
+  const [renderRevision, requestRender] = useReducer((revision: number) => revision + 1, 0);
   const instanceRef = useRef<ImperativeFileDiff<DiffAnnotationItem> | null>(null);
   const getHoveredLine = useCallback(() => instanceRef.current?.getHoveredLine(), []);
   const diffsTagName = DIFFS_TAG_NAME as string;
@@ -228,7 +230,7 @@ function WindowedFileDiff({
   const ref = useCallback(
     (node: HTMLElement | null) => {
       if (node) {
-        instanceRef.current = new ImperativeFileDiff(options, poolManager ?? undefined, true);
+        instanceRef.current = new ImperativeFileDiff(options, poolManager, requestRender);
         instanceRef.current.hydrate({
           fileDiff,
           fileContainer: node,
@@ -240,7 +242,7 @@ function WindowedFileDiff({
       instanceRef.current?.cleanUp();
       instanceRef.current = null;
     },
-    [fileDiff, lineAnnotations, options, poolManager],
+    [fileDiff, lineAnnotations, options, poolManager, requestRender],
   );
 
   useLayoutEffect(() => {
@@ -258,7 +260,7 @@ function WindowedFileDiff({
       renderRange,
     });
     instance.setSelectedLines(selectedLines);
-  }, [fileDiff, lineAnnotations, options, renderRange, selectedLines]);
+  }, [fileDiff, lineAnnotations, options, renderRange, selectedLines, renderRevision]);
 
   return createElement(
     diffsTagName,
@@ -271,7 +273,6 @@ function WindowedFileDiff({
         renderHeaderPrefix: undefined,
         renderHeaderMetadata: undefined,
         renderGutterUtility: undefined,
-        renderHoverUtility: undefined,
         getHoveredLine,
         lineAnnotations,
       }),
@@ -356,7 +357,7 @@ export function PullRequestWindowedDiff({
     ],
   );
 
-  const diffOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
+  const diffOptions = useMemo<FileDiffOptions<DiffAnnotationItem, undefined>>(
     () => ({
       diffStyle,
       theme: diffTheme,
