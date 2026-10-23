@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 
 import { watchAppSettings } from "./appSettings";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
@@ -14,6 +14,8 @@ import {
   UPDATE_INSTALL_CHANNEL,
 } from "./ipc-channels";
 import { resolvePreloadPath } from "./preload-path";
+import { handleProviderMediaRequest } from "./providerMedia";
+import { PROVIDER_MEDIA_SCHEME } from "../src/platform/desktop/providerMedia";
 import { createUpdateManager } from "./updateManager";
 
 type DesktopMethod = keyof typeof desktopApi;
@@ -25,6 +27,13 @@ const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: PROVIDER_MEDIA_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
 
 if (!gotSingleInstanceLock) {
   app.quit();
@@ -142,6 +151,7 @@ ipcMain.removeHandler(UPDATE_INSTALL_CHANNEL);
 ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => updateManager.installUpdate());
 
 app.whenReady().then(() => {
+  protocol.handle(PROVIDER_MEDIA_SCHEME, handleProviderMediaRequest);
   createMainWindow();
   updateManager.initialize();
   void watchAppSettings({

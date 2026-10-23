@@ -420,6 +420,8 @@ export const hostedReposApi = createApi({
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     mergePullRequest: builder.mutation<"merged" | "queued", MergePullRequestInput>({
@@ -434,6 +436,7 @@ export const hostedReposApi = createApi({
         { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
         { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     replyToPullRequestThread: builder.mutation<

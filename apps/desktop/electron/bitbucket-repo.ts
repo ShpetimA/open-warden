@@ -238,7 +238,7 @@ function bitbucketUserAgent() {
 
 type BitbucketAuth = Pick<ProviderConnectionSecret, "authType" | "identifier" | "token">;
 
-function bitbucketAuthorizationValue(connection: BitbucketAuth) {
+export function bitbucketAuthorizationValue(connection: BitbucketAuth) {
   if (connection.authType === "basic") {
     if (!connection.identifier) {
       throw new Error("Bitbucket username/email is required for basic authentication.");

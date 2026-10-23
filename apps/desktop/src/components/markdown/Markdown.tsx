@@ -5,6 +5,7 @@ import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
 import type { BundledLanguage, Highlighter } from "shiki";
 
+import { MarkdownImage } from "@/components/markdown/MarkdownImage";
 import { cn } from "@/lib/utils";
 
 const PRELOADED_LANGS: BundledLanguage[] = [
@@ -251,9 +252,7 @@ const components: Record<string, FC<any>> = {
     );
   },
   hr: ({ node: _, ...props }) => <hr className="border-border my-4" {...props} />,
-  img: ({ node: _, alt, ...props }) => (
-    <img className="my-2 inline-block max-w-full rounded-lg" alt={alt} {...props} />
-  ),
+  img: ({ node: _, ...props }) => <MarkdownImage {...props} />,
   table: ({ node: _, children, ...props }) => (
     <div className="bg-surface mb-2 overflow-hidden rounded-lg border border-border">
       <table className="w-full border-collapse text-sm" {...props}>

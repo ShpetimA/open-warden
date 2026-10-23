@@ -1,487 +1,132 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { Copy, MessageSquarePlus, Trash2 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { openPullRequestReview } from "@/features/hosted-repos/actions";
 import {
   hostedReposApi,
+  useAddPullRequestCommentMutation,
+  useGetPullRequestActivityQuery,
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
+  useLazyPreparePullRequestCompareRefsQuery,
+  useListProviderConnectionsQuery,
   usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
+  useSetPullRequestReviewerMutation,
 } from "@/features/hosted-repos/api";
-import {
-  CommentBody,
-  copyToClipboard,
-} from "@/features/pull-requests/components/pullRequestCommentParts";
-import { PullRequestDiscussionSection } from "@/features/pull-requests/components/PullRequestDiscussionSection";
+import { copyToClipboard } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
-import { PullRequestReviewersSection } from "@/features/pull-requests/components/PullRequestReviewersSection";
-import { PullRequestLifecycleSection } from "@/features/pull-requests/components/PullRequestLifecycleSection";
 import { PullRequestProviderExtras } from "@/features/pull-requests/components/PullRequestProviderExtras";
-import { PullRequestActivitySection } from "@/features/pull-requests/components/PullRequestActivitySection";
-import { PullRequestPreviewHeader } from "@/features/pull-requests/components/PullRequestPreviewHeader";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
+import { CommentReactions } from "@/features/pull-requests/overview/CommentReactions";
 import {
-  buildPreviewTabPath,
-  type PreviewTab,
-} from "@/features/pull-requests/screens/PullRequestPreviewLayout";
+  PullRequestHeaderActions,
+  type PullRequestHeaderAction,
+} from "@/features/pull-requests/overview/PullRequestHeaderActions";
+import {
+  headerLifecycleActions,
+  PullRequestLifecycleDialog,
+  type LifecycleRequest,
+} from "@/features/pull-requests/overview/PullRequestLifecycleDialog";
+import { PullRequestMergeBox } from "@/features/pull-requests/overview/PullRequestMergeBox";
+import { PullRequestOverviewHeader } from "@/features/pull-requests/overview/PullRequestOverviewHeader";
+import { PullRequestOverviewLayout } from "@/features/pull-requests/overview/PullRequestOverviewLayout";
+import { PullRequestReviewerList } from "@/features/pull-requests/overview/PullRequestReviewerList";
+import { PullRequestTimeline } from "@/features/pull-requests/overview/PullRequestTimeline";
+import type { PersonView, TimelineEntry } from "@/features/pull-requests/overview/types";
+import {
+  toPersonView,
+  usePullRequestOverviewView,
+  type PullRequestLocator,
+} from "@/features/pull-requests/overview/usePullRequestOverviewView";
+import { buildPreviewTabPath } from "@/features/pull-requests/screens/PullRequestPreviewLayout";
 import {
   setPullRequestPreviewActiveFilePath,
   setPullRequestPreviewFileJumpTarget,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestsInboxPath } from "@/features/pull-requests/utils";
-import { useGetBranchFilesQuery } from "@/features/source-control/api";
+import { selectHistoryPullRequestCommit } from "@/features/source-control/actions";
 import type { PullRequestReviewAnchor } from "@/features/source-control/types";
-import type { PullRequestChangedFile, PullRequestConversation } from "@/platform/desktop";
-import type { GitProviderId, PullRequestOpenMode } from "@/platform/desktop/contracts";
+import { desktop } from "@/platform/desktop";
+import type {
+  GitProviderId,
+  PullRequestActivityItem,
+  PullRequestDetail,
+  PullRequestOpenMode,
+} from "@/platform/desktop";
 
-type PullRequestQueryArg =
-  | {
-      repoPath: string;
-      pullRequestNumber: number;
-    }
-  | typeof skipToken;
+type QueryArg = PullRequestLocator | typeof skipToken;
 
-function providerTitle(providerId: string) {
-  if (providerId === "github") return "GitHub";
-  if (providerId === "gitlab") return "GitLab";
-  return "Bitbucket";
-}
-
-function OverviewDetailRow({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="flex items-start justify-between gap-4 py-2.5">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="text-right text-sm font-medium">{value}</dd>
-    </div>
-  );
-}
-
-function SectionHeader({
-  title,
-  count,
-  actions,
-}: {
-  title: string;
-  count?: number;
-  actions?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-          {title}
-        </div>
-        {typeof count === "number" ? (
-          <div className="text-muted-foreground rounded-full border border-border/70 px-2 py-0.5 text-[11px]">
-            {count}
-          </div>
-        ) : null}
-      </div>
-      {actions}
-    </div>
-  );
-}
-
-function PullRequestSummarySection({ body }: { body: string }) {
-  return (
-    <section className="rounded-lg border bg-surface-0 p-5">
-      <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-        Summary
-      </div>
-      <div className="mt-3 text-sm leading-6">
-        {body.trim() ? (
-          <div className="min-w-0 max-w-none">
-            <CommentBody body={body} />
-          </div>
-        ) : (
-          <div className="text-muted-foreground italic">No description provided.</div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-type PullRequestOverviewReviewSectionsProps = {
-  queryArg: PullRequestQueryArg;
-  activeRepo: string;
+type RouteContext = {
+  providerId: GitProviderId;
+  owner: string;
+  repo: string;
   pullRequestNumber: number;
-  providerId?: GitProviderId;
-  files: PullRequestChangedFile[];
-  conversation: PullRequestConversation;
-  onOpenAnchorInFiles: (anchor: PullRequestReviewAnchor) => void;
 };
 
-function PullRequestOverviewReviewSections({
-  queryArg,
-  activeRepo,
-  pullRequestNumber,
-  providerId,
-  files,
-  conversation,
-  onOpenAnchorInFiles,
-}: PullRequestOverviewReviewSectionsProps) {
-  const { compareRefs } = usePreparePullRequestCompareRefsQuery(queryArg, {
-    selectFromResult: ({ data }) => ({
-      compareRefs: data ?? null,
-    }),
-  });
-  const compareBaseRef = compareRefs?.compareBaseRef ?? "";
-  const compareHeadRef = compareRefs?.compareHeadRef ?? "";
-  const commentMentions = usePullRequestMentionCandidates(conversation);
-  const pendingActions = usePullRequestPendingReviewActions({
-    repoPath: activeRepo,
-    pullRequestNumber,
-    compareBaseRef,
-    compareHeadRef,
-  });
-  const { pendingAnchors, remoteAnchors } = usePullRequestReviewAnchors({
-    repoPath: activeRepo,
-    compareBaseRef,
-    compareHeadRef,
-    files,
-    reviewThreads: conversation.reviewThreads,
-  });
+const unknownActor: PersonView = { login: "unknown", name: "Someone", avatarUrl: null };
 
-  return (
-    <>
-      {pendingAnchors.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <SectionHeader
-            title="Pending review drafts"
-            count={pendingAnchors.length}
-            actions={
-              <div className="flex flex-wrap items-center gap-1">
-                <Button
-                  size="sm"
-                  className="h-7 px-2"
-                  disabled={pendingActions.isSubmittingReviewComments}
-                  onClick={() => {
-                    void pendingActions.publishAllPendingDrafts();
-                  }}
-                >
-                  <MessageSquarePlus className="h-3.5 w-3.5" />
-                  Publish all
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => {
-                    void pendingActions.copyAllPendingDrafts();
-                  }}
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy all
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => {
-                    pendingActions.clearAllPendingDrafts();
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Clear all
-                </Button>
-              </div>
-            }
-          />
-
-          <div className="flex flex-col gap-3">
-            {pendingAnchors.map((anchor) => (
-              <PullRequestOverviewAnchorCard
-                key={anchor.key}
-                providerId={providerId}
-                repoPath={activeRepo}
-                pullRequestNumber={pullRequestNumber}
-                compareBaseRef={compareBaseRef}
-                compareHeadRef={compareHeadRef}
-                anchor={anchor}
-                onOpenFile={() => onOpenAnchorInFiles(anchor)}
-                onPublishPending={() => {
-                  void pendingActions.publishAnchorPendingDrafts(anchor);
-                }}
-                onCopyPending={() => {
-                  void pendingActions.copyAnchorPendingDrafts(anchor);
-                }}
-                onClearPending={() => {
-                  pendingActions.clearAnchorPendingDrafts(anchor);
-                }}
-                commentMentions={commentMentions}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="flex flex-col gap-3">
-        <SectionHeader title="Commented code" count={remoteAnchors.length} />
-        {remoteAnchors.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            {remoteAnchors.map((anchor) => (
-              <PullRequestOverviewAnchorCard
-                key={anchor.key}
-                providerId={providerId}
-                repoPath={activeRepo}
-                pullRequestNumber={pullRequestNumber}
-                compareBaseRef={compareBaseRef}
-                compareHeadRef={compareHeadRef}
-                anchor={anchor}
-                onOpenFile={() => onOpenAnchorInFiles(anchor)}
-                commentMentions={commentMentions}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-muted-foreground rounded-lg border border-border/70 bg-surface-0 px-4 py-3 text-sm">
-            No inline review threads yet.
-          </div>
-        )}
-      </section>
-    </>
-  );
+function errorMessage(cause: unknown, fallback: string) {
+  return cause && typeof cause === "object" && "message" in cause
+    ? String(cause.message)
+    : fallback;
 }
 
-type PullRequestOverviewDetailsSidebarProps = {
-  queryArg: PullRequestQueryArg;
-  activeRepo: string;
-  pullRequestNumber: number;
-  detail: PullRequestConversation["detail"];
-  changedFilesCount: number;
-  totalAdditions: number;
-  totalDeletions: number;
-  issueCommentCount: number;
-  reviewThreadCount: number;
-};
-
-function PullRequestOverviewDetailsSidebar({
-  queryArg,
-  activeRepo,
-  pullRequestNumber,
-  detail,
-  changedFilesCount,
-  totalAdditions,
-  totalDeletions,
-  issueCommentCount,
-  reviewThreadCount,
-}: PullRequestOverviewDetailsSidebarProps) {
-  const { compareRefs } = usePreparePullRequestCompareRefsQuery(queryArg, {
-    selectFromResult: ({ data }) => ({
-      compareRefs: data ?? null,
-    }),
-  });
-  const pendingActions = usePullRequestPendingReviewActions({
-    repoPath: activeRepo,
-    pullRequestNumber,
-    compareBaseRef: compareRefs?.compareBaseRef ?? "",
-    compareHeadRef: compareRefs?.compareHeadRef ?? "",
-  });
-
-  return (
-    <aside className="flex flex-col gap-4 xl:sticky xl:top-4">
-      <PullRequestReviewersSection
-        repoPath={activeRepo}
-        pullRequestNumber={pullRequestNumber}
-        open={detail.state === "open"}
-      />
-      <PullRequestLifecycleSection repoPath={activeRepo} detail={detail} />
-      <PullRequestProviderExtras repoPath={activeRepo} detail={detail} />
-      <section className="rounded-lg border bg-surface-0 p-4">
-        <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-          Details
-        </div>
-        <dl className="mt-2 divide-y divide-border/70">
-          <OverviewDetailRow label="Provider" value={providerTitle(detail.providerId)} />
-          <OverviewDetailRow
-            label="Conversation"
-            value={`${issueCommentCount} comments · ${reviewThreadCount} threads`}
-          />
-          <OverviewDetailRow
-            label="Changes"
-            value={
-              <span>
-                {changedFilesCount} files{" "}
-                <span className="text-emerald-500">+{totalAdditions}</span>{" "}
-                <span className="text-red-500">-{totalDeletions}</span>
-              </span>
-            }
-          />
-          <OverviewDetailRow label="Pending drafts" value={pendingActions.pendingDraftCount} />
-          {detail.providerId !== "github" ? (
-            <OverviewDetailRow
-              label="Labels, workflows, and stack"
-              value={
-                <span className="text-muted-foreground text-xs">Unavailable on Bitbucket</span>
-              }
-            />
-          ) : null}
-          <OverviewDetailRow label="Base" value={detail.baseRef} />
-          <OverviewDetailRow label="Head" value={detail.headRef} />
-        </dl>
-      </section>
-    </aside>
-  );
+function activityEntry(item: PullRequestActivityItem): TimelineEntry {
+  const actor = toPersonView(item.actor);
+  if (item.kind === "commit") {
+    return {
+      kind: "commit",
+      id: item.id,
+      author: actor,
+      createdAt: item.occurredAt,
+      sha: item.commitSha,
+      message: item.message,
+    };
+  }
+  if (
+    item.event === "approved" ||
+    item.event === "changes-requested" ||
+    item.event === "reviewed"
+  ) {
+    return {
+      kind: "review",
+      id: item.id,
+      author: actor ?? unknownActor,
+      createdAt: item.occurredAt,
+      state: item.event,
+      body: item.body ?? "",
+    };
+  }
+  return {
+    kind: "event",
+    id: item.id,
+    actor,
+    createdAt: item.occurredAt,
+    event: item.event,
+    detail: item.detail,
+  };
 }
 
-export const PullRequestOverview = () => {
-  const navigate = useNavigate();
+function anchorStartedAt(anchor: PullRequestReviewAnchor) {
+  const times = anchor.remoteThreads.flatMap((thread) =>
+    thread.comments.map((comment) => comment.createdAt),
+  );
+  return times.toSorted()[0] ?? "";
+}
+
+function useOpenAnchorInFiles(route: RouteContext) {
   const dispatch = useAppDispatch();
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const activePreviewFilePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
-  const { providerId, owner, repo, pullRequestNumber } = useParams();
-  const [openingMode, setOpeningMode] = useState<PullRequestOpenMode | null>(null);
-  const [openError, setOpenError] = useState("");
-
-  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
-    skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      hostedRepo: data ?? null,
-    }),
-  });
-
-  const routeMatchesActiveRepo = Boolean(
-    hostedRepo &&
-    providerId &&
-    owner &&
-    repo &&
-    hostedRepo.providerId === providerId &&
-    hostedRepo.owner === owner &&
-    hostedRepo.repo === repo,
-  );
-
-  const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
-  const hasValidRoute = Boolean(
-    providerId &&
-    owner &&
-    repo &&
-    Number.isFinite(parsedPullRequestNumber) &&
-    parsedPullRequestNumber > 0,
-  );
-
-  const queryArg: PullRequestQueryArg =
-    activeRepo && hasValidRoute && routeMatchesActiveRepo
-      ? {
-          repoPath: activeRepo,
-          pullRequestNumber: parsedPullRequestNumber,
-        }
-      : skipToken;
-
-  const {
-    conversation,
-    loadingConversation,
-    refetch: refetchConversation,
-  } = useGetPullRequestConversationQuery(queryArg, {
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
-      conversation: data ?? null,
-      loadingConversation: isLoading || isFetching,
-    }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
-  });
-
-  const { files } = useGetPullRequestFilesQuery(queryArg, {
-    selectFromResult: ({ data }) => ({
-      files: data ?? [],
-    }),
-  });
-
-  const { compareRefs } = usePreparePullRequestCompareRefsQuery(queryArg, {
-    selectFromResult: ({ data }) => ({ compareRefs: data ?? null }),
-  });
-  const { data: localFiles } = useGetBranchFilesQuery(
-    compareRefs && activeRepo
-      ? {
-          repoPath: activeRepo,
-          baseRef: compareRefs.compareBaseRef,
-          headRef: compareRefs.compareHeadRef,
-        }
-      : skipToken,
-  );
-
-  async function handleOpen(mode: PullRequestOpenMode) {
-    if (!Number.isFinite(parsedPullRequestNumber)) {
-      return;
-    }
-
-    setOpenError("");
-    setOpeningMode(mode);
-    const result = await dispatch(openPullRequestReview(parsedPullRequestNumber, mode));
-    setOpeningMode(null);
-
-    if (!result.errorMessage) {
-      navigate("../local-files", { relative: "path" });
-      return;
-    }
-
-    setOpenError(result.errorMessage);
-    toast.error(result.errorMessage);
-  }
-
-  async function handleCopyPullRequestLink() {
-    const url = conversation?.detail.url;
-    if (!url) {
-      toast.error("PR link is not available yet.");
-      return;
-    }
-
-    await copyToClipboard(url, "PR link copied");
-  }
-
-  async function handleCopyBranchName() {
-    const branchName = conversation?.detail.headRef;
-    if (!branchName) {
-      toast.error("Branch name is not available yet.");
-      return;
-    }
-
-    await copyToClipboard(branchName, "Branch name copied");
-  }
-
-  function handleRefresh() {
-    if (activeRepo && hasValidRoute && routeMatchesActiveRepo) {
-      void refetchConversation();
-      dispatch(hostedReposApi.util.invalidateTags([{ type: "HostedRepo", id: activeRepo }]));
-    }
-  }
-
-  function handleTabChange(tab: PreviewTab) {
-    if (!hasValidRoute || !providerId || !owner || !repo) {
-      return;
-    }
-
-    const nextPath = buildPreviewTabPath({
-      providerId: providerId as GitProviderId,
-      owner,
-      repo,
-      pullRequestNumber: parsedPullRequestNumber,
-      tab,
-    });
-
-    if (tab === "files" && files.length > 0) {
-      const hasMatchingActiveFile = files.some((file) => file.path === activePreviewFilePath);
-      if (!hasMatchingActiveFile) {
-        dispatch(setPullRequestPreviewActiveFilePath(files[0].path));
-      }
-    }
-
-    navigate(nextPath);
-  }
-
-  function openAnchorInFiles(anchor: PullRequestReviewAnchor) {
-    if (!hasValidRoute || !providerId || !owner || !repo) {
-      return;
-    }
-
+  const navigate = useNavigate();
+  return (anchor: PullRequestReviewAnchor) => {
     dispatch(setPullRequestPreviewActiveFilePath(anchor.path));
     dispatch(
       setPullRequestPreviewFileJumpTarget({
@@ -491,100 +136,467 @@ export const PullRequestOverview = () => {
         focusKey: Date.now(),
       }),
     );
+    navigate(buildPreviewTabPath({ ...route, tab: "files" }));
+  };
+}
 
-    navigate(
-      buildPreviewTabPath({
-        providerId: providerId as GitProviderId,
-        owner,
-        repo,
-        pullRequestNumber: parsedPullRequestNumber,
-        tab: "files",
-      }),
+function useOpenCommitInHistory(locator: PullRequestLocator) {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const [prepareRefs] = useLazyPreparePullRequestCompareRefsQuery();
+  const opening = useRef(false);
+  return async (commitSha: string) => {
+    if (opening.current) return;
+    opening.current = true;
+    try {
+      try {
+        await desktop.getCommitFiles(locator.repoPath, commitSha);
+      } catch {
+        await prepareRefs(locator, true).unwrap();
+        await desktop.getCommitFiles(locator.repoPath, commitSha);
+      }
+      await dispatch(selectHistoryPullRequestCommit(commitSha));
+      navigate(`/history?commit=${commitSha}`);
+    } catch (cause) {
+      toast.error(errorMessage(cause, "Could not open this commit in History."));
+    } finally {
+      opening.current = false;
+    }
+  };
+}
+
+function PullRequestOverviewHeaderBar({
+  locator,
+  route,
+  repository,
+  detail,
+  onOpenChecks,
+  onLifecycle,
+}: {
+  locator: PullRequestLocator;
+  route: RouteContext;
+  repository: string;
+  detail: PullRequestDetail;
+  onOpenChecks: () => void;
+  onLifecycle: (request: LifecycleRequest) => void;
+}) {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
+  const [opening, setOpening] = useState<PullRequestOpenMode | null>(null);
+  const pullRequest = usePullRequestOverviewView(locator, repository);
+  const { refreshing } = useGetPullRequestConversationQuery(locator, {
+    selectFromResult: ({ isFetching }) => ({ refreshing: isFetching }),
+  });
+
+  async function open(mode: PullRequestOpenMode) {
+    setOpening(mode);
+    const result = await dispatch(openPullRequestReview(route.pullRequestNumber, mode));
+    setOpening(null);
+    if (result.errorMessage) {
+      toast.error(result.errorMessage);
+      return;
+    }
+    navigate("../local-files", { relative: "path" });
+  }
+
+  function refresh() {
+    const id = `${locator.repoPath}:${locator.pullRequestNumber}`;
+    dispatch(
+      hostedReposApi.util.invalidateTags([
+        { type: "HostedRepo", id: locator.repoPath },
+        { type: "PullRequestConversation", id },
+        { type: "PullRequestActivity", id },
+        { type: "PullRequestChecks", id },
+        { type: "PullRequestReviewOverview", id },
+        { type: "PullRequestFiles", id },
+      ]),
     );
   }
 
-  if (!conversation) {
-    return null;
+  function handleAction(action: PullRequestHeaderAction) {
+    if (action === "open-branch") void open("branch");
+    else if (action === "open-worktree") void open("worktree");
+    else if (action === "open-browser") window.open(detail.url, "_blank", "noopener,noreferrer");
+    else if (action === "copy-link") void copyToClipboard(detail.url, "Pull request link copied");
+    else if (action === "copy-branch") void copyToClipboard(detail.headRef, "Branch name copied");
+    else refresh();
   }
 
-  const { detail } = conversation;
-  const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
-  const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
-  const issueCommentCount = conversation.issueComments.length;
-  const reviewThreadCount = conversation.reviewThreads.length;
+  if (!pullRequest) return null;
+  return (
+    <PullRequestOverviewHeader
+      pullRequest={pullRequest}
+      refreshing={refreshing}
+      actions={
+        <PullRequestHeaderActions
+          lifecycleActions={headerLifecycleActions(detail)}
+          opening={opening}
+          refreshing={refreshing}
+          onAction={handleAction}
+          onLifecycle={(action) => onLifecycle({ action })}
+        />
+      }
+      onBack={() => navigate(buildPullRequestsInboxPath())}
+      onCopyBranch={() => handleAction("copy-branch")}
+      onOpenFiles={() => navigate(buildPreviewTabPath({ ...route, tab: "files" }))}
+      onOpenChecks={onOpenChecks}
+    />
+  );
+}
+
+function PullRequestOverviewMergeStatus({
+  locator,
+  repository,
+  detail,
+  checksOpen,
+  onChecksOpenChange,
+  onLifecycle,
+  mergeBoxRef,
+}: {
+  locator: PullRequestLocator;
+  repository: string;
+  detail: PullRequestDetail;
+  checksOpen: boolean;
+  onChecksOpenChange: (open: boolean) => void;
+  onLifecycle: (request: LifecycleRequest) => void;
+  mergeBoxRef: React.Ref<HTMLElement>;
+}) {
+  const pullRequest = usePullRequestOverviewView(locator, repository);
+  const { conversation } = useGetPullRequestConversationQuery(locator, {
+    selectFromResult: ({ data }) => ({ conversation: data ?? null }),
+  });
+  const mentions = usePullRequestMentionCandidates(conversation);
+  const [setReviewer] = useSetPullRequestReviewerMutation();
+
+  async function changeReviewer(reviewer: string, requested: boolean) {
+    try {
+      await setReviewer({ ...locator, reviewer, requested }).unwrap();
+      toast.success(requested ? "Review requested" : "Reviewer removed");
+      return true;
+    } catch (cause) {
+      toast.error(errorMessage(cause, "Could not update reviewers."));
+      return false;
+    }
+  }
+
+  if (!pullRequest) return null;
+  const open = detail.state === "open";
+  const github = detail.providerId === "github";
+  return (
+    <PullRequestMergeBox
+      ref={mergeBoxRef}
+      pullRequest={pullRequest}
+      checksOpen={checksOpen}
+      onChecksOpenChange={onChecksOpenChange}
+      canAutoMerge={github && open && !detail.isDraft}
+      onMerge={(method) => onLifecycle({ action: "merge", method })}
+      onAutoMerge={() => onLifecycle({ action: "auto-merge" })}
+      onMarkReady={github ? () => onLifecycle({ action: "ready" }) : undefined}
+      reviewers={
+        <div onFocus={mentions.onActivate} onPointerEnter={mentions.onActivate}>
+          <PullRequestReviewerList
+            reviewers={pullRequest.reviewers}
+            candidates={mentions.candidates}
+            onAdd={open ? (login) => changeReviewer(login, true) : undefined}
+            onRerequest={open ? (reviewer) => void changeReviewer(reviewer.id, true) : undefined}
+            onRemove={open ? (reviewer) => void changeReviewer(reviewer.id, false) : undefined}
+          />
+        </div>
+      }
+    />
+  );
+}
+
+function PendingDraftsSection({
+  locator,
+  route,
+  compareBaseRef,
+  compareHeadRef,
+  anchors,
+  mentions,
+}: {
+  locator: PullRequestLocator;
+  route: RouteContext;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  anchors: PullRequestReviewAnchor[];
+  mentions: ReturnType<typeof usePullRequestMentionCandidates>;
+}) {
+  const pendingActions = usePullRequestPendingReviewActions({
+    repoPath: locator.repoPath,
+    pullRequestNumber: locator.pullRequestNumber,
+    compareBaseRef,
+    compareHeadRef,
+  });
+  const openAnchorInFiles = useOpenAnchorInFiles(route);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <PullRequestPreviewHeader
-        owner={hostedRepo?.owner ?? owner ?? ""}
-        repo={hostedRepo?.repo ?? repo ?? ""}
-        detail={detail}
-        openingMode={openingMode}
-        isRefreshing={loadingConversation && !!conversation}
-        changedFilesCount={localFiles?.length ?? files.length}
-        additions={totalAdditions}
-        deletions={totalDeletions}
-        onBack={() => navigate(buildPullRequestsInboxPath())}
-        onOpen={(mode) => {
-          void handleOpen(mode);
-        }}
-        onOpenInBrowser={() => {
-          window.open(detail.url, "_blank", "noopener,noreferrer");
-        }}
-        onCopyLink={() => {
-          void handleCopyPullRequestLink();
-        }}
-        onCopyBranch={() => {
-          void handleCopyBranchName();
-        }}
-        onRefresh={handleRefresh}
-        onToggleFilesView={() => handleTabChange("files")}
-      />
-
-      <div data-workspace-scroll className="min-h-0 flex-1 overflow-auto px-6 py-6">
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6">
-          {openError ? (
-            <div className="text-destructive rounded-lg border border-red-500/25 bg-red-500/8 px-3 py-2 text-sm">
-              {openError}
-            </div>
-          ) : null}
-
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px] xl:items-start">
-            <div className="flex min-w-0 flex-col gap-6">
-              <PullRequestSummarySection body={detail.body} />
-              <PullRequestDiscussionSection
-                conversation={conversation}
-                repoPath={activeRepo ?? ""}
-              />
-              <PullRequestActivitySection
-                repoPath={activeRepo ?? ""}
-                pullRequestNumber={parsedPullRequestNumber}
-              />
-              <PullRequestOverviewReviewSections
-                queryArg={queryArg}
-                activeRepo={activeRepo ?? ""}
-                pullRequestNumber={parsedPullRequestNumber}
-                providerId={detail.providerId as GitProviderId}
-                files={files}
-                conversation={conversation}
-                onOpenAnchorInFiles={openAnchorInFiles}
-              />
-            </div>
-
-            <PullRequestOverviewDetailsSidebar
-              queryArg={queryArg}
-              activeRepo={activeRepo ?? ""}
-              pullRequestNumber={parsedPullRequestNumber}
-              detail={detail}
-              changedFilesCount={localFiles?.length ?? files.length}
-              totalAdditions={totalAdditions}
-              totalDeletions={totalDeletions}
-              issueCommentCount={issueCommentCount}
-              reviewThreadCount={reviewThreadCount}
-            />
-          </div>
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold">
+          Pending review drafts{" "}
+          <span className="text-muted-foreground font-normal tabular-nums">{anchors.length}</span>
+        </h2>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            disabled={pendingActions.isSubmittingReviewComments}
+            onClick={() => void pendingActions.publishAllPendingDrafts()}
+          >
+            <MessageSquarePlus /> Publish all
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void pendingActions.copyAllPendingDrafts()}
+          >
+            <Copy /> Copy all
+          </Button>
+          <Button variant="ghost" size="sm" onClick={pendingActions.clearAllPendingDrafts}>
+            <Trash2 /> Clear all
+          </Button>
         </div>
       </div>
+      {anchors.map((anchor) => (
+        <PullRequestOverviewAnchorCard
+          key={anchor.key}
+          providerId={route.providerId}
+          repoPath={locator.repoPath}
+          pullRequestNumber={locator.pullRequestNumber}
+          compareBaseRef={compareBaseRef}
+          compareHeadRef={compareHeadRef}
+          anchor={anchor}
+          onOpenFile={() => openAnchorInFiles(anchor)}
+          onPublishPending={() => void pendingActions.publishAnchorPendingDrafts(anchor)}
+          onCopyPending={() => void pendingActions.copyAnchorPendingDrafts(anchor)}
+          onClearPending={() => pendingActions.clearAnchorPendingDrafts(anchor)}
+          commentMentions={mentions}
+        />
+      ))}
+    </section>
+  );
+}
+
+function PullRequestOverviewConversation({
+  locator,
+  route,
+  onLifecycle,
+}: {
+  locator: PullRequestLocator;
+  route: RouteContext;
+  onLifecycle: (request: LifecycleRequest) => void;
+}) {
+  const { conversation } = useGetPullRequestConversationQuery(locator, {
+    selectFromResult: ({ data }) => ({ conversation: data ?? null }),
+  });
+  const { files } = useGetPullRequestFilesQuery(locator, {
+    selectFromResult: ({ data }) => ({ files: data }),
+  });
+  const { activity } = useGetPullRequestActivityQuery(locator, {
+    selectFromResult: ({ data }) => ({ activity: data }),
+  });
+  const { compareRefs } = usePreparePullRequestCompareRefsQuery(locator, {
+    selectFromResult: ({ data }) => ({ compareRefs: data ?? null }),
+  });
+  const { viewer } = useListProviderConnectionsQuery(undefined, {
+    selectFromResult: ({ data }) => ({
+      viewer: data?.find((connection) => connection.providerId === route.providerId) ?? null,
+    }),
+  });
+  const [addComment] = useAddPullRequestCommentMutation();
+  const mentions = usePullRequestMentionCandidates(conversation);
+  const openAnchorInFiles = useOpenAnchorInFiles(route);
+  const openCommit = useOpenCommitInHistory(locator);
+  const compareBaseRef = compareRefs?.compareBaseRef ?? "";
+  const compareHeadRef = compareRefs?.compareHeadRef ?? "";
+  const { pendingAnchors, remoteAnchors } = usePullRequestReviewAnchors({
+    repoPath: locator.repoPath,
+    compareBaseRef,
+    compareHeadRef,
+    files: files ?? [],
+    reviewThreads: conversation?.reviewThreads ?? [],
+  });
+
+  if (!conversation) return null;
+  const { detail } = conversation;
+  const github = detail.providerId === "github";
+
+  const entries: TimelineEntry[] = [
+    ...conversation.issueComments.map(
+      (comment): TimelineEntry => ({
+        kind: "comment",
+        id: comment.id,
+        author: toPersonView(comment.author) ?? unknownActor,
+        createdAt: comment.createdAt,
+        body: comment.body,
+        url: comment.url,
+        footer:
+          github || comment.reactions.length > 0 ? (
+            <CommentReactions
+              repoPath={locator.repoPath}
+              pullRequestNumber={locator.pullRequestNumber}
+              comment={comment}
+              canReact={github}
+            />
+          ) : null,
+      }),
+    ),
+    ...(activity?.items ?? []).map(activityEntry),
+    ...remoteAnchors.map(
+      (anchor): TimelineEntry => ({
+        kind: "custom",
+        id: `anchor-${anchor.key}`,
+        createdAt: anchorStartedAt(anchor),
+        node: (
+          <PullRequestOverviewAnchorCard
+            providerId={route.providerId}
+            repoPath={locator.repoPath}
+            pullRequestNumber={locator.pullRequestNumber}
+            compareBaseRef={compareBaseRef}
+            compareHeadRef={compareHeadRef}
+            anchor={anchor}
+            onOpenFile={() => openAnchorInFiles(anchor)}
+            commentMentions={mentions}
+          />
+        ),
+      }),
+    ),
+  ];
+
+  async function submitComment(body: string) {
+    try {
+      await addComment({ ...locator, body }).unwrap();
+      return true;
+    } catch (cause) {
+      toast.error(errorMessage(cause, "Could not post the comment."));
+      return false;
+    }
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-6">
+      {pendingAnchors.length > 0 ? (
+        <PendingDraftsSection
+          locator={locator}
+          route={route}
+          compareBaseRef={compareBaseRef}
+          compareHeadRef={compareHeadRef}
+          anchors={pendingAnchors}
+          mentions={mentions}
+        />
+      ) : null}
+      <PullRequestTimeline
+        description={{
+          author: toPersonView(detail.author) ?? unknownActor,
+          createdAt: detail.createdAt,
+          body: detail.body,
+        }}
+        entries={entries}
+        viewer={
+          viewer
+            ? { login: viewer.login, name: viewer.displayName, avatarUrl: viewer.avatarUrl }
+            : null
+        }
+        mentions={mentions}
+        onOpenCommit={(sha) => void openCommit(sha)}
+        onSubmitComment={submitComment}
+        onEditDescription={() => onLifecycle({ action: "edit" })}
+      />
+      {activity?.truncated ? (
+        <p className="text-muted-foreground pl-10 text-xs">
+          Older events and commits are only on the provider.
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+export const PullRequestOverview = () => {
+  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
+  const params = useParams();
+  const [lifecycleRequest, setLifecycleRequest] = useState<LifecycleRequest | null>(null);
+  const [checksOpen, setChecksOpen] = useState(false);
+  const mergeBoxRef = useRef<HTMLElement>(null);
+  const pullRequestNumber = Number.parseInt(params.pullRequestNumber ?? "", 10);
+  const route: RouteContext | null =
+    params.providerId && params.owner && params.repo && pullRequestNumber > 0
+      ? {
+          providerId: params.providerId as GitProviderId,
+          owner: params.owner,
+          repo: params.repo,
+          pullRequestNumber,
+        }
+      : null;
+  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ data }) => ({ hostedRepo: data ?? null }),
+  });
+  const routeMatchesActiveRepo = Boolean(
+    route &&
+    hostedRepo &&
+    hostedRepo.providerId === route.providerId &&
+    hostedRepo.owner === route.owner &&
+    hostedRepo.repo === route.repo,
+  );
+  const queryArg: QueryArg =
+    activeRepo && route && routeMatchesActiveRepo
+      ? { repoPath: activeRepo, pullRequestNumber }
+      : skipToken;
+  const { detail } = useGetPullRequestConversationQuery(queryArg, {
+    selectFromResult: ({ data }) => ({ detail: data?.detail ?? null }),
+    pollingInterval: 10000,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+
+  if (!detail || !route || queryArg === skipToken) return null;
+  const repository = `${route.owner}/${route.repo}`;
+
+  function openChecks() {
+    setChecksOpen(true);
+    mergeBoxRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <TooltipProvider>
+      <PullRequestOverviewLayout
+        header={
+          <PullRequestOverviewHeaderBar
+            locator={queryArg}
+            route={route}
+            repository={repository}
+            detail={detail}
+            onOpenChecks={openChecks}
+            onLifecycle={setLifecycleRequest}
+          />
+        }
+        aside={
+          <>
+            <PullRequestOverviewMergeStatus
+              locator={queryArg}
+              repository={repository}
+              detail={detail}
+              checksOpen={checksOpen}
+              onChecksOpenChange={setChecksOpen}
+              onLifecycle={setLifecycleRequest}
+              mergeBoxRef={mergeBoxRef}
+            />
+            <PullRequestProviderExtras repoPath={queryArg.repoPath} detail={detail} />
+          </>
+        }
+      >
+        <PullRequestOverviewConversation
+          locator={queryArg}
+          route={route}
+          onLifecycle={setLifecycleRequest}
+        />
+      </PullRequestOverviewLayout>
+      <PullRequestLifecycleDialog
+        repoPath={queryArg.repoPath}
+        detail={detail}
+        request={lifecycleRequest}
+        onClose={() => setLifecycleRequest(null)}
+      />
+    </TooltipProvider>
   );
 };

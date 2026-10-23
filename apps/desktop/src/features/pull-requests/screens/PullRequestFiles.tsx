@@ -6,6 +6,7 @@ import { useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
 import {
   Empty,
   EmptyDescription,
@@ -420,10 +421,11 @@ function FilesDiffViewer({
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">
+                <TooltipContent side="bottom" className="flex items-center gap-2">
                   {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
                     ? "Mark file unviewed"
                     : "Mark file viewed"}
+                  <Kbd>V</Kbd>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

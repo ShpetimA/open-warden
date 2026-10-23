@@ -2,7 +2,6 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type { GitProviderId } from "@/platform/desktop";
 
-export type PullRequestReviewTab = "files" | "checks";
 export type PullRequestFilesViewMode = "review" | "files";
 
 export type PullRequestReviewSession = {
@@ -36,7 +35,6 @@ export type PullRequestPreviewFileJumpTarget = {
 
 type PullRequestsState = {
   currentReview: PullRequestReviewSession | null;
-  activeReviewTab: PullRequestReviewTab;
   filesViewMode: PullRequestFilesViewMode;
   activeConversationThreadId: string | null;
   fileJumpTarget: PullRequestFileJumpTarget | null;
@@ -46,7 +44,6 @@ type PullRequestsState = {
 
 const initialState: PullRequestsState = {
   currentReview: null,
-  activeReviewTab: "files",
   filesViewMode: "review",
   activeConversationThreadId: null,
   fileJumpTarget: null,
@@ -60,7 +57,6 @@ const pullRequestsSlice = createSlice({
   reducers: {
     setCurrentPullRequestReview(state, action: PayloadAction<PullRequestReviewSession>) {
       state.currentReview = action.payload;
-      state.activeReviewTab = "files";
       state.filesViewMode = "review";
       state.activeConversationThreadId = null;
       state.fileJumpTarget = null;
@@ -69,15 +65,11 @@ const pullRequestsSlice = createSlice({
     },
     clearCurrentPullRequestReview(state) {
       state.currentReview = null;
-      state.activeReviewTab = "files";
       state.filesViewMode = "review";
       state.activeConversationThreadId = null;
       state.fileJumpTarget = null;
       state.previewFileJumpTarget = null;
       state.previewActiveFilePath = "";
-    },
-    setPullRequestReviewTab(state, action: PayloadAction<PullRequestReviewTab>) {
-      state.activeReviewTab = action.payload;
     },
     setPullRequestFilesViewMode(state, action: PayloadAction<PullRequestFilesViewMode>) {
       state.filesViewMode = action.payload;
@@ -118,7 +110,6 @@ export const {
   setCurrentPullRequestReview,
   setPullRequestPreviewActiveFilePath,
   setPullRequestPreviewFileJumpTarget,
-  setPullRequestReviewTab,
   setPullRequestFilesViewMode,
 } = pullRequestsSlice.actions;
 

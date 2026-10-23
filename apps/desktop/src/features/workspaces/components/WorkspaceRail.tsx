@@ -1,11 +1,4 @@
-import {
-  Files,
-  GitBranch,
-  GitPullRequest,
-  GitPullRequestArrow,
-  History,
-  ShieldCheck,
-} from "lucide-react";
+import { Files, GitBranch, GitPullRequest, GitPullRequestArrow, History } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { BranchPullRequestButton } from "./BranchPullRequestButton";
@@ -94,14 +87,6 @@ export function pullRequestRailSections(
       path: base + (localReview ? "/local-files" : "/files"),
       isActive: (pathname) =>
         startsWith(pathname, `${base}/files`) || startsWith(pathname, `${base}/local-files`),
-    },
-    {
-      key: "checks",
-      label: "Checks",
-      icon: <ShieldCheck />,
-      path: base + (localReview ? "/local-checks" : "/checks"),
-      isActive: (pathname) =>
-        startsWith(pathname, `${base}/checks`) || startsWith(pathname, `${base}/local-checks`),
     },
   ];
 }

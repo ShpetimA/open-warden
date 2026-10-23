@@ -1,6 +1,8 @@
 import type {
   PullRequestActivity,
+  PullRequestActivityEvent,
   PullRequestActivityItem,
+  PullRequestPerson,
   PullRequestLocatorInput,
   PullRequestViewedFiles,
   SetPullRequestFileViewedInput,
@@ -82,14 +84,19 @@ export async function setPullRequestFileViewed(
   );
 }
 
+type GitHubUser = { login?: string; avatar_url?: string; type?: string } | null;
+
 type GitHubTimelineEvent = {
   id: number;
   event: string;
   created_at?: string;
-  actor?: { login?: string } | null;
-  user?: { login?: string } | null;
+  submitted_at?: string;
+  actor?: GitHubUser;
+  user?: GitHubUser;
   state?: string;
-  commit_id?: string;
+  body?: string | null;
+  label?: { name?: string };
+  requested_reviewer?: GitHubUser;
   rename?: { from?: string; to?: string };
   html_url?: string;
 };
@@ -98,112 +105,165 @@ type GitHubCommit = {
   sha: string;
   html_url?: string;
   commit?: { message?: string; author?: { name?: string; date?: string } };
-  author?: { login?: string } | null;
+  author?: GitHubUser;
 };
 
-const githubEventLabels: Record<string, string> = {
-  assigned: "Assigned",
-  unassigned: "Unassigned",
-  closed: "Closed",
-  reopened: "Reopened",
-  merged: "Merged",
-  reviewed: "Review submitted",
-  review_requested: "Review requested",
-  review_request_removed: "Review request removed",
-  head_ref_force_pushed: "Source branch force pushed",
-  ready_for_review: "Marked ready for review",
-  converted_to_draft: "Converted to draft",
-  renamed: "Renamed",
-  labeled: "Label added",
-  unlabeled: "Label removed",
-  auto_merge_enabled: "Auto-merge enabled",
-  auto_merge_disabled: "Auto-merge disabled",
+const githubEvents: Record<string, PullRequestActivityEvent> = {
+  assigned: "assigned",
+  unassigned: "unassigned",
+  closed: "closed",
+  reopened: "reopened",
+  merged: "merged",
+  review_requested: "review-requested",
+  review_request_removed: "review-request-removed",
+  head_ref_force_pushed: "force-pushed",
+  ready_for_review: "ready",
+  converted_to_draft: "draft",
+  renamed: "renamed",
+  labeled: "labeled",
+  unlabeled: "unlabeled",
+  auto_merge_enabled: "auto-merge-enabled",
+  auto_merge_disabled: "auto-merge-disabled",
 };
 
-function toGitHubEvent(event: GitHubTimelineEvent): PullRequestActivityItem | null {
-  const label = githubEventLabels[event.event];
-  if (!label) return null;
+function githubPerson(user: GitHubUser | undefined): PullRequestPerson | null {
+  if (!user?.login) return null;
+  return { login: user.login, displayName: null, avatarUrl: user.avatar_url ?? null };
+}
+
+function githubReviewEvent(state: string | undefined): PullRequestActivityEvent | null {
+  if (state === "approved") return "approved";
+  if (state === "changes_requested") return "changes-requested";
+  if (state === "commented") return "reviewed";
+  return null;
+}
+
+function toGitHubEvent(item: GitHubTimelineEvent): PullRequestActivityItem | null {
+  const body = item.body?.trim() || null;
+  const event =
+    item.event === "reviewed" ? githubReviewEvent(item.state) : (githubEvents[item.event] ?? null);
+  // A "commented" review without a summary only wraps inline threads, which have their own place.
+  if (!event || (event === "reviewed" && !body)) return null;
   const detail =
-    event.event === "reviewed"
-      ? (event.state?.replaceAll("_", " ") ?? null)
-      : event.event === "renamed"
-        ? `${event.rename?.from ?? ""} → ${event.rename?.to ?? ""}`
-        : event.commit_id
-          ? event.commit_id.slice(0, 8)
+    item.event === "renamed"
+      ? `${item.rename?.from ?? ""} → ${item.rename?.to ?? ""}`
+      : item.event === "labeled" || item.event === "unlabeled"
+        ? (item.label?.name ?? null)
+        : item.event === "review_requested" || item.event === "review_request_removed"
+          ? (item.requested_reviewer?.login ?? null)
           : null;
   return {
-    id: `github-event-${event.id}`,
+    id: `github-event-${item.id}`,
     kind: "event",
-    label,
+    event,
     detail,
-    actor: event.actor?.login ?? event.user?.login ?? null,
-    occurredAt: event.created_at ?? "",
-    url: event.html_url ?? null,
+    body: item.event === "reviewed" ? body : null,
+    actor: githubPerson(item.actor ?? item.user),
+    occurredAt: item.submitted_at ?? item.created_at ?? "",
+    url: item.html_url ?? null,
   };
 }
 
 type BitbucketPage<T> = { values: T[]; next?: string };
+type BitbucketUser = {
+  nickname?: string;
+  display_name?: string;
+  links?: { avatar?: { href?: string } };
+};
+type BitbucketUpdate = {
+  date?: string;
+  state?: string;
+  title?: string;
+  description?: string;
+  author?: BitbucketUser;
+};
 type BitbucketActivity = {
-  approval?: { date?: string; user?: { nickname?: string; display_name?: string } };
-  changes_requested?: { date?: string; user?: { nickname?: string; display_name?: string } };
-  update?: {
-    date?: string;
-    state?: string;
-    reason?: string;
-    author?: { nickname?: string; display_name?: string };
-    source?: { commit?: { hash?: string } };
-  };
+  approval?: { date?: string; user?: BitbucketUser };
+  changes_requested?: { date?: string; user?: BitbucketUser };
+  update?: BitbucketUpdate;
 };
 type BitbucketCommit = {
   hash: string;
   date?: string;
   message?: string;
-  author?: { user?: { nickname?: string; display_name?: string }; raw?: string };
+  author?: { user?: BitbucketUser; raw?: string };
   links?: { html?: { href?: string } };
 };
 
-function toBitbucketEvent(item: BitbucketActivity, index: number): PullRequestActivityItem | null {
-  if (item.approval)
-    return {
-      id: `bb-approval-${index}`,
-      kind: "event",
-      label: "Approved",
-      detail: null,
-      actor: item.approval.user?.display_name ?? item.approval.user?.nickname ?? null,
-      occurredAt: item.approval.date ?? "",
-      url: null,
-    };
-  if (item.changes_requested)
-    return {
-      id: `bb-changes-${index}`,
-      kind: "event",
-      label: "Changes requested",
-      detail: null,
-      actor:
-        item.changes_requested.user?.display_name ?? item.changes_requested.user?.nickname ?? null,
-      occurredAt: item.changes_requested.date ?? "",
-      url: null,
-    };
-  if (item.update)
-    return {
+function bitbucketPerson(user: BitbucketUser | undefined): PullRequestPerson | null {
+  const login = user?.nickname ?? user?.display_name;
+  if (!login) return null;
+  return {
+    login,
+    displayName: user?.display_name ?? null,
+    avatarUrl: user?.links?.avatar?.href ?? null,
+  };
+}
+
+/**
+ * Bitbucket records each save as a full snapshot of the pull request. What changed is only
+ * visible by comparing a snapshot with the one before it; pushes are left to the commit list.
+ */
+function bitbucketUpdateEvent(
+  update: BitbucketUpdate,
+  previous: BitbucketUpdate | null,
+): Pick<Extract<PullRequestActivityItem, { kind: "event" }>, "event" | "detail"> | null {
+  if (update.state === "MERGED" && previous?.state !== "MERGED") {
+    return { event: "merged", detail: null };
+  }
+  if (update.state === "DECLINED" && previous?.state !== "DECLINED") {
+    return { event: "closed", detail: null };
+  }
+  if (!previous) return null;
+  if (update.state === "OPEN" && previous.state !== "OPEN")
+    return { event: "reopened", detail: null };
+  if ((update.title ?? "") !== (previous.title ?? "")) {
+    return { event: "renamed", detail: `${previous.title ?? ""} → ${update.title ?? ""}` };
+  }
+  if ((update.description ?? "") !== (previous.description ?? "")) {
+    return { event: "edited", detail: null };
+  }
+  return null;
+}
+
+function toBitbucketEvents(values: BitbucketActivity[]): PullRequestActivityItem[] {
+  const items: PullRequestActivityItem[] = [];
+  let previousUpdate: BitbucketUpdate | null = null;
+  // The API lists newest first; snapshots are compared oldest first.
+  for (const [index, item] of values.toReversed().entries()) {
+    const review = item.approval ?? item.changes_requested;
+    if (review) {
+      items.push({
+        id: `bb-review-${index}`,
+        kind: "event",
+        event: item.approval ? "approved" : "changes-requested",
+        detail: null,
+        body: null,
+        actor: bitbucketPerson(review.user),
+        occurredAt: review.date ?? "",
+        url: null,
+      });
+      continue;
+    }
+    if (!item.update) continue;
+    const change = bitbucketUpdateEvent(item.update, previousUpdate);
+    previousUpdate = item.update;
+    if (!change) continue;
+    items.push({
       id: `bb-update-${index}`,
       kind: "event",
-      label:
-        item.update.state === "MERGED"
-          ? "Merged"
-          : item.update.state === "DECLINED"
-            ? "Declined"
-            : "Pull request updated",
-      detail:
-        item.update.reason ||
-        (item.update.source?.commit?.hash
-          ? `Source ${item.update.source.commit.hash.slice(0, 8)}`
-          : null),
-      actor: item.update.author?.display_name ?? item.update.author?.nickname ?? null,
+      ...change,
+      body: null,
+      actor: bitbucketPerson(item.update.author),
       occurredAt: item.update.date ?? "",
       url: null,
-    };
-  return null;
+    });
+  }
+  return items;
+}
+
+function newestFirst(items: PullRequestActivityItem[]) {
+  return items.toSorted((a, b) => b.occurredAt.localeCompare(a.occurredAt));
 }
 
 export async function getPullRequestActivity(
@@ -230,16 +290,17 @@ export async function getPullRequestActivity(
       id: `github-commit-${commit.sha}`,
       kind: "commit",
       commitSha: commit.sha,
-      label: commit.commit?.message?.split("\n")[0] || commit.sha.slice(0, 8),
-      detail: commit.sha.slice(0, 8),
-      actor: commit.author?.login ?? commit.commit?.author?.name ?? null,
+      message: commit.commit?.message?.split("\n")[0] || commit.sha.slice(0, 8),
+      actor:
+        githubPerson(commit.author) ??
+        (commit.commit?.author?.name
+          ? { login: commit.commit.author.name, displayName: null, avatarUrl: null }
+          : null),
       occurredAt: commit.commit?.author?.date ?? "",
       url: commit.html_url ?? null,
     }));
     return {
-      items: [...events, ...commitItems].toSorted((a, b) =>
-        (b.occurredAt ?? "").localeCompare(a.occurredAt ?? ""),
-      ),
+      items: newestFirst([...events, ...commitItems]),
       truncated: Boolean(
         timeline.headers.get("link")?.includes('rel="next"') ||
         commits.headers.get("link")?.includes('rel="next"'),
@@ -249,31 +310,28 @@ export async function getPullRequestActivity(
   if (hostedRepo.providerId === "bitbucket") {
     const path = bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber);
     const [activity, commits] = await Promise.all([
-      bitbucketRequest<BitbucketPage<BitbucketActivity>>(`${path}/activity`, connection),
-      bitbucketRequest<BitbucketPage<BitbucketCommit>>(`${path}/commits`, connection),
+      bitbucketRequest<BitbucketPage<BitbucketActivity>>(`${path}/activity?pagelen=50`, connection),
+      bitbucketRequest<BitbucketPage<BitbucketCommit>>(`${path}/commits?pagelen=50`, connection),
     ]);
-    const events = activity.data.values.flatMap((item, index) => {
-      const event = toBitbucketEvent(item, index);
-      return event ? [event] : [];
-    });
     const commitItems: PullRequestActivityItem[] = commits.data.values.map((commit) => ({
       id: `bb-commit-${commit.hash}`,
       kind: "commit",
       commitSha: commit.hash,
-      label: commit.message?.split("\n")[0] || commit.hash.slice(0, 8),
-      detail: commit.hash.slice(0, 8),
+      message: commit.message?.split("\n")[0] || commit.hash.slice(0, 8),
       actor:
-        commit.author?.user?.display_name ??
-        commit.author?.user?.nickname ??
-        commit.author?.raw ??
-        null,
+        bitbucketPerson(commit.author?.user) ??
+        (commit.author?.raw
+          ? {
+              login: commit.author.raw.replace(/\s*<.*>$/, ""),
+              displayName: null,
+              avatarUrl: null,
+            }
+          : null),
       occurredAt: commit.date ?? "",
       url: commit.links?.html?.href ?? null,
     }));
     return {
-      items: [...events, ...commitItems].toSorted((a, b) =>
-        (b.occurredAt ?? "").localeCompare(a.occurredAt ?? ""),
-      ),
+      items: newestFirst([...toBitbucketEvents(activity.data.values), ...commitItems]),
       truncated: Boolean(activity.data.next || commits.data.next),
     };
   }

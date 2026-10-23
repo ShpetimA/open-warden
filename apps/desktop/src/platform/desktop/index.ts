@@ -2,7 +2,7 @@ import { createDesktopApiForwarder } from "./createDesktopApi";
 import type { DesktopBridge } from "./contracts";
 import { browserDesktopApi, unavailableDesktopApi } from "./browser";
 
-function hasElectronRuntime() {
+export function hasElectronRuntime() {
   if (typeof window === "undefined") return false;
 
   return (
@@ -113,6 +113,7 @@ export type {
   SetPullRequestFileViewedInput,
   PullRequestOpenMode,
   PullRequestPerson,
+  PullRequestActivityEvent,
   PullRequestReviewComment,
   PullRequestReviewer,
   PullRequestReviewOverview,

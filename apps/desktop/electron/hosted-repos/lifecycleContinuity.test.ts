@@ -149,10 +149,50 @@ describe("review continuity", () => {
         headers: new Headers(),
       });
     const activity = await getPullRequestActivity(input);
-    expect(activity.items.map((item) => item.label)).toEqual([
-      "Fix issue",
-      "Source branch force pushed",
-    ]);
+    expect(
+      activity.items.map((item) => (item.kind === "commit" ? item.message : item.event)),
+    ).toEqual(["Fix issue", "force-pushed"]);
+    expect(activity.items[1]?.actor).toEqual({
+      login: "alice",
+      displayName: null,
+      avatarUrl: null,
+    });
     expect(activity.truncated).toBe(false);
+  });
+
+  it("reads what changed between Bitbucket snapshots and leaves pushes to commits", async () => {
+    mocks.resolvePullRequestContext.mockResolvedValue({
+      hostedRepo: { providerId: "bitbucket", owner: "acme", repo: "app" },
+      connection: { token: "secret", authType: "bearer" },
+    });
+    const author = { nickname: "ana", display_name: "Ana" };
+    const snapshot = (date: string, title: string, description: string, state = "OPEN") => ({
+      update: { date, title, description, state, author },
+    });
+    mocks.bitbucketRequest
+      .mockResolvedValueOnce({
+        data: {
+          values: [
+            snapshot("2026-01-05T00:00:00Z", "New title", "Body v2", "MERGED"),
+            { approval: { date: "2026-01-04T00:00:00Z", user: { nickname: "ben" } } },
+            snapshot("2026-01-03T00:00:00Z", "New title", "Body v2"),
+            snapshot("2026-01-02T00:00:00Z", "Old title", "Body v2"),
+            snapshot("2026-01-01T12:00:00Z", "Old title", "Body v2"),
+            snapshot("2026-01-01T00:00:00Z", "Old title", "Body v1"),
+          ],
+        },
+      })
+      .mockResolvedValueOnce({ data: { values: [] } });
+
+    const activity = await getPullRequestActivity(input);
+
+    expect(
+      activity.items.map((item) => (item.kind === "event" ? [item.event, item.detail] : null)),
+    ).toEqual([
+      ["merged", null],
+      ["approved", null],
+      ["renamed", "Old title → New title"],
+      ["edited", null],
+    ]);
   });
 });

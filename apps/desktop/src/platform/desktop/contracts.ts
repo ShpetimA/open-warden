@@ -263,14 +263,43 @@ export type SetPullRequestFileViewedInput = PullRequestLocatorInput & {
   viewed: boolean;
 };
 
+export type PullRequestActivityEvent =
+  | "approved"
+  | "changes-requested"
+  | "reviewed"
+  | "review-requested"
+  | "review-request-removed"
+  | "force-pushed"
+  | "ready"
+  | "draft"
+  | "merged"
+  | "closed"
+  | "reopened"
+  | "renamed"
+  | "edited"
+  | "labeled"
+  | "unlabeled"
+  | "assigned"
+  | "unassigned"
+  | "auto-merge-enabled"
+  | "auto-merge-disabled";
+
 export type PullRequestActivityItem = {
   id: string;
-  label: string;
-  detail: string | null;
-  actor: string | null;
+  actor: PullRequestPerson | null;
   occurredAt: string;
   url: string | null;
-} & ({ kind: "event" } | { kind: "commit"; commitSha: string });
+} & (
+  | {
+      kind: "event";
+      event: PullRequestActivityEvent;
+      /** Event specifics: the old and new title, a label name, the person asked to review. */
+      detail: string | null;
+      /** A review's summary, when the event is one. */
+      body: string | null;
+    }
+  | { kind: "commit"; commitSha: string; message: string }
+);
 
 export type PullRequestActivity = {
   items: PullRequestActivityItem[];

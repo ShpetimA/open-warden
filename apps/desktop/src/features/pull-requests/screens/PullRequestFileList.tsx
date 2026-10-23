@@ -1,4 +1,5 @@
 import { skipToken } from "@reduxjs/toolkit/query";
+import { useHotkey } from "@tanstack/react-hotkeys";
 import { Filter } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -137,11 +138,12 @@ export default function PullRequestFileList({
   const subtitle =
     isLoading && files.length === 0
       ? "Loading changed files..."
-      : `${visibleFiles.length}/${files.length} files · ${viewedCount} viewed · navigate with j/k`;
+      : `${visibleFiles.length}/${files.length} files · ${viewedCount} viewed · j/k to navigate · v to mark viewed`;
 
   return (
     <>
       <PullRequestVisibleSelectionSync visibleFiles={visibleFiles} />
+      <PullRequestViewedFileHotkeys visibleFiles={visibleFiles} viewedState={viewedState} />
       <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
         <div className="border-border border-b px-3 py-2">
           <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
@@ -244,6 +246,36 @@ function PullRequestVisibleSelectionSync({
       dispatch(setPullRequestPreviewActiveFilePath(visibleFiles[0].path));
     }
   }, [activePath, dispatch, visibleFiles]);
+
+  return null;
+}
+
+/** `V` marks the active file viewed and moves on to the next unviewed one; `Shift+V` stays put. */
+function PullRequestViewedFileHotkeys({
+  visibleFiles,
+  viewedState,
+}: {
+  visibleFiles: PullRequestChangedFile[];
+  viewedState: ReturnType<typeof usePullRequestViewedFiles>;
+}) {
+  const dispatch = useAppDispatch();
+  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
+  const { viewedPaths, toggleViewed } = viewedState;
+
+  function toggleActiveFile(advance: boolean) {
+    if (!activePath) return;
+    const markingViewed = !viewedPaths.has(activePath);
+    void toggleViewed(activePath);
+    if (!advance || !markingViewed) return;
+
+    const activeIndex = visibleFiles.findIndex((file) => file.path === activePath);
+    const ordered = [...visibleFiles.slice(activeIndex + 1), ...visibleFiles.slice(0, activeIndex)];
+    const next = ordered.find((file) => !viewedPaths.has(file.path));
+    if (next) dispatch(setPullRequestPreviewActiveFilePath(next.path));
+  }
+
+  useHotkey("V", () => toggleActiveFile(true));
+  useHotkey("Shift+V", () => toggleActiveFile(false));
 
   return null;
 }

@@ -2,7 +2,7 @@ import { Outlet } from "react-router";
 import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
 import type { GitProviderId } from "@/platform/desktop";
 
-export type PreviewTab = "overview" | "files" | "checks";
+export type PreviewTab = "overview" | "files";
 
 type PreviewTabPathInput = {
   providerId: GitProviderId;

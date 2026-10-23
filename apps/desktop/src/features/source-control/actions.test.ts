@@ -308,7 +308,6 @@ describe("source control workspace actions", () => {
     expect(state.sourceControl.changesSidebarMode).toBe("pull-request");
     expect(state.sourceControl.fileViewerTarget).toBeNull();
     expect(state.sourceControl.reviewActivePath).toBe("src/pr-origin.ts");
-    expect(state.pullRequests.activeReviewTab).toBe("files");
     expect(state.pullRequests.filesViewMode).toBe("review");
     expect(state.pullRequests.fileJumpTarget).toEqual(
       expect.objectContaining({
