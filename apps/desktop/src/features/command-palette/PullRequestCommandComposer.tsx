@@ -23,6 +23,7 @@ import {
   buildSubmitPullRequestReviewCommentsInput,
   getPendingReviewCommentsForContext,
 } from "@/features/pull-requests/utils/pendingReviewComments";
+import { pullRequestSummaryFromDetail } from "@/features/pull-requests/utils/pullRequestSummary";
 import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
 import type { PullRequestSummary } from "@/platform/desktop/contracts";
@@ -416,29 +417,7 @@ export function PullRequestCommandComposer({
     )
       return;
     const detail = currentConversation.detail;
-    const contextPullRequest: PullRequestSummary = {
-      id: detail.id,
-      providerId: detail.providerId,
-      number: detail.number,
-      title: detail.title,
-      state: detail.state,
-      isDraft: detail.isDraft,
-      author: detail.author ?? { login: "", displayName: null, avatarUrl: null },
-      url: detail.url,
-      baseRef: detail.baseRef,
-      headRef: detail.headRef,
-      headOwner: activePullRequestWorkspace.owner,
-      headRepo: activePullRequestWorkspace.repo,
-      createdAt: detail.createdAt,
-      updatedAt: detail.updatedAt,
-      reviewers: [],
-      reviewDecision: null,
-      checksState: null,
-      commentCount: null,
-      additions: null,
-      deletions: null,
-      changedFiles: null,
-    };
+    const contextPullRequest = pullRequestSummaryFromDetail(detail, activePullRequestWorkspace);
     if (action === "open-pr" && !hostedRepo) return;
     contextAppliedRef.current = true;
     setSelectedPullRequest(contextPullRequest);
@@ -721,6 +700,7 @@ export function PullRequestCommandComposer({
                     <Button
                       key={decision}
                       variant={reviewDecision === decision ? "default" : "outline"}
+                      aria-pressed={reviewDecision === decision}
                       onClick={() => setReviewDecision(decision)}
                       className="min-w-0 text-xs"
                     >

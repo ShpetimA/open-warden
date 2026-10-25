@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { openPullRequestReview } from "@/features/hosted-repos/actions";
 import {
@@ -23,6 +24,7 @@ import {
 import { copyToClipboard } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
 import { PullRequestProviderExtras } from "@/features/pull-requests/components/PullRequestProviderExtras";
+import { PullRequestReviewControl } from "@/features/pull-requests/components/PullRequestReviewControl";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
@@ -228,13 +230,19 @@ function PullRequestOverviewHeaderBar({
       pullRequest={pullRequest}
       refreshing={refreshing}
       actions={
-        <PullRequestHeaderActions
-          lifecycleActions={headerLifecycleActions(detail)}
-          opening={opening}
-          refreshing={refreshing}
-          onAction={handleAction}
-          onLifecycle={(action) => onLifecycle({ action })}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <PullRequestReviewControl
+            repoPath={locator.repoPath}
+            pullRequestNumber={locator.pullRequestNumber}
+          />
+          <PullRequestHeaderActions
+            lifecycleActions={headerLifecycleActions(detail)}
+            opening={opening}
+            refreshing={refreshing}
+            onAction={handleAction}
+            onLifecycle={(action) => onLifecycle({ action })}
+          />
+        </div>
       }
       onBack={() => navigate(buildPullRequestsInboxPath())}
       onCopyBranch={() => handleAction("copy-branch")}
@@ -527,9 +535,13 @@ export const PullRequestOverview = () => {
           pullRequestNumber,
         }
       : null;
-  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
+  const { hostedRepo, loadingHostedRepo, hostedRepoError } = useResolveHostedRepoQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({ hostedRepo: data ?? null }),
+    selectFromResult: ({ currentData, isFetching, error }) => ({
+      hostedRepo: currentData ?? null,
+      loadingHostedRepo: isFetching && !currentData,
+      hostedRepoError: currentData ? "" : errorMessage(error, ""),
+    }),
   });
   const routeMatchesActiveRepo = Boolean(
     route &&
@@ -542,13 +554,25 @@ export const PullRequestOverview = () => {
     activeRepo && route && routeMatchesActiveRepo
       ? { repoPath: activeRepo, pullRequestNumber }
       : skipToken;
-  const { detail } = useGetPullRequestConversationQuery(queryArg, {
-    selectFromResult: ({ data }) => ({ detail: data?.detail ?? null }),
+  const { detail, loadingDetail, detailError } = useGetPullRequestConversationQuery(queryArg, {
+    selectFromResult: ({ currentData, isFetching, error }) => ({
+      detail: currentData?.detail ?? null,
+      loadingDetail: isFetching && !currentData,
+      detailError: currentData ? "" : errorMessage(error, ""),
+    }),
     pollingInterval: 10000,
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
 
+  if (loadingHostedRepo || loadingDetail) return <ListLoadingState label="Loading pull request…" />;
+  if (hostedRepoError || detailError) {
+    return (
+      <p role="alert" className="text-destructive p-6 text-sm">
+        {hostedRepoError || detailError}
+      </p>
+    );
+  }
   if (!detail || !route || queryArg === skipToken) return null;
   const repository = `${route.owner}/${route.repo}`;
 

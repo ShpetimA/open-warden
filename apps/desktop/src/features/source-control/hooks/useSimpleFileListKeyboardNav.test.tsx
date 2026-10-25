@@ -5,6 +5,12 @@ import { useState } from "react";
 import { Provider } from "react-redux";
 import { expect, it } from "vitest";
 import { rootReducer } from "@/app/store";
+import { buildNavTreeOptions } from "../components/pierreFileTree";
+import {
+  buildReviewDisplayFiles,
+  compareReviewDirectories,
+  compareReviewFileEntries,
+} from "../components/reviewFileGrouping";
 import {
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
@@ -43,6 +49,41 @@ it.each(["j", "k"])("opens the focused file with %s in tree mode without Enter",
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
     fireEvent.keyDown(document, { key, code: `Key${key.toUpperCase()}` });
     expect(screen.getByRole("status")).toHaveTextContent("README.md");
+  } finally {
+    unregisterPierreFileTreeNav("preview-test", model);
+    model.cleanUp();
+  }
+});
+
+it("uses J/K to open original paths across review headings without stopping on folders", () => {
+  const store = configureStore({ reducer: rootReducer });
+  const files = buildReviewDisplayFiles([
+    { path: "src/invoice.ts" },
+    { path: "src/invoice.test.ts" },
+    { path: "docs/invoice.md" },
+  ]);
+  const model = new FileTree({
+    paths: files.map((file) => file.path),
+    sort: compareReviewFileEntries,
+    flattenEmptyDirectories: false,
+    initialExpansion: "open",
+  });
+  registerPierreFileTreeNav("preview-test", files, model, {
+    treeOptions: buildNavTreeOptions(compareReviewDirectories, false, compareReviewFileEntries),
+  });
+
+  try {
+    render(
+      <Provider store={store}>
+        <FilePreview />
+      </Provider>,
+    );
+    fireEvent.keyDown(document, { key: "j", code: "KeyJ" });
+    expect(screen.getByRole("status")).toHaveTextContent("src/invoice.ts");
+    fireEvent.keyDown(document, { key: "j", code: "KeyJ" });
+    expect(screen.getByRole("status")).toHaveTextContent("src/invoice.test.ts");
+    fireEvent.keyDown(document, { key: "k", code: "KeyK" });
+    expect(screen.getByRole("status")).toHaveTextContent("src/invoice.ts");
   } finally {
     unregisterPierreFileTreeNav("preview-test", model);
     model.cleanUp();

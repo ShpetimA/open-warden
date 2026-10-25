@@ -1,4 +1,7 @@
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
+import { Spinner } from "@/components/ui/spinner";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { confirmDiscard } from "@/features/comments/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
@@ -39,13 +42,20 @@ function ChangesFileList() {
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
-  const { snapshot: snapshotData, isLoadingSnapshot } = useGetGitSnapshotQuery(activeRepo, {
+  const {
+    snapshot: snapshotData,
+    isLoadingSnapshot,
+    refreshingSnapshot,
+    snapshotError,
+  } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
-    selectFromResult: ({ data, isLoading }) => ({
-      snapshot: data,
-      isLoadingSnapshot: isLoading,
+    selectFromResult: ({ currentData, isFetching, error }) => ({
+      snapshot: currentData,
+      isLoadingSnapshot: isFetching && !currentData,
+      refreshingSnapshot: isFetching && Boolean(currentData),
+      snapshotError: currentData ? "" : errorMessageFrom(error, ""),
     }),
   });
   const snapshot = activeRepo ? snapshotData : undefined;
@@ -103,8 +113,18 @@ function ChangesFileList() {
 
   return (
     <div className="bg-surface-toolbar flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {refreshingSnapshot ? (
+        <div role="status" className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
+          <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+          Refreshing changes…
+        </div>
+      ) : null}
       {isLoadingSnapshot && !snapshot ? (
-        <div className="text-muted-foreground px-2 py-2 text-xs">Loading changes...</div>
+        <ListLoadingState label="Loading changes…" />
+      ) : snapshotError ? (
+        <p role="alert" className="text-destructive p-3 text-sm">
+          {snapshotError}
+        </p>
       ) : (
         <ChangesUnifiedPierreFileTree
           mode={fileBrowserMode}

@@ -1,8 +1,11 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
+import { ReviewFileViewControl } from "./ReviewFileViewControl";
+import type { ReviewFileView } from "./reviewFileGrouping";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useReviewKeyboardNav } from "@/features/source-control/hooks/useReviewKeyboardNav";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
@@ -60,6 +63,8 @@ type ReviewFileListProps = {
   reviewHeadRef: string;
   navRegion?: string;
   emptyState?: ReactNode;
+  isLoading?: boolean;
+  error?: string;
   paneClassName?: string;
   headerClassName?: string;
   bodyClassName?: string;
@@ -76,14 +81,14 @@ export function ReviewFileList({
   reviewHeadRef,
   navRegion = "review-files",
   emptyState = null,
+  isLoading = false,
+  error = "",
   paneClassName,
   headerClassName,
   reviewThreads = [],
 }: ReviewFileListProps) {
   const dispatch = useAppDispatch();
-  const fileBrowserMode = useAppSelector(
-    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
-  );
+  const [fileView, setFileView] = useState<ReviewFileView>("review");
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
   const comments = useAppSelector((state) => state.comments);
 
@@ -115,12 +120,21 @@ export function ReviewFileList({
           {subtitle ? <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div> : null}
         </div>
       ) : null}
-      {branchFiles.length === 0 ? (
+      <div className="border-border flex shrink-0 items-center border-b px-1">
+        <ReviewFileViewControl value={fileView} onChange={setFileView} />
+      </div>
+      {isLoading && branchFiles.length === 0 ? (
+        <ListLoadingState label="Loading changed files…" />
+      ) : error ? (
+        <p role="alert" className="text-destructive p-3 text-sm">
+          {error}
+        </p>
+      ) : branchFiles.length === 0 ? (
         emptyState
       ) : (
         <FileList
           files={branchFiles}
-          mode={fileBrowserMode}
+          mode={fileView}
           selectedPath={reviewActivePath}
           navRegion={navRegion}
           onActivatePath={(path) => {

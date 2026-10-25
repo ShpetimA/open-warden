@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,16 +49,22 @@ function providerImplemented(providerId: GitProviderId) {
 
 function RowSkeletons() {
   return (
-    <div className="flex flex-col">
-      {[0, 1, 2, 3].map((row) => (
-        <div key={row} className="border-border/50 flex items-center gap-3 border-b px-4 py-3">
-          <div className="bg-surface-1 size-4 animate-pulse rounded-full" />
-          <div className="flex-1 space-y-2">
-            <div className="bg-surface-1 h-3.5 w-2/3 animate-pulse rounded" />
-            <div className="bg-surface-1 h-3 w-1/2 animate-pulse rounded" />
+    <div className="flex flex-col" role="status">
+      <div className="text-muted-foreground flex items-center gap-2 px-4 py-3 text-xs">
+        <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+        Loading pull requests…
+      </div>
+      <div aria-hidden="true">
+        {[0, 1, 2, 3].map((row) => (
+          <div key={row} className="border-border/50 flex items-center gap-3 border-b px-4 py-3">
+            <div className="bg-border size-4 motion-safe:animate-pulse rounded-full" />
+            <div className="flex-1 space-y-2">
+              <div className="bg-border h-3.5 w-2/3 motion-safe:animate-pulse rounded" />
+              <div className="bg-border h-3 w-1/2 motion-safe:animate-pulse rounded" />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -86,21 +94,25 @@ export function PullRequestsScreen() {
   const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState<number | null>(null);
   const [filters] = usePullRequestInboxFilters();
 
-  const { connections, loadingConnections } = useListProviderConnectionsQuery(undefined, {
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
-      connections: data ?? [],
-      loadingConnections: isLoading || isFetching,
-    }),
-  });
+  const { connections, loadingConnections, connectionsError } = useListProviderConnectionsQuery(
+    undefined,
+    {
+      selectFromResult: ({ data, isFetching, error }) => ({
+        connections: data ?? [],
+        loadingConnections: isFetching && !data,
+        connectionsError: data ? "" : errorMessageFrom(error, ""),
+      }),
+    },
+  );
 
   const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(
     activeRepo,
     {
       skip: !activeRepo,
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        hostedRepo: data ?? null,
-        hostedRepoError: data ? "" : errorMessageFrom(error, ""),
-        resolvingHostedRepo: isLoading || isFetching,
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        hostedRepo: currentData ?? null,
+        hostedRepoError: currentData ? "" : errorMessageFrom(error, ""),
+        resolvingHostedRepo: isFetching && !currentData,
       }),
     },
   );
@@ -341,7 +353,13 @@ export function PullRequestsScreen() {
   }
 
   function renderContent() {
-    if (resolvingHostedRepo) return <RowSkeletons />;
+    if (resolvingHostedRepo || loadingConnections) return <RowSkeletons />;
+    if (connectionsError)
+      return (
+        <div role="alert" className="text-destructive p-6 text-sm">
+          {connectionsError}
+        </div>
+      );
     if (hostedRepoError)
       return <div className="text-destructive p-6 text-sm">{hostedRepoError}</div>;
     if (!hostedRepo) {
@@ -375,8 +393,12 @@ export function PullRequestsScreen() {
       <div className="grid h-full min-h-0 lg:grid-cols-[minmax(420px,1.1fr)_minmax(380px,0.9fr)]">
         <section className="border-border/70 relative flex min-h-0 flex-col overflow-hidden border-r">
           {fetchingPullRequests && !loadingPullRequests ? (
-            <div className="bg-border absolute inset-x-0 top-0 h-px overflow-hidden">
-              <div className="bg-primary h-full w-1/3 animate-pulse" />
+            <div
+              role="status"
+              className="text-muted-foreground flex items-center gap-2 border-b px-4 py-2 text-xs"
+            >
+              <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+              Refreshing pull requests…
             </div>
           ) : null}
           <div className="min-h-0 flex-1 overflow-y-auto">{renderList()}</div>
@@ -385,12 +407,18 @@ export function PullRequestsScreen() {
             ↑↓ or J/K to move · Enter to open · / to search
           </div>
         </section>
-        <PullRequestInboxPreview
-          repoPath={activeRepo}
-          pullRequest={selectedPullRequest}
-          onOpen={onOpenPullRequest}
-          onActions={(pullRequest) => openComposer(undefined, pullRequest)}
-        />
+        {loadingPullRequests ? (
+          <aside className="bg-surface hidden lg:block">
+            <ListLoadingState label="Loading pull request preview…" />
+          </aside>
+        ) : (
+          <PullRequestInboxPreview
+            repoPath={activeRepo}
+            pullRequest={selectedPullRequest}
+            onOpen={onOpenPullRequest}
+            onActions={(pullRequest) => openComposer(undefined, pullRequest)}
+          />
+        )}
       </div>
     );
   }

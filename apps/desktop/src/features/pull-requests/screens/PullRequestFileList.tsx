@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Input } from "@/components/ui/input";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,6 +16,8 @@ import {
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
 import type { usePullRequestViewedFiles } from "@/features/pull-requests/hooks/usePullRequestViewedFiles";
+import { ReviewFileViewControl } from "@/features/source-control/components/ReviewFileViewControl";
+import type { ReviewFileView } from "@/features/source-control/components/reviewFileGrouping";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useSimpleFileListKeyboardNav } from "@/features/source-control/hooks/useSimpleFileListKeyboardNav";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
@@ -36,16 +39,6 @@ type PullRequestFileListProps = {
   viewedState: ReturnType<typeof usePullRequestViewedFiles>;
 };
 
-function loadingState() {
-  return (
-    <div className="space-y-1 p-2">
-      <div className="bg-background/80 h-8 animate-pulse rounded border border-white/6" />
-      <div className="bg-background/80 h-8 animate-pulse rounded border border-white/6" />
-      <div className="bg-background/80 h-8 animate-pulse rounded border border-white/6" />
-    </div>
-  );
-}
-
 export default function PullRequestFileList({
   files,
   repoPath,
@@ -57,9 +50,7 @@ export default function PullRequestFileList({
   viewedState,
 }: PullRequestFileListProps) {
   const dispatch = useAppDispatch();
-  const fileBrowserMode = useAppSelector(
-    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
-  );
+  const [fileView, setFileView] = useState<ReviewFileView>("review");
   const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const comments = useAppSelector((state) => state.comments);
   const [searchQuery, setSearchQuery] = useState("");
@@ -146,10 +137,13 @@ export default function PullRequestFileList({
       <PullRequestViewedFileHotkeys visibleFiles={visibleFiles} viewedState={viewedState} />
       <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
         <div className="border-border border-b px-3 py-2">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-            PR FILES
+          <div className="flex flex-wrap items-center justify-between gap-x-2">
+            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
+              PR FILES
+            </div>
+            <ReviewFileViewControl value={fileView} onChange={setFileView} />
           </div>
-          <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div>
+          <div className="text-muted-foreground mt-1 text-xs tabular-nums">{subtitle}</div>
           {viewedFiles?.storage === "device" ? (
             <div className="text-muted-foreground mt-1 text-[11px]">Viewed on this device</div>
           ) : null}
@@ -196,7 +190,7 @@ export default function PullRequestFileList({
           </div>
         </div>
         {isLoading && visibleFiles.length === 0 ? (
-          loadingState()
+          <ListLoadingState label="Loading changed files…" />
         ) : filesError ? (
           <div className="text-destructive px-3 py-4 text-sm">{filesError}</div>
         ) : visibleFiles.length === 0 ? (
@@ -212,7 +206,7 @@ export default function PullRequestFileList({
         ) : (
           <FileList
             files={visibleFiles}
-            mode={fileBrowserMode}
+            mode={fileView}
             selectedPath={activePath}
             navRegion="pull-request-files"
             onActivatePath={(path) => {

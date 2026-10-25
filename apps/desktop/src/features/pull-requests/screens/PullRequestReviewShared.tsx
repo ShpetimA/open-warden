@@ -21,6 +21,7 @@ import {
   setCurrentPullRequestReview,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import {
   clearReviewSelection,
   setReviewBaseRef,
@@ -83,17 +84,19 @@ export function usePullRequestReviewSession() {
   const reviewBaseRef = useAppSelector((state) => state.sourceControl.reviewBaseRef);
   const reviewHeadRef = useAppSelector((state) => state.sourceControl.reviewHeadRef);
 
-  const { activeBranch } = useGetGitSnapshotQuery(activeRepo || "", {
+  const { activeBranch, loadingSnapshot } = useGetGitSnapshotQuery(activeRepo || "", {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      activeBranch: data?.branch?.trim() ?? "",
+    selectFromResult: ({ currentData, isFetching }) => ({
+      activeBranch: currentData?.branch?.trim() ?? "",
+      loadingSnapshot: isFetching && !currentData,
     }),
   });
 
-  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
+  const { hostedRepo, loadingHostedRepo } = useResolveHostedRepoQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      hostedRepo: data ?? null,
+    selectFromResult: ({ currentData, isFetching }) => ({
+      hostedRepo: currentData ?? null,
+      loadingHostedRepo: isFetching && !currentData,
     }),
   });
 
@@ -115,19 +118,22 @@ export function usePullRequestReviewSession() {
     },
   );
 
-  const { compareRefs } = usePreparePullRequestCompareRefsQuery(
-    activeRepo && activePullRequest
-      ? {
-          repoPath: activeRepo,
-          pullRequestNumber: activePullRequest.number,
-        }
-      : skipToken,
-    {
-      selectFromResult: ({ data }) => ({
-        compareRefs: data ?? null,
-      }),
-    },
-  );
+  const { compareRefs, preparingCompareRefs, compareRefsError } =
+    usePreparePullRequestCompareRefsQuery(
+      activeRepo && activePullRequest
+        ? {
+            repoPath: activeRepo,
+            pullRequestNumber: activePullRequest.number,
+          }
+        : skipToken,
+      {
+        selectFromResult: ({ currentData, isFetching, error }) => ({
+          compareRefs: currentData ?? null,
+          preparingCompareRefs: isFetching && !currentData,
+          compareRefsError: currentData ? "" : errorMessageFrom(error, ""),
+        }),
+      },
+    );
 
   const samePullRequestAsCurrentReview =
     currentReview !== null &&
@@ -227,6 +233,10 @@ export function usePullRequestReviewSession() {
   return {
     activeRepo,
     resolvedReview,
+    preparingCompareRefs,
+    compareRefsError,
+    loadingReview:
+      loadingSnapshot || loadingHostedRepo || loadingActivePullRequest || fetchingActivePullRequest,
   };
 }
 

@@ -6,6 +6,7 @@ import { useParams } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { Kbd } from "@/components/ui/kbd";
 import {
   Empty,
@@ -69,12 +70,17 @@ export const PullRequestFiles = () => {
     parsedPullRequestNumber > 0,
   );
 
-  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
-    skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      hostedRepo: data ?? null,
-    }),
-  });
+  const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(
+    activeRepo,
+    {
+      skip: !activeRepo,
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        hostedRepo: currentData ?? null,
+        hostedRepoError: currentData ? "" : errorMessageFrom(error, ""),
+        resolvingHostedRepo: isFetching && !currentData,
+      }),
+    },
+  );
 
   const routeMatchesActiveRepo = Boolean(
     hostedRepo &&
@@ -93,10 +99,10 @@ export const PullRequestFiles = () => {
 
   const { compareRefs, compareRefsError, isLoadingCompareRefs } =
     usePreparePullRequestCompareRefsQuery(filesQueryArg, {
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        compareRefs: data ?? null,
-        compareRefsError: data ? "" : errorMessageFrom(error, ""),
-        isLoadingCompareRefs: isLoading || isFetching,
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        compareRefs: currentData ?? null,
+        compareRefsError: currentData ? "" : errorMessageFrom(error, ""),
+        isLoadingCompareRefs: isFetching && !currentData,
       }),
     });
 
@@ -109,10 +115,10 @@ export const PullRequestFiles = () => {
         }
       : skipToken,
     {
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        files: (data ?? []).map(toChangedFile),
-        filesError: data ? "" : errorMessageFrom(error, ""),
-        isLoadingFiles: isLoading || isFetching,
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        files: (currentData ?? []).map(toChangedFile),
+        filesError: currentData ? "" : errorMessageFrom(error, ""),
+        isLoadingFiles: isFetching && !currentData,
       }),
     },
   );
@@ -147,8 +153,8 @@ export const PullRequestFiles = () => {
             pullRequestNumber={parsedPullRequestNumber}
             compareBaseRef={compareRefs?.compareBaseRef ?? ""}
             compareHeadRef={compareRefs?.compareHeadRef ?? ""}
-            filesError={filesError}
-            isLoading={isLoadingFiles}
+            filesError={hostedRepoError || compareRefsError || filesError}
+            isLoading={resolvingHostedRepo || isLoadingCompareRefs || isLoadingFiles}
             viewedState={viewedState}
           />
         }
@@ -160,8 +166,8 @@ export const PullRequestFiles = () => {
               pullRequestNumber={parsedPullRequestNumber}
               compareBaseRef={compareRefs?.compareBaseRef ?? ""}
               compareHeadRef={compareRefs?.compareHeadRef ?? ""}
-              compareRefsError={compareRefsError}
-              isLoadingCompareRefs={isLoadingCompareRefs}
+              filesError={hostedRepoError || compareRefsError || filesError}
+              filesLoading={resolvingHostedRepo || isLoadingCompareRefs || isLoadingFiles}
               files={files}
               conversation={conversation}
               reviewThreads={reviewThreads}
@@ -204,8 +210,8 @@ function FilesDiffViewer({
   pullRequestNumber,
   compareBaseRef,
   compareHeadRef,
-  compareRefsError,
-  isLoadingCompareRefs,
+  filesError,
+  filesLoading,
   files,
   conversation,
   reviewThreads,
@@ -216,8 +222,8 @@ function FilesDiffViewer({
   pullRequestNumber: number;
   compareBaseRef: string;
   compareHeadRef: string;
-  compareRefsError: string;
-  isLoadingCompareRefs: boolean;
+  filesError: string;
+  filesLoading: boolean;
   files: PullRequestChangedFile[];
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
@@ -291,6 +297,17 @@ function FilesDiffViewer({
       ? previewFileJumpTarget.focusKey
       : null;
 
+  if (filesLoading && files.length === 0) {
+    return <ListLoadingState label="Loading changed files…" />;
+  }
+  if (filesError) {
+    return (
+      <p role="alert" className="text-destructive p-4 text-sm">
+        {filesError}
+      </p>
+    );
+  }
+
   if (files.length === 0) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -321,23 +338,6 @@ function FilesDiffViewer({
             <EmptyDescription>Choose a file from the sidebar to view its diff.</EmptyDescription>
           </EmptyHeader>
         </Empty>
-      </div>
-    );
-  }
-
-  if (!hasCompareRefs && isLoadingCompareRefs) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <LoaderCircle className="text-muted-foreground h-5 w-5 animate-spin" />
-        <span className="text-muted-foreground ml-2 text-sm">Preparing compare refs...</span>
-      </div>
-    );
-  }
-
-  if (!hasCompareRefs && compareRefsError) {
-    return (
-      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
-        {compareRefsError}
       </div>
     );
   }

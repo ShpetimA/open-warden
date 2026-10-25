@@ -3,6 +3,11 @@ import type { ReactNode } from "react";
 import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
 import { buildDisplayFiles, compareFlatPierreEntries } from "./flatPierreTree";
 import { buildGitStatusForDisplayFiles } from "./pierreFileTree";
+import {
+  buildReviewDisplayFiles,
+  compareReviewDirectories,
+  compareReviewFileEntries,
+} from "./reviewFileGrouping";
 import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
 
 export type FileListContextMenuItem = {
@@ -17,7 +22,7 @@ export type FileListContextMenuOpenContext = {
 
 type FileListProps<TFile extends { path: string }> = {
   files: ReadonlyArray<TFile>;
-  mode: FileBrowserMode;
+  mode: FileBrowserMode | "review";
   selectedPath?: string;
   navRegion: string;
   className?: string;
@@ -48,17 +53,26 @@ export function FileList<TFile extends { path: string }>({
 }: FileListProps<TFile>) {
   const isList = mode === "list";
 
-  const displayFiles = buildDisplayFiles(mode, files, {
-    sort: isList
-      ? (left, right) => left.path.localeCompare(right.path, undefined, SORT_LOCALE_OPTIONS)
-      : undefined,
-  });
+  const displayFiles =
+    mode === "review"
+      ? buildReviewDisplayFiles(files)
+      : buildDisplayFiles(mode, files, {
+          sort: isList
+            ? (left, right) => left.path.localeCompare(right.path, undefined, SORT_LOCALE_OPTIONS)
+            : undefined,
+        });
 
   const sourceByDisplayPath = new Map(displayFiles.map((file) => [file.path, file.source]));
 
-  const pierreSelectedPath = isList
-    ? (displayFiles.find((file) => file.source.path === selectedPath)?.path ?? "")
-    : selectedPath;
+  const pierreSelectedPath =
+    displayFiles.find((file) => file.source.path === selectedPath)?.path ?? "";
+  const groupCounts = new Map<string, number>();
+  if (mode === "review") {
+    for (const file of displayFiles) {
+      const group = file.path.split("/")[0] ?? "";
+      groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+    }
+  }
 
   const gitStatus = getFileStatus
     ? buildGitStatusForDisplayFiles(displayFiles, getFileStatus)
@@ -66,12 +80,16 @@ export function FileList<TFile extends { path: string }>({
 
   return (
     <PierreFileTreeBrowser
+      key={mode}
       files={displayFiles}
       selectedPath={pierreSelectedPath}
       navRegion={navRegion}
       className={className}
-      flattenEmptyDirectories={!isList}
-      sort={isList ? compareFlatPierreEntries : "default"}
+      flattenEmptyDirectories={mode === "tree"}
+      sort={
+        mode === "review" ? compareReviewFileEntries : isList ? compareFlatPierreEntries : "default"
+      }
+      compareTreeDirectories={mode === "review" ? compareReviewDirectories : undefined}
       onActivatePath={(path) => {
         const file = sourceByDisplayPath.get(path);
         if (file) {
@@ -80,7 +98,12 @@ export function FileList<TFile extends { path: string }>({
       }}
       gitStatus={gitStatus}
       renderRowDecoration={({ item }) => {
-        if (item.kind === "directory") return null;
+        if (item.kind === "directory") {
+          const count = groupCounts.get(item.path.replace(/\/$/, ""));
+          return count === undefined
+            ? null
+            : { text: String(count), title: `${count} ${count === 1 ? "file" : "files"}` };
+        }
         const file = sourceByDisplayPath.get(item.path);
         if (!file) return null;
         const viewed = isViewed?.(file) ?? false;

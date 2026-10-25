@@ -1,8 +1,24 @@
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { ChevronDown, Search, UserRound, X } from "lucide-react";
+import {
+  ChevronDown,
+  GitPullRequest,
+  Search,
+  UserRound,
+  UsersRound,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,39 +43,55 @@ const stateLabels: Record<(typeof pullRequestStates)[number], string> = {
   open: "Open",
   merged: "Merged",
   closed: "Closed",
-  all: "All",
+  all: "All states",
 };
 
-function Segmented<T extends string>({
+function ChoiceFilter<T extends string>({
   label,
   options,
   labels,
   value,
+  icon: Icon,
   onChange,
 }: {
   label: string;
   options: readonly T[];
   labels: Record<T, string>;
   value: T;
+  icon: LucideIcon;
   onChange: (value: T) => void;
 }) {
   return (
-    <div role="group" aria-label={label} className="bg-surface-1 flex rounded-md p-0.5">
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          aria-pressed={value === option}
-          onClick={() => onChange(option)}
-          className={cn(
-            "text-muted-foreground hover:text-foreground h-7 rounded-[5px] px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
-            value === option && "bg-background text-foreground shadow-xs",
-          )}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10 gap-2 px-3"
+          aria-label={`${label}: ${labels[value]}`}
         >
-          {labels[option]}
-        </button>
-      ))}
-    </div>
+          <Icon className="text-muted-foreground size-4" />
+          <span>{labels[value]}</span>
+          <ChevronDown className="text-muted-foreground size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-48">
+        <DropdownMenuLabel className="text-muted-foreground text-xs">{label}</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(next) => {
+            const option = options.find((candidate) => candidate === next);
+            if (option !== undefined) onChange(option);
+          }}
+        >
+          {options.map((option) => (
+            <DropdownMenuRadioItem key={option} value={option} className="min-h-10 text-sm">
+              {labels[option]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -67,6 +99,10 @@ function SearchField() {
   const [{ q }, setFilters] = usePullRequestInboxFilters();
   const [value, setValue] = useState(q);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setValue(q);
+  }, [q]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -82,7 +118,7 @@ function SearchField() {
   });
 
   return (
-    <div className="relative min-w-[220px] flex-1">
+    <div className="relative min-w-48 flex-1 basis-64">
       <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
       <Input
         ref={inputRef}
@@ -96,7 +132,7 @@ function SearchField() {
             else event.currentTarget.blur();
           }
         }}
-        className="h-8 pr-8 pl-8 text-sm"
+        className="h-10 pr-8 pl-8 text-sm"
       />
       {value ? null : (
         <Kbd className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2">/</Kbd>
@@ -133,7 +169,8 @@ function AuthorFilter({ authors }: { authors: PullRequestPerson[] }) {
           <Button
             variant="outline"
             size="sm"
-            className={cn("gap-1.5", author && "rounded-r-none border-r-0")}
+            className={cn("h-10 max-w-52 gap-2 px-3", author && "rounded-r-none border-r-0")}
+            aria-label={author ? `Author: ${selected?.displayName ?? author}` : "Author: Anyone"}
           >
             {author ? (
               <UserAvatar
@@ -145,7 +182,9 @@ function AuthorFilter({ authors }: { authors: PullRequestPerson[] }) {
             ) : (
               <UserRound />
             )}
-            {author ? (selected?.displayName ?? author) : "Author"}
+            <span className="truncate">
+              {author ? (selected?.displayName ?? author) : "Author"}
+            </span>
             <ChevronDown className="text-muted-foreground" />
           </Button>
         </PopoverTrigger>
@@ -171,7 +210,7 @@ function AuthorFilter({ authors }: { authors: PullRequestPerson[] }) {
                 <button
                   type="button"
                   onClick={() => choose(person.login)}
-                  className="hover:bg-surface-1 flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[13px]"
+                  className="hover:bg-surface-1 flex min-h-10 w-full items-center gap-2 rounded-md px-2 text-left text-[13px]"
                 >
                   <UserAvatar
                     login={person.login}
@@ -196,7 +235,7 @@ function AuthorFilter({ authors }: { authors: PullRequestPerson[] }) {
           variant="outline"
           size="icon-sm"
           aria-label="Clear author filter"
-          className="rounded-l-none"
+          className="h-10 w-10 rounded-l-none"
           onClick={() => setFilters({ author: "" })}
         >
           <X />
@@ -211,15 +250,17 @@ export function PullRequestInboxFilters({ authors }: { authors: PullRequestPerso
   return (
     <div className="flex flex-wrap items-center gap-2 py-3">
       <SearchField />
-      <Segmented
+      <ChoiceFilter
         label="Whose pull requests"
+        icon={UsersRound}
         options={pullRequestInvolvements}
         labels={involvementLabels}
         value={involvement}
         onChange={(next) => setFilters({ involvement: next })}
       />
-      <Segmented
+      <ChoiceFilter
         label="Pull request state"
+        icon={GitPullRequest}
         options={pullRequestStates}
         labels={stateLabels}
         value={state}

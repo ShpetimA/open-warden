@@ -1,4 +1,5 @@
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { refreshActiveRepo } from "@/features/source-control/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import CurrentRepositoryHeader from "@/features/source-control/components/CurrentRepoHeader";
@@ -18,6 +19,7 @@ type PullRequestFilesSidebarProps = {
   branchFiles: FileItem[];
   hasBranchFilesData: boolean;
   isLoadingBranchFiles: boolean;
+  filesError: string;
   reviewThreads?: PullRequestReviewThread[];
 };
 
@@ -28,6 +30,7 @@ export function PullRequestFilesSidebar({
   branchFiles,
   hasBranchFilesData,
   isLoadingBranchFiles,
+  filesError,
   reviewThreads = [],
 }: PullRequestFilesSidebarProps) {
   const dispatch = useAppDispatch();
@@ -58,8 +61,13 @@ export function PullRequestFilesSidebar({
             CHANGED FILES
           </div>
           <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
-            <span>{branchFiles.length}</span>
-            <span>{branchFiles.length === 1 ? "file" : "files"}</span>
+            {isLoadingBranchFiles && !hasBranchFilesData ? (
+              <span>Loading changed files…</span>
+            ) : (
+              <span className="tabular-nums">
+                {branchFiles.length} {branchFiles.length === 1 ? "file" : "files"}
+              </span>
+            )}
           </div>
         </div>
 
@@ -70,8 +78,12 @@ export function PullRequestFilesSidebar({
         />
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          {isLoadingBranchFiles ? (
-            <div className="text-muted-foreground px-2 py-2 text-xs">Loading changed files...</div>
+          {isLoadingBranchFiles && !hasBranchFilesData ? (
+            <ListLoadingState label="Loading changed files…" />
+          ) : filesError ? (
+            <p role="alert" className="text-destructive p-3 text-sm">
+              {filesError}
+            </p>
           ) : branchFiles.length === 0 ? (
             <div className="text-muted-foreground px-2 py-2 text-xs">No changed files.</div>
           ) : (

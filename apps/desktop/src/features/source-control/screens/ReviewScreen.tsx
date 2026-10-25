@@ -199,25 +199,30 @@ export function ReviewScreen() {
       activeBranch: data?.branch ?? "",
     }),
   });
-  const { branchList } = useGetBranchesQuery(activeRepo, {
+  const { branchList, loadingBranches, branchesError } = useGetBranchesQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      branchList: data ?? EMPTY_BRANCHES,
+    selectFromResult: ({ currentData, isFetching, error }) => ({
+      branchList: currentData ?? EMPTY_BRANCHES,
+      loadingBranches: isFetching && !currentData,
+      branchesError: currentData ? "" : errorMessageFrom(error, ""),
     }),
   });
   const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
 
-  const { branchFiles, hasBranchFilesData } = useGetBranchFilesQuery(
-    readyForDiff
-      ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
-      : skipToken,
-    {
-      selectFromResult: ({ data }) => ({
-        branchFiles: data ?? EMPTY_BRANCH_FILES,
-        hasBranchFilesData: Boolean(data),
-      }),
-    },
-  );
+  const { branchFiles, hasBranchFilesData, loadingBranchFiles, branchFilesError } =
+    useGetBranchFilesQuery(
+      readyForDiff
+        ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+        : skipToken,
+      {
+        selectFromResult: ({ currentData, isFetching, error }) => ({
+          branchFiles: currentData ?? EMPTY_BRANCH_FILES,
+          hasBranchFilesData: Boolean(currentData),
+          loadingBranchFiles: isFetching && !currentData,
+          branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
+        }),
+      },
+    );
 
   useEffect(() => {
     if (!activeRepo) {
@@ -225,6 +230,7 @@ export function ReviewScreen() {
       return;
     }
     if (branchList.length === 0) {
+      if (loadingBranches || branchesError) return;
       if (reviewBaseRef) dispatch(setReviewBaseRef(""));
       if (reviewHeadRef) dispatch(setReviewHeadRef(""));
       dispatch(clearReviewSelection());
@@ -246,7 +252,16 @@ export function ReviewScreen() {
     if (nextHead !== reviewHeadRef) {
       dispatch(setReviewHeadRef(nextHead));
     }
-  }, [activeBranch, activeRepo, branchList, dispatch, reviewBaseRef, reviewHeadRef]);
+  }, [
+    activeBranch,
+    activeRepo,
+    branchList,
+    branchesError,
+    loadingBranches,
+    dispatch,
+    reviewBaseRef,
+    reviewHeadRef,
+  ]);
 
   return (
     <ResizableSidebarLayout
@@ -315,6 +330,8 @@ export function ReviewScreen() {
               title="BRANCH REVIEW"
               subtitle={undefined}
               branchFiles={branchFiles}
+              isLoading={loadingBranches || loadingBranchFiles}
+              error={branchesError || branchFilesError}
               activeRepo={activeRepo}
               reviewBaseRef={reviewBaseRef}
               reviewHeadRef={reviewHeadRef}

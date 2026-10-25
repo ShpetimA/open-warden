@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
+import { PullRequestReviewControl } from "./PullRequestReviewControl";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
 import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
 import { isTypingTarget } from "@/features/source-control/utils";
@@ -113,13 +114,13 @@ function ReviewCommentsCopyToolbar({
   );
 
   return (
-    <div className="border-border/70 bg-surface-toolbar flex items-center justify-between gap-2 border-b px-2 py-1">
+    <div className="border-border/70 bg-surface-toolbar flex flex-wrap items-center justify-between gap-2 border-b px-2 py-1">
       <div className="text-muted-foreground min-w-0 text-xs">
         {totalPendingCommentCount > 0
           ? `${totalPendingCommentCount} pending comment${totalPendingCommentCount === 1 ? "" : "s"}${filePendingCommentCount > 0 ? ` · ${filePendingCommentCount} in this file` : ""}`
           : "No pending inline comments"}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="ml-auto flex flex-wrap items-center gap-1">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -174,6 +175,7 @@ function ReviewCommentsCopyToolbar({
             <TooltipContent side="bottom">Copy all review comments (⌘⌥C)</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <PullRequestReviewControl repoPath={repoPath} pullRequestNumber={pullRequestNumber} />
       </div>
     </div>
   );

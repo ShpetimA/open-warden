@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
 import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
@@ -181,7 +182,8 @@ export function PullRequestReviewFilesScreen() {
   const fileJumpTarget = useAppSelector((state) => state.pullRequests.fileJumpTarget);
   const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
 
-  const { activeRepo, resolvedReview } = usePullRequestReviewSession();
+  const { activeRepo, resolvedReview, preparingCompareRefs, compareRefsError, loadingReview } =
+    usePullRequestReviewSession();
 
   const currentCompareBaseRef = resolvedReview?.compareBaseRef ?? "";
   const currentCompareHeadRef = resolvedReview?.compareHeadRef ?? "";
@@ -189,18 +191,20 @@ export function PullRequestReviewFilesScreen() {
     resolvedReview && activeRepo && currentCompareBaseRef && currentCompareHeadRef,
   );
 
-  const { branchFiles, hasBranchFilesData, isLoadingBranchFiles } = useGetBranchFilesQuery(
-    readyForDiff
-      ? { repoPath: activeRepo, baseRef: currentCompareBaseRef, headRef: currentCompareHeadRef }
-      : skipToken,
-    {
-      selectFromResult: ({ data, isLoading }) => ({
-        branchFiles: data ?? EMPTY_BRANCH_FILES,
-        hasBranchFilesData: Boolean(data),
-        isLoadingBranchFiles: isLoading,
-      }),
-    },
-  );
+  const { branchFiles, hasBranchFilesData, isLoadingBranchFiles, branchFilesError } =
+    useGetBranchFilesQuery(
+      readyForDiff
+        ? { repoPath: activeRepo, baseRef: currentCompareBaseRef, headRef: currentCompareHeadRef }
+        : skipToken,
+      {
+        selectFromResult: ({ currentData, isFetching, error }) => ({
+          branchFiles: currentData ?? EMPTY_BRANCH_FILES,
+          hasBranchFilesData: Boolean(currentData),
+          isLoadingBranchFiles: isFetching && !currentData,
+          branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
+        }),
+      },
+    );
 
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(
     resolvedReview
@@ -251,7 +255,11 @@ export function PullRequestReviewFilesScreen() {
   }, [dispatch, fileJumpTarget, reviewActivePath]);
 
   if (!resolvedReview) {
-    return <InactivePullRequestReviewPlaceholder />;
+    return loadingReview ? (
+      <ListLoadingState label="Loading pull request…" />
+    ) : (
+      <InactivePullRequestReviewPlaceholder />
+    );
   }
 
   return (
@@ -267,7 +275,8 @@ export function PullRequestReviewFilesScreen() {
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
           hasBranchFilesData={hasBranchFilesData}
-          isLoadingBranchFiles={isLoadingBranchFiles}
+          isLoadingBranchFiles={preparingCompareRefs || isLoadingBranchFiles}
+          filesError={compareRefsError || branchFilesError}
           reviewThreads={reviewThreads}
         />
       }
