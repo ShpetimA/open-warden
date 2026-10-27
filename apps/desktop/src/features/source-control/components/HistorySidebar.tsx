@@ -15,6 +15,7 @@ export function HistorySidebar({ activeBranch }: HistorySidebarProps) {
 
   return (
     <aside
+      aria-label="History commits"
       onMouseDown={() => {
         dispatch(setHistoryNavTarget("commits"));
       }}

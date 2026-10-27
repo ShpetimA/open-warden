@@ -1,191 +1,141 @@
-import { HistoryCommitMenu } from "./HistoryCommitMenu";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CommitRow } from "@/components/ui/commit-row";
 import { Kbd } from "@/components/ui/kbd";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useGetCommitHistoryQuery } from "@/features/source-control/api";
 import {
   selectHistoryCommit,
   setHistoryCommitSelectedValue,
 } from "@/features/source-control/actions";
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import {
   clearHistoryCommitSelection,
   setHistoryFilter,
 } from "@/features/source-control/sourceControlSlice";
 import type { HistoryCommit } from "@/features/source-control/types";
+import { CommitHoverDetails } from "./CommitHoverDetails";
+import { CommitListPane } from "./CommitListPane";
+import { HistoryCommitMenu } from "./HistoryCommitMenu";
+
+const EMPTY_COMMITS: readonly HistoryCommit[] = [];
 
 export function HistoryCommitList() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyFilter = useAppSelector((state) => state.sourceControl.historyFilter);
-  const selectedCommitIds = useAppSelector((state) => state.sourceControl.historySelectedCommitIds);
-  const activeCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
-  const pinnedCommitId = useAppSelector((state) => state.sourceControl.historyPinnedCommitId);
-  const { data: historyCommits = [], isFetching: loadingHistoryCommits } = useGetCommitHistoryQuery(
+  const { historyCommits, loadingHistoryCommits, error } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
+    {
+      selectFromResult: ({ data, isFetching, error }) => ({
+        historyCommits: data ?? EMPTY_COMMITS,
+        loadingHistoryCommits: isFetching,
+        error,
+      }),
+    },
+  );
+  const query = historyFilter.trim().toLowerCase();
+  const filteredHistoryCommits = historyCommits.filter((commit) =>
+    [commit.summary, commit.shortId, commit.commitId, commit.author].some((value) =>
+      value.toLowerCase().includes(query),
+    ),
   );
 
-  const allHistoryCommits = historyCommits as HistoryCommit[];
-  const query = historyFilter.trim().toLowerCase();
-  const filteredHistoryCommits = query
-    ? allHistoryCommits.filter((commit) => {
-        return (
-          commit.summary.toLowerCase().includes(query) ||
-          commit.shortId.toLowerCase().includes(query) ||
-          commit.commitId.toLowerCase().includes(query) ||
-          commit.author.toLowerCase().includes(query)
-        );
-      })
-    : allHistoryCommits;
-
   return (
-    <ScrollArea data-nav-region="history-commits" className="min-h-0 flex-1 overflow-hidden">
-      <div className="flex w-full min-w-0 flex-col gap-2 p-2">
-        <div className="p-2">
-          <Input
-            id={HISTORY_FILTER_INPUT_ID}
-            value={historyFilter}
-            onChange={(event) => dispatch(setHistoryFilter(event.target.value))}
-            placeholder="Filter commits (msg, id, author)"
-            className="border-input bg-background h-8 px-2 text-xs"
-          />
-
-          <div className="mt-1.5 flex items-center justify-between gap-2">
-            <div className="text-muted-foreground text-[11px]">
-              {filteredHistoryCommits.length} / {historyCommits.length} commits
-            </div>
-            <Kbd className="h-4 px-1 text-[10px]">/</Kbd>
-          </div>
-        </div>
-
-        {selectedCommitIds.length > 0 ? (
-          <div className="border-ring/30 bg-surface-active flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-[11px]">
-            <span className="text-foreground/80">
-              {selectedCommitIds.length === 2
-                ? "Showing combined changes"
-                : "Select one more commit to combine"}
-            </span>
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              className="h-5 px-1.5 text-[11px]"
-              onClick={() => dispatch(clearHistoryCommitSelection())}
-            >
-              Clear
-            </Button>
-          </div>
-        ) : null}
-
-        {pinnedCommitId &&
-        pinnedCommitId === activeCommitId &&
-        !historyCommits.some((commit) => commit.commitId === activeCommitId) ? (
-          <div className="border-ring/30 bg-surface-active rounded-md border px-3 py-2 text-xs">
-            <div className="font-medium">Selected pull request commit</div>
-            <div className="text-muted-foreground mt-1 truncate font-mono" title={activeCommitId}>
-              {activeCommitId}
-            </div>
-          </div>
-        ) : null}
-
-        {loadingHistoryCommits ? (
-          <div className="border-input bg-surface text-muted-foreground rounded-md border px-2 py-2 text-[11px]">
-            Loading history...
-          </div>
-        ) : filteredHistoryCommits.length === 0 ? (
-          <div className="border-input bg-surface text-muted-foreground rounded-md border px-2 py-2 text-[11px]">
-            {historyCommits.length === 0 ? "No commits found." : "No matches."}
-          </div>
-        ) : (
-          <div className="space-y-0.5 pb-2">
-            {filteredHistoryCommits.map((commit, index) => (
-              <HistoryCommitRow
-                key={commit.commitId}
-                commit={commit}
-                navIndex={index}
-                isSelected={selectedCommitIds.includes(commit.commitId)}
-                selectionDisabled={
-                  selectedCommitIds.length >= 2 && !selectedCommitIds.includes(commit.commitId)
-                }
-                onSelect={(commitId) => {
-                  void dispatch(selectHistoryCommit(commitId));
-                }}
-                onSelectionChange={(commitId, selected) => {
-                  void dispatch(setHistoryCommitSelectedValue(commitId, selected));
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </ScrollArea>
+    <CommitListPane
+      title="History commits"
+      commits={filteredHistoryCommits}
+      totalCount={historyCommits.length}
+      filter={historyFilter}
+      onFilterChange={(filter) => dispatch(setHistoryFilter(filter))}
+      filterInputId={HISTORY_FILTER_INPUT_ID}
+      filterHint={<Kbd className="h-4 px-1 text-[10px]">/</Kbd>}
+      navRegion="history-commits"
+      loading={loadingHistoryCommits}
+      error={error ? errorMessageFrom(error, "Commit history could not be loaded.") : undefined}
+      emptyMessage="No commits found."
+      notice={<HistorySelectionNotice commits={historyCommits} />}
+      renderHoverContent={(commit) => (
+        <CommitHoverDetails commitId={commit.commitId} summary={commit.summary} />
+      )}
+      renderRow={(commit, index) => <HistoryCommitListRow commit={commit} navIndex={index} />}
+    />
   );
 }
 
-type HistoryCommitRowProps = {
-  commit: HistoryCommit;
-  navIndex: number;
-  isSelected: boolean;
-  selectionDisabled: boolean;
-  onSelect: (commitId: string) => void;
-  onSelectionChange: (commitId: string, selected: boolean) => void;
-};
+function HistorySelectionNotice({ commits }: { commits: readonly HistoryCommit[] }) {
+  const dispatch = useAppDispatch();
+  const selectedCount = useAppSelector(
+    (state) => state.sourceControl.historySelectedCommitIds.length,
+  );
+  const pinnedCommitId = useAppSelector((state) => {
+    const { historyPinnedCommitId, historyCommitId } = state.sourceControl;
+    return historyPinnedCommitId === historyCommitId ? historyPinnedCommitId : "";
+  });
 
-function HistoryCommitRow({
-  commit,
-  navIndex,
-  isSelected,
-  selectionDisabled,
-  onSelect,
-  onSelectionChange,
-}: HistoryCommitRowProps) {
+  return (
+    <>
+      {selectedCount > 0 ? (
+        <div className="border-border bg-surface-active flex shrink-0 items-center justify-between gap-2 border-b px-2 py-1.5 text-[11px]">
+          <span role="status">
+            {selectedCount === 2 ? "Showing combined changes" : "Select one more commit to combine"}
+          </span>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="h-6 shrink-0 px-1.5 text-[11px]"
+            onClick={() => dispatch(clearHistoryCommitSelection())}
+          >
+            Clear
+          </Button>
+        </div>
+      ) : null}
+      {pinnedCommitId && !commits.some((commit) => commit.commitId === pinnedCommitId) ? (
+        <div className="border-border shrink-0 border-b px-2 py-2 text-xs">
+          <div className="font-medium">Selected pull request commit</div>
+          <div className="text-muted-foreground mt-1 truncate font-mono" title={pinnedCommitId}>
+            {pinnedCommitId}
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function HistoryCommitListRow({ commit, navIndex }: { commit: HistoryCommit; navIndex: number }) {
+  const dispatch = useAppDispatch();
   const isActive = useAppSelector(
     (state) => state.sourceControl.historyCommitId === commit.commitId,
   );
-  const stateClass = isActive
-    ? "border-primary bg-surface-active"
-    : "border-transparent hover:bg-accent";
+  const isSelected = useAppSelector((state) =>
+    state.sourceControl.historySelectedCommitIds.includes(commit.commitId),
+  );
+  const selectionDisabled = useAppSelector((state) => {
+    const selectedIds = state.sourceControl.historySelectedCommitIds;
+    return selectedIds.length >= 2 && !selectedIds.includes(commit.commitId);
+  });
 
   return (
     <HistoryCommitMenu commit={commit}>
-      <div
-        title="Right-click for commit actions"
-        className={`flex min-w-0 items-start gap-1 rounded-sm border-l-2 p-1 ${stateClass}`}
-      >
-        <Checkbox
-          checked={isSelected}
-          disabled={selectionDisabled}
-          aria-label={`Include ${commit.summary || commit.shortId} in combined changes`}
-          className="mt-1.5 ml-0.5"
-          onClick={(event) => event.stopPropagation()}
-          onCheckedChange={(checked) => onSelectionChange(commit.commitId, checked === true)}
+      <div>
+        <CommitRow
+          {...commit}
+          navIndex={navIndex}
+          active={isActive}
+          onOpen={() => {
+            void dispatch(selectHistoryCommit(commit.commitId));
+          }}
+          selection={{
+            checked: isSelected,
+            disabled: selectionDisabled,
+            onCheckedChange: (selected) => {
+              void dispatch(setHistoryCommitSelectedValue(commit.commitId, selected));
+            },
+          }}
         />
-        <button
-          type="button"
-          data-nav-index={navIndex}
-          className="block min-w-0 flex-1 overflow-hidden rounded-sm px-1.5 py-1 text-left"
-          onClick={() => onSelect(commit.commitId)}
-          title={commit.summary || commit.commitId}
-        >
-          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="text-foreground w-0 flex-1 truncate text-[13px] leading-5 font-semibold">
-              {commit.summary || "(no commit message)"}
-            </span>
-          </div>
-          <div className="text-muted-foreground mt-1.5 flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px]">
-            <span className="text-muted-foreground max-w-[32%] shrink-0 truncate font-mono py-0.5">
-              {commit.shortId}
-            </span>
-            <span className="min-w-0 flex-1 truncate">{commit.author || "Unknown"}</span>
-            <span className="shrink-0 truncate">{commit.relativeTime}</span>
-          </div>
-        </button>
       </div>
     </HistoryCommitMenu>
   );

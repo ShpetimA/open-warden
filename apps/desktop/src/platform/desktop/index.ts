@@ -72,6 +72,7 @@ export type {
   GitSnapshot,
   HostedRepoRef,
   HistoryCommit,
+  CommitDetails,
   LspDiagnostic,
   LspDiagnosticSeverity,
   LspDiagnosticsEvent,

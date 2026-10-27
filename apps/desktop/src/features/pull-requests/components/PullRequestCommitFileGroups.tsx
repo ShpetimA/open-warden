@@ -10,6 +10,7 @@ import {
   type CommitFileGroup,
 } from "@/features/pull-requests/commitFileGroups";
 import { PierreFileTreeBrowser } from "@/features/source-control/components/PierreFileTreeBrowser";
+import { CommitHoverDetails } from "@/features/source-control/components/CommitHoverDetails";
 import { buildGitStatusForDisplayFiles } from "@/features/source-control/components/pierreFileTree";
 import { ReviewFileViewControl } from "@/features/source-control/components/ReviewFileViewControl";
 import {
@@ -118,6 +119,14 @@ export function PullRequestCommitFileGroups({
           navRegion="pr-commit-groups"
           flattenEmptyDirectories={false}
           directoryLabelPriority="start"
+          renderHoverContent={(path) => {
+            const group = groups.find(
+              ({ commit }) => commitGroupTitle(commit) === path.replace(/\/$/, ""),
+            );
+            return group ? (
+              <CommitHoverDetails commitId={group.commit.commitId} summary={group.commit.summary} />
+            ) : undefined;
+          }}
           sort={sort}
           compareTreeDirectories={(left, right) =>
             compareGroups(left, right) || left.path.localeCompare(right.path)

@@ -108,6 +108,15 @@ export const CommitFiles: Story = {
   render: () => <GroupedFilesExample compact commitTitle="OF-11384 Validate invoice exports" />,
 };
 
+export const LongCommitTitle: Story = {
+  render: () => (
+    <GroupedFilesExample
+      compact
+      commitTitle="OF-11384 Validate invoice export totals and prevent negative amounts in generated documents"
+    />
+  ),
+};
+
 export const ReviewActions: Story = {
   render: () => (
     <div className="flex flex-wrap items-center gap-4 p-6">

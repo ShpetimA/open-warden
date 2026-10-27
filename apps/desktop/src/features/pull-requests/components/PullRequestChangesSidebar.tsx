@@ -2,14 +2,14 @@ import { FileCode2, GitCommitHorizontal } from "lucide-react";
 import { useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
-import { Input } from "@/components/ui/input";
-import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   usePullRequestPaneNavigation,
   type PullRequestNavigationTarget,
 } from "@/features/pull-requests/hooks/usePullRequestPaneNavigation";
-import { cn } from "@/lib/utils";
+import { CommitRow } from "@/components/ui/commit-row";
+import { CommitListPane } from "@/features/source-control/components/CommitListPane";
+import { CommitHoverDetails } from "@/features/source-control/components/CommitHoverDetails";
 import type { HistoryCommit } from "@/platform/desktop";
 
 export type PullRequestChangesView = "files" | "commits";
@@ -133,54 +133,28 @@ function PullRequestCommitPane({
         target.current = "commits";
       }}
     >
-      <div className="border-border flex shrink-0 flex-col gap-1 border-b px-2 py-2">
-        <div className="text-muted-foreground flex items-center justify-between text-[11px]">
-          <span className="font-medium uppercase tracking-wider">PR commits</span>
-          <span className="tabular-nums">{visibleCommits.length}</span>
-        </div>
-        <Input
-          aria-label="Filter commits"
-          placeholder="Filter commits…"
-          className="h-7 px-2 text-xs"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto" data-nav-region="pr-commits">
-        {commitsLoading ? (
-          <ListLoadingState label="Loading commits…" />
-        ) : commitsError ? (
-          <p role="alert" className="text-destructive p-3 text-xs">
-            {commitsError}
-          </p>
-        ) : visibleCommits.length === 0 ? (
-          <p className="text-muted-foreground p-3 text-xs">
-            {commits.length ? "No matching commits." : "No commits in this pull request."}
-          </p>
-        ) : (
-          visibleCommits.map((commit, index) => (
-            <button
-              key={commit.commitId}
-              data-nav-index={index}
-              type="button"
-              aria-pressed={selectedCommit?.commitId === commit.commitId}
-              title={commit.summary}
-              onClick={() => onCommitSelect(commit)}
-              className={cn(
-                "hover:bg-accent focus-visible:ring-ring/50 flex min-h-10 w-full min-w-0 flex-col gap-0.5 border-l-2 border-transparent px-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset",
-                selectedCommit?.commitId === commit.commitId && "border-primary bg-surface-active",
-              )}
-            >
-              <span className="w-full truncate text-xs font-medium">{commit.summary}</span>
-              <span className="text-muted-foreground flex w-full min-w-0 gap-2 text-[11px]">
-                <span className="shrink-0 font-mono">{commit.shortId}</span>
-                <span className="min-w-0 truncate">{commit.author}</span>
-                <span className="ml-auto shrink-0 tabular-nums">{commit.relativeTime}</span>
-              </span>
-            </button>
-          ))
+      <CommitListPane
+        title="PR commits"
+        commits={visibleCommits}
+        totalCount={commits.length}
+        filter={filter}
+        onFilterChange={setFilter}
+        navRegion="pr-commits"
+        loading={commitsLoading}
+        error={commitsError}
+        emptyMessage="No commits in this pull request."
+        renderHoverContent={(commit) => (
+          <CommitHoverDetails commitId={commit.commitId} summary={commit.summary} />
         )}
-      </div>
+        renderRow={(commit, index) => (
+          <CommitRow
+            {...commit}
+            navIndex={index}
+            active={selectedCommit?.commitId === commit.commitId}
+            onOpen={() => onCommitSelect(commit)}
+          />
+        )}
+      />
     </aside>
   );
 }

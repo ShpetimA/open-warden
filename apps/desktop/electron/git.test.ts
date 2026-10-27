@@ -26,6 +26,7 @@ import {
   getCommitFileVersions,
   getCommitFiles,
   getCommitHistory,
+  getCommitDetails,
   getFileVersions,
   getGitSnapshot,
   stageAll,
@@ -61,6 +62,36 @@ afterEach(async () => {
 vi.setConfig({ testTimeout: 30_000 });
 
 describe("electron git backend", () => {
+  test("reads complete commit messages, identities, dates, and root or parent references", async () => {
+    const repo = makeRepo();
+    git(repo, ["commit", "--allow-empty", "-m", "Root commit"]);
+    const root = git(repo, ["rev-parse", "HEAD"]);
+    expect((await getCommitDetails(repo, root)).parents).toEqual([]);
+
+    git(repo, [
+      "commit",
+      "--allow-empty",
+      "-m",
+      "Validate invoice exports",
+      "-m",
+      "Keep negative amounts out of generated invoices.\n\nRefs: OF-11384",
+    ]);
+    const head = git(repo, ["rev-parse", "HEAD"]);
+    const details = await getCommitDetails(repo, head);
+    expect(details).toMatchObject({
+      commitId: head,
+      summary: "Validate invoice exports",
+      body: "Keep negative amounts out of generated invoices.\n\nRefs: OF-11384",
+      author: "OpenWarden Test",
+      authorEmail: "test@example.com",
+      committer: "OpenWarden Test",
+      committerEmail: "test@example.com",
+      parents: [root],
+    });
+    expect(details.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(details.committedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
   test("lists the full PR range independently of the checked out branch and compares each commit", async () => {
     const repo = makeRepo();
     writeFileSync(path.join(repo, "notes.md"), "original\n");

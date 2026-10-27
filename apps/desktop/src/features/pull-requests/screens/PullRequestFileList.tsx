@@ -18,6 +18,7 @@ import { countCommentsForPathInRepoContext } from "@/features/comments/selectors
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
 import type { usePullRequestViewedFiles } from "@/features/pull-requests/hooks/usePullRequestViewedFiles";
 import { ReviewFileViewControl } from "@/features/source-control/components/ReviewFileViewControl";
+import { CommitHoverDetails } from "@/features/source-control/components/CommitHoverDetails";
 import type { ReviewFileView } from "@/features/source-control/components/reviewFileGrouping";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useSimpleFileListKeyboardNav } from "@/features/source-control/hooks/useSimpleFileListKeyboardNav";
@@ -43,6 +44,7 @@ type PullRequestFileListProps = {
   onFileViewChange: (view: ReviewFileView) => void;
   onGroupByCommit?: () => void;
   commitTitle?: string;
+  commitId?: string;
 };
 
 export default function PullRequestFileList({
@@ -59,6 +61,7 @@ export default function PullRequestFileList({
   onFileViewChange,
   onGroupByCommit,
   commitTitle,
+  commitId,
 }: PullRequestFileListProps) {
   const dispatch = useAppDispatch();
   const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
@@ -236,6 +239,11 @@ export default function PullRequestFileList({
             autoFocus={keyboardNavigationEnabled}
             mode={fileView}
             reviewGroupTitle={commitTitle}
+            reviewGroupHover={
+              commitId ? (
+                <CommitHoverDetails commitId={commitId} summary={commitTitle ?? commitId} />
+              ) : undefined
+            }
             selectedPath={activePath}
             navRegion="pull-request-files"
             onActivatePath={(path) => {

@@ -246,6 +246,7 @@ function PullRequestChanges({
               onFileViewChange={setGrouping}
               onGroupByCommit={view === "files" ? () => setGrouping("commits") : undefined}
               commitTitle={selectedCommit?.summary}
+              commitId={selectedCommit?.commitId}
             />
           )
         }

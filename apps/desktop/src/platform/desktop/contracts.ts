@@ -55,6 +55,19 @@ export type HistoryCommit = {
   relativeTime: string;
 };
 
+export type CommitDetails = Readonly<{
+  commitId: string;
+  summary: string;
+  body: string;
+  author: string;
+  authorEmail: string;
+  authoredAt: string;
+  committer: string;
+  committerEmail: string;
+  committedAt: string;
+  parents: readonly string[];
+}>;
+
 export type DiscardFileInput = {
   relPath: string;
   bucket: Bucket;
@@ -632,6 +645,7 @@ export type DesktopApi = {
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
   getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;
+  getCommitDetails(repoPath: string, commitId: string): Promise<CommitDetails>;
   getBranchCommits(repoPath: string, baseRef: string, headRef: string): Promise<HistoryCommit[]>;
   getBranches(repoPath: string): Promise<string[]>;
   getBranchFiles(repoPath: string, baseRef: string, headRef: string): Promise<FileItem[]>;

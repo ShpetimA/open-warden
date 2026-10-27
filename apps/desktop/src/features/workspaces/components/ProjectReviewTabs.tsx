@@ -56,9 +56,9 @@ export function ProjectReviewTabs() {
   });
   if (!active || !enabled) return null;
   return (
-    <div className="flex h-8 shrink-0 items-center border-b bg-background">
+    <div className="border-border/70 flex h-8 shrink-0 items-center border-b bg-background">
       <WorkspaceTabs
-        className="min-w-0 flex-1 border-b-0"
+        className="h-full min-w-0 flex-1 border-b-0"
         ariaLabel="Project pull requests"
         overflowLabel="All project reviews"
         variant="secondary"
@@ -77,7 +77,7 @@ export function ProjectReviewTabs() {
       {active.kind === "pull-request" && (
         <nav
           aria-label="Review sections"
-          className="flex shrink-0 items-center gap-0.5 border-l px-1"
+          className="border-border/70 flex shrink-0 items-center gap-0.5 self-stretch border-l px-1"
         >
           {pullRequestRailSections(active, hasLocalReview || pathname.includes("/local-")).map(
             (section) => (

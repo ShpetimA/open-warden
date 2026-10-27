@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { z } from "zod";
 
 import type {
   Bucket,
@@ -12,6 +13,7 @@ import type {
   FileVersions,
   GitSnapshot,
   HistoryCommit,
+  CommitDetails,
   RepoFileItem,
   GitBlameResult,
 } from "../src/platform/desktop/contracts";
@@ -589,6 +591,55 @@ export async function getCommitHistory(repoPath: string, limit = 200): Promise<H
   ]);
 
   return parseHistoryOutput(output);
+}
+
+const commitDetailsFields = z.tuple([
+  z.string().min(1),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+  z.string(),
+]);
+
+export async function getCommitDetails(repoPath: string, commitId: string): Promise<CommitDetails> {
+  const output = await runGit(repoPath, [
+    "show",
+    "--no-patch",
+    "--format=%H%x00%s%x00%b%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%x00%cI%x00%P",
+    "--end-of-options",
+    commitId,
+    "--",
+  ]);
+  const [
+    hash,
+    summary,
+    body,
+    author,
+    authorEmail,
+    authoredAt,
+    committer,
+    committerEmail,
+    committedAt,
+    parents,
+  ] = commitDetailsFields.parse(output.toString("utf8").trimEnd().split("\0"));
+
+  return {
+    commitId: hash,
+    summary,
+    body: body.trimEnd(),
+    author,
+    authorEmail,
+    authoredAt,
+    committer,
+    committerEmail,
+    committedAt,
+    parents: parents ? parents.split(" ") : [],
+  };
 }
 
 export async function getBranchCommits(

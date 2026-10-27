@@ -9,6 +9,7 @@ import type {
   HistoryCommit,
   RepoFileItem,
 } from "./types";
+import type { CommitDetails } from "@/platform/desktop";
 import {
   getBranches,
   getBranchFiles,
@@ -19,6 +20,7 @@ import {
   getCommitFiles,
   getCommitFileVersions,
   getCommitHistory,
+  getCommitDetails,
   getBranchCommits,
   getFileVersions,
   getRepoFiles,
@@ -132,6 +134,15 @@ export const gitApi = createApi({
         }
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "HistoryCommits", id: repoPath }],
+    }),
+    getCommitDetails: builder.query<CommitDetails, CommitFilesArgs>({
+      async queryFn({ repoPath, commitId }) {
+        try {
+          return { data: await getCommitDetails(repoPath, commitId) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
     }),
     getBranches: builder.query<string[], string>({
       async queryFn(repoPath) {
@@ -352,6 +363,7 @@ export const {
   useGetGitSnapshotQuery,
   useGetRepoFilesQuery,
   useGetCommitHistoryQuery,
+  useGetCommitDetailsQuery,
   useGetBranchCommitsQuery,
   useGetBranchesQuery,
   useGetBranchFilesQuery,

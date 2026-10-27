@@ -60,6 +60,26 @@ test.beforeEach(async ({ page }) => {
           openRepos: ["/projects/invoice"],
           activeRepo: "/projects/invoice",
           recentRepos: [],
+          workspaceTabs: {
+            items: [
+              { id: "/projects/invoice", kind: "repo", repoPath: "/projects/invoice" },
+              {
+                id: "pr-invoice-114",
+                kind: "pull-request",
+                repoPath: "/projects/invoice",
+                providerId: "bitbucket",
+                owner: "team",
+                repo: "invoice",
+                pullRequestNumber: 114,
+                title: detail.title,
+              },
+            ],
+            activeWorkspaceId: "pr-invoice-114",
+            activeByProject: { "/projects/invoice": "pr-invoice-114" },
+            locations: { "pr-invoice-114": "/pull-requests/bitbucket/team/invoice/114/files" },
+            views: {},
+            memory: {},
+          },
         }),
         saveWorkspaceSession: async (session) => session,
         loadAppSettings: async () => settings,
@@ -110,14 +130,42 @@ test.beforeEach(async ({ page }) => {
           localBranch: "validation",
         }),
         getBranchCommits: async () => commits,
+        getCommitDetails: async (_repo, commitId) => ({
+          commitId,
+          summary: commits.find((commit) => commit.commitId === commitId)?.summary ?? commitId,
+          body: "Keep negative amounts out of generated invoices.\n\nRefs: OF-11384",
+          author: "Alice",
+          authorEmail: "alice@example.com",
+          authoredAt: "2026-10-25T18:00:00+02:00",
+          committer: "Bob",
+          committerEmail: "bob@example.com",
+          committedAt: "2026-10-25T19:00:00+02:00",
+          parents: ["parent123456789"],
+        }),
         getBranchFiles: async (_repo, base) => {
           if (base === "head123^") return files.slice(0, 1);
           if (base === "first123^") return files.slice(0, 1);
           return files;
         },
         getBranchFileVersions: async (_repo, base, head, path) => ({
-          oldFile: { name: path, contents: `export const revision = '${base}';\n` },
-          newFile: { name: path, contents: `export const revision = '${head}';\n` },
+          oldFile: {
+            name: path,
+            contents:
+              `export const revision = '${base}';\n` +
+              Array.from(
+                { length: 12 },
+                (_, index) => `export const line${index + 2} = '${base}';`,
+              ).join("\n"),
+          },
+          newFile: {
+            name: path,
+            contents:
+              `export const revision = '${head}';\n` +
+              Array.from(
+                { length: 12 },
+                (_, index) => `export const line${index + 2} = '${head}';`,
+              ).join("\n"),
+          },
         }),
         getPullRequestViewedFiles: async () => ({
           storage: "device",
@@ -210,6 +258,130 @@ for (const theme of ["light", "dark"] as const) {
       animations: "disabled",
     });
     expect(errors).toEqual([]);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`shows full folder and commit hover details with continuous review borders in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    const sections = page.getByRole("navigation", { name: "Review sections" });
+    await expect(sections).toBeVisible();
+    const borders = await sections.evaluate((element) => {
+      const parent = element.parentElement;
+      if (!parent) throw new Error("Missing review header");
+      const bounds = element.getBoundingClientRect();
+      const parentBounds = parent.getBoundingClientRect();
+      return {
+        top: bounds.top - parentBounds.top,
+        bottom: parentBounds.bottom - bounds.bottom,
+        leftBorder: getComputedStyle(element).borderLeftWidth,
+        bottomBorder: getComputedStyle(parent).borderBottomWidth,
+        stripHeight: parent.querySelector('[data-slot="workspace-tabs"]')?.getBoundingClientRect()
+          .height,
+        parentHeight: parentBounds.height,
+      };
+    });
+    expect(borders.top).toBe(0);
+    expect(borders.bottom).toBe(1);
+    expect(borders.leftBorder).toBe("1px");
+    expect(borders.bottomBorder).toBe("1px");
+    expect(borders.stripHeight).toBe(borders.parentHeight - 1);
+
+    const files = page.getByRole("complementary", { name: "Changed files", exact: true });
+    await files.getByRole("button", { name: "Group review files: Review groups" }).click();
+    await page.getByRole("menuitemradio", { name: "Commits", exact: true }).click();
+    const heading = files.getByRole("treeitem", {
+      name: "Validate invoice amounts before saving and report an actionable error · first123",
+      exact: true,
+    });
+    await heading.hover();
+    const tooltip = page.getByRole("tooltip");
+    await expect(
+      tooltip.getByText("Validate invoice amounts before saving and report an actionable error", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      tooltip.getByText(/Keep negative amounts out of generated invoices/),
+    ).toBeVisible();
+    await expect(tooltip.getByText("Alice <alice@example.com>", { exact: true })).toBeVisible();
+    await expect(tooltip.getByText("Bob <bob@example.com>", { exact: true })).toBeVisible();
+    await expect(tooltip.getByText("parent123456789", { exact: true })).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`commit-hover-${theme}.png`),
+      animations: "disabled",
+    });
+
+    await page.getByRole("tab", { name: "Commits", exact: true }).hover();
+    await expect(tooltip).toBeHidden();
+    await files.getByRole("treeitem", { name: "src", exact: true }).first().hover();
+    await expect(tooltip).toHaveText("Test negative invoice amounts · head123/src");
+    await page.getByRole("tab", { name: "Commits", exact: true }).click();
+    await page
+      .getByRole("complementary", { name: "Pull request commits", exact: true })
+      .getByRole("button", { name: /Validate invoice amounts before/ })
+      .hover();
+    await expect(
+      tooltip.getByText(/Keep negative amounts out of generated invoices/),
+    ).toBeVisible();
+  });
+
+  test(`highlights a range while dragging from line numbers or the plus gutter in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    const start = page.locator('[data-additions] [data-column-number="2"]');
+    const end = page.locator('[data-additions] [data-column-number="5"]');
+    await expect(start).toBeVisible();
+    const startBounds = await start.boundingBox();
+    const endBounds = await end.boundingBox();
+    if (!startBounds || !endBounds) throw new Error("Missing diff gutter bounds");
+    const selected = page.locator("[data-additions] [data-line][data-selected-line]");
+    const composer = page.getByPlaceholder("Leave a comment...");
+
+    await page.mouse.move(
+      startBounds.x + startBounds.width - 5,
+      startBounds.y + startBounds.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(endBounds.x + endBounds.width - 5, endBounds.y + endBounds.height / 2, {
+      steps: 8,
+    });
+    await expect(selected).toHaveCount(4);
+    await expect(composer).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`drag-line-numbers-${theme}.png`),
+      animations: "disabled",
+    });
+    await page.mouse.up();
+    await expect(composer).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+    await start.hover();
+    const plus = page.locator("[data-additions] [data-utility-button]");
+    await expect(plus).toBeVisible();
+    const plusBounds = await plus.boundingBox();
+    if (!plusBounds) throw new Error("Missing comment button bounds");
+    await page.mouse.move(
+      plusBounds.x + plusBounds.width / 2,
+      plusBounds.y + plusBounds.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(endBounds.x + endBounds.width - 5, endBounds.y + endBounds.height / 2, {
+      steps: 8,
+    });
+    await expect(selected).toHaveCount(4);
+    await expect(composer).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`drag-plus-gutter-${theme}.png`),
+      animations: "disabled",
+    });
+    await page.mouse.up();
+    await expect(composer).toBeVisible();
   });
 }
 
@@ -351,3 +523,90 @@ for (const theme of ["light", "dark"] as const) {
     ).toBeVisible();
   });
 }
+
+test("delays the first commit hover, skips the delay within the group, and resets after leaving", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+  await page.getByRole("tab", { name: "Commits", exact: true }).click();
+  const pane = page.getByRole("complementary", { name: "Pull request commits", exact: true });
+  const newest = pane.getByRole("button", { name: /Test negative invoice amounts/ });
+  const older = pane.getByRole("button", { name: /Validate invoice amounts before/ });
+  await expect(newest).toBeVisible();
+  await expect(older).toBeVisible();
+  const newestBounds = await newest.boundingBox();
+  const olderBounds = await older.boundingBox();
+  if (!newestBounds || !olderBounds) throw new Error("Missing commit bounds");
+  const tooltip = page.getByRole("tooltip");
+  await page.mouse.move(1200, 600);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date("2030-01-01T12:00:00Z"));
+
+  await page.mouse.move(newestBounds.x + 30, newestBounds.y + 10);
+  await page.clock.runFor(699);
+  expect(await tooltip.count()).toBe(0);
+  await page.clock.runFor(1);
+  await expect(tooltip).toContainText("Test negative invoice amounts");
+
+  await page.mouse.move(olderBounds.x + 30, olderBounds.y + 10);
+  await expect(tooltip).toContainText("Validate invoice amounts before", { timeout: 200 });
+  await page.mouse.move(1200, 600);
+  await page.clock.runFor(150);
+  expect(await tooltip.count()).toBe(0);
+  await page.mouse.move(newestBounds.x + 30, newestBounds.y + 10);
+  await expect(tooltip).toContainText("Test negative invoice amounts", { timeout: 200 });
+
+  await page.mouse.move(1200, 600);
+  await page.clock.runFor(450);
+  await page.mouse.move(olderBounds.x + 30, olderBounds.y + 10);
+  await page.clock.runFor(699);
+  expect(await tooltip.count()).toBe(0);
+  await page.clock.runFor(1);
+  await expect(tooltip).toContainText("Validate invoice amounts before");
+
+  await page.keyboard.press("h");
+  await page.keyboard.press("j");
+  await page.clock.runFor(1000);
+  expect(await tooltip.count()).toBe(0);
+  await page.mouse.move(1200, 600);
+  await page.mouse.move(newestBounds.x + 30, newestBounds.y + 10);
+  await page.clock.runFor(300);
+  await page.keyboard.press("k");
+  await page.clock.runFor(1000);
+  expect(await tooltip.count()).toBe(0);
+});
+
+test("shows folder hovers only for pointer interaction and never for ordinary files", async ({
+  page,
+}) => {
+  await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+  const pane = page.getByRole("complementary", { name: "Changed files", exact: true });
+  const folder = pane.getByRole("treeitem", { name: "src", exact: true });
+  const file = pane.getByRole("treeitem", { name: "invoice.ts", exact: true });
+  await expect(file).toBeVisible();
+  await page.mouse.move(1200, 600);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date("2030-01-01T12:00:00Z"));
+  const tooltip = page.getByRole("tooltip");
+
+  await folder.focus();
+  await page.clock.runFor(1000);
+  expect(await tooltip.count()).toBe(0);
+  await file.hover({ force: true });
+  await page.clock.runFor(1000);
+  expect(await tooltip.count()).toBe(0);
+  await file.click({ force: true });
+  await page.keyboard.press("j");
+  await page.clock.runFor(1000);
+  expect(await tooltip.count()).toBe(0);
+
+  await folder.hover({ force: true });
+  await page.clock.runFor(699);
+  expect(await tooltip.count()).toBe(0);
+  await page.clock.runFor(1);
+  await expect(tooltip).toHaveText("Changes/src");
+  await file.hover({ force: true });
+  await page.clock.runFor(1000);
+  expect(await tooltip.count()).toBe(0);
+});

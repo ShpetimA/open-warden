@@ -134,6 +134,11 @@ pre[data-diff-type='single'] {
   border-radius: 999px;
 }
 
+[data-utility-button]:hover {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
 [data-hunk-operation-button] {
   display: inline-flex;
   align-items: center;

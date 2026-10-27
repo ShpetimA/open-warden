@@ -14,7 +14,9 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  type ReactNode,
 } from "react";
+import { TreeRowHover } from "./TreeRowHover";
 
 import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
 import {
@@ -53,6 +55,7 @@ type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   onRangeSelectPath?: (path: string) => void;
   gitStatus?: readonly GitStatusEntry[];
   renderRowDecoration?: FileTreeRowDecorationRenderer;
+  renderHoverContent?: (path: string, label: string) => ReactNode;
   rowDecorationInvalidationKey?: unknown;
   renderContextMenu?: Parameters<typeof PierreFileTree>[0]["renderContextMenu"];
 };
@@ -151,6 +154,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   onRangeSelectPath,
   gitStatus,
   renderRowDecoration,
+  renderHoverContent,
   rowDecorationInvalidationKey,
   renderContextMenu,
 }: PierreFileTreeBrowserProps<TFile>) {
@@ -519,20 +523,22 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       className={`min-h-0 flex-1 overflow-hidden ${className}`.trim()}
       style={style}
     >
-      <PierreFileTree
-        model={model}
-        className="block h-full min-h-0"
-        style={{
-          ...TREE_HOST_STYLE,
-          ...(renderContextMenu
-            ? { ["--trees-action-lane-width-override" as string]: "24px" }
-            : null),
-        }}
-        onClick={handleHostClick}
-        onPointerDownCapture={handleHostPointerDownCapture}
-        onKeyDown={handleHostKeyDown}
-        renderContextMenu={renderContextMenu}
-      />
+      <TreeRowHover directoriesOnly renderContent={renderHoverContent}>
+        <PierreFileTree
+          model={model}
+          className="block h-full min-h-0"
+          style={{
+            ...TREE_HOST_STYLE,
+            ...(renderContextMenu
+              ? { ["--trees-action-lane-width-override" as string]: "24px" }
+              : null),
+          }}
+          onClick={handleHostClick}
+          onPointerDownCapture={handleHostPointerDownCapture}
+          onKeyDown={handleHostKeyDown}
+          renderContextMenu={renderContextMenu}
+        />
+      </TreeRowHover>
     </div>
   );
 }
