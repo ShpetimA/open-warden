@@ -1,3 +1,4 @@
+import { GuidanceConnectionSettings } from "@/features/guidance/GuidanceConnectionSettings";
 import { KeyboardShortcuts } from "../components/KeyboardShortcuts";
 import { useNavigate } from "react-router";
 import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
@@ -64,6 +65,7 @@ export function SettingsScreen() {
           </div>
         </div>
 
+        <GuidanceConnectionSettings />
         <section className="border-border/70 bg-surface-toolbar rounded-2xl border">
           <div className="border-border/70 flex items-start justify-between gap-4 border-b px-5 py-4">
             <div className="space-y-1">

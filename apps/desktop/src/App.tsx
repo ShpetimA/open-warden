@@ -1,5 +1,6 @@
 import { Navigate, RouterProvider, createHashRouter } from "react-router";
 
+import { GuidanceScreen } from "@/features/guidance/GuidanceScreen";
 import { AppThemeProvider } from "@/app/AppThemeProvider";
 import { RepositorySetupScreen } from "@/features/repository-setup/RepositorySetupScreen";
 import { AppShell } from "@/app/AppShell";
@@ -67,6 +68,7 @@ const router = createHashRouter([
             path: "pull-requests/:providerId/:owner/:repo/:pullRequestNumber",
             element: <PullRequestPreviewLayout />,
             children: [
+              { path: "guidance", element: <GuidanceScreen /> },
               {
                 index: true,
                 element: <Navigate to="overview" replace />,

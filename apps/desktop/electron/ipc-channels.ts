@@ -6,3 +6,5 @@ export const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 export const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 export const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 export const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
+
+export const GUIDANCE_NAVIGATE_CHANNEL = "desktop:guidance-navigate";

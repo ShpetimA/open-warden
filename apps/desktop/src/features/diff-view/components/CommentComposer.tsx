@@ -84,7 +84,7 @@ export function CommentComposer({
   if (!visible) return null;
 
   return (
-    <div className="flex flex-col bg-surface-elevated border-border/60 max-w-5xl border-x border-b pb-3">
+    <div className="border-border bg-surface-elevated flex w-full min-w-0 max-w-3xl flex-col rounded-md border p-2 font-sans whitespace-normal">
       <MarkdownEditor
         value={draftComment}
         onChange={setDraftComment}
@@ -93,17 +93,17 @@ export function CommentComposer({
         textareaRef={inputRef}
         mentions={mentions}
       />
-      <div className="mt-3 ml-auto flex items-center gap-2">
+      <div className="mt-2 ml-auto flex items-center gap-1">
         <Button
           size="xs"
           variant="outline"
-          className="bg-surface-alt rounded-none px-3"
+          className="px-3"
           onClick={onSubmit}
           disabled={!draftComment.trim()}
         >
           {submitButtonText}
         </Button>
-        <Button size="xs" variant="ghost" className="rounded-none px-2" onClick={onCancel}>
+        <Button size="xs" variant="ghost" className="px-2" onClick={onCancel}>
           Cancel
         </Button>
       </div>

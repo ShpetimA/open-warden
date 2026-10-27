@@ -205,6 +205,14 @@ export type DiffAnnotationItem =
   | DiagnosticAnnotation
   | PullRequestThreadAnnotation
   | PullRequestAnchorAnnotation
+  | {
+      type: "guidance";
+      id: string;
+      title: string;
+      body: string;
+      details?: string;
+      referenceLabel: string;
+    }
   | DiffHunkActionAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;

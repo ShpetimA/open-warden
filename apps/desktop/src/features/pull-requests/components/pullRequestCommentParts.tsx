@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 
-import { Markdown } from "@/components/markdown/Markdown";
+import { ExpandableMarkdown } from "@/components/markdown/ExpandableMarkdown";
 import type {
   PullRequestConversation,
   PullRequestIssueComment,
@@ -96,11 +96,7 @@ export function authorLabel(login: string | null, displayName: string | null) {
 }
 
 export function CommentBody({ body }: { body: string }) {
-  return (
-    <Markdown className="text-foreground/90 min-w-0 max-w-full break-words text-[13px] leading-5">
-      {body}
-    </Markdown>
-  );
+  return <ExpandableMarkdown>{body}</ExpandableMarkdown>;
 }
 
 export function Avatar({ login, avatarUrl }: { login: string | null; avatarUrl: string | null }) {

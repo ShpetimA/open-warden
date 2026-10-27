@@ -610,3 +610,67 @@ test("shows folder hovers only for pointer interaction and never for ordinary fi
   await page.clock.runFor(1000);
   expect(await tooltip.count()).toBe(0);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`keeps short and long inline comments readable and collapsible in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    const gutter = page.locator('[data-additions] [data-column-number="2"]');
+    await gutter.hover();
+    await page.locator("[data-additions] [data-utility-button]").click();
+    const composer = page.getByPlaceholder("Leave a comment...");
+    await composer.fill("Testing");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    const note = page.getByRole("region", { name: "Pending comment", exact: true });
+    await expect(note.getByText("Testing", { exact: true })).toBeVisible();
+    expect(await note.evaluate((element) => getComputedStyle(element).fontFamily)).not.toMatch(
+      /monospace/,
+    );
+    expect((await note.boundingBox())?.height).toBeLessThan(100);
+    await page.screenshot({
+      path: testInfo.outputPath(`comment-short-${theme}.png`),
+      animations: "disabled",
+    });
+    await page.getByRole("button", { name: "Collapse pending comments", exact: true }).click();
+    await expect(note).toHaveCount(0);
+    await page.getByRole("button", { name: "Expand pending comments", exact: true }).click();
+    await expect(note.getByText("Testing", { exact: true })).toBeVisible();
+    await note.getByRole("button", { name: "Edit draft" }).click();
+    const longBody = Array.from(
+      { length: 8 },
+      (_, index) =>
+        `### Review case ${index + 1}\n\nThe request must reject negative amounts before saving. Preserve zero and positive values, and verify the error identifies the amount field.\n\n- Keep the repository untouched for rejected requests.\n- Cover this through the public API.`,
+    ).join("\n\n");
+    await composer.fill(longBody);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(note.getByRole("button", { name: "Read more", exact: true })).toBeVisible();
+    const previewHeight = await note.evaluate((element) => element.getBoundingClientRect().height);
+    await page.setViewportSize({ width: 1000, height: 740 });
+    await page.screenshot({
+      path: testInfo.outputPath(`comment-long-preview-${theme}.png`),
+      animations: "disabled",
+    });
+    await note.getByRole("button", { name: "Read more", exact: true }).click();
+    await expect
+      .poll(() => note.evaluate((element) => element.getBoundingClientRect().height))
+      .toBeGreaterThan(previewHeight);
+    await note.getByRole("button", { name: "Show less", exact: true }).click();
+    await expect(note.getByRole("button", { name: "Read more", exact: true })).toBeVisible();
+    await note.getByRole("button", { name: "Collapse pending comment", exact: true }).click();
+    await expect(
+      note.getByRole("button", { name: "Expand pending comment", exact: true }),
+    ).toBeVisible();
+    await note.getByRole("button", { name: "Expand pending comment", exact: true }).click();
+    await note.getByRole("button", { name: "Edit draft" }).click();
+    await composer.fill("Unsaved edit");
+    await page.getByRole("button", { name: "Collapse pending comments", exact: true }).click();
+    await page.getByRole("button", { name: "Expand pending comments", exact: true }).click();
+    await expect(composer).toHaveValue("Unsaved edit");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(note).toContainText("Review case 1");
+    await note.getByRole("button", { name: "Delete draft" }).click();
+    await expect(note).toHaveCount(0);
+  });
+}

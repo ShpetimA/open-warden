@@ -79,6 +79,8 @@ export const hostedReposApi = createApi({
   reducerPath: "hostedReposApi",
   baseQuery: fakeBaseQuery<ErrorResult>(),
   tagTypes: [
+    "Guidance",
+    "GuidanceConnection",
     "ProviderConnections",
     "HostedRepo",
     "PullRequests",

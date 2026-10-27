@@ -1,4 +1,14 @@
+import type {
+  GuidanceConnection,
+  GuidanceDocument,
+  GuidanceLocator,
+  GuidanceMessageInput,
+  GuidanceNavigate,
+  GuidanceProgressInput,
+  GuidanceResult,
+} from "./guidance";
 import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
+
 export type ErrorCode = "INVALID_INPUT" | "INVALID_STATUS" | "BACKEND" | "UNAVAILABLE";
 
 export type ApiError = {
@@ -587,6 +597,12 @@ export type LspLocation = {
 };
 
 export type DesktopApi = {
+  getPullRequestGuidance(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument | null>>;
+  setGuidanceProgress(input: GuidanceProgressInput): Promise<GuidanceResult<GuidanceDocument>>;
+  addGuidanceMessage(input: GuidanceMessageInput): Promise<GuidanceResult<GuidanceDocument>>;
+  getGuidanceConnection(): Promise<GuidanceConnection>;
+  startGuidanceConnection(): Promise<GuidanceConnection>;
+  stopGuidanceConnection(): Promise<GuidanceConnection>;
   getGitStashPatch(repoPath: string, oid: string): Promise<GitResult<string>>;
   getGitRepositoryState(repoPath: string): Promise<GitResult<GitRepositoryState>>;
   runGitCommand(repoPath: string, command: GitCommand): Promise<GitResult<string>>;
@@ -727,11 +743,19 @@ export type DesktopLspApi = {
   onLspDiagnostics(listener: (event: LspDiagnosticsEvent) => void): () => void;
 };
 
+export type DesktopGuidanceEventsApi = {
+  onGuidanceNavigate(listener: (target: GuidanceNavigate) => void): () => void;
+};
+
 export type DesktopSettingsApi = {
   onAppSettingsChanged(listener: (settings: AppSettings) => void): () => void;
 };
 
-export type DesktopBridge = DesktopApi & DesktopUpdateApi & DesktopLspApi & DesktopSettingsApi;
+export type DesktopBridge = DesktopApi &
+  DesktopUpdateApi &
+  DesktopLspApi &
+  DesktopSettingsApi &
+  DesktopGuidanceEventsApi;
 
 export type DirectoryListing =
   | { ok: true; path: string; parentPath: string; entries: { name: string; path: string }[] }

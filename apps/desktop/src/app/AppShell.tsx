@@ -1,3 +1,4 @@
+import { GuidanceNavigation } from "@/features/guidance/GuidanceNavigation";
 import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { useState } from "react";
@@ -55,6 +56,7 @@ export function AppShell() {
           <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
             <HotkeysProvider defaultOptions={{ hotkey: { enabled: !commandPaletteOpen } }}>
               <WorkspaceNavigation />
+              <GuidanceNavigation />
               <WorkspaceChrome
                 header={
                   <AppHeader

@@ -197,9 +197,41 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
   }
 }
 
+const browserGuidance = {
+  async getPullRequestGuidance() {
+    return { ok: true as const, value: null };
+  },
+  async setGuidanceProgress() {
+    return {
+      ok: false as const,
+      error: { code: "unavailable" as const, message: "Guidance requires the desktop app." },
+    };
+  },
+  async addGuidanceMessage() {
+    return {
+      ok: false as const,
+      error: { code: "unavailable" as const, message: "Guidance requires the desktop app." },
+    };
+  },
+  async getGuidanceConnection() {
+    return { status: "stopped" as const, endpoint: null, clientConfig: null, error: null };
+  },
+  async startGuidanceConnection() {
+    return {
+      status: "error" as const,
+      endpoint: null,
+      clientConfig: null,
+      error: "MCP requires the desktop app.",
+    };
+  },
+  async stopGuidanceConnection() {
+    return { status: "stopped" as const, endpoint: null, clientConfig: null, error: null };
+  },
+};
 const browserDesktopApiCore = createDesktopApiWithDefaults({
   fallback: (method) => async () => unsupportedAsync(browserUnsupportedFeature(method)),
   overrides: {
+    ...browserGuidance,
     async selectFolder() {
       throw readBrowserDirectorySelectionError();
     },
@@ -248,6 +280,9 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
 });
 
 export const browserDesktopApi: DesktopBridge = {
+  onGuidanceNavigate() {
+    return () => {};
+  },
   ...browserDesktopApiCore,
   async getUpdateState() {
     return createDisabledUpdateState("Automatic updates are only available in desktop builds.");
@@ -304,6 +339,7 @@ async function unavailableAsync<T>(): Promise<T> {
 const unavailableDesktopApiCore = createDesktopApiWithDefaults({
   fallback: () => async () => unavailableAsync(),
   overrides: {
+    ...browserGuidance,
     async loadWorkspaceSession() {
       return createWorkspaceSession();
     },
@@ -348,6 +384,9 @@ export const unavailableDesktopApi: DesktopBridge = {
     return () => {};
   },
   onLspDiagnostics() {
+    return () => {};
+  },
+  onGuidanceNavigate() {
     return () => {};
   },
   onAppSettingsChanged() {

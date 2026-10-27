@@ -5,6 +5,7 @@ import { defineConfig } from "vite";
 const external = ["electron", ...Object.keys(process.binding("natives"))];
 
 export default defineConfig({
+  ssr: { noExternal: ["zod"] },
   build: {
     emptyOutDir: false,
     outDir: ".vite/build",

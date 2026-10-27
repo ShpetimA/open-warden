@@ -3,6 +3,12 @@ import type { DesktopApi } from "./contracts";
 export type DesktopApiMethod = keyof DesktopApi;
 
 export const DESKTOP_API_METHODS = [
+  "getPullRequestGuidance",
+  "setGuidanceProgress",
+  "addGuidanceMessage",
+  "getGuidanceConnection",
+  "startGuidanceConnection",
+  "stopGuidanceConnection",
   "getGitStashPatch",
   "getGitRepositoryState",
   "runGitCommand",

@@ -1,3 +1,11 @@
+import {
+  getPullRequestGuidance,
+  setGuidanceProgress,
+  addGuidanceMessage,
+  getGuidanceConnection,
+  startGuidanceConnection,
+  stopGuidanceConnection,
+} from "./guidance/runtime";
 import { getGitStashPatch, getGitRepositoryState, runGitCommand } from "./gitOperations";
 import { browseDirectory } from "./directories";
 import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
@@ -71,6 +79,12 @@ let lspSessionManager = new LspSessionManager({
 });
 
 export const desktopApi: DesktopApi = {
+  getPullRequestGuidance,
+  setGuidanceProgress,
+  addGuidanceMessage,
+  getGuidanceConnection,
+  startGuidanceConnection,
+  stopGuidanceConnection,
   getGitStashPatch,
   getGitRepositoryState,
   runGitCommand,

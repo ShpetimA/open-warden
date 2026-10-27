@@ -3,8 +3,14 @@ import path from "node:path";
 import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 
 import { watchAppSettings } from "./appSettings";
+import {
+  configureGuidanceNavigation,
+  initializeGuidanceConnection,
+  disposeGuidanceConnection,
+} from "./guidance/runtime";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
+  GUIDANCE_NAVIGATE_CHANNEL,
   APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
   LSP_DIAGNOSTICS_CHANNEL,
@@ -151,6 +157,16 @@ ipcMain.removeHandler(UPDATE_INSTALL_CHANNEL);
 ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => updateManager.installUpdate());
 
 app.whenReady().then(() => {
+  configureGuidanceNavigation((target) => {
+    const window = mainWindow ?? createMainWindow();
+    const send = () => window.webContents.send(GUIDANCE_NAVIGATE_CHANNEL, target);
+    if (window.webContents.isLoadingMainFrame()) window.webContents.once("did-finish-load", send);
+    else send();
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  });
+  void initializeGuidanceConnection();
   protocol.handle(PROVIDER_MEDIA_SCHEME, handleProviderMediaRequest);
   createMainWindow();
   updateManager.initialize();
@@ -192,6 +208,7 @@ app.on("before-quit", (event) => {
   disposeAppSettingsWatcher = null;
   void (async () => {
     try {
+      await disposeGuidanceConnection();
       await disposeDesktopApi();
     } catch (error) {
       console.error("Failed to dispose desktop services", error);

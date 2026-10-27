@@ -1,4 +1,11 @@
-import { Files, GitBranch, GitPullRequest, GitPullRequestArrow, History } from "lucide-react";
+import {
+  BookOpen,
+  Files,
+  GitBranch,
+  GitPullRequest,
+  GitPullRequestArrow,
+  History,
+} from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { BranchPullRequestButton } from "./BranchPullRequestButton";
@@ -87,6 +94,13 @@ export function pullRequestRailSections(
       path: base + (localReview ? "/local-files" : "/files"),
       isActive: (pathname) =>
         startsWith(pathname, `${base}/files`) || startsWith(pathname, `${base}/local-files`),
+    },
+    {
+      key: "guidance",
+      label: "Guidance",
+      icon: <BookOpen />,
+      path: base + "/guidance",
+      isActive: (pathname) => startsWith(pathname, `${base}/guidance`),
     },
   ];
 }

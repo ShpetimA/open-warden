@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+import { guidanceNavigateSchema } from "../src/platform/desktop/guidance";
 import { createDesktopApiFromInvoker } from "../src/platform/desktop/createDesktopApi";
 import type { DesktopBridge } from "../src/platform/desktop/contracts";
 import {
+  GUIDANCE_NAVIGATE_CHANNEL,
   APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
   LSP_DIAGNOSTICS_CHANNEL,
@@ -18,6 +20,14 @@ const desktopApi = createDesktopApiFromInvoker((method, ...args) =>
 );
 
 const desktopBridge: DesktopBridge = {
+  onGuidanceNavigate(listener) {
+    const receive = (_event: Electron.IpcRendererEvent, value: unknown) => {
+      const parsed = guidanceNavigateSchema.safeParse(value);
+      if (parsed.success) listener(parsed.data);
+    };
+    ipcRenderer.on(GUIDANCE_NAVIGATE_CHANNEL, receive);
+    return () => ipcRenderer.removeListener(GUIDANCE_NAVIGATE_CHANNEL, receive);
+  },
   ...desktopApi,
   getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
   checkForUpdates: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),

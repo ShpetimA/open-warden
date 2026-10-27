@@ -159,15 +159,15 @@ export function PullRequestInlineReviewThread({
 
   return (
     <section
-      className={`bg-surface-elevated border-border/60 w-full min-w-0 max-w-[min(100%,32rem)] border whitespace-normal ${selected ? "border-primary/40" : ""}`}
+      className={`bg-surface-elevated border-border w-full min-w-0 max-w-3xl overflow-hidden rounded-md border font-sans whitespace-normal ${selected ? "border-primary/40" : ""}`}
     >
-      {/* Header - more compact */}
-      <div className="border-border/60 flex items-center gap-2 border-b px-1 py-1">
+      <div className="border-border/60 flex min-h-8 items-center gap-2 border-b px-2 py-1">
         <button
           type="button"
           className="text-muted-foreground hover:text-foreground inline-flex h-5 w-5 shrink-0 items-center justify-center"
           onClick={() => setCollapsed((current) => !current)}
           aria-label={collapsed ? "Expand thread" : "Collapse thread"}
+          aria-expanded={!collapsed}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
         </button>
@@ -183,13 +183,11 @@ export function PullRequestInlineReviewThread({
             </button>
             <span className="text-muted-foreground text-[11px]">· {thread.comments.length}</span>
             {thread.isResolved ? (
-              <span className="text-emerald-500 text-[10px]">
+              <span className="text-success text-[11px]">
                 <Check className="inline h-3 w-3" />
               </span>
             ) : (
-              <span className="bg-amber-500/10 text-amber-500 rounded-full px-1.5 py-0 text-[9px] font-medium">
-                open
-              </span>
+              <span className="text-warning text-[11px]">open</span>
             )}
             {thread.isOutdated && (
               <span className="text-muted-foreground text-[10px]">outdated</span>
@@ -199,11 +197,21 @@ export function PullRequestInlineReviewThread({
 
         <div className="flex items-center gap-1">
           {onOpenFile ? (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onOpenFile}>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Open commented file"
+              onClick={onOpenFile}
+            >
               <ExternalLink className="h-3 w-3" />
             </Button>
           ) : (
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={openConversation}>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Open conversation"
+              onClick={openConversation}
+            >
               <MessagesSquare className="h-3 w-3" />
             </Button>
           )}
@@ -212,10 +220,11 @@ export function PullRequestInlineReviewThread({
               variant="ghost"
               size="icon"
               className="h-6 w-6"
+              aria-label={thread.isResolved ? "Reopen thread" : "Resolve thread"}
               disabled={resolutionPending}
               onClick={toggleResolution}
             >
-              <CheckCheck className={thread.isResolved ? "text-emerald-500 h-3 w-3" : "h-3 w-3"} />
+              <CheckCheck className={thread.isResolved ? "text-success h-3 w-3" : "h-3 w-3"} />
             </Button>
           )}
         </div>
@@ -337,7 +346,7 @@ export function PullRequestInlineReviewThread({
               <button
                 type="button"
                 onClick={() => setReplyOpen(true)}
-                className="text-muted-foreground hover:text-foreground hover:bg-surface-1 w-full rounded-md border border-dashed px-3 py-1.5 text-left text-[12px] transition-colors"
+                className="text-muted-foreground hover:text-foreground hover:bg-accent w-full rounded-md border border-dashed px-3 py-1.5 text-left text-[12px] transition-colors"
               >
                 Reply to this thread...
               </button>
