@@ -1,4 +1,5 @@
 import type {
+  GuidanceActivity,
   GuidanceConnection,
   GuidanceDocument,
   GuidanceLocator,
@@ -597,6 +598,8 @@ export type LspLocation = {
 };
 
 export type DesktopApi = {
+  getGuidanceActivity(input: GuidanceLocator): Promise<GuidanceResult<GuidanceActivity | null>>;
+  clearGuidanceMessages(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument>>;
   getPullRequestGuidance(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument | null>>;
   setGuidanceProgress(input: GuidanceProgressInput): Promise<GuidanceResult<GuidanceDocument>>;
   addGuidanceMessage(input: GuidanceMessageInput): Promise<GuidanceResult<GuidanceDocument>>;

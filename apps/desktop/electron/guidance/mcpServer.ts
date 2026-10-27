@@ -9,6 +9,8 @@ import {
   guidanceMessageInputSchema,
   guidanceProgressSchema,
   publishGuidanceSchema,
+  startGuidanceSchema,
+  finishGuidanceSchema,
   type GuidanceResult,
 } from "../../src/platform/desktop/guidance";
 import { GuidanceService } from "./service";
@@ -23,13 +25,40 @@ export function createGuidanceMcpServer(service: GuidanceService) {
     { name: "Open Warden", version: "1.0.0" },
     {
       instructions:
-        "Build concise, code-led PR walkthroughs in Open Warden. First list open workspaces, read review context, then read file comparisons before citing lines. The user reads explanations directly above highlighted code. Make each step one review decision: a concrete 3–8 word title, then 2–4 short bullets covering the behavior change, why it matters, and what to verify. Aim for under 100 words per step and a one-sentence summary under 40 words. Do not repeat the PR description, list files in prose, paste code already visible in the diff, or add generic introductions and recaps. Put optional background in Markdown details blocks. Use a reference note for a focused one- or two-sentence explanation of that exact range; otherwise the step body appears above the code. Attach file-and-line references to every code explanation: Markdown paths alone do not open code. Empty references are only for intentional text-only steps. Publish against the exact headSha and preserve stable step IDs. User questions are stored locally; check list_guidance_messages when asked, save replies with add_guidance_message, and acknowledge handled questions. Never claim a reply was saved unless it was. Guidance does not approve or change the remote PR.",
+        "Build concise, code-led PR walkthroughs in Open Warden. When asked to create or refresh guidance, list open workspaces and call start_guidance immediately so the user sees that you are working. Read review context, then file comparisons before citing lines. Pass the returned activity ID to publish_guidance; successful publication marks it complete. If you cannot finish, call finish_guidance with failed or cancelled and a short reason. The user reads explanations directly above highlighted code. Make each step one review decision: a concrete 3–8 word title, then 2–4 short bullets covering the behavior change, why it matters, and what to verify. Aim for under 100 words per step and a one-sentence summary under 40 words. Do not repeat the PR description, list files in prose, paste code already visible in the diff, or add generic introductions and recaps. Put optional background in Markdown details blocks. Use a reference note for a focused one- or two-sentence explanation of that exact range; otherwise the step body appears above the code. Multiple references in one file render together. Attach file-and-line references to every code explanation: Markdown paths alone do not open code. Empty references are only for intentional text-only steps. Publish against the exact headSha and preserve stable step IDs. User questions are stored locally; check list_guidance_messages when asked, save replies with add_guidance_message, and acknowledge handled questions. Never claim a reply was saved unless it was. Guidance does not approve or change the remote PR.",
     },
   );
   server.registerTool(
     "list_review_workspaces",
     { description: "List repositories and PR workspaces open in Open Warden.", inputSchema: {} },
     async () => result(await service.listWorkspaces()),
+  );
+  server.registerTool(
+    "start_guidance",
+    {
+      description:
+        "Start creating or refreshing a walkthrough. Opens Guidance and shows the agent working, even before the first walkthrough exists. Returns an activity ID to pass to publish_guidance or finish_guidance.",
+      inputSchema: startGuidanceSchema,
+    },
+    async (input) => result(await service.start(input)),
+  );
+  server.registerTool(
+    "finish_guidance",
+    {
+      description:
+        "Stop a running activity with failed or cancelled and a concise reason. Successful publish_guidance completes it automatically.",
+      inputSchema: finishGuidanceSchema,
+    },
+    async (input) => result(await service.finish(input)),
+  );
+  server.registerTool(
+    "get_guidance_activity",
+    {
+      description:
+        "Read the agent's reported working, completed, failed, or cancelled state for this PR. Activity lasts for this Open Warden session.",
+      inputSchema: guidanceLocatorSchema,
+    },
+    async (input) => result(await service.activity(input)),
   );
   server.registerTool(
     "get_review_context",

@@ -5,6 +5,7 @@ import { useAppSelector } from "@/app/hooks";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { DiagnosticTokenPopover } from "@/features/diff-view/components/DiagnosticTokenPopover";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
+import { GuidanceExplanation } from "@/features/guidance/GuidanceExplanation";
 import { PullRequestInlineAnchorAnnotation } from "@/features/pull-requests/components/PullRequestInlineAnchorAnnotation";
 import { PullRequestInlineReviewThread } from "@/features/pull-requests/components/PullRequestInlineReviewThread";
 import {
@@ -20,6 +21,7 @@ import type {
   DiffFile,
   DiffReturnTarget,
   LspDiagnostic,
+  SelectionRange,
 } from "@/features/source-control/types";
 import type {
   DiffHunkActionAnnotation,
@@ -46,6 +48,8 @@ type Props = {
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
   annotationItems?: DiffLineAnnotation<DiffAnnotationItem>[];
+  highlightedLines?: SelectionRange;
+  defaultExpandUnchanged?: boolean;
   commentMentions?: MentionConfig;
   includeCurrentFileComments?: boolean;
   disableFileHeader?: boolean;
@@ -154,6 +158,8 @@ export function DiffWorkspace({
   focusedLineIndex = null,
   focusedLineKey = null,
   annotationItems = EMPTY_ANNOTATION_ITEMS,
+  highlightedLines,
+  defaultExpandUnchanged = false,
   commentMentions,
   includeCurrentFileComments = true,
   disableFileHeader = false,
@@ -230,6 +236,15 @@ export function DiffWorkspace({
   );
 
   const renderAnnotation = useDiffAnnotationRenderer({
+    guidance: (data) => (
+      <GuidanceExplanation
+        key={data.id}
+        title={data.title}
+        body={data.body}
+        details={data.details}
+        referenceLabel={data.referenceLabel}
+      />
+    ),
     "hunk-action": (data: DiffHunkActionAnnotation) => {
       const actionMeta = {
         stage: { label: "Stage hunk", Icon: Plus },
@@ -367,7 +382,8 @@ export function DiffWorkspace({
         lineAnnotations={mergedAnnotations}
         renderAnnotation={renderAnnotation}
         renderHeaderMetadata={renderHeaderMetadata}
-        selectedLines={comments.selectedRange}
+        selectedLines={comments.selectedRange ?? highlightedLines}
+        defaultExpandUnchanged={defaultExpandUnchanged}
         focusedLineNumber={focusedLineNumber}
         focusedLineIndex={focusedLineIndex}
         focusedLineKey={focusedLineKey}

@@ -198,6 +198,15 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
 }
 
 const browserGuidance = {
+  async getGuidanceActivity() {
+    return { ok: true as const, value: null };
+  },
+  async clearGuidanceMessages() {
+    return {
+      ok: false as const,
+      error: { code: "unavailable" as const, message: "Guidance requires the desktop app." },
+    };
+  },
   async getPullRequestGuidance() {
     return { ok: true as const, value: null };
   },

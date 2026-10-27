@@ -13,6 +13,9 @@ import {
   guidanceMessageInputSchema,
   guidanceProgressSchema,
   publishGuidanceSchema,
+  startGuidanceSchema,
+  finishGuidanceSchema,
+  type GuidanceActivity,
   type GuidanceDocument,
   type GuidanceLocator,
   type GuidanceResult,
@@ -41,7 +44,75 @@ export interface GuidanceDependencies {
 }
 
 export class GuidanceService {
+  private readonly activities = new Map<string, GuidanceActivity>();
+
   constructor(private readonly dependencies: GuidanceDependencies) {}
+
+  private activityKey(locator: GuidanceLocator) {
+    return JSON.stringify([locator.repoPath, locator.pullRequestNumber]);
+  }
+
+  async activity(input: unknown): Promise<GuidanceResult<GuidanceActivity | null>> {
+    const locator = await this.authorize(input);
+    if (!locator.ok) return locator;
+    return { ok: true, value: this.activities.get(this.activityKey(locator.value)) ?? null };
+  }
+
+  async start(input: unknown): Promise<GuidanceResult<GuidanceActivity>> {
+    const parsed = startGuidanceSchema.safeParse(input);
+    if (!parsed.success)
+      return guidanceFailure("invalid-input", "Provide a PR and a short progress message.");
+    const locator = await this.authorize(parsed.data);
+    if (!locator.ok) return locator;
+    try {
+      const [conversation, hosted] = await Promise.all([
+        this.dependencies.getPullRequestConversation(locator.value),
+        this.dependencies.resolveHostedRepo(locator.value.repoPath),
+      ]);
+      if (!hosted)
+        return guidanceFailure("provider", "This repository has no supported hosted remote.");
+      const activity: GuidanceActivity = {
+        ...locator.value,
+        id: this.dependencies.id(),
+        headSha: conversation.detail.headSha,
+        status: "working",
+        message: parsed.data.message,
+        updatedAt: this.dependencies.now(),
+      };
+      this.activities.set(this.activityKey(locator.value), activity);
+      this.dependencies.show({ ...locator.value, ...hosted, title: conversation.detail.title });
+      return { ok: true, value: activity };
+    } catch {
+      return guidanceFailure("provider", "The PR could not be opened to start guidance.");
+    }
+  }
+
+  async finish(input: unknown): Promise<GuidanceResult<GuidanceActivity>> {
+    const parsed = finishGuidanceSchema.safeParse(input);
+    if (!parsed.success)
+      return guidanceFailure(
+        "invalid-input",
+        "Provide the activity ID, outcome, and a short message.",
+      );
+    const locator = await this.authorize(parsed.data);
+    if (!locator.ok) return locator;
+    const key = this.activityKey(locator.value);
+    const current = this.activities.get(key);
+    if (!current || current.id !== parsed.data.activityId || current.status !== "working")
+      return guidanceFailure("not-found", "This guidance activity is no longer running.");
+    const activity: GuidanceActivity = {
+      ...current,
+      status: parsed.data.status,
+      message: parsed.data.message,
+      updatedAt: this.dependencies.now(),
+    };
+    this.activities.set(key, activity);
+    return { ok: true, value: activity };
+  }
+
+  clearActivities() {
+    this.activities.clear();
+  }
 
   async authorize(input: unknown): Promise<GuidanceResult<GuidanceLocator>> {
     const locator = guidanceLocatorSchema.safeParse(input);
@@ -137,6 +208,9 @@ export class GuidanceService {
     const target = await this.authorize(parsed.data);
     if (!target.ok) return target;
     const value = parsed.data;
+    const activity = this.activities.get(this.activityKey(target.value));
+    if (value.activityId && (activity?.id !== value.activityId || activity.status !== "working"))
+      return guidanceFailure("not-found", "This guidance activity is no longer running.");
     try {
       const [conversation, files, hostedRepo] = await Promise.all([
         this.dependencies.getPullRequestConversation(target.value),
@@ -159,7 +233,16 @@ export class GuidanceService {
           "Every code reference must name a changed file from this PR.",
         );
       }
-      return this.dependencies.store.update(target.value, (current) => {
+      const saved = await this.dependencies.store.update(target.value, (current) => {
+        const currentActivity = this.activities.get(this.activityKey(target.value));
+        if (
+          value.activityId &&
+          (currentActivity?.id !== value.activityId || currentActivity.status !== "working")
+        )
+          return guidanceFailure(
+            "not-found",
+            "This guidance activity was replaced by a newer run.",
+          );
         const sameHead = current?.headSha === value.expectedHeadSha;
         const stepIds = new Set(value.steps.map((step) => step.id));
         return {
@@ -187,6 +270,23 @@ export class GuidanceService {
           },
         };
       });
+      if (
+        saved.ok &&
+        activity?.status === "working" &&
+        (value.activityId === activity.id || activity.headSha === value.expectedHeadSha)
+      ) {
+        const key = this.activityKey(target.value);
+        const currentActivity = this.activities.get(key);
+        if (currentActivity?.id === activity.id && currentActivity.status === "working")
+          this.activities.set(key, {
+            ...activity,
+            headSha: value.expectedHeadSha,
+            status: "completed",
+            message: "Walkthrough ready",
+            updatedAt: this.dependencies.now(),
+          });
+      }
+      return saved;
     } catch {
       return guidanceFailure("provider", "The PR could not be checked before saving guidance.");
     }
@@ -269,6 +369,23 @@ export class GuidanceService {
         value: {
           ...current,
           acknowledgedMessageIds: [...new Set([...current.acknowledgedMessageIds, ...messageIds])],
+          updatedAt: this.dependencies.now(),
+        },
+      };
+    });
+  }
+
+  async clearMessages(input: unknown): Promise<GuidanceResult<GuidanceDocument>> {
+    const locator = await this.authorize(input);
+    if (!locator.ok) return locator;
+    return this.dependencies.store.update(locator.value, (current) => {
+      if (!current) return guidanceFailure("not-found", "This walkthrough no longer exists.");
+      return {
+        ok: true,
+        value: {
+          ...current,
+          messages: [],
+          acknowledgedMessageIds: [],
           updatedAt: this.dependencies.now(),
         },
       };

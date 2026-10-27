@@ -3,6 +3,8 @@ import { hostedReposApi } from "@/features/hosted-repos/api";
 import { desktop } from "@/platform/desktop";
 import {
   guidanceConnectionSchema,
+  guidanceActivitySchema,
+  type GuidanceActivity,
   guidanceDocumentSchema,
   guidanceResultSchema,
   type GuidanceConnection,
@@ -27,6 +29,20 @@ function tag(locator: GuidanceLocator) {
 
 export const guidanceApi = hostedReposApi.injectEndpoints({
   endpoints: (builder) => ({
+    getGuidanceActivity: builder.query<GuidanceActivity | null, GuidanceLocator>({
+      async queryFn(input) {
+        return parseReply(
+          await desktop.getGuidanceActivity(input),
+          guidanceActivitySchema.nullable(),
+        );
+      },
+    }),
+    clearGuidanceMessages: builder.mutation<GuidanceDocument, GuidanceLocator>({
+      async queryFn(input) {
+        return parseReply(await desktop.clearGuidanceMessages(input), guidanceDocumentSchema);
+      },
+      invalidatesTags: (_data, _error, input) => [tag(input)],
+    }),
     getPullRequestGuidance: builder.query<GuidanceDocument | null, GuidanceLocator>({
       async queryFn(input) {
         try {
@@ -91,6 +107,8 @@ export const guidanceApi = hostedReposApi.injectEndpoints({
   }),
 });
 export const {
+  useGetGuidanceActivityQuery,
+  useClearGuidanceMessagesMutation,
   useGetPullRequestGuidanceQuery,
   useSetGuidanceProgressMutation,
   useAddGuidanceMessageMutation,

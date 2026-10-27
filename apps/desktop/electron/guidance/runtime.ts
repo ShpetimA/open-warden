@@ -131,6 +131,7 @@ function changeConnection(enabled: boolean): Promise<GuidanceConnection> {
         };
       } else {
         await running?.close();
+        service?.clearActivities();
         running = undefined;
         connection = { status: "stopped", endpoint: null, clientConfig: null, error: null };
       }
@@ -165,6 +166,8 @@ function changeConnection(enabled: boolean): Promise<GuidanceConnection> {
 }
 
 export const getPullRequestGuidance = (input: unknown) => getService().read(input);
+export const getGuidanceActivity = (input: unknown) => getService().activity(input);
+export const clearGuidanceMessages = (input: unknown) => getService().clearMessages(input);
 export const setGuidanceProgress = (input: unknown) => getService().progress(input);
 export const addGuidanceMessage = (input: unknown) => getService().message(input, "user");
 export const getGuidanceConnection = async () => connection;
@@ -191,4 +194,5 @@ export async function disposeGuidanceConnection() {
   await pending;
   await running?.close();
   running = undefined;
+  service?.clearActivities();
 }

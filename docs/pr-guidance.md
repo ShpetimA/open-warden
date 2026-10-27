@@ -25,6 +25,9 @@ are accessible through the tools.
 | Tool                            | Purpose                                                             |
 | ------------------------------- | ------------------------------------------------------------------- |
 | `list_review_workspaces`        | Find open repository paths and PR workspaces.                       |
+| `start_guidance`                | Open Guidance and report that the agent is preparing a walkthrough. |
+| `finish_guidance`               | Report failure or cancellation for a running activity.              |
+| `get_guidance_activity`         | Read the current agent-reported activity.                           |
 | `get_review_context`            | Read the PR's description, head SHA, files, checks, and discussion. |
 | `get_review_file`               | Read base and head file contents for a changed file.                |
 | `publish_guidance`              | Save a complete walkthrough pinned to `expectedHeadSha`.            |
@@ -34,6 +37,15 @@ are accessible through the tools.
 | `add_guidance_message`          | Save an agent reply, optionally associated with a step.             |
 | `acknowledge_guidance_messages` | Mark specific questions handled.                                    |
 
+Call `start_guidance` when asked to create or refresh a walkthrough. It returns an
+activity ID and opens Guidance with a working indicator, including before the
+first walkthrough exists. Pass that ID as `activityId` to `publish_guidance`;
+successful publication completes the activity. Call `finish_guidance` with the ID,
+`failed` or `cancelled`, and a concise reason if you cannot finish. A newer start
+replaces the previous activity, and old activity IDs cannot overwrite it. Activity
+is reported by the agent and lasts for the current Open Warden session; restarting
+the app or stopping the connection clears it.
+
 Read context and file contents before publishing. Each step has a stable `id`,
 `title`, Markdown `body`, and `references`. A reference contains a changed-file
 `path`, `side` (`base` or `head`), and inclusive `startLine` / `endLine` values.
@@ -42,6 +54,7 @@ does not attach a file to the code pane. Leave references empty only for an
 intentional text-only step.
 Each reference can include a short Markdown `note`, rendered immediately above
 its highlighted range. Without a note, the step body appears there instead.
+All references in the selected file render together; there is no range selector.
 When a note is present, the full step body remains under **Step details**.
 Start the note with what changed and why it matters; use one or two sentences.
 
@@ -55,16 +68,26 @@ rejected. Keep step IDs stable when revising the same walkthrough.
 
 ## Review navigation
 
-The resizable sidebar has **Steps**, **Files**, and **Messages** tabs. Explanations
-sit above their highlighted code ranges and can collapse to a single row. The
-walkthrough summary is under **About this walkthrough**. Collapse the sidebar
-with the rail control or `⌘S`; explanations remain with the code.
+Guidance has separate **Steps** and **Files** sidebars beside the diff. Both are
+resizable and independently collapsible: `⌘S` toggles Steps, and `⌘D` toggles Files.
+Explanations sit above their highlighted code ranges and can collapse to a single
+row. The walkthrough summary is under **About this walkthrough**. The diff uses
+the shared PR review workspace: split/unified view, unchanged-section controls,
+editor actions, pending comments, and published review threads behave like Files.
+Line comments belong to the PR's review context and appear in both views.
 
-In Steps, `j` / `k` (or the down / up arrows) select the next / previous step.
-In Files, the same keys navigate the step's Pierre file tree. `h` / `l` select
-the previous / next step from either tab. Shortcuts leave message editing alone.
+Press `h` to focus Steps or `l` to focus Files, reopening a collapsed pane when
+needed. In Steps, `j` / `k` (or the down / up arrows) select the next / previous
+step. In Files, the same keys navigate the step's Pierre file tree. Shortcuts leave
+editing and the open conversation alone.
 
 ## Questions and updates
+
+The floating message button at the bottom left opens a compact conversation and
+step-specific composer. Drafts survive closing and reopening it. Copy exports the
+conversation, and Clear removes saved messages and their acknowledgement state
+while preserving steps and review progress. Line-specific review comments remain
+in the diff, with the usual PR Copy, Clear, and publish actions.
 
 Messages are saved locally. To continue a discussion, ask the agent in T3 or your
 MCP client: “Check Open Warden for messages.” Reading the inbox does not consume

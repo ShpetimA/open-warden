@@ -7,6 +7,24 @@ export const guidanceLocatorSchema = z.object({
   pullRequestNumber: z.number().int().positive(),
 });
 
+export const guidanceActivitySchema = guidanceLocatorSchema.extend({
+  id: text,
+  headSha: text,
+  status: z.enum(["working", "completed", "failed", "cancelled"]),
+  message: text.max(240),
+  updatedAt: text,
+});
+
+export const startGuidanceSchema = guidanceLocatorSchema.extend({
+  message: text.max(240).default("Reading PR changes…"),
+});
+
+export const finishGuidanceSchema = guidanceLocatorSchema.extend({
+  activityId: text,
+  status: z.enum(["failed", "cancelled"]),
+  message: text.max(240),
+});
+
 export const guidanceReferenceSchema = z
   .object({
     path: text.refine(
@@ -41,6 +59,7 @@ export const guidanceStepSchema = z.object({
 export const publishGuidanceSchema = guidanceLocatorSchema
   .extend({
     expectedHeadSha: text,
+    activityId: text.optional().describe("The activity ID returned by start_guidance."),
     title: text.max(240),
     summary: text
       .max(20000)
@@ -145,6 +164,7 @@ export const guidanceConnectionSchema = z.object({
   error: z.string().nullable(),
 });
 export type GuidanceLocator = z.infer<typeof guidanceLocatorSchema>;
+export type GuidanceActivity = z.infer<typeof guidanceActivitySchema>;
 export type GuidanceReference = z.infer<typeof guidanceReferenceSchema>;
 export type GuidanceStep = z.infer<typeof guidanceStepSchema>;
 export type GuidanceDocument = z.infer<typeof guidanceDocumentSchema>;

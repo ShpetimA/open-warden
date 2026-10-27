@@ -1,5 +1,7 @@
 import {
   getPullRequestGuidance,
+  getGuidanceActivity,
+  clearGuidanceMessages,
   setGuidanceProgress,
   addGuidanceMessage,
   getGuidanceConnection,
@@ -80,6 +82,8 @@ let lspSessionManager = new LspSessionManager({
 
 export const desktopApi: DesktopApi = {
   getPullRequestGuidance,
+  getGuidanceActivity,
+  clearGuidanceMessages,
   setGuidanceProgress,
   addGuidanceMessage,
   getGuidanceConnection,

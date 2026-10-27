@@ -3,6 +3,7 @@ import { useCallback, useRef } from "react";
 import type { DiffAnnotationItem } from "@/features/source-control/types";
 
 type AnnotationRenderers = {
+  guidance?: (data: Extract<DiffAnnotationItem, { type: "guidance" }>) => React.ReactNode;
   composer?: (data: Extract<DiffAnnotationItem, { type: "composer" }>) => React.ReactNode;
   "pull-request-anchor"?: (
     data: Extract<DiffAnnotationItem, { type: "pull-request-anchor" }>,
@@ -26,6 +27,8 @@ export function useDiffAnnotationRenderer(renderers: AnnotationRenderers) {
     const currentRenderers = renderersRef.current;
 
     switch (data.type) {
+      case "guidance":
+        return currentRenderers.guidance?.(data) ?? null;
       case "composer":
         return currentRenderers.composer?.(data) ?? null;
       case "pull-request-anchor":

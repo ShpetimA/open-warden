@@ -289,7 +289,16 @@ it("serves real MCP clients with authentication, origin checks, publishing, navi
     );
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name)).toContain("list_guidance_messages");
-    const response = await client.callTool({ name: "publish_guidance", arguments: published });
+    expect(
+      (await client.callTool({ name: "start_guidance", arguments: locator })).isError,
+    ).not.toBe(true);
+    const activity = await service.activity(locator);
+    if (!activity.ok || !activity.value) throw new Error("Expected a running activity");
+    expect(activity.value.status).toBe("working");
+    const response = await client.callTool({
+      name: "publish_guidance",
+      arguments: { ...published, activityId: activity.value.id },
+    });
     const block = response.content;
     expect(Array.isArray(block)).toBe(true);
     if (!Array.isArray(block)) throw new Error("Expected tool content");
@@ -301,11 +310,15 @@ it("serves real MCP clients with authentication, origin checks, publishing, navi
       throw new Error("Expected tool text");
     const saved = guidanceResultSchema(guidanceDocumentSchema).parse(JSON.parse(text.text));
     expect(saved.ok && saved.value.headSha).toBe("head123");
+    expect(await service.activity(locator)).toMatchObject({
+      ok: true,
+      value: { status: "completed" },
+    });
     await client.callTool({
       name: "show_guidance_step",
       arguments: { ...locator, stepId: "tests" },
     });
-    expect(shown).toMatchObject([{ ...locator, owner: "team", repo: "invoice" }]);
+    expect(shown.at(-1)).toMatchObject({ ...locator, owner: "team", repo: "invoice" });
     await service.message({ ...locator, stepId: "tests", body: "Check this case" }, "user");
     const inbox = await client.callTool({ name: "list_guidance_messages", arguments: {} });
     expect(JSON.stringify(inbox)).toContain("Check this case");
@@ -319,8 +332,103 @@ it("serves real MCP clients with authentication, origin checks, publishing, navi
     });
     const final = await service.read(locator);
     expect(final.ok && final.value?.messages.at(-1)?.role).toBe("agent");
+    await client.callTool({ name: "start_guidance", arguments: locator });
+    const retry = await service.activity(locator);
+    if (!retry.ok || !retry.value) throw new Error("Expected a new activity");
+    await client.callTool({
+      name: "finish_guidance",
+      arguments: {
+        ...locator,
+        activityId: retry.value.id,
+        status: "failed",
+        message: "The provider is unavailable. Try again.",
+      },
+    });
+    const activityReply = await client.callTool({
+      name: "get_guidance_activity",
+      arguments: locator,
+    });
+    expect(JSON.stringify(activityReply)).toContain("failed");
   } finally {
     await client.close();
     await started.value.close();
   }
+});
+
+it("tracks work before a walkthrough exists and rejects replaced runs", async () => {
+  const { service, dependencies, state } = await setup();
+  expect(await service.read(locator)).toEqual({ ok: true, value: null });
+  const first = await service.start(locator);
+  const next = await service.start({ ...locator, message: "Reading export tests…" });
+  if (!first.ok || !next.ok) throw new Error("Expected running activities");
+  expect(await service.publish({ ...published, activityId: first.value.id })).toMatchObject({
+    ok: false,
+    error: { code: "not-found" },
+  });
+  expect(await service.read(locator)).toEqual({ ok: true, value: null });
+  state.headSha = "head456";
+  expect(
+    (
+      await service.publish({
+        ...published,
+        expectedHeadSha: state.headSha,
+        activityId: next.value.id,
+      })
+    ).ok,
+  ).toBe(true);
+  expect(await service.activity(locator)).toMatchObject({
+    ok: true,
+    value: { status: "completed" },
+  });
+  expect(
+    await service.finish({
+      ...locator,
+      activityId: next.value.id,
+      status: "cancelled",
+      message: "Stopped",
+    }),
+  ).toMatchObject({ ok: false });
+  const another = await service.start(locator);
+  if (!another.ok) throw new Error("Expected running activity");
+  expect(
+    await service.finish({
+      ...locator,
+      activityId: another.value.id,
+      status: "cancelled",
+      message: "Stopped at the user's request",
+    }),
+  ).toMatchObject({ ok: true, value: { status: "cancelled" } });
+  expect(await service.start({ ...locator, repoPath: "/not-open" })).toMatchObject({
+    ok: false,
+    error: { code: "not-open" },
+  });
+  expect(await new GuidanceService(dependencies).activity(locator)).toEqual({
+    ok: true,
+    value: null,
+  });
+});
+
+it("clears conversation and acknowledgements while preserving steps and review progress", async () => {
+  const { service, directory } = await setup();
+  await service.publish(published);
+  await service.progress({ ...locator, stepId: "tests", reviewed: true });
+  const sent = await service.message({ ...locator, stepId: "tests", body: "Why?" }, "user");
+  if (!sent.ok || !sent.value.messages[0]) throw new Error("Expected a saved question");
+  await service.acknowledge(locator, [sent.value.messages[0].id]);
+  const cleared = await service.clearMessages(locator);
+  expect(cleared).toMatchObject({
+    ok: true,
+    value: {
+      messages: [],
+      acknowledgedMessageIds: [],
+      selectedStepId: "tests",
+      reviewedStepIds: ["tests"],
+    },
+  });
+  expect(await new GuidanceStore(directory).read(locator)).toMatchObject({
+    ok: true,
+    value: { messages: [], steps: published.steps },
+  });
+  await service.message({ ...locator, stepId: "tests", body: "A new question" }, "user");
+  expect(JSON.stringify(await service.inbox())).toContain("A new question");
 });

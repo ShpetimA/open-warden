@@ -58,6 +58,7 @@ export type DiffViewerProps = {
     onToggleExpandUnchanged: () => void;
   }) => React.ReactNode;
   selectedLines?: SelectionRange | null;
+  defaultExpandUnchanged?: boolean;
   focusedLineNumber?: number | null;
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
@@ -186,6 +187,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     renderAnnotation,
     renderHeaderMetadata,
     selectedLines,
+    defaultExpandUnchanged = false,
     focusedLineNumber = null,
     focusedLineIndex = null,
     focusedLineKey = null,
@@ -206,7 +208,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     getViewportElement: () => viewportRef.current,
   }));
 
-  const [expandUnchanged, setExpandUnchanged] = useState(false);
+  const [expandUnchanged, setExpandUnchanged] = useState(defaultExpandUnchanged);
   const activeDiffIdentity = `${activePath}:${getDiffFileIdentity(oldFile)}:${getDiffFileIdentity(newFile)}:${expandUnchanged ? "expanded" : "collapsed"}`;
   const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
