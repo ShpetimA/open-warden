@@ -31,7 +31,10 @@ export type SidebarConfig = {
 
 export const FEATURE_SIDEBARS: Record<FeatureKey, SidebarConfig[]> = {
   changes: [{ panelId: "primary", icon: "left" }],
-  "pull-requests": [{ panelId: "primary", icon: "left" }],
+  "pull-requests": [
+    { panelId: "primary", icon: "left" },
+    { panelId: "pr-files", icon: "right" },
+  ],
   history: [
     { panelId: "primary", icon: "left" },
     { panelId: "history-files", icon: "right" },

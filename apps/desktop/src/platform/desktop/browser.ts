@@ -161,6 +161,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Repository file listing";
     case "getCommitHistory":
       return "Commit history loading";
+    case "getBranchCommits":
+      return "Branch commit loading";
     case "getBranches":
       return "Branch listing";
     case "getBranchFiles":

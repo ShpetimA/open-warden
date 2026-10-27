@@ -27,6 +27,10 @@ export async function getCommitHistory(repoPath: string, limit?: number) {
   return desktop.getCommitHistory(repoPath, limit) as Promise<HistoryCommit[]>;
 }
 
+export async function getBranchCommits(repoPath: string, baseRef: string, headRef: string) {
+  return desktop.getBranchCommits(repoPath, baseRef, headRef);
+}
+
 export async function getBranches(repoPath: string) {
   return desktop.getBranches(repoPath);
 }

@@ -39,6 +39,8 @@ export type { PierreFileTreeBrowserFile } from "./pierreFileTree";
 type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
   selectedPath: string;
+  autoFocus?: boolean;
+  directoryLabelPriority?: "start" | "end";
   selectedPaths?: readonly string[];
   navRegion: string;
   className?: string;
@@ -56,6 +58,16 @@ type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
 };
 
 export const PIERRE_FILE_TREE_ITEM_HEIGHT = 22;
+
+const DIRECTORY_TITLE_CSS = `
+  [data-item-type='folder'] [data-truncate-group-container='middle'] > div:first-child {
+    flex: 0 1 max-content;
+  }
+
+  [data-item-type='folder'] [data-truncate-group-container='middle'] > div:last-child {
+    flex: 0 999999 max-content;
+  }
+`;
 
 const TREE_HOST_STYLE: CSSProperties = {
   height: "100%",
@@ -128,6 +140,8 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   selectedPaths,
   navRegion,
   className = "",
+  autoFocus = true,
+  directoryLabelPriority = "end",
   style,
   flattenEmptyDirectories = true,
   sort = "default",
@@ -223,7 +237,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     renderRowDecoration: (context) => renderRowDecorationRef.current?.(context) ?? null,
     sort,
     stickyFolders: false,
-    unsafeCSS: TREE_UNSAFE_CSS,
+    unsafeCSS: TREE_UNSAFE_CSS + (directoryLabelPriority === "start" ? DIRECTORY_TITLE_CSS : ""),
     composition: renderContextMenu
       ? {
           contextMenu: {
@@ -263,6 +277,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   }, [gitStatus, model, rowDecorationInvalidationKey]);
 
   useOnLayoutScrollToFocusedPath({
+    autoFocus,
     model,
     selectedPath,
     filesRef,

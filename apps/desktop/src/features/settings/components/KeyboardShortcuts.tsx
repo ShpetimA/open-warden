@@ -9,7 +9,8 @@ const shortcuts = [
   ["Search files and commands", "⌘K"],
   ["Open next / previous file", "J / K"],
   ["Settings", "⌘,"],
-  ["Toggle sidebar / files pane", "⌘S / ⌘⇧S"],
+  ["Toggle sidebar / files pane", "⌘S / ⌘D"],
+  ["Focus commits / files in commit review", "H / L"],
 ] as const;
 
 export function KeyboardShortcuts() {

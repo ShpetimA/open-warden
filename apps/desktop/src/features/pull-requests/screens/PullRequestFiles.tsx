@@ -1,10 +1,9 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileCode2, LoaderCircle, Square, SquareCheckBig } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { Kbd } from "@/components/ui/kbd";
@@ -19,10 +18,16 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
-  usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
+import { PullRequestCommitFileGroups } from "@/features/pull-requests/components/PullRequestCommitFileGroups";
+import { useGetCommitFileGroupsQuery } from "@/features/pull-requests/commitFileGroupsApi";
+import {
+  PullRequestChangesSidebar,
+  type PullRequestChangesView,
+} from "@/features/pull-requests/components/PullRequestChangesSidebar";
+import { usePullRequestComparison } from "@/features/pull-requests/hooks/usePullRequestComparison";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
 import { usePullRequestViewedFiles } from "@/features/pull-requests/hooks/usePullRequestViewedFiles";
@@ -30,10 +35,12 @@ import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
 import {
-  useGetBranchFileVersionsQuery,
+  useGetBranchCommitsQuery,
   useGetBranchFilesQuery,
+  useGetBranchFileVersionsQuery,
 } from "@/features/source-control/api";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
+import type { ReviewFileView } from "@/features/source-control/components/reviewFileGrouping";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type {
   GitProviderId,
@@ -60,6 +67,38 @@ function toChangedFile(file: FileItem): PullRequestChangedFile {
 export const PullRequestFiles = () => {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const { providerId, owner, repo, pullRequestNumber } = useParams();
+
+  return (
+    <PullRequestChanges
+      key={`${activeRepo}:${providerId}:${owner}:${repo}:${pullRequestNumber}`}
+      activeRepo={activeRepo}
+      providerId={providerId}
+      owner={owner}
+      repo={repo}
+      pullRequestNumber={pullRequestNumber}
+    />
+  );
+};
+
+function PullRequestChanges({
+  activeRepo,
+  providerId,
+  owner,
+  repo,
+  pullRequestNumber,
+}: {
+  activeRepo: string;
+  providerId: string | undefined;
+  owner: string | undefined;
+  repo: string | undefined;
+  pullRequestNumber: string | undefined;
+}) {
+  const dispatch = useAppDispatch();
+  const [view, setView] = useState<PullRequestChangesView>("files");
+  const [selectedCommitId, setSelectedCommitId] = useState("");
+  const [grouping, setGrouping] = useState<ReviewFileView | "commits">("review");
+  const groupedByCommit = view === "files" && grouping === "commits";
+  const reviewingCommit = view === "commits" || groupedByCommit;
 
   const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
   const hasValidRoute = Boolean(
@@ -97,32 +136,6 @@ export const PullRequestFiles = () => {
       ? { repoPath: activeRepo, pullRequestNumber: parsedPullRequestNumber }
       : skipToken;
 
-  const { compareRefs, compareRefsError, isLoadingCompareRefs } =
-    usePreparePullRequestCompareRefsQuery(filesQueryArg, {
-      selectFromResult: ({ currentData, error, isFetching }) => ({
-        compareRefs: currentData ?? null,
-        compareRefsError: currentData ? "" : errorMessageFrom(error, ""),
-        isLoadingCompareRefs: isFetching && !currentData,
-      }),
-    });
-
-  const { files, filesError, isLoadingFiles } = useGetBranchFilesQuery(
-    compareRefs && activeRepo
-      ? {
-          repoPath: activeRepo,
-          baseRef: compareRefs.compareBaseRef,
-          headRef: compareRefs.compareHeadRef,
-        }
-      : skipToken,
-    {
-      selectFromResult: ({ currentData, error, isFetching }) => ({
-        files: (currentData ?? []).map(toChangedFile),
-        filesError: currentData ? "" : errorMessageFrom(error, ""),
-        isLoadingFiles: isFetching && !currentData,
-      }),
-    },
-  );
-
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
     selectFromResult: ({ data }) => ({
       conversation: data ?? null,
@@ -132,6 +145,62 @@ export const PullRequestFiles = () => {
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
+  const comparison = usePullRequestComparison(filesQueryArg, conversation?.detail.headSha);
+  const commitsQuery = useGetBranchCommitsQuery(
+    reviewingCommit && activeRepo && comparison.refs
+      ? {
+          repoPath: activeRepo,
+          baseRef: comparison.refs.compareBaseRef,
+          headRef: comparison.refs.compareHeadRef,
+        }
+      : skipToken,
+  );
+  const groupsQuery = useGetCommitFileGroupsQuery(
+    groupedByCommit && activeRepo && comparison.refs
+      ? {
+          repoPath: activeRepo,
+          baseRef: comparison.refs.compareBaseRef,
+          headRef: comparison.refs.compareHeadRef,
+        }
+      : skipToken,
+  );
+  const commits = commitsQuery.currentData ?? [];
+  const selectedCommit = reviewingCommit
+    ? (commits.find((commit) => commit.commitId === selectedCommitId) ?? commits[0] ?? null)
+    : null;
+  const selectedGroup = groupsQuery.currentData?.find(
+    (group) => group.commit.commitId === selectedCommit?.commitId,
+  );
+  const compareBaseRef = selectedCommit
+    ? `${selectedCommit.commitId}^`
+    : (comparison.refs?.compareBaseRef ?? "");
+  const compareHeadRef = selectedCommit?.commitId ?? comparison.refs?.compareHeadRef ?? "";
+  const commitFilesQuery = useGetBranchFilesQuery(
+    selectedCommit && activeRepo && !groupedByCommit
+      ? { repoPath: activeRepo, baseRef: compareBaseRef, headRef: compareHeadRef }
+      : skipToken,
+  );
+  const commitsError = errorMessageFrom(commitsQuery.error, "");
+  const commitsLoading =
+    reviewingCommit && !commitsError && (!comparison.refs || !commitsQuery.currentData);
+  const comparisonFiles = groupedByCommit
+    ? selectedGroup?.files
+    : reviewingCommit
+      ? commitFilesQuery.currentData
+      : comparison.files;
+  const files = (comparisonFiles ?? []).map(toChangedFile);
+  const filesError =
+    hostedRepoError ||
+    comparison.error ||
+    (reviewingCommit
+      ? commitsError ||
+        errorMessageFrom(groupedByCommit ? groupsQuery.error : commitFilesQuery.error, "")
+      : "");
+  const filesLoading =
+    resolvingHostedRepo ||
+    (reviewingCommit
+      ? commitsLoading || Boolean(selectedCommit && !comparisonFiles && !filesError)
+      : comparison.loading);
   const viewedState = usePullRequestViewedFiles({
     repoPath: activeRepo ?? "",
     pullRequestNumber: parsedPullRequestNumber,
@@ -141,44 +210,65 @@ export const PullRequestFiles = () => {
   return (
     <>
       <PullRequestPreviewActiveFileSync files={files} />
-      <ResizableSidebarLayout
-        panelId="primary"
-        sidebarDefaultSize={24}
-        sidebarMinSize={16}
-        sidebarMaxSize={36}
-        sidebar={
-          <FilesSidebar
-            files={files}
-            repoPath={activeRepo ?? ""}
-            pullRequestNumber={parsedPullRequestNumber}
-            compareBaseRef={compareRefs?.compareBaseRef ?? ""}
-            compareHeadRef={compareRefs?.compareHeadRef ?? ""}
-            filesError={hostedRepoError || compareRefsError || filesError}
-            isLoading={resolvingHostedRepo || isLoadingCompareRefs || isLoadingFiles}
-            viewedState={viewedState}
-          />
-        }
-        content={
-          <div className="grid h-full min-h-0">
-            <FilesDiffViewer
-              providerId={providerId}
+      <PullRequestChangesSidebar
+        view={view}
+        onViewChange={setView}
+        commits={commits}
+        selectedCommit={selectedCommit}
+        onCommitSelect={(commit) => setSelectedCommitId(commit.commitId)}
+        commitsLoading={commitsLoading && !filesError}
+        commitsError={hostedRepoError || comparison.error || commitsError}
+        filesPane={
+          groupedByCommit ? (
+            <PullRequestCommitFileGroups
+              groups={groupsQuery.currentData ?? []}
+              selectedCommit={selectedCommit}
+              loading={filesLoading}
+              error={filesError}
+              onGroupingChange={setGrouping}
+              onSelect={(commit, file) => {
+                setSelectedCommitId(commit.commitId);
+                dispatch(setPullRequestPreviewActiveFilePath(file.path));
+              }}
+            />
+          ) : (
+            <FilesSidebar
+              files={files}
               repoPath={activeRepo ?? ""}
               pullRequestNumber={parsedPullRequestNumber}
-              compareBaseRef={compareRefs?.compareBaseRef ?? ""}
-              compareHeadRef={compareRefs?.compareHeadRef ?? ""}
-              filesError={hostedRepoError || compareRefsError || filesError}
-              filesLoading={resolvingHostedRepo || isLoadingCompareRefs || isLoadingFiles}
-              files={files}
-              conversation={conversation}
-              reviewThreads={reviewThreads}
-              viewedState={viewedState}
+              compareBaseRef={compareBaseRef}
+              compareHeadRef={compareHeadRef}
+              filesError={filesError}
+              isLoading={filesLoading}
+              viewedState={!reviewingCommit ? viewedState : null}
+              keyboardNavigationEnabled={view === "files"}
+              fileView={grouping === "commits" ? "review" : grouping}
+              onFileViewChange={setGrouping}
+              onGroupByCommit={view === "files" ? () => setGrouping("commits") : undefined}
+              commitTitle={selectedCommit?.summary}
             />
-          </div>
+          )
         }
-      />
+      >
+        <div className="grid h-full min-h-0">
+          <FilesDiffViewer
+            providerId={providerId}
+            repoPath={activeRepo ?? ""}
+            pullRequestNumber={parsedPullRequestNumber}
+            compareBaseRef={compareBaseRef}
+            compareHeadRef={compareHeadRef}
+            filesError={filesError}
+            filesLoading={filesLoading}
+            files={files}
+            conversation={conversation}
+            reviewThreads={!reviewingCommit ? reviewThreads : []}
+            viewedState={!reviewingCommit ? viewedState : null}
+          />
+        </div>
+      </PullRequestChangesSidebar>
     </>
   );
-};
+}
 
 function PullRequestPreviewActiveFileSync({ files }: { files: PullRequestChangedFile[] }) {
   const dispatch = useAppDispatch();
@@ -227,7 +317,7 @@ function FilesDiffViewer({
   files: PullRequestChangedFile[];
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
-  viewedState: ReturnType<typeof usePullRequestViewedFiles>;
+  viewedState: ReturnType<typeof usePullRequestViewedFiles> | null;
 }) {
   const selectedPath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const previewFileJumpTarget = useAppSelector((state) => state.pullRequests.previewFileJumpTarget);
@@ -261,8 +351,7 @@ function FilesDiffViewer({
       : skipToken,
   );
 
-  const branchFileVersions =
-    branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data ?? null;
+  const branchFileVersions = branchFileVersionsQuery.currentData ?? null;
   const selectedOldFile = branchFileVersions?.oldFile ?? null;
   const selectedNewFile = branchFileVersions?.newFile ?? null;
   const branchFileVersionsError = branchFileVersions
@@ -380,58 +469,62 @@ function FilesDiffViewer({
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
-        <ReviewCommentsCopyToolbar
-          repoPath={repoPath}
-          pullRequestNumber={pullRequestNumber}
-          compareBaseRef={compareBaseRef}
-          compareHeadRef={compareHeadRef}
-          activePath={previewFile?.path ?? selectedFile.path}
-          activePreviousPath={previewFile?.previousPath ?? selectedFile.previousPath ?? undefined}
-        />
+        {viewedState ? (
+          <ReviewCommentsCopyToolbar
+            repoPath={repoPath}
+            pullRequestNumber={pullRequestNumber}
+            compareBaseRef={compareBaseRef}
+            compareHeadRef={compareHeadRef}
+            activePath={previewFile?.path ?? selectedFile.path}
+            activePreviousPath={previewFile?.previousPath ?? selectedFile.previousPath ?? undefined}
+          />
+        ) : null}
         <DiffWorkspace
           oldFile={selectedOldFile}
           newFile={selectedNewFile}
           activePath={previewFile?.path ?? selectedFile.path}
           headerAction={
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant={
-                      viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
-                        ? "secondary"
-                        : "ghost"
-                    }
-                    disabled={!viewedState.viewedFiles || viewedState.changingViewed}
-                    aria-label={
-                      viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
-                        ? "Mark file unviewed"
-                        : "Mark file viewed"
-                    }
-                    onClick={() =>
-                      void viewedState.toggleViewed(previewFile?.path ?? selectedFile.path)
-                    }
-                  >
-                    {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path) ? (
-                      <SquareCheckBig />
-                    ) : (
-                      <Square />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="flex items-center gap-2">
-                  {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
-                    ? "Mark file unviewed"
-                    : "Mark file viewed"}
-                  <Kbd>V</Kbd>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            viewedState ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant={
+                        viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                          ? "secondary"
+                          : "ghost"
+                      }
+                      disabled={!viewedState.viewedFiles || viewedState.changingViewed}
+                      aria-label={
+                        viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                          ? "Mark file unviewed"
+                          : "Mark file viewed"
+                      }
+                      onClick={() =>
+                        void viewedState.toggleViewed(previewFile?.path ?? selectedFile.path)
+                      }
+                    >
+                      {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path) ? (
+                        <SquareCheckBig />
+                      ) : (
+                        <Square />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="flex items-center gap-2">
+                    {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                      ? "Mark file unviewed"
+                      : "Mark file viewed"}
+                    <Kbd>V</Kbd>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null
           }
           commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
-          canComment
+          canComment={Boolean(viewedState)}
           includeCurrentFileComments={false}
           fileViewerRevision={compareHeadRef}
           lspJumpContextKind="pull-request"

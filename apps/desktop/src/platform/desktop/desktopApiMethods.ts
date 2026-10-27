@@ -51,6 +51,7 @@ export const DESKTOP_API_METHODS = [
   "getGitSnapshot",
   "getRepoFiles",
   "getCommitHistory",
+  "getBranchCommits",
   "getBranches",
   "getBranchFiles",
   "getCommitFiles",

@@ -632,6 +632,7 @@ export type DesktopApi = {
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
   getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;
+  getBranchCommits(repoPath: string, baseRef: string, headRef: string): Promise<HistoryCommit[]>;
   getBranches(repoPath: string): Promise<string[]>;
   getBranchFiles(repoPath: string, baseRef: string, headRef: string): Promise<FileItem[]>;
   getCommitFiles(repoPath: string, commitId: string): Promise<FileItem[]>;

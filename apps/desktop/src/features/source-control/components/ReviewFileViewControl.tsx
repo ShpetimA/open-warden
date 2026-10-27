@@ -1,4 +1,4 @@
-import { ChevronDown, FolderTree, Layers3, List } from "lucide-react";
+import { ChevronDown, FolderTree, GitCommitHorizontal, Layers3, List } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -20,11 +20,17 @@ const views = [
 export function ReviewFileViewControl({
   value,
   onChange,
+  compact = false,
+  commitGrouping,
 }: {
   value: ReviewFileView;
   onChange: (value: ReviewFileView) => void;
+  compact?: boolean;
+  commitGrouping?: { selected: boolean; onSelect: () => void };
 }) {
-  const selected = views.find((view) => view.value === value) ?? views[0];
+  const selected = commitGrouping?.selected
+    ? { label: "Commits", icon: GitCommitHorizontal }
+    : (views.find((view) => view.value === value) ?? views[0]);
   const Icon = selected.icon;
 
   return (
@@ -33,12 +39,17 @@ export function ReviewFileViewControl({
         <Button
           variant="ghost"
           size="sm"
-          className="h-10 min-w-0 max-w-full gap-2 px-2 text-xs"
+          className={compact ? "size-7 p-0" : "h-8 min-w-0 max-w-full gap-2 px-2 text-xs"}
           aria-label={`Group review files: ${selected.label}`}
+          title={selected.label}
         >
           <Icon className="size-3.5" />
-          <span className="truncate">{selected.label}</span>
-          <ChevronDown className="size-3.5 text-muted-foreground" />
+          {compact ? null : (
+            <>
+              <span className="truncate">{selected.label}</span>
+              <ChevronDown className="size-3.5 text-muted-foreground" />
+            </>
+          )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-48">
@@ -46,18 +57,28 @@ export function ReviewFileViewControl({
           Group files by
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup
-          value={value}
+          value={commitGrouping?.selected ? "commits" : value}
           onValueChange={(next) => {
+            if (next === "commits") {
+              commitGrouping?.onSelect();
+              return;
+            }
             const view = views.find((candidate) => candidate.value === next);
             if (view) onChange(view.value);
           }}
         >
           {views.map((view) => (
-            <DropdownMenuRadioItem key={view.value} value={view.value} className="min-h-10">
+            <DropdownMenuRadioItem key={view.value} value={view.value} className="min-h-8">
               <view.icon className="size-4 text-muted-foreground" />
               {view.label}
             </DropdownMenuRadioItem>
           ))}
+          {commitGrouping ? (
+            <DropdownMenuRadioItem value="commits" className="min-h-8">
+              <GitCommitHorizontal className="text-muted-foreground size-4" />
+              Commits
+            </DropdownMenuRadioItem>
+          ) : null}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>

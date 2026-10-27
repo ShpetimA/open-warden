@@ -30,9 +30,8 @@ export function SidebarPanelToggles() {
         {sidebars.map((sidebar) => {
           const entry = panels.get(sidebar.panelId);
           const isCollapsed = entry?.collapsed ?? true;
-          const tooltipLabel =
-            sidebar.panelId === "history-files" ? "Toggle files pane" : "Toggle sidebar";
-          const shortcut = sidebar.icon === "left" ? "⌘S" : "⌘⇧S";
+          const tooltipLabel = sidebar.icon === "right" ? "Toggle files pane" : "Toggle sidebar";
+          const shortcut = sidebar.icon === "left" ? "⌘S" : "⌘D";
 
           return (
             <Tooltip key={sidebar.panelId}>

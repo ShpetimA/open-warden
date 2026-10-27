@@ -53,19 +53,35 @@ const files = [
   { path: "pnpm-lock.yaml", status: "modified", comments: 0, viewed: false },
 ] satisfies Array<{ path: string; status: FileStatus; comments: number; viewed: boolean }>;
 
-function GroupedFilesExample() {
+function GroupedFilesExample({
+  compact = false,
+  commitTitle,
+}: {
+  compact?: boolean;
+  commitTitle?: string;
+}) {
   const [view, setView] = useState<ReviewFileView>("review");
   const [selected, setSelected] = useState(files[0].path);
   return (
     <div className="bg-surface-toolbar flex h-[640px] w-[min(400px,100%)] flex-col border-r">
       <header className="flex items-center justify-between gap-2 border-b px-3 py-1">
         <span className="text-sm font-medium">Changed files</span>
-        <ReviewFileViewControl value={view} onChange={setView} />
+        <ReviewFileViewControl
+          value={view}
+          onChange={setView}
+          compact={compact}
+          commitGrouping={
+            commitTitle
+              ? { selected: view === "review", onSelect: () => setView("review") }
+              : undefined
+          }
+        />
       </header>
       <div className="flex min-h-0 flex-1 flex-col">
         <FileList
           files={files}
           mode={view}
+          reviewGroupTitle={commitTitle}
           selectedPath={selected}
           navRegion="review-browsing-story"
           onActivatePath={setSelected}
@@ -85,6 +101,12 @@ function GroupedFilesExample() {
 }
 
 export const FileGroups: Story = { render: () => <GroupedFilesExample /> };
+
+export const CompactFileGroups: Story = { render: () => <GroupedFilesExample compact /> };
+
+export const CommitFiles: Story = {
+  render: () => <GroupedFilesExample compact commitTitle="OF-11384 Validate invoice exports" />,
+};
 
 export const ReviewActions: Story = {
   render: () => (

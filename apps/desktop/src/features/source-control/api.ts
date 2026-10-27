@@ -19,6 +19,7 @@ import {
   getCommitFiles,
   getCommitFileVersions,
   getCommitHistory,
+  getBranchCommits,
   getFileVersions,
   getRepoFiles,
   getRepoFile,
@@ -141,6 +142,16 @@ export const gitApi = createApi({
         }
       },
       providesTags: (_result, _error, repoPath) => [{ type: "Branches", id: repoPath }],
+    }),
+    getBranchCommits: builder.query<HistoryCommit[], BranchFilesArgs>({
+      async queryFn({ repoPath, baseRef, headRef }) {
+        try {
+          return { data: await getBranchCommits(repoPath, baseRef, headRef) };
+        } catch (error) {
+          return { error: toErrorResult(error) };
+        }
+      },
+      providesTags: (_result, _error, { repoPath }) => [{ type: "HistoryCommits", id: repoPath }],
     }),
     getBranchFiles: builder.query<FileItem[], BranchFilesArgs>({
       async queryFn({ repoPath, baseRef, headRef }) {
@@ -341,6 +352,7 @@ export const {
   useGetGitSnapshotQuery,
   useGetRepoFilesQuery,
   useGetCommitHistoryQuery,
+  useGetBranchCommitsQuery,
   useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetCommitFilesQuery,

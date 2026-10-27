@@ -23,6 +23,8 @@ export type FileListContextMenuOpenContext = {
 type FileListProps<TFile extends { path: string }> = {
   files: ReadonlyArray<TFile>;
   mode: FileBrowserMode | "review";
+  reviewGroupTitle?: string;
+  autoFocus?: boolean;
   selectedPath?: string;
   navRegion: string;
   className?: string;
@@ -42,6 +44,8 @@ const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: 
 export function FileList<TFile extends { path: string }>({
   files,
   mode,
+  reviewGroupTitle,
+  autoFocus,
   selectedPath = "",
   navRegion,
   className,
@@ -55,7 +59,7 @@ export function FileList<TFile extends { path: string }>({
 
   const displayFiles =
     mode === "review"
-      ? buildReviewDisplayFiles(files)
+      ? buildReviewDisplayFiles(files, reviewGroupTitle)
       : buildDisplayFiles(mode, files, {
           sort: isList
             ? (left, right) => left.path.localeCompare(right.path, undefined, SORT_LOCALE_OPTIONS)
@@ -81,6 +85,8 @@ export function FileList<TFile extends { path: string }>({
   return (
     <PierreFileTreeBrowser
       key={mode}
+      autoFocus={autoFocus}
+      directoryLabelPriority={reviewGroupTitle ? "start" : "end"}
       files={displayFiles}
       selectedPath={pierreSelectedPath}
       navRegion={navRegion}

@@ -73,9 +73,11 @@ export function getReviewFileGroup(path: string): ReviewFileGroup {
 
 export function buildReviewDisplayFiles<TFile extends { path: string }>(
   files: readonly TFile[],
+  groupTitle?: string,
 ): DisplayFile<TFile>[] {
+  const title = groupTitle?.replaceAll("/", "∕").replaceAll("\\", "∖");
   return files.map((file) => ({
-    path: `${getReviewFileGroup(file.path)}/${file.path}`,
+    path: `${title || getReviewFileGroup(file.path)}/${file.path}`,
     realPath: file.path,
     source: file,
   }));

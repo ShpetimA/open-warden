@@ -31,7 +31,7 @@ export function useSidebarToggleHotkeys({ sidebars, toggle }: UseSidebarToggleHo
   );
 
   useHotkey(
-    "Mod+Shift+S",
+    "Mod+D",
     (event) => {
       if (!rightSidebarPanelId) return;
       event.preventDefault();

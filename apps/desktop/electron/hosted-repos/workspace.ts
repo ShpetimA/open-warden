@@ -608,14 +608,15 @@ export async function preparePullRequestCompareRefs(
     ]);
 
     await cleanupStalePullRequestTrackingRefs(sourceRepoPath, pullRequest.number);
-    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
+    const compareHeadRef = await resolveRevision(sourceRepoPath, headRefShort);
+    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, compareHeadRef);
     return createPullRequestCompareRefs({
       hostedRepo,
       pullRequestNumber: pullRequest.number,
       baseRef: pullRequest.base.ref,
       headRef: pullRequest.head.ref,
       compareBaseRef,
-      compareHeadRef: headRefShort,
+      compareHeadRef,
       localBranch: pullRequest.head.ref,
     });
   }
@@ -663,14 +664,15 @@ export async function preparePullRequestCompareRefs(
     ]);
 
     await cleanupStalePullRequestTrackingRefs(sourceRepoPath, pullRequestNumber);
-    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
+    const compareHeadRef = await resolveRevision(sourceRepoPath, headRefShort);
+    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, compareHeadRef);
     return createPullRequestCompareRefs({
       hostedRepo,
       pullRequestNumber,
       baseRef,
       headRef,
       compareBaseRef,
-      compareHeadRef: headRefShort,
+      compareHeadRef,
       localBranch: headRef,
     });
   }

@@ -1,10 +1,11 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Filter } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import {
   DropdownMenu,
@@ -36,7 +37,12 @@ type PullRequestFileListProps = {
   compareHeadRef: string;
   filesError: string;
   isLoading: boolean;
-  viewedState: ReturnType<typeof usePullRequestViewedFiles>;
+  viewedState: ReturnType<typeof usePullRequestViewedFiles> | null;
+  keyboardNavigationEnabled?: boolean;
+  fileView: ReviewFileView;
+  onFileViewChange: (view: ReviewFileView) => void;
+  onGroupByCommit?: () => void;
+  commitTitle?: string;
 };
 
 export default function PullRequestFileList({
@@ -48,14 +54,19 @@ export default function PullRequestFileList({
   filesError,
   isLoading,
   viewedState,
+  keyboardNavigationEnabled = true,
+  fileView,
+  onFileViewChange,
+  onGroupByCommit,
+  commitTitle,
 }: PullRequestFileListProps) {
   const dispatch = useAppDispatch();
-  const [fileView, setFileView] = useState<ReviewFileView>("review");
   const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const comments = useAppSelector((state) => state.comments);
   const [searchQuery, setSearchQuery] = useState("");
   const [commentFilter, setCommentFilter] = useState<FileCommentFilter>("all");
-  const { viewedFiles, viewedPaths } = viewedState;
+  const viewedFiles = viewedState?.viewedFiles;
+  const viewedPaths = viewedState?.viewedPaths;
   const queryArg = repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
   const { reviewThreads } = useGetPullRequestConversationQuery(queryArg, {
     selectFromResult: ({ data }) => ({
@@ -65,58 +76,46 @@ export default function PullRequestFileList({
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
-  const viewedCount = files.filter((file) => viewedPaths.has(file.path)).length;
-  const pendingCommentCountByPath = useMemo(() => {
-    const counts: Record<string, number> = {};
+  const viewedCount = files.filter((file) => viewedPaths?.has(file.path)).length;
+  const commentCountByPath: Record<string, number> = {};
 
-    for (const file of files) {
-      counts[file.path] = countCommentsForPathInRepoContext(comments, repoPath, file.path, {
-        kind: "review",
-        baseRef: compareBaseRef,
-        headRef: compareHeadRef,
-      });
-    }
-
-    return counts;
-  }, [comments, compareBaseRef, compareHeadRef, files, repoPath]);
-  const commentCountByPath = useMemo(() => {
-    const counts: Record<string, number> = {};
-
-    for (const file of files) {
-      counts[file.path] =
+  for (const file of files) {
+    commentCountByPath[file.path] = viewedState
+      ? countCommentsForPathInRepoContext(comments, repoPath, file.path, {
+          kind: "review",
+          baseRef: compareBaseRef,
+          headRef: compareHeadRef,
+        }) +
         countPullRequestThreadsForFile({
           path: file.path,
           previousPath: file.previousPath,
           reviewThreads,
-        }) + (pendingCommentCountByPath[file.path] ?? 0);
+        })
+      : 0;
+  }
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const visibleFiles = files.filter((file) => {
+    const commentCount = commentCountByPath[file.path] ?? 0;
+    const matchesCommentFilter =
+      !viewedState ||
+      commentFilter === "all" ||
+      (commentFilter === "with-comments" && commentCount > 0) ||
+      (commentFilter === "without-comments" && commentCount === 0);
+
+    if (!matchesCommentFilter) {
+      return false;
     }
 
-    return counts;
-  }, [files, pendingCommentCountByPath, reviewThreads]);
-
-  const visibleFiles = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-
-    return files.filter((file) => {
-      const commentCount = commentCountByPath[file.path] ?? 0;
-      const matchesCommentFilter =
-        commentFilter === "all" ||
-        (commentFilter === "with-comments" && commentCount > 0) ||
-        (commentFilter === "without-comments" && commentCount === 0);
-
-      if (!matchesCommentFilter) {
-        return false;
-      }
-
-      return (
-        !normalizedQuery ||
-        file.path.toLowerCase().includes(normalizedQuery) ||
-        (file.previousPath ?? "").toLowerCase().includes(normalizedQuery)
-      );
-    });
-  }, [commentCountByPath, commentFilter, files, searchQuery]);
+    return (
+      !normalizedQuery ||
+      file.path.toLowerCase().includes(normalizedQuery) ||
+      (file.previousPath ?? "").toLowerCase().includes(normalizedQuery)
+    );
+  });
 
   useSimpleFileListKeyboardNav({
+    enabled: () => keyboardNavigationEnabled,
     regionId: "pull-request-files",
     getAllFilePaths: () => visibleFiles.map((file) => file.path),
     getActivePath: (state) => state.pullRequests.previewActiveFilePath,
@@ -126,66 +125,94 @@ export default function PullRequestFileList({
     includeSymbolPeek: false,
   });
 
+  const filteredCount =
+    normalizedQuery || (viewedState && commentFilter !== "all") ? `${visibleFiles.length}/` : "";
+  const viewedSummary = viewedState ? ` · ${viewedCount} viewed` : "";
+  const fileLabel = files.length === 1 ? "file" : "files";
   const subtitle =
     isLoading && files.length === 0
       ? "Loading changed files..."
-      : `${visibleFiles.length}/${files.length} files · ${viewedCount} viewed · j/k to navigate · v to mark viewed`;
+      : `${filteredCount}${files.length} ${fileLabel}${viewedSummary}`;
 
   return (
     <>
       <PullRequestVisibleSelectionSync visibleFiles={visibleFiles} />
-      <PullRequestViewedFileHotkeys visibleFiles={visibleFiles} viewedState={viewedState} />
-      <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
-        <div className="border-border border-b px-3 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-x-2">
-            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-              PR FILES
+      {viewedState ? (
+        <PullRequestViewedFileHotkeys visibleFiles={visibleFiles} viewedState={viewedState} />
+      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="border-border flex shrink-0 flex-col gap-1 border-b px-2 py-1">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <div
+              className="text-muted-foreground min-w-0 truncate text-xs tabular-nums"
+              title={viewedFiles?.storage === "device" ? "Viewed on this device" : undefined}
+            >
+              {subtitle}
             </div>
-            <ReviewFileViewControl value={fileView} onChange={setFileView} />
+            <ReviewFileViewControl
+              value={fileView}
+              onChange={onFileViewChange}
+              compact
+              commitGrouping={
+                onGroupByCommit ? { selected: false, onSelect: onGroupByCommit } : undefined
+              }
+            />
           </div>
-          <div className="text-muted-foreground mt-1 text-xs tabular-nums">{subtitle}</div>
-          {viewedFiles?.storage === "device" ? (
-            <div className="text-muted-foreground mt-1 text-[11px]">Viewed on this device</div>
-          ) : null}
           {viewedFiles?.truncated ? (
-            <div className="text-amber-600 mt-1 text-[11px]">
+            <div className="text-muted-foreground text-[11px]">
               Some provider viewed states could not be loaded.
             </div>
           ) : null}
-          <div className="mt-2 flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground inline-flex h-7 w-7 items-center justify-center rounded-md border"
-                  aria-label="Filter files"
-                  title="Filter files"
-                >
-                  <Filter className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuRadioGroup
-                  value={commentFilter}
-                  onValueChange={(value) => {
-                    setCommentFilter(value as FileCommentFilter);
-                  }}
-                >
-                  <DropdownMenuRadioItem value="all">All files</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="with-comments">With comments</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="without-comments">
-                    Without comments
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className="flex items-center gap-2">
+            {viewedState ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant={commentFilter === "all" ? "outline" : "secondary"}
+                    className="size-7"
+                    aria-label="Filter files"
+                    title="Filter files"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuRadioGroup
+                    value={commentFilter}
+                    onValueChange={(value) => {
+                      if (
+                        value === "all" ||
+                        value === "with-comments" ||
+                        value === "without-comments"
+                      ) {
+                        setCommentFilter(value);
+                      }
+                    }}
+                  >
+                    <DropdownMenuRadioItem value="all">All files</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="with-comments">
+                      With comments
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="without-comments">
+                      Without comments
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
             <Input
               value={searchQuery}
               onChange={(event) => {
                 setSearchQuery(event.target.value);
               }}
               placeholder="Filter files..."
-              className="h-7 text-xs"
+              aria-label="Filter changed files"
+              title={
+                viewedState ? "j/k to navigate files · v to mark viewed" : "j/k to navigate files"
+              }
+              className="h-7 min-w-0 px-2 text-xs"
             />
           </div>
         </div>
@@ -206,18 +233,20 @@ export default function PullRequestFileList({
         ) : (
           <FileList
             files={visibleFiles}
+            autoFocus={keyboardNavigationEnabled}
             mode={fileView}
+            reviewGroupTitle={commitTitle}
             selectedPath={activePath}
             navRegion="pull-request-files"
             onActivatePath={(path) => {
               dispatch(setPullRequestPreviewActiveFilePath(path));
             }}
             getCommentCount={(file) => commentCountByPath[file.path] ?? 0}
-            isViewed={(file) => viewedPaths.has(file.path)}
+            isViewed={(file) => viewedPaths?.has(file.path) ?? false}
             getFileStatus={(file) => file.status}
           />
         )}
-      </aside>
+      </div>
     </>
   );
 }

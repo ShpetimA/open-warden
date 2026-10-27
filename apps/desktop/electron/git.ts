@@ -591,6 +591,23 @@ export async function getCommitHistory(repoPath: string, limit = 200): Promise<H
   return parseHistoryOutput(output);
 }
 
+export async function getBranchCommits(
+  repoPath: string,
+  baseRef: string,
+  headRef: string,
+): Promise<HistoryCommit[]> {
+  const output = await runGit(repoPath, [
+    "log",
+    "-z",
+    "--topo-order",
+    "--format=%H%x00%h%x00%s%x00%an%x00%ar%x00",
+    `${baseRef}..${headRef}`,
+    "--",
+  ]);
+
+  return parseHistoryOutput(output);
+}
+
 export async function getBranches(repoPath: string): Promise<string[]> {
   const output = await runGit(repoPath, [
     "for-each-ref",

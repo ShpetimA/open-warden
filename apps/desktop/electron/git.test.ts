@@ -20,6 +20,7 @@ import {
   discardFile,
   discardFiles,
   getBranches,
+  getBranchCommits,
   getBranchFileVersions,
   getBranchFiles,
   getCommitFileVersions,
@@ -60,6 +61,38 @@ afterEach(async () => {
 vi.setConfig({ testTimeout: 30_000 });
 
 describe("electron git backend", () => {
+  test("lists the full PR range independently of the checked out branch and compares each commit", async () => {
+    const repo = makeRepo();
+    writeFileSync(path.join(repo, "notes.md"), "original\n");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "base"]);
+    const base = git(repo, ["rev-parse", "HEAD"]);
+
+    git(repo, ["checkout", "-b", "feature"]);
+    writeFileSync(path.join(repo, "notes.md"), "updated\n");
+    git(repo, ["commit", "-am", "Update notes"]);
+    const first = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["mv", "notes.md", "renamed.md"]);
+    git(repo, ["commit", "-m", "Rename notes"]);
+    const head = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["checkout", "-b", "destination", base]);
+    writeFileSync(path.join(repo, "unrelated.md"), "destination only\n");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "Unrelated destination change"]);
+
+    const commits = await getBranchCommits(repo, base, head);
+    expect(commits.map((commit) => commit.commitId)).toEqual([head, first]);
+    expect(commits.map((commit) => commit.summary)).toEqual(["Rename notes", "Update notes"]);
+    expect(commits[0]?.author).toBe("OpenWarden Test");
+    expect(await getBranchCommits(repo, head, head)).toEqual([]);
+    expect(await getBranchFiles(repo, `${head}^`, head)).toEqual([
+      { path: "renamed.md", previousPath: "notes.md", status: "renamed" },
+    ]);
+    const versions = await getBranchFileVersions(repo, `${head}^`, head, "renamed.md", "notes.md");
+    expect(versions.oldFile?.contents).toBe("updated\n");
+    expect(versions.newFile?.contents).toBe("updated\n");
+  });
+
   test("reads snapshot buckets from system git", async () => {
     const repo = makeRepo();
 
