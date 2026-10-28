@@ -1,3 +1,4 @@
+import { desktopHandlers } from "@/test/desktopHandlers";
 import { useState } from "react";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -62,16 +63,18 @@ function Shell() {
 function setup(prepare: () => Promise<PreparedPullRequestWorkspace>, existingRepo = false) {
   window.desktopBridge = {
     ...browserDesktopApi,
-    async resolveHostedRepo() {
-      return null;
-    },
-    preparePullRequestFromUrl: prepare,
-    async getGitSnapshot(repoPath) {
-      return { repoRoot: repoPath, branch: "main", staged: [], unstaged: [], untracked: [] };
-    },
-    async saveWorkspaceSession(session) {
-      return session;
-    },
+    ...desktopHandlers({
+      async resolveHostedRepo() {
+        return null;
+      },
+      preparePullRequestFromUrl: prepare,
+      async getGitSnapshot(repoPath) {
+        return { repoRoot: repoPath, branch: "main", staged: [], unstaged: [], untracked: [] };
+      },
+      async saveWorkspaceSession(session) {
+        return session;
+      },
+    }),
   };
   const store = configureStore({
     reducer: rootReducer,
@@ -164,7 +167,12 @@ it("shows a provider error in the setup tab and retries successfully", async () 
   let attempts = 0;
   setup(async () => {
     attempts += 1;
-    if (attempts === 1) throw new Error("Connect Bitbucket in Settings");
+    if (attempts === 1)
+      throw {
+        operation: "preparePullRequestCompareRefs",
+        code: "authentication",
+        message: "Connect Bitbucket in Settings",
+      };
     return prepared;
   });
   pasteLink();

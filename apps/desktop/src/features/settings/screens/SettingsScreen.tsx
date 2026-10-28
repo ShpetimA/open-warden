@@ -1,3 +1,6 @@
+import { ActionError } from "@/components/ui/error-state";
+import { restoreAppSettings, updateFileTreeRenderMode } from "@/features/settings/actions";
+import { setSettingsError } from "@/features/settings/settingsSlice";
 import { GuidanceConnectionSettings } from "@/features/guidance/GuidanceConnectionSettings";
 import { KeyboardShortcuts } from "../components/KeyboardShortcuts";
 import { useNavigate } from "react-router";
@@ -7,13 +10,15 @@ import { useEffect, useState } from "react";
 import { ExternalLink, FileJson, Settings2 } from "lucide-react";
 
 import { ThemeSwitcher } from "@/app/ThemeSwitcher";
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { SourceControlFileViewToggle } from "@/features/source-control/components/SourceControlFileViewToggle";
 import { desktop } from "@/platform/desktop";
 
 export function SettingsScreen() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const appSettings = useAppSelector((state) => state.settings.appSettings);
   const workspace = useAppSelector(selectActiveWorkspace);
   const savedPath = useAppSelector((state) =>
     workspace ? state.workspaces.locations[workspace.id] : undefined,
@@ -28,7 +33,7 @@ export function SettingsScreen() {
       .getAppSettingsPath()
       .then((path) => {
         if (!cancelled) {
-          setSettingsPath(path);
+          setSettingsPath(path.ok ? path.value : "");
         }
       })
       .catch(() => {
@@ -100,7 +105,22 @@ export function SettingsScreen() {
               {settingsPath ? (
                 <p className="text-muted-foreground truncate font-mono text-xs">{settingsPath}</p>
               ) : null}
-              {error ? <p className="text-destructive text-sm">{error}</p> : null}
+              {error ? (
+                <ActionError
+                  title="Preferences couldn’t be saved or loaded"
+                  error={error}
+                  recovery={{
+                    label: "Retry",
+                    onAction: () => {
+                      if (error.operation === "saveAppSettings")
+                        void dispatch(
+                          updateFileTreeRenderMode(appSettings.sourceControl.fileTreeRenderMode),
+                        );
+                      else void dispatch(restoreAppSettings());
+                    },
+                  }}
+                />
+              ) : null}
             </div>
             <Button
               type="button"
@@ -112,7 +132,9 @@ export function SettingsScreen() {
                   return;
                 }
 
-                void desktop.openPath(settingsPath);
+                void desktop.openPath(settingsPath).then((result) => {
+                  if (!result.ok) dispatch(setSettingsError(result.error));
+                });
               }}
             >
               <ExternalLink className="h-4 w-4" />

@@ -4,6 +4,8 @@ import { GitPullRequest, List } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
+import { PullRequestReviewControl } from "@/features/pull-requests/components/PullRequestReviewControl";
+import { PullRequestTabHover } from "./PullRequestTabHover";
 import { closeWorkspace, selectWorkspace } from "../actions";
 import {
   selectActiveWorkspace,
@@ -68,6 +70,8 @@ export function ProjectReviewTabs() {
             id: item.id,
             label: item.kind === "pull-request" ? `#${item.pullRequestNumber} ${item.title}` : "",
             icon: <GitPullRequest />,
+            hoverContent:
+              item.kind === "pull-request" ? <PullRequestTabHover workspace={item} /> : undefined,
           })),
         ]}
         activeId={active.id}
@@ -92,6 +96,10 @@ export function ProjectReviewTabs() {
               </button>
             ),
           )}
+          <PullRequestReviewControl
+            repoPath={active.repoPath}
+            pullRequestNumber={active.pullRequestNumber}
+          />
         </nav>
       )}
     </div>

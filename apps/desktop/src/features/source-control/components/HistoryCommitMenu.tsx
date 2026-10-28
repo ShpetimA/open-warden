@@ -1,3 +1,4 @@
+import { ActionError } from "@/components/ui/error-state";
 import { useState, type ReactNode } from "react";
 import { useAppSelector } from "@/app/hooks";
 import {
@@ -108,10 +109,12 @@ function HistoryActionDialog({
         >
           {mutation.isLoading ? "Working…" : label}
         </Button>
-        {mutation.error && "message" in mutation.error ? (
-          <p role="alert" className="text-destructive whitespace-pre-wrap text-xs">
-            {String(mutation.error.message)}
-          </p>
+        {mutation.error ? (
+          <ActionError
+            title="Git operation failed"
+            error={mutation.error}
+            busy={mutation.isLoading}
+          />
         ) : null}
       </DialogContent>
     </Dialog>

@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect } from "react";
 
@@ -157,7 +158,17 @@ function PullRequestDiffPane({
             />
             {errorMessage ? (
               <div className="absolute inset-0 z-10 flex items-start justify-start bg-background/80 p-3">
-                <div className="text-destructive text-sm">{errorMessage}</div>
+                <ErrorState
+                  title="Couldn’t load this diff"
+                  error={branchFileVersionsQuery.error}
+                  busy={branchFileVersionsQuery.isFetching}
+                  recovery={{
+                    label: "Retry",
+                    onAction: () => {
+                      void branchFileVersionsQuery.refetch();
+                    },
+                  }}
+                />
               </div>
             ) : loadingPatch ? (
               <div className="absolute inset-0 z-10 flex items-start justify-start bg-background/80 p-3">
@@ -182,8 +193,14 @@ export function PullRequestReviewFilesScreen() {
   const fileJumpTarget = useAppSelector((state) => state.pullRequests.fileJumpTarget);
   const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
 
-  const { activeRepo, resolvedReview, preparingCompareRefs, compareRefsError, loadingReview } =
-    usePullRequestReviewSession();
+  const {
+    activeRepo,
+    resolvedReview,
+    preparingCompareRefs,
+    compareRefsError,
+    loadingReview,
+    retryCompareRefs,
+  } = usePullRequestReviewSession();
 
   const currentCompareBaseRef = resolvedReview?.compareBaseRef ?? "";
   const currentCompareHeadRef = resolvedReview?.compareHeadRef ?? "";
@@ -191,20 +208,25 @@ export function PullRequestReviewFilesScreen() {
     resolvedReview && activeRepo && currentCompareBaseRef && currentCompareHeadRef,
   );
 
-  const { branchFiles, hasBranchFilesData, isLoadingBranchFiles, branchFilesError } =
-    useGetBranchFilesQuery(
-      readyForDiff
-        ? { repoPath: activeRepo, baseRef: currentCompareBaseRef, headRef: currentCompareHeadRef }
-        : skipToken,
-      {
-        selectFromResult: ({ currentData, isFetching, error }) => ({
-          branchFiles: currentData ?? EMPTY_BRANCH_FILES,
-          hasBranchFilesData: Boolean(currentData),
-          isLoadingBranchFiles: isFetching && !currentData,
-          branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
-        }),
-      },
-    );
+  const {
+    branchFiles,
+    hasBranchFilesData,
+    isLoadingBranchFiles,
+    branchFilesError,
+    refetch: retryComparedFiles,
+  } = useGetBranchFilesQuery(
+    readyForDiff
+      ? { repoPath: activeRepo, baseRef: currentCompareBaseRef, headRef: currentCompareHeadRef }
+      : skipToken,
+    {
+      selectFromResult: ({ currentData, isFetching, error }) => ({
+        branchFiles: currentData ?? EMPTY_BRANCH_FILES,
+        hasBranchFilesData: Boolean(currentData),
+        isLoadingBranchFiles: isFetching && !currentData,
+        branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
+      }),
+    },
+  );
 
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(
     resolvedReview
@@ -277,6 +299,9 @@ export function PullRequestReviewFilesScreen() {
           hasBranchFilesData={hasBranchFilesData}
           isLoadingBranchFiles={preparingCompareRefs || isLoadingBranchFiles}
           filesError={compareRefsError || branchFilesError}
+          onRetry={() => {
+            void (compareRefsError ? retryCompareRefs() : retryComparedFiles());
+          }}
           reviewThreads={reviewThreads}
         />
       }

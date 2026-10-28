@@ -2,6 +2,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ActionError } from "@/components/ui/error-state";
+import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import {
   Dialog,
   DialogContent,
@@ -53,12 +55,6 @@ export function headerLifecycleActions(detail: PullRequestDetail): LifecycleActi
   ];
 }
 
-function errorMessage(cause: unknown, fallback: string) {
-  return cause && typeof cause === "object" && "message" in cause
-    ? String(cause.message)
-    : fallback;
-}
-
 function confirmationText(action: LifecycleAction) {
   if (action === "close") return "The pull request will be closed without merging.";
   if (action === "revert") return "GitHub will create a new pull request that reverses this merge.";
@@ -83,7 +79,7 @@ function LifecycleForm({
   const [title, setTitle] = useState(detail.title);
   const [body, setBody] = useState(detail.body);
   const [method, setMethod] = useState<MergeMethod>(request.method ?? "squash");
-  const [error, setError] = useState("");
+  const [error, setError] = useState<DesktopFailure | null>(null);
   const [runLifecycle, { isLoading: changing }] = useRunPullRequestLifecycleMutation();
   const [mergePullRequest, { isLoading: merging }] = useMergePullRequestMutation();
   const busy = changing || merging;
@@ -103,7 +99,7 @@ function LifecycleForm({
 
   async function confirm() {
     if (busy) return;
-    setError("");
+    setError(null);
     const common = { repoPath, pullRequestNumber: detail.number, expectedHeadSha: detail.headSha };
     try {
       if (action === "merge") {
@@ -135,7 +131,7 @@ function LifecycleForm({
       }
       onDone();
     } catch (cause) {
-      setError(errorMessage(cause, "The pull request could not be changed."));
+      setError(failureFromUnknown(cause, "pullRequestLifecycle"));
     }
   }
 
@@ -199,11 +195,7 @@ function LifecycleForm({
       ) : (
         <p className="text-sm">{confirmationText(action)}</p>
       )}
-      {error ? (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      ) : null}
+      {error ? <ActionError title="Couldn’t update this pull request" error={error} /> : null}
       <DialogFooter>
         <Button variant="outline" disabled={busy} onClick={onDone}>
           Cancel

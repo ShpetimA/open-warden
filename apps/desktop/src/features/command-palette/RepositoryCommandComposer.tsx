@@ -3,6 +3,8 @@ import { FolderOpen, LoaderCircle } from "lucide-react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { ActionError } from "@/components/ui/error-state";
+import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { openRepo } from "@/features/source-control/actions";
@@ -32,7 +34,7 @@ export function RepositoryCommandComposer({
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState("");
   const [listing, setListing] = useState<{ query: string; result: DirectoryListing } | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | DesktopFailure>("");
   const [busy, setBusy] = useState(false);
   const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -97,7 +99,13 @@ export function RepositoryCommandComposer({
     let cancelled = false;
     void desktop.browseDirectory(directory).then(
       (value) => {
-        if (!cancelled) setListing({ query: directory, result: value });
+        if (!cancelled)
+          setListing({
+            query: directory,
+            result: value.ok
+              ? { ok: true, ...value.value }
+              : { ok: false, message: value.error.message },
+          });
       },
       () => {
         if (!cancelled)
@@ -145,9 +153,10 @@ export function RepositoryCommandComposer({
     setError("");
     try {
       const path = await desktop.selectFolder();
-      if (path) await run(path);
+      if (!path.ok) setError(path.error);
+      else if (path.value) await run(path.value);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not choose a folder.");
+      setError(failureFromUnknown(cause, "pickRepository"));
     }
   }
 
@@ -165,7 +174,7 @@ export function RepositoryCommandComposer({
         setPane("choice");
       }
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not open this repository.");
+      setError(failureFromUnknown(cause, "openRepository"));
       setPane("choice");
     } finally {
       runningRef.current = false;
@@ -260,9 +269,11 @@ export function RepositoryCommandComposer({
               <p className="change-composer-help text-muted-foreground text-xs">Loading folders…</p>
             ) : null}
             {pathMode && result && !result.ok ? (
-              <p role="alert" className="text-destructive text-xs">
-                {result.message}
-              </p>
+              <ActionError
+                title="Couldn’t browse this folder"
+                error={undefined}
+                message={result.message}
+              />
             ) : null}
             <Button variant="outline" size="sm" onClick={() => void chooseFolder()} disabled={busy}>
               <FolderOpen className="size-4" /> Choose folder…
@@ -274,9 +285,11 @@ export function RepositoryCommandComposer({
           </div>
         )}
         {error ? (
-          <p role="alert" className="text-destructive text-xs">
-            {error}
-          </p>
+          <ActionError
+            title="Couldn’t open this repository"
+            error={error}
+            message={typeof error === "string" ? error : undefined}
+          />
         ) : null}
         <div className="change-composer-footer">
           <span>

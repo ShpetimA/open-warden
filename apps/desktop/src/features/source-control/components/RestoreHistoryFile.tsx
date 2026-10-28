@@ -25,7 +25,7 @@ export function RestoreHistoryFile({
             { title: "Restore file revision", okLabel: "Restore" },
           )
           .then((confirmed) => {
-            if (confirmed)
+            if (confirmed.ok && confirmed.value)
               return execute({ repoPath, command: { kind: "restore-file", commit, path } });
           });
       }}

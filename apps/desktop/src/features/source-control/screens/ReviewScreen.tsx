@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { ArrowRightLeft, GitCompare } from "lucide-react";
 import { useEffect } from "react";
@@ -159,7 +160,17 @@ function ReviewDiffPane({
     <section className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1">
         {errorMessage ? (
-          <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+          <ErrorState
+            title="Couldn’t load this diff"
+            error={branchFileVersionsQuery.error}
+            recovery={{
+              label: "Retry",
+              onAction: () => {
+                void branchFileVersionsQuery.refetch();
+              },
+            }}
+            busy={branchFileVersionsQuery.isFetching}
+          />
         ) : loadingPatch ? (
           <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
         ) : !reviewActivePath ? (
@@ -199,7 +210,12 @@ export function ReviewScreen() {
       activeBranch: data?.branch ?? "",
     }),
   });
-  const { branchList, loadingBranches, branchesError } = useGetBranchesQuery(activeRepo, {
+  const {
+    branchList,
+    loadingBranches,
+    branchesError,
+    refetch: retryBranches,
+  } = useGetBranchesQuery(activeRepo, {
     skip: !activeRepo,
     selectFromResult: ({ currentData, isFetching, error }) => ({
       branchList: currentData ?? EMPTY_BRANCHES,
@@ -209,20 +225,25 @@ export function ReviewScreen() {
   });
   const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
 
-  const { branchFiles, hasBranchFilesData, loadingBranchFiles, branchFilesError } =
-    useGetBranchFilesQuery(
-      readyForDiff
-        ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
-        : skipToken,
-      {
-        selectFromResult: ({ currentData, isFetching, error }) => ({
-          branchFiles: currentData ?? EMPTY_BRANCH_FILES,
-          hasBranchFilesData: Boolean(currentData),
-          loadingBranchFiles: isFetching && !currentData,
-          branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
-        }),
-      },
-    );
+  const {
+    branchFiles,
+    hasBranchFilesData,
+    loadingBranchFiles,
+    branchFilesError,
+    refetch: retryComparedFiles,
+  } = useGetBranchFilesQuery(
+    readyForDiff
+      ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+      : skipToken,
+    {
+      selectFromResult: ({ currentData, isFetching, error }) => ({
+        branchFiles: currentData ?? EMPTY_BRANCH_FILES,
+        hasBranchFilesData: Boolean(currentData),
+        loadingBranchFiles: isFetching && !currentData,
+        branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
+      }),
+    },
+  );
 
   useEffect(() => {
     if (!activeRepo) {
@@ -332,6 +353,9 @@ export function ReviewScreen() {
               branchFiles={branchFiles}
               isLoading={loadingBranches || loadingBranchFiles}
               error={branchesError || branchFilesError}
+              onRetry={() => {
+                void (branchesError ? retryBranches() : retryComparedFiles());
+              }}
               activeRepo={activeRepo}
               reviewBaseRef={reviewBaseRef}
               reviewHeadRef={reviewHeadRef}

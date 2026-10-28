@@ -1,14 +1,12 @@
-import { FileTree } from "@pierre/trees";
+import { FileTree, prepareFileTreeInput } from "@pierre/trees";
 import { configureStore } from "@reduxjs/toolkit";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { Provider } from "react-redux";
 import { expect, it } from "vitest";
 import { rootReducer } from "@/app/store";
-import { buildNavTreeOptions } from "../components/pierreFileTree";
 import {
   buildReviewDisplayFiles,
-  compareReviewDirectories,
   compareReviewFileEntries,
 } from "../components/reviewFileGrouping";
 import {
@@ -21,8 +19,6 @@ function FilePreview() {
   const [path, setPath] = useState("");
   useSimpleFileListKeyboardNav({
     regionId: "preview-test",
-    getAllFilePaths: () => ["README.md"],
-    getActivePath: () => path,
     onSelectPath: setPath,
     includeSymbolPeek: false,
   });
@@ -38,7 +34,9 @@ it.each(["j", "k"])("opens the focused file with %s in tree mode without Enter",
   const store = configureStore({ reducer: rootReducer });
   expect(store.getState().settings.appSettings.sourceControl.fileTreeRenderMode).toBe("tree");
   const model = new FileTree({ paths: ["README.md"] });
-  registerPierreFileTreeNav("preview-test", [{ path: "README.md" }], model);
+  registerPierreFileTreeNav("preview-test", [{ path: "README.md" }], model, {
+    preparedInput: prepareFileTreeInput(["README.md"]),
+  });
   try {
     render(
       <Provider store={store}>
@@ -69,7 +67,10 @@ it("uses J/K to open original paths across review headings without stopping on f
     initialExpansion: "open",
   });
   registerPierreFileTreeNav("preview-test", files, model, {
-    treeOptions: buildNavTreeOptions(compareReviewDirectories, false, compareReviewFileEntries),
+    preparedInput: prepareFileTreeInput(
+      files.map((file) => file.path),
+      { sort: compareReviewFileEntries },
+    ),
   });
 
   try {

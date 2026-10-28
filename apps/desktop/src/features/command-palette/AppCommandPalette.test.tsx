@@ -183,11 +183,13 @@ describe("AppCommandPalette", () => {
     mocks.execute.mockReturnValue({ unwrap: () => Promise.resolve("done") });
     mocks.browseDirectory.mockResolvedValue({
       ok: true,
-      path: "/tmp",
-      parentPath: "/",
-      entries: [{ name: "project", path: "/tmp/project" }],
+      value: {
+        path: "/tmp",
+        parentPath: "/",
+        entries: [{ name: "project", path: "/tmp/project" }],
+      },
     });
-    mocks.selectFolder.mockResolvedValue("/tmp/project");
+    mocks.selectFolder.mockResolvedValue({ ok: true, value: "/tmp/project" });
     mocks.useListPullRequestsQuery.mockReturnValue({
       pullRequestPage: { pullRequests: [pullRequest], page: 1, perPage: 25, hasNextPage: false },
       loadingPullRequests: false,
@@ -497,7 +499,12 @@ describe("AppCommandPalette", () => {
 
   test("keeps a failed quick action open with a retry", async () => {
     mocks.execute.mockReturnValue({
-      unwrap: () => Promise.reject({ message: "Remote rejected the command" }),
+      unwrap: () =>
+        Promise.reject({
+          code: "git-failed",
+          operation: "runGitCommand",
+          message: "Remote rejected the command",
+        }),
     });
     const onOpenChange = vi.fn();
     render(<AppCommandPalette open onOpenChange={onOpenChange} />);
@@ -652,12 +659,14 @@ describe("AppCommandPalette", () => {
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
     mocks.browseDirectory.mockResolvedValue({
       ok: true,
-      path: "/tmp",
-      parentPath: "/",
-      entries: Array.from({ length: 24 }, (_, index) => ({
-        name: `folder-${String(index).padStart(2, "0")}`,
-        path: `/tmp/folder-${String(index).padStart(2, "0")}`,
-      })),
+      value: {
+        path: "/tmp",
+        parentPath: "/",
+        entries: Array.from({ length: 24 }, (_, index) => ({
+          name: `folder-${String(index).padStart(2, "0")}`,
+          path: `/tmp/folder-${String(index).padStart(2, "0")}`,
+        })),
+      },
     });
     try {
       render(<AppCommandPalette open initialAction="open-repository" onOpenChange={() => {}} />);

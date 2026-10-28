@@ -1,3 +1,4 @@
+import { queryResult, type DesktopFailure } from "@/platform/desktop/failure";
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
 import type {
@@ -69,15 +70,9 @@ import {
   submitPullRequestDecision,
 } from "./services/hostedRepos";
 
-type ErrorResult = { message: string };
-
-function toErrorResult(error: unknown): ErrorResult {
-  return { message: error instanceof Error ? error.message : String(error) };
-}
-
 export const hostedReposApi = createApi({
   reducerPath: "hostedReposApi",
-  baseQuery: fakeBaseQuery<ErrorResult>(),
+  baseQuery: fakeBaseQuery<DesktopFailure>(),
   tagTypes: [
     "Guidance",
     "GuidanceConnection",
@@ -97,52 +92,31 @@ export const hostedReposApi = createApi({
   endpoints: (builder) => ({
     listProviderConnections: builder.query<ProviderConnection[], void>({
       async queryFn() {
-        try {
-          return { data: await listProviderConnections() };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await listProviderConnections());
       },
       providesTags: ["ProviderConnections"],
     }),
     connectProvider: builder.mutation<ProviderConnection, ConnectProviderInput>({
       async queryFn(input) {
-        try {
-          return { data: await connectProvider(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await connectProvider(input));
       },
       invalidatesTags: ["ProviderConnections", "PullRequests"],
     }),
     disconnectProvider: builder.mutation<void, ProviderConnection["providerId"]>({
       async queryFn(providerId) {
-        try {
-          await disconnectProvider(providerId);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await disconnectProvider(providerId), () => undefined);
       },
       invalidatesTags: ["ProviderConnections", "PullRequests"],
     }),
     resolveHostedRepo: builder.query<HostedRepoRef | null, string>({
       async queryFn(repoPath) {
-        try {
-          return { data: await resolveHostedRepo(repoPath) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await resolveHostedRepo(repoPath));
       },
       providesTags: (_result, _error, repoPath) => [{ type: "HostedRepo", id: repoPath }],
     }),
     listPullRequests: builder.query<PullRequestPage, ListPullRequestsInput>({
       async queryFn(input) {
-        try {
-          return { data: await listPullRequests(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await listPullRequests(input));
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
     }),
@@ -151,11 +125,7 @@ export const hostedReposApi = createApi({
       ResolveActivePullRequestForBranchInput
     >({
       async queryFn(input) {
-        try {
-          return { data: await resolveActivePullRequestForBranch(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await resolveActivePullRequestForBranch(input));
       },
       providesTags: (_result, _error, { repoPath, branch }) => [
         { type: "PullRequests", id: `${repoPath}:active:${branch}` },
@@ -163,11 +133,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestConversation: builder.query<PullRequestConversation, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestConversation(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestConversation(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -176,11 +142,7 @@ export const hostedReposApi = createApi({
     getPullRequestReviewOverview: builder.query<PullRequestReviewOverview, PullRequestLocatorInput>(
       {
         async queryFn(input) {
-          try {
-            return { data: await getPullRequestReviewOverview(input) };
-          } catch (error) {
-            return { error: toErrorResult(error) };
-          }
+          return queryResult(await getPullRequestReviewOverview(input));
         },
         providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
           { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
@@ -189,12 +151,7 @@ export const hostedReposApi = createApi({
     ),
     setPullRequestReviewer: builder.mutation<void, SetPullRequestReviewerInput>({
       async queryFn(input) {
-        try {
-          await setPullRequestReviewer(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await setPullRequestReviewer(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
@@ -205,11 +162,7 @@ export const hostedReposApi = createApi({
       SubmitPullRequestReviewInput
     >({
       async queryFn(input) {
-        try {
-          return { data: await submitPullRequestReview(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await submitPullRequestReview(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
@@ -221,11 +174,7 @@ export const hostedReposApi = createApi({
       PullRequestLifecycleInput
     >({
       async queryFn(input) {
-        try {
-          return { data: await runPullRequestLifecycle(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await runPullRequestLifecycle(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequests", id: repoPath },
@@ -238,11 +187,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestActivity: builder.query<PullRequestActivity, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestActivity(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestActivity(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
@@ -250,11 +195,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestViewedFiles: builder.query<PullRequestViewedFiles, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestViewedFiles(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestViewedFiles(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
@@ -262,12 +203,7 @@ export const hostedReposApi = createApi({
     }),
     setPullRequestFileViewed: builder.mutation<void, SetPullRequestFileViewedInput>({
       async queryFn(input) {
-        try {
-          await setPullRequestFileViewed(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await setPullRequestFileViewed(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
@@ -275,11 +211,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestChecks: builder.query<PullRequestChecksResult, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestChecks(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestChecks(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -287,11 +219,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestExtras: builder.query<PullRequestExtras, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestExtras(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestExtras(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
@@ -299,12 +227,7 @@ export const hostedReposApi = createApi({
     }),
     setPullRequestLabels: builder.mutation<void, SetPullRequestLabelsInput>({
       async queryFn(input) {
-        try {
-          await setPullRequestLabels(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await setPullRequestLabels(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
@@ -313,12 +236,7 @@ export const hostedReposApi = createApi({
     }),
     rerunPullRequestWorkflow: builder.mutation<void, RerunPullRequestWorkflowInput>({
       async queryFn(input) {
-        try {
-          await rerunPullRequestWorkflow(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await rerunPullRequestWorkflow(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
@@ -327,12 +245,7 @@ export const hostedReposApi = createApi({
     }),
     cancelPullRequestWorkflow: builder.mutation<void, RerunPullRequestWorkflowInput>({
       async queryFn(input) {
-        try {
-          await cancelPullRequestWorkflow(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await cancelPullRequestWorkflow(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
@@ -341,12 +254,7 @@ export const hostedReposApi = createApi({
     }),
     addPullRequestReaction: builder.mutation<void, AddPullRequestReactionInput>({
       async queryFn(input) {
-        try {
-          await addPullRequestReaction(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await addPullRequestReaction(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
@@ -354,11 +262,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestFiles: builder.query<PullRequestChangedFile[], PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestFiles(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestFiles(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestFiles", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -366,11 +270,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestPatch: builder.query<string, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await getPullRequestPatch(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getPullRequestPatch(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestPatch", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -378,11 +278,7 @@ export const hostedReposApi = createApi({
     }),
     preparePullRequestCompareRefs: builder.query<PullRequestCompareRefs, PullRequestLocatorInput>({
       async queryFn(input) {
-        try {
-          return { data: await preparePullRequestCompareRefs(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await preparePullRequestCompareRefs(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestCompareRefs", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -390,12 +286,7 @@ export const hostedReposApi = createApi({
     }),
     addPullRequestComment: builder.mutation<void, AddPullRequestCommentInput>({
       async queryFn(input) {
-        try {
-          await addPullRequestComment(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await addPullRequestComment(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -403,22 +294,13 @@ export const hostedReposApi = createApi({
     }),
     createPullRequest: builder.mutation<PullRequestSummary, CreatePullRequestInput>({
       async queryFn(input) {
-        try {
-          return { data: await createPullRequest(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await createPullRequest(input));
       },
       invalidatesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
     }),
     submitPullRequestDecision: builder.mutation<void, SubmitPullRequestDecisionInput>({
       async queryFn(input) {
-        try {
-          await submitPullRequestDecision(input);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await submitPullRequestDecision(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -428,11 +310,7 @@ export const hostedReposApi = createApi({
     }),
     mergePullRequest: builder.mutation<"merged" | "queued", MergePullRequestInput>({
       async queryFn(input) {
-        try {
-          return { data: await mergePullRequest(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await mergePullRequest(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequests", id: repoPath },
@@ -446,11 +324,7 @@ export const hostedReposApi = createApi({
       ReplyToPullRequestThreadInput
     >({
       async queryFn(input) {
-        try {
-          return { data: await replyToPullRequestThread(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await replyToPullRequestThread(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -461,11 +335,7 @@ export const hostedReposApi = createApi({
       SubmitPullRequestReviewCommentsInput
     >({
       async queryFn(input) {
-        try {
-          return { data: await submitPullRequestReviewComments(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await submitPullRequestReviewComments(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -476,11 +346,7 @@ export const hostedReposApi = createApi({
       SetPullRequestThreadResolvedInput
     >({
       async queryFn(input) {
-        try {
-          return { data: await setPullRequestThreadResolved(input) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await setPullRequestThreadResolved(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },

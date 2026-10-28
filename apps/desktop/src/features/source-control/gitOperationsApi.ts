@@ -1,10 +1,6 @@
+import { queryResult } from "@/platform/desktop/failure";
 import { desktop } from "@/platform/desktop";
-import {
-  gitCommandResultSchema,
-  gitStateResultSchema,
-  type GitCommand,
-  type GitRepositoryState,
-} from "@/platform/desktop/gitOperations";
+import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOperations";
 import { gitApi } from "./api";
 import { hostedReposApi } from "@/features/hosted-repos/api";
 
@@ -12,45 +8,19 @@ export const gitOperationsApi = gitApi.injectEndpoints({
   endpoints: (builder) => ({
     getGitStashPatch: builder.query<string, { repoPath: string; oid: string }>({
       async queryFn({ repoPath, oid }) {
-        try {
-          const result = gitCommandResultSchema.parse(
-            await desktop.getGitStashPatch(repoPath, oid),
-          );
-          return result.ok ? { data: result.value } : { error: result.error };
-        } catch {
-          return { error: { message: "Unable to read stash." } };
-        }
+        return queryResult(await desktop.getGitStashPatch(repoPath, oid));
       },
     }),
     getGitRepositoryState: builder.query<GitRepositoryState, string>({
       async queryFn(repoPath) {
-        try {
-          const result = gitStateResultSchema.parse(await desktop.getGitRepositoryState(repoPath));
-          return result.ok ? { data: result.value } : { error: result.error };
-        } catch {
-          return {
-            error: {
-              message:
-                "Unable to read repository state. Restart the desktop app if it was just updated.",
-            },
-          };
-        }
+        return queryResult(await desktop.getGitRepositoryState(repoPath));
       },
       providesTags: (_data, _error, repoPath) => [{ type: "Snapshot", id: repoPath }],
     }),
     runGitCommand: builder.mutation<string, { repoPath: string; command: GitCommand }>({
       async queryFn({ repoPath, command }, { dispatch }) {
         try {
-          const result = gitCommandResultSchema.parse(
-            await desktop.runGitCommand(repoPath, command),
-          );
-          return result.ok ? { data: result.value } : { error: result.error };
-        } catch {
-          return {
-            error: {
-              message: "Git operation could not be completed. Refresh to check repository state.",
-            },
-          };
+          return queryResult(await desktop.runGitCommand(repoPath, command));
         } finally {
           dispatch(
             gitApi.util.invalidateTags([

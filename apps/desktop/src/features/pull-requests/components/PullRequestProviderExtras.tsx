@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Check, RotateCcw, XCircle } from "lucide-react";
 
+import { ErrorState, ErrorNotice, ActionError } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { useAppDispatch } from "@/app/hooks";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,12 +34,13 @@ export function PullRequestProviderExtras({
 }) {
   const dispatch = useAppDispatch();
   const input = { repoPath, pullRequestNumber: detail.number };
-  const { data, error, isLoading, refetch } = useGetPullRequestExtrasQuery(input, {
+  const { data, error, isLoading, isFetching, refetch } = useGetPullRequestExtrasQuery(input, {
     refetchOnFocus: true,
-    selectFromResult: ({ currentData, error, isLoading }) => ({
+    selectFromResult: ({ currentData, error, isLoading, isFetching }) => ({
       data: currentData,
       error,
       isLoading,
+      isFetching,
     }),
   });
   const { hostedRepo } = useResolveHostedRepoQuery(repoPath, {
@@ -69,12 +71,8 @@ export function PullRequestProviderExtras({
       }).unwrap();
       setEditing(false);
       toast.success("Labels updated");
-    } catch (cause) {
-      toast.error(
-        cause && typeof cause === "object" && "message" in cause
-          ? String(cause.message)
-          : "Could not update labels.",
-      );
+    } catch {
+      // The mutation’s error stays beside the form while the selected labels are retained.
     }
   }
 
@@ -90,12 +88,8 @@ export function PullRequestProviderExtras({
       toast.success(
         confirmAction === "rerun" ? "Workflow rerun requested" : "Workflow cancellation requested",
       );
-    } catch (cause) {
-      toast.error(
-        cause && typeof cause === "object" && "message" in cause
-          ? String(cause.message)
-          : "Could not update workflow.",
-      );
+    } catch {
+      // The mutation state supplies the error without closing the confirmation.
     }
   }
 
@@ -120,12 +114,8 @@ export function PullRequestProviderExtras({
       }).unwrap();
       setEditingParent(false);
       toast.success("Stack parent updated");
-    } catch (cause) {
-      toast.error(
-        cause && typeof cause === "object" && "message" in cause
-          ? String(cause.message)
-          : "Could not update stack parent.",
-      );
+    } catch {
+      // Keep the chosen parent available for another explicit submission.
     }
   }
 
@@ -135,7 +125,7 @@ export function PullRequestProviderExtras({
         <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
           GitHub extras
         </h2>
-        <Button variant="ghost" size="sm" disabled={isLoading} onClick={() => void refetch()}>
+        <Button variant="ghost" size="sm" disabled={isFetching} onClick={() => void refetch()}>
           Refresh
         </Button>
       </div>
@@ -143,9 +133,32 @@ export function PullRequestProviderExtras({
         <p className="text-muted-foreground mt-3 text-xs">Loading provider details…</p>
       ) : null}
       {error ? (
-        <p role="alert" className="text-destructive mt-3 text-xs">
-          Provider details could not be loaded.
-        </p>
+        data ? (
+          <ErrorNotice
+            className="mt-3"
+            title="Couldn’t refresh provider details"
+            error={error}
+            busy={isFetching}
+            recovery={{
+              label: "Retry",
+              onAction: () => {
+                void refetch();
+              },
+            }}
+          />
+        ) : (
+          <ErrorState
+            title="Couldn’t load provider details"
+            error={error}
+            busy={isFetching}
+            recovery={{
+              label: "Retry",
+              onAction: () => {
+                void refetch();
+              },
+            }}
+          />
+        )
       ) : null}
       {data ? (
         <div className="mt-3 space-y-4 text-sm">
@@ -317,6 +330,9 @@ export function PullRequestProviderExtras({
               </label>
             ))}
           </div>
+          {labelMutation.error ? (
+            <ActionError title="Couldn’t save labels" error={labelMutation.error} />
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(false)}>
               Cancel
@@ -354,6 +370,9 @@ export function PullRequestProviderExtras({
               </Button>
             ))}
           </div>
+          {editMutation.error ? (
+            <ActionError title="Couldn’t save stack parent" error={editMutation.error} />
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingParent(false)}>
               Cancel
@@ -382,6 +401,12 @@ export function PullRequestProviderExtras({
                 : "will be asked to stop."}
             </DialogDescription>
           </DialogHeader>
+          {(confirmAction === "rerun" ? rerunMutation.error : cancelMutation.error) ? (
+            <ActionError
+              title="Couldn’t update workflow"
+              error={confirmAction === "rerun" ? rerunMutation.error : cancelMutation.error}
+            />
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmRunId(null)}>
               Back

@@ -2,6 +2,8 @@ import { skipToken } from "@reduxjs/toolkit/query";
 import { Copy, ExternalLink, FileCode2, GitBranch, MoreHorizontal, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Markdown } from "@/components/markdown/Markdown";
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { DiffStat } from "@/components/ui/diff-stat";
 import {
   DropdownMenu,
@@ -18,10 +20,7 @@ import {
   useGetPullRequestConversationQuery,
   useGetPullRequestFilesQuery,
 } from "@/features/hosted-repos/api";
-import {
-  CommentBody,
-  copyToClipboard,
-} from "@/features/pull-requests/components/pullRequestCommentParts";
+import { copyToClipboard } from "@/features/pull-requests/components/pullRequestCommentParts";
 import {
   CommentCountChip,
   PullRequestStateBadge,
@@ -77,15 +76,35 @@ function PreviewStatus({
 }
 
 function PreviewDescription({ repoPath, number }: { repoPath: string; number: number }) {
-  const { body, loading } = useGetPullRequestConversationQuery(
+  const { body, loading, error, isFetching, refetch } = useGetPullRequestConversationQuery(
     { repoPath, pullRequestNumber: number },
     {
-      selectFromResult: ({ currentData, isFetching }) => ({
+      selectFromResult: ({ currentData, isFetching, error }) => ({
         body: currentData?.detail.body ?? null,
         loading: isFetching && !currentData,
+        isFetching,
+        error,
       }),
     },
   );
+  const recovery = {
+    label: "Retry",
+    onAction: () => {
+      void refetch();
+    },
+  };
+
+  if (error && body === null) {
+    return (
+      <ErrorState
+        title="Couldn’t load this description"
+        error={error}
+        busy={isFetching}
+        recovery={recovery}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -95,10 +114,24 @@ function PreviewDescription({ repoPath, number }: { repoPath: string; number: nu
       </div>
     );
   }
-  return body?.trim() ? (
-    <CommentBody body={body} />
-  ) : (
-    <p className="text-muted-foreground text-sm italic">No description provided.</p>
+  return (
+    <>
+      {error ? (
+        <ErrorNotice
+          title="Couldn’t refresh this description"
+          error={error}
+          busy={isFetching}
+          recovery={recovery}
+        />
+      ) : null}
+      {body?.trim() ? (
+        <Markdown className="text-[13px] leading-5 [&_p]:text-[13px] [&_p]:leading-5 [&_li]:text-[13px] [&_li]:leading-5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_h4]:text-[13px] [&_a]:text-[13px] [&_blockquote]:text-[13px]">
+          {body}
+        </Markdown>
+      ) : (
+        <p className="text-muted-foreground text-sm italic">No description provided.</p>
+      )}
+    </>
   );
 }
 
@@ -115,7 +148,10 @@ export function PullRequestInboxPreview({
 }) {
   if (!pullRequest) {
     return (
-      <aside className="bg-surface-0 text-muted-foreground flex h-full min-h-0 items-center justify-center p-6 text-center text-sm">
+      <aside
+        aria-label="Pull request preview"
+        className="bg-surface-0 text-muted-foreground flex h-full min-h-0 min-w-0 items-center justify-center p-6 text-center text-sm"
+      >
         Select a pull request to preview it.
       </aside>
     );
@@ -123,7 +159,10 @@ export function PullRequestInboxPreview({
 
   const { author } = pullRequest;
   return (
-    <aside className="bg-surface-0 flex h-full min-h-0 flex-col overflow-hidden">
+    <aside
+      aria-label="Pull request preview"
+      className="bg-surface-0 flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+    >
       <header className="border-border/70 border-b px-5 py-4">
         <div className="text-muted-foreground flex items-center gap-2 text-xs">
           <PullRequestStateBadge state={pullRequestStateView(pullRequest)} />
@@ -152,7 +191,10 @@ export function PullRequestInboxPreview({
         <PreviewStatus repoPath={repoPath} pullRequest={pullRequest} />
       </header>
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 py-4 text-sm leading-6">
+      <div
+        data-workspace-scroll
+        className="min-h-0 flex-1 overflow-auto px-5 py-4 text-sm leading-6"
+      >
         <PreviewDescription repoPath={repoPath} number={pullRequest.number} />
       </div>
 

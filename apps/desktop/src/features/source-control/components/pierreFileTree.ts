@@ -10,8 +10,6 @@ import {
   buildSourceControlFileTree,
   collectDirectoryPaths,
   type BuildSourceControlFileTreeOptions,
-  type SourceControlTreeDirectoryNode,
-  type SourceControlTreeNode,
 } from "@/features/source-control/fileTree";
 import type { Bucket, FileStatus } from "@/features/source-control/types";
 import type { DisplayFile } from "./flatPierreTree";
@@ -56,32 +54,6 @@ export function buildTreeOptions<TFile extends PierreFileTreeBrowserFile>(
   };
 }
 
-export function buildNavTreeOptions<TFile extends PierreFileTreeBrowserFile>(
-  compareTreeDirectories: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"],
-  flattenEmptyDirectories: boolean,
-  sort: "default" | FileTreeSortComparator,
-): BuildSourceControlFileTreeOptions<PierreFileTreeNavFile> {
-  return {
-    compareDirectories: compareTreeDirectories
-      ? (left, right, depth) =>
-          compareTreeDirectories(
-            left as SourceControlTreeDirectoryNode<TFile>,
-            right as SourceControlTreeDirectoryNode<TFile>,
-            depth,
-          )
-      : undefined,
-    compareFiles:
-      sort === "default"
-        ? undefined
-        : (left, right) =>
-            sort(
-              toPierreSortEntry(left.path, left.name, false),
-              toPierreSortEntry(right.path, right.name, false),
-            ),
-    flattenEmptyDirectories,
-  };
-}
-
 export function collectCollapsedDirectoryPaths<TFile extends PierreFileTreeBrowserFile>(
   files: ReadonlyArray<TFile>,
   model: PierreFileTreeModel,
@@ -110,67 +82,6 @@ export function collapseDirectoryPaths(
       directoryItem.collapse();
     }
   }
-}
-
-export function collectVisibleFilePaths<TFile extends PierreFileTreeBrowserFile>(
-  files: ReadonlyArray<TFile>,
-  model: PierreFileTreeModel,
-  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
-) {
-  return collectVisibleFiles(buildSourceControlFileTree(files, treeOptions), model).map(
-    (file) => file.path,
-  );
-}
-
-export function collectVisibleFiles<TFile extends PierreFileTreeBrowserFile>(
-  nodes: ReadonlyArray<SourceControlTreeNode<TFile>>,
-  model: PierreFileTreeModel,
-): TFile[] {
-  const visibleFiles: TFile[] = [];
-
-  for (const node of nodes) {
-    if (node.kind === "file") {
-      visibleFiles.push(node.file);
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (!isExpanded) {
-      continue;
-    }
-
-    visibleFiles.push(...collectVisibleFiles(node.children, model));
-  }
-
-  return visibleFiles;
-}
-
-export function collectVisibleRowPaths<TFile extends PierreFileTreeBrowserFile>(
-  nodes: ReadonlyArray<SourceControlTreeNode<TFile>>,
-  model: PierreFileTreeModel,
-): string[] {
-  const visiblePaths: string[] = [];
-
-  for (const node of nodes) {
-    visiblePaths.push(node.path);
-
-    if (node.kind === "file") {
-      continue;
-    }
-
-    const directoryItem = model.getItem(node.path);
-    const isExpanded =
-      directoryItem && "isExpanded" in directoryItem ? directoryItem.isExpanded() : true;
-    if (!isExpanded) {
-      continue;
-    }
-
-    visiblePaths.push(...collectVisibleRowPaths(node.children, model));
-  }
-
-  return visiblePaths;
 }
 
 export function toPierreGitStatus(status: FileStatus | undefined): GitStatus | null {

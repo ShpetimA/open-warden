@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { RestoreHistoryFile } from "./RestoreHistoryFile";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileText } from "lucide-react";
@@ -20,7 +21,6 @@ import { selectHistoryFile } from "@/features/source-control/actions";
 import { FileList } from "@/features/source-control/components/FileList";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
 import { getHistoryComparison } from "@/features/source-control/historySelection";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { FileItem } from "@/features/source-control/types";
 
 export function HistoryFilesPane() {
@@ -46,6 +46,7 @@ export function HistoryFilesPane() {
     data: historyFiles = [],
     isFetching: loadingHistoryFiles,
     error: historyFilesError,
+    refetch: retryHistoryFiles,
   } = useGetCommitFilesQuery(
     activeRepo && historyCommitId && !comparison
       ? { repoPath: activeRepo, commitId: historyCommitId }
@@ -89,9 +90,17 @@ export function HistoryFilesPane() {
         ) : null}
       </div>
       {!comparison && historyFilesError ? (
-        <p role="alert" className="text-destructive p-3 text-sm">
-          {errorMessageFrom(historyFilesError, "This commit could not be loaded locally.")}
-        </p>
+        <ErrorState
+          title="Couldn’t load this commit’s files"
+          error={historyFilesError}
+          busy={loadingHistoryFiles}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryHistoryFiles();
+            },
+          }}
+        />
       ) : loadingFiles && files.length === 0 ? (
         <Empty className="h-auto border-0 p-4">
           <EmptyHeader>
@@ -116,6 +125,7 @@ export function HistoryFilesPane() {
         </Empty>
       ) : (
         <FileList
+          autoFocus={false}
           files={files}
           mode={fileBrowserMode}
           selectedPath={activePath}

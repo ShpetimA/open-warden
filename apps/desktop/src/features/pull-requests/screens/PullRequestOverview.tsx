@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { Copy, MessageSquarePlus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -24,7 +25,6 @@ import {
 import { copyToClipboard } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
 import { PullRequestProviderExtras } from "@/features/pull-requests/components/PullRequestProviderExtras";
-import { PullRequestReviewControl } from "@/features/pull-requests/components/PullRequestReviewControl";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
@@ -151,11 +151,14 @@ function useOpenCommitInHistory(locator: PullRequestLocator) {
     if (opening.current) return;
     opening.current = true;
     try {
-      try {
-        await desktop.getCommitFiles(locator.repoPath, commitSha);
-      } catch {
+      let result = await desktop.getCommitFiles(locator.repoPath, commitSha);
+      if (!result.ok) {
         await prepareRefs(locator, true).unwrap();
-        await desktop.getCommitFiles(locator.repoPath, commitSha);
+        result = await desktop.getCommitFiles(locator.repoPath, commitSha);
+      }
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
       }
       await dispatch(selectHistoryPullRequestCommit(commitSha));
       navigate(`/history?commit=${commitSha}`);
@@ -230,19 +233,13 @@ function PullRequestOverviewHeaderBar({
       pullRequest={pullRequest}
       refreshing={refreshing}
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <PullRequestReviewControl
-            repoPath={locator.repoPath}
-            pullRequestNumber={locator.pullRequestNumber}
-          />
-          <PullRequestHeaderActions
-            lifecycleActions={headerLifecycleActions(detail)}
-            opening={opening}
-            refreshing={refreshing}
-            onAction={handleAction}
-            onLifecycle={(action) => onLifecycle({ action })}
-          />
-        </div>
+        <PullRequestHeaderActions
+          lifecycleActions={headerLifecycleActions(detail)}
+          opening={opening}
+          refreshing={refreshing}
+          onAction={handleAction}
+          onLifecycle={(action) => onLifecycle({ action })}
+        />
       }
       onBack={() => navigate(buildPullRequestsInboxPath())}
       onCopyBranch={() => handleAction("copy-branch")}
@@ -535,12 +532,17 @@ export const PullRequestOverview = () => {
           pullRequestNumber,
         }
       : null;
-  const { hostedRepo, loadingHostedRepo, hostedRepoError } = useResolveHostedRepoQuery(activeRepo, {
+  const {
+    hostedRepo,
+    loadingHostedRepo,
+    hostedRepoError,
+    refetch: retryHostedRepo,
+  } = useResolveHostedRepoQuery(activeRepo, {
     skip: !activeRepo,
     selectFromResult: ({ currentData, isFetching, error }) => ({
       hostedRepo: currentData ?? null,
       loadingHostedRepo: isFetching && !currentData,
-      hostedRepoError: currentData ? "" : errorMessage(error, ""),
+      hostedRepoError: currentData ? undefined : error,
     }),
   });
   const routeMatchesActiveRepo = Boolean(
@@ -554,11 +556,16 @@ export const PullRequestOverview = () => {
     activeRepo && route && routeMatchesActiveRepo
       ? { repoPath: activeRepo, pullRequestNumber }
       : skipToken;
-  const { detail, loadingDetail, detailError } = useGetPullRequestConversationQuery(queryArg, {
+  const {
+    detail,
+    loadingDetail,
+    detailError,
+    refetch: retryDetail,
+  } = useGetPullRequestConversationQuery(queryArg, {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       detail: currentData?.detail ?? null,
       loadingDetail: isFetching && !currentData,
-      detailError: currentData ? "" : errorMessage(error, ""),
+      detailError: currentData ? undefined : error,
     }),
     pollingInterval: 10000,
     refetchOnFocus: true,
@@ -568,9 +575,17 @@ export const PullRequestOverview = () => {
   if (loadingHostedRepo || loadingDetail) return <ListLoadingState label="Loading pull request…" />;
   if (hostedRepoError || detailError) {
     return (
-      <p role="alert" className="text-destructive p-6 text-sm">
-        {hostedRepoError || detailError}
-      </p>
+      <ErrorState
+        title="Couldn’t load this pull request"
+        error={hostedRepoError || detailError}
+        busy={loadingHostedRepo || loadingDetail}
+        recovery={{
+          label: "Retry",
+          onAction: () => {
+            void (hostedRepoError ? retryHostedRepo() : retryDetail());
+          },
+        }}
+      />
     );
   }
   if (!detail || !route || queryArg === skipToken) return null;

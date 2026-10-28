@@ -1,3 +1,4 @@
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import type { FileTreeSortComparator } from "@pierre/trees";
 import { useState } from "react";
 
@@ -30,6 +31,7 @@ export function PullRequestCommitFileGroups({
   selectedCommit,
   loading,
   error,
+  onRetry,
   onSelect,
   onGroupingChange,
 }: {
@@ -37,6 +39,7 @@ export function PullRequestCommitFileGroups({
   selectedCommit: HistoryCommit | null;
   loading: boolean;
   error: string;
+  onRetry?: () => void;
   onSelect: (commit: HistoryCommit, file: FileItem) => void;
   onGroupingChange: (view: ReviewFileView) => void;
 }) {
@@ -102,18 +105,31 @@ export function PullRequestCommitFileGroups({
           onChange={(event) => setFilter(event.target.value)}
         />
       </div>
-      {loading ? (
+      {error && groups.length > 0 ? (
+        <ErrorNotice
+          title="Couldn’t refresh commits and files"
+          error={undefined}
+          message={error}
+          recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+        />
+      ) : null}
+      {loading && !error && groups.length === 0 ? (
         <ListLoadingState label="Loading files by commit…" />
-      ) : error ? (
-        <p role="alert" className="text-destructive p-3 text-xs">
-          {error}
-        </p>
+      ) : error && groups.length === 0 ? (
+        <ErrorState
+          title="Couldn’t load commits and files"
+          error={undefined}
+          message={error}
+          busy={loading}
+          recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+        />
       ) : displayFiles.length === 0 ? (
         <p className="text-muted-foreground p-3 text-xs">
           {query ? "No files match the current filter." : "No changed files in these commits."}
         </p>
       ) : (
         <PierreFileTreeBrowser
+          selectFirstFile
           files={displayFiles}
           selectedPath={selectedPath}
           navRegion="pr-commit-groups"

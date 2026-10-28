@@ -1,3 +1,5 @@
+import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
+import { ActionError } from "@/components/ui/error-state";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, GitBranch, LoaderCircle, Plus } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -39,7 +41,6 @@ import {
   composerScopes,
   count,
   eligibleBranch,
-  failureMessage,
   hasOverlappingChanges,
   nameActions,
   remoteActions,
@@ -109,7 +110,7 @@ export function ChangeCommandComposer({
   const [message, setMessage] = useState(existingMessage);
   const [includeUntracked, setIncludeUntracked] = useState(true);
   const [working, setWorking] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | DesktopFailure>("");
   const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
@@ -802,10 +803,11 @@ export function ChangeCommandComposer({
           return;
         }
         if (
-          (requestedAction === "drop-stash" ||
-            requestedAction === "delete-tag" ||
-            requestedAction === "remove-worktree") &&
-          !(await desktop.confirm(
+          requestedAction === "drop-stash" ||
+          requestedAction === "delete-tag" ||
+          requestedAction === "remove-worktree"
+        ) {
+          const confirmed = await desktop.confirm(
             requestedAction === "drop-stash"
               ? "Delete this saved stash? Its changes will no longer be available from the stash list."
               : requestedAction === "delete-tag"
@@ -821,10 +823,15 @@ export function ChangeCommandComposer({
               kind: "warning",
               okLabel: requestedAction === "remove-worktree" ? "Remove" : "Delete",
             },
-          ))
-        ) {
-          setPane("review");
-          return;
+          );
+          if (!confirmed.ok) {
+            setError(confirmed.error.message);
+            return;
+          }
+          if (!confirmed.value) {
+            setPane("review");
+            return;
+          }
         }
         await execute({ repoPath, command }).unwrap();
         if (requestedAction === "create-worktree") await dispatch(openRepo(draft.trim()));
@@ -832,7 +839,7 @@ export function ChangeCommandComposer({
       }
       onClose();
     } catch (cause) {
-      setError(failureMessage(cause));
+      setError(failureFromUnknown(cause, "runGitCommand"));
     } finally {
       runningRef.current = false;
       setWorking(false);
@@ -1245,9 +1252,12 @@ export function ChangeCommandComposer({
           </div>
         )}
         {error ? (
-          <p role="alert" className="text-destructive px-1 text-xs">
-            {error}
-          </p>
+          <ActionError
+            title="Couldn’t complete this Git operation"
+            error={error}
+            message={typeof error === "string" ? error : undefined}
+            busy={working || mutation.isLoading}
+          />
         ) : null}
         <div className="change-composer-footer">
           {pane === "action" || pane === "choice" ? (

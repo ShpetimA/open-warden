@@ -1,3 +1,4 @@
+import { failureFromUnknown } from "@/platform/desktop/failure";
 import type { AppThunk, RootState } from "@/app/store";
 import { desktop } from "@/platform/desktop";
 import { createAppSettings } from "@/platform/desktop/appSettings";
@@ -23,17 +24,17 @@ function buildUpdatedSettings(state: RootState, mode: FileTreeRenderMode) {
 export const restoreAppSettings = (): AppThunk<Promise<void>> => async (dispatch) => {
   try {
     const settings = await desktop.loadAppSettings();
-    dispatch(hydrateAppSettings(settings));
+    if (settings.ok) dispatch(hydrateAppSettings(settings.value));
+    else dispatch(setSettingsError(settings.error));
   } catch (error) {
     dispatch(hydrateAppSettings(createAppSettings()));
-    dispatch(setSettingsError(error instanceof Error ? error.message : String(error)));
+    dispatch(setSettingsError(failureFromUnknown(error, "settings")));
   }
 };
 
 export const updateFileTreeRenderMode =
   (mode: FileTreeRenderMode): AppThunk<Promise<void>> =>
   async (dispatch, getState) => {
-    const previousSettings = getState().settings.appSettings;
     const nextSettings = buildUpdatedSettings(getState(), mode);
 
     dispatch(setFileTreeRenderMode(mode));
@@ -41,10 +42,11 @@ export const updateFileTreeRenderMode =
 
     try {
       const savedSettings = await desktop.saveAppSettings(nextSettings);
-      dispatch(hydrateAppSettings(savedSettings));
+      if (savedSettings.ok) dispatch(hydrateAppSettings(savedSettings.value));
+      else {
+        dispatch(setSettingsError(savedSettings.error));
+      }
     } catch (error) {
-      dispatch(hydrateAppSettings(previousSettings));
-      dispatch(setSettingsError(error instanceof Error ? error.message : String(error)));
-      throw error;
+      dispatch(setSettingsError(failureFromUnknown(error, "settings")));
     }
   };

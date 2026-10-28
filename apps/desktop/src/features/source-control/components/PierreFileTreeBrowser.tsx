@@ -16,6 +16,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
+import { collectPreparedTreeRowPaths } from "./pierreFileTreeProjection";
 import { TreeRowHover } from "./TreeRowHover";
 
 import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
@@ -27,10 +28,8 @@ import type { Bucket } from "@/features/source-control/types";
 import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
 import useOnLayoutScrollToFocusedPath from "@/features/source-control/components/useOnLayoutScrollToFocusedPath";
 import {
-  buildNavTreeOptions,
   buildTreeOptions,
   collectCollapsedDirectoryPaths,
-  collectVisibleFilePaths,
   collapseDirectoryPaths,
   type PierreFileTreeBrowserFile,
   type PierreFileTreeNavFile,
@@ -42,6 +41,7 @@ type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
   selectedPath: string;
   autoFocus?: boolean;
+  selectFirstFile?: boolean;
   directoryLabelPriority?: "start" | "end";
   selectedPaths?: readonly string[];
   navRegion: string;
@@ -150,6 +150,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   sort = "default",
   compareTreeDirectories,
   onActivatePath,
+  selectFirstFile = false,
   onTogglePathSelection,
   onRangeSelectPath,
   gitStatus,
@@ -170,9 +171,6 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   const filePathSetRef = useRef<Set<string> | null>(null);
   const pierreSelectedPathsRef = useRef<ReadonlySet<string> | null>(null);
   const navFilesRef = useRef<ReadonlyArray<PierreFileTreeNavFile>>([]);
-  const navTreeOptionsRef = useRef<
-    BuildSourceControlFileTreeOptions<PierreFileTreeNavFile> | undefined
-  >(undefined);
   const renderRowDecorationRef = useRef(renderRowDecoration);
   const suppressClickPathRef = useRef<string | null>(null);
   const suppressPierreSelectionChangeRef = useRef(false);
@@ -202,6 +200,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     });
   }
   const initialPreparedInput = initialPreparedInputRef.current;
+  const preparedInputRef = useRef(initialPreparedInput);
 
   if (filePathSetRef.current === null) {
     filePathSetRef.current = new Set(initialFilePaths);
@@ -311,6 +310,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       syncingSelectionRef.current = true;
       try {
         model.resetPaths(nextPaths, { preparedInput: nextPreparedInput });
+        preparedInputRef.current = nextPreparedInput;
         collapseDirectoryPaths(model, collapsedDirectoryPaths);
         const currentSelectedPath = selectedPathRef.current;
         if (currentSelectedPath && filePathSetRef.current.has(currentSelectedPath)) {
@@ -334,23 +334,24 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   useEffect(() => {
     navFilesRef.current = files.map(toPierreFileTreeNavFile);
-    navTreeOptionsRef.current = buildNavTreeOptions(
-      compareTreeDirectories,
-      flattenEmptyDirectories,
-      sort,
-    );
     registerPierreFileTreeNav(navRegion, navFilesRef.current, model, {
       selectedPath: selectedPathRef.current,
-      treeOptions: navTreeOptionsRef.current,
+      preparedInput: preparedInputRef.current,
     });
   }, [compareTreeDirectories, files, flattenEmptyDirectories, model, navRegion, sort]);
 
   useEffect(() => {
     registerPierreFileTreeNav(navRegion, navFilesRef.current, model, {
       selectedPath,
-      treeOptions: navTreeOptionsRef.current,
+      preparedInput: preparedInputRef.current,
     });
   }, [model, navRegion, selectedPath]);
+
+  useEffect(() => {
+    if (!selectFirstFile || (selectedPath && filePathSetRef.current?.has(selectedPath))) return;
+    const firstPath = preparedInputRef.current.paths[0];
+    if (firstPath) onActivatePathRef.current(firstPath);
+  }, [files, model, selectFirstFile, selectedPath]);
 
   useEffect(() => {
     return () => {
@@ -469,12 +470,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   const handleHostKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.shiftKey && isRangeNavigationKey(event)) {
-      const targetPath = getShiftNavigationTargetPath(
-        model,
-        filesRef.current,
-        event,
-        buildTreeOptions(compareTreeDirectories, flattenEmptyDirectories, sort),
-      );
+      const targetPath = getShiftNavigationTargetPath(model, preparedInputRef.current.paths, event);
       if (!targetPath) {
         return;
       }
@@ -619,13 +615,15 @@ function isRangeNavigationKey(event: KeyboardEvent<HTMLElement>) {
   );
 }
 
-function getShiftNavigationTargetPath<TFile extends PierreFileTreeBrowserFile>(
+function getShiftNavigationTargetPath(
   model: PierreFileTreeModel,
-  files: ReadonlyArray<TFile>,
+  orderedPaths: readonly string[],
   event: KeyboardEvent<HTMLElement>,
-  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
 ) {
-  const visibleFilePaths = collectVisibleFilePaths(files, model, treeOptions);
+  const filePaths = new Set(orderedPaths);
+  const visibleFilePaths = collectPreparedTreeRowPaths(orderedPaths, model).filter((path) =>
+    filePaths.has(path),
+  );
   if (visibleFilePaths.length === 0) {
     return null;
   }

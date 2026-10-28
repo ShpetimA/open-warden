@@ -1,3 +1,5 @@
+import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
+import { ActionError } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { GitPullRequest, LoaderCircle, Plus } from "lucide-react";
@@ -34,7 +36,7 @@ import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandCompo
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import type { PullRequestComposerAction } from "./commandComposerModel";
-import { actions, failureMessage } from "./commandComposerModel";
+import { actions } from "./commandComposerModel";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
 export function PullRequestCommandComposer({
@@ -81,7 +83,7 @@ export function PullRequestCommandComposer({
   );
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | DesktopFailure>("");
   const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const messageRef = useRef<HTMLTextAreaElement>(null);
@@ -100,7 +102,12 @@ export function PullRequestCommandComposer({
     skip: !repoPath,
     selectFromResult: ({ currentData }) => ({ hostedRepo: currentData }),
   });
-  const { pullRequestPage, loadingPullRequests, listError } = useListPullRequestsQuery(
+  const {
+    pullRequestPage,
+    loadingPullRequests,
+    listError,
+    refetch: retryList,
+  } = useListPullRequestsQuery(
     { repoPath, page, perPage: 25 },
     {
       skip: !repoPath || pane !== "choice",
@@ -389,7 +396,7 @@ export function PullRequestCommandComposer({
       }
       onClose();
     } catch (cause) {
-      setError(failureMessage(cause));
+      setError(failureFromUnknown(cause, "pullRequestAction"));
       setPane(
         requestedAction === "open-pr" || requestedAction === "copy-pr-link"
           ? objectFirst
@@ -593,9 +600,17 @@ export function PullRequestCommandComposer({
               </p>
             ) : null}
             {pane === "choice" && listError ? (
-              <p role="alert" className="text-destructive text-xs">
-                {failureMessage(listError)}
-              </p>
+              <ActionError
+                title="Couldn’t load pull requests"
+                error={listError}
+                busy={loadingPullRequests}
+                recovery={{
+                  label: "Retry",
+                  onAction: () => {
+                    void retryList();
+                  },
+                }}
+              />
             ) : null}
             {pane === "choice" ? (
               <div className="flex items-center justify-between gap-2 text-xs">
@@ -748,9 +763,11 @@ export function PullRequestCommandComposer({
           </div>
         )}
         {error ? (
-          <p role="alert" className="text-destructive text-xs">
-            {error}
-          </p>
+          <ActionError
+            title="Couldn’t complete this pull request action"
+            error={error}
+            message={typeof error === "string" ? error : undefined}
+          />
         ) : null}
         <div className="change-composer-footer">
           <span>

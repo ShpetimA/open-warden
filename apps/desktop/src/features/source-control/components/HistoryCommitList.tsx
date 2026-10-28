@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -10,7 +11,6 @@ import {
   setHistoryCommitSelectedValue,
 } from "@/features/source-control/actions";
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import {
   clearHistoryCommitSelection,
   setHistoryFilter,
@@ -23,19 +23,19 @@ import { HistoryCommitMenu } from "./HistoryCommitMenu";
 const EMPTY_COMMITS: readonly HistoryCommit[] = [];
 
 export function HistoryCommitList() {
+  const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyFilter = useAppSelector((state) => state.sourceControl.historyFilter);
-  const { historyCommits, loadingHistoryCommits, error } = useGetCommitHistoryQuery(
-    activeRepo ? { repoPath: activeRepo } : skipToken,
-    {
-      selectFromResult: ({ data, isFetching, error }) => ({
-        historyCommits: data ?? EMPTY_COMMITS,
+  const { historyCommits, loadingHistoryCommits, error, lastUpdated, refetch } =
+    useGetCommitHistoryQuery(activeRepo ? { repoPath: activeRepo } : skipToken, {
+      selectFromResult: ({ currentData, isFetching, error, fulfilledTimeStamp }) => ({
+        historyCommits: currentData ?? EMPTY_COMMITS,
         loadingHistoryCommits: isFetching,
         error,
+        lastUpdated: fulfilledTimeStamp,
       }),
-    },
-  );
+    });
   const query = historyFilter.trim().toLowerCase();
   const filteredHistoryCommits = historyCommits.filter((commit) =>
     [commit.summary, commit.shortId, commit.commitId, commit.author].some((value) =>
@@ -46,6 +46,10 @@ export function HistoryCommitList() {
   return (
     <CommitListPane
       title="History commits"
+      virtualize
+      initialIndex={filteredHistoryCommits.findIndex(
+        (commit) => commit.commitId === searchParams.get("commit"),
+      )}
       commits={filteredHistoryCommits}
       totalCount={historyCommits.length}
       filter={historyFilter}
@@ -54,7 +58,11 @@ export function HistoryCommitList() {
       filterHint={<Kbd className="h-4 px-1 text-[10px]">/</Kbd>}
       navRegion="history-commits"
       loading={loadingHistoryCommits}
-      error={error ? errorMessageFrom(error, "Commit history could not be loaded.") : undefined}
+      error={error}
+      lastUpdated={lastUpdated}
+      onRetry={() => {
+        void refetch();
+      }}
       emptyMessage="No commits found."
       notice={<HistorySelectionNotice commits={historyCommits} />}
       renderHoverContent={(commit) => (
@@ -95,7 +103,7 @@ function HistorySelectionNotice({ commits }: { commits: readonly HistoryCommit[]
       ) : null}
       {pinnedCommitId && !commits.some((commit) => commit.commitId === pinnedCommitId) ? (
         <div className="border-border shrink-0 border-b px-2 py-2 text-xs">
-          <div className="font-medium">Selected pull request commit</div>
+          <div className="font-medium">Selected commit outside this branch</div>
           <div className="text-muted-foreground mt-1 truncate font-mono" title={pinnedCommitId}>
             {pinnedCommitId}
           </div>

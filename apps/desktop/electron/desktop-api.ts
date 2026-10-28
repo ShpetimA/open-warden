@@ -10,7 +10,7 @@ import {
 } from "./guidance/runtime";
 import { getGitStashPatch, getGitRepositoryState, runGitCommand } from "./gitOperations";
 import { browseDirectory } from "./directories";
-import type { DesktopApi, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
+import type { DesktopHandlers, LspDiagnosticsEvent } from "../src/platform/desktop/contracts";
 import { getAppSettingsPath, loadAppSettings, saveAppSettings } from "./appSettings";
 import {
   addPullRequestComment,
@@ -57,6 +57,7 @@ import {
   getCommitFileVersions,
   getCommitFiles,
   getCommitHistory,
+  getHistoryGraph,
   getCommitDetails,
   getBranchCommits,
   getFileVersions,
@@ -80,10 +81,10 @@ let lspSessionManager = new LspSessionManager({
   loadAppSettings,
 });
 
-export const desktopApi: DesktopApi = {
-  getPullRequestGuidance,
+export const desktopApi: DesktopHandlers = {
   getGuidanceActivity,
   clearGuidanceMessages,
+  getPullRequestGuidance,
   setGuidanceProgress,
   addGuidanceMessage,
   getGuidanceConnection,
@@ -137,6 +138,7 @@ export const desktopApi: DesktopApi = {
   getGitSnapshot,
   getRepoFiles,
   getCommitHistory,
+  getHistoryGraph,
   getCommitDetails,
   getBranchCommits,
   getBranches,

@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { refreshActiveRepo } from "@/features/source-control/actions";
@@ -20,6 +21,7 @@ type PullRequestFilesSidebarProps = {
   hasBranchFilesData: boolean;
   isLoadingBranchFiles: boolean;
   filesError: string;
+  onRetry?: () => void;
   reviewThreads?: PullRequestReviewThread[];
 };
 
@@ -31,6 +33,7 @@ export function PullRequestFilesSidebar({
   hasBranchFilesData,
   isLoadingBranchFiles,
   filesError,
+  onRetry,
   reviewThreads = [],
 }: PullRequestFilesSidebarProps) {
   const dispatch = useAppDispatch();
@@ -81,9 +84,13 @@ export function PullRequestFilesSidebar({
           {isLoadingBranchFiles && !hasBranchFilesData ? (
             <ListLoadingState label="Loading changed files…" />
           ) : filesError ? (
-            <p role="alert" className="text-destructive p-3 text-sm">
-              {filesError}
-            </p>
+            <ErrorState
+              title="Couldn’t load review files"
+              error={undefined}
+              message={filesError}
+              busy={isLoadingBranchFiles}
+              recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+            />
           ) : branchFiles.length === 0 ? (
             <div className="text-muted-foreground px-2 py-2 text-xs">No changed files.</div>
           ) : (

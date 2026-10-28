@@ -1,16 +1,17 @@
+import { captureDesktopOperation, desktopFailure, desktopSuccess } from "./failure";
+import { createDesktopApiFromInvoker } from "./createDesktopApi";
 import { createDesktopApiWithDefaults } from "./createDesktopApi";
 import { createAppSettings } from "./appSettings";
 import type {
   AppSettings,
   ConfirmOptions,
-  DesktopApi,
+  DesktopHandlers,
   DesktopBridge,
   DesktopUpdateActionResult,
   DesktopUpdateState,
   WorkspaceSession,
 } from "./contracts";
 import type { DesktopApiMethod } from "./desktopApiMethods";
-import { desktopRuntimeUnavailable, unsupportedInBrowser } from "./errors";
 import { createWorkspaceSession } from "./workspaceSession";
 
 const WORKSPACE_SESSION_STORAGE_KEY = "open-warden.workspace-session";
@@ -41,15 +42,11 @@ function createRejectedUpdateActionResult(reason: string): DesktopUpdateActionRe
 }
 
 function unsupported(feature: string): never {
-  throw unsupportedInBrowser(feature);
+  throw desktopFailure("browser", "unavailable", `${feature} requires the desktop app.`);
 }
 
 async function unsupportedAsync<T>(feature: string): Promise<T> {
   unsupported(feature);
-}
-
-function readBrowserDirectorySelectionError(): Error {
-  return unsupportedInBrowser("Repository selection");
 }
 
 function readStoredWorkspaceSession(): WorkspaceSession {
@@ -159,6 +156,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Git snapshot loading";
     case "getRepoFiles":
       return "Repository file listing";
+    case "getHistoryGraph":
+      return "History graph loading";
     case "getCommitHistory":
       return "Commit history loading";
     case "getCommitDetails":
@@ -242,7 +241,11 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
   overrides: {
     ...browserGuidance,
     async selectFolder() {
-      throw readBrowserDirectorySelectionError();
+      throw desktopFailure(
+        "selectFolder",
+        "unavailable",
+        "Choose a repository in the desktop app.",
+      );
     },
     async loadWorkspaceSession() {
       return readStoredWorkspaceSession();
@@ -285,30 +288,37 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
     async getLspReferences() {
       return [];
     },
-  } satisfies Partial<DesktopApi>,
+  } satisfies Partial<DesktopHandlers>,
 });
 
 export const browserDesktopApi: DesktopBridge = {
   onGuidanceNavigate() {
     return () => {};
   },
-  ...browserDesktopApiCore,
+  ...createDesktopApiFromInvoker((method, ...args) =>
+    captureDesktopOperation(method, () => {
+      const handler = browserDesktopApiCore[method] as (...parameters: unknown[]) => unknown;
+      return handler(...args);
+    }),
+  ),
   async getUpdateState() {
-    return createDisabledUpdateState("Automatic updates are only available in desktop builds.");
+    return desktopSuccess(
+      createDisabledUpdateState("Automatic updates are only available in desktop builds."),
+    );
   },
   async checkForUpdates() {
-    return createRejectedUpdateActionResult(
-      "Automatic updates are only available in desktop builds.",
+    return desktopSuccess(
+      createRejectedUpdateActionResult("Automatic updates are only available in desktop builds."),
     );
   },
   async downloadUpdate() {
-    return createRejectedUpdateActionResult(
-      "Automatic updates are only available in desktop builds.",
+    return desktopSuccess(
+      createRejectedUpdateActionResult("Automatic updates are only available in desktop builds."),
     );
   },
   async installUpdate() {
-    return createRejectedUpdateActionResult(
-      "Automatic updates are only available in desktop builds.",
+    return desktopSuccess(
+      createRejectedUpdateActionResult("Automatic updates are only available in desktop builds."),
     );
   },
   onUpdateState() {
@@ -338,7 +348,11 @@ export const browserDesktopApi: DesktopBridge = {
 };
 
 function unavailable(): never {
-  throw desktopRuntimeUnavailable();
+  throw desktopFailure(
+    "desktop",
+    "unavailable",
+    "Open Warden couldn’t reach its desktop service. Try again.",
+  );
 }
 
 async function unavailableAsync<T>(): Promise<T> {
@@ -372,22 +386,35 @@ const unavailableDesktopApiCore = createDesktopApiWithDefaults({
     async getLspHover() {
       return null;
     },
-  } satisfies Partial<DesktopApi>,
+  } satisfies Partial<DesktopHandlers>,
 });
 
 export const unavailableDesktopApi: DesktopBridge = {
-  ...unavailableDesktopApiCore,
+  ...createDesktopApiFromInvoker((method, ...args) =>
+    captureDesktopOperation(method, () => {
+      const handler = unavailableDesktopApiCore[method] as (...parameters: unknown[]) => unknown;
+      return handler(...args);
+    }),
+  ),
   async getUpdateState() {
-    return createDisabledUpdateState("Automatic updates are unavailable right now.");
+    return desktopSuccess(
+      createDisabledUpdateState("Automatic updates are unavailable right now."),
+    );
   },
   async checkForUpdates() {
-    return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
+    return desktopSuccess(
+      createRejectedUpdateActionResult("Automatic updates are unavailable right now."),
+    );
   },
   async downloadUpdate() {
-    return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
+    return desktopSuccess(
+      createRejectedUpdateActionResult("Automatic updates are unavailable right now."),
+    );
   },
   async installUpdate() {
-    return createRejectedUpdateActionResult("Automatic updates are unavailable right now.");
+    return desktopSuccess(
+      createRejectedUpdateActionResult("Automatic updates are unavailable right now."),
+    );
   },
   onUpdateState() {
     return () => {};

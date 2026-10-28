@@ -1,3 +1,4 @@
+import { desktopHandlers } from "@/test/desktopHandlers";
 import { configureStore } from "@reduxjs/toolkit";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
@@ -40,18 +41,20 @@ function setup(loadDetail: () => Promise<PullRequestDetail>) {
   const opened: Array<{ action?: ComposerAction; pullRequest?: PullRequestSummary }> = [];
   window.desktopBridge = {
     ...browserDesktopApi,
-    resolveHostedRepo: async () => ({
-      providerId: "bitbucket",
-      owner: "team",
-      repo: "invoice",
-      remoteName: "origin",
-      remoteUrl: "git@bitbucket.org:team/invoice.git",
-      webUrl: "https://bitbucket.org/team/invoice",
-    }),
-    getPullRequestConversation: async () => ({
-      detail: await loadDetail(),
-      issueComments: [],
-      reviewThreads: [],
+    ...desktopHandlers({
+      resolveHostedRepo: async () => ({
+        providerId: "bitbucket",
+        owner: "team",
+        repo: "invoice",
+        remoteName: "origin",
+        remoteUrl: "git@bitbucket.org:team/invoice.git",
+        webUrl: "https://bitbucket.org/team/invoice",
+      }),
+      getPullRequestConversation: async () => ({
+        detail: await loadDetail(),
+        issueComments: [],
+        reviewThreads: [],
+      }),
     }),
   };
   const store = configureStore({

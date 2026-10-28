@@ -166,6 +166,8 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
     );
     await page.addInitScript(
       ({ detail, repository, refs, versions, testVersions, files, settings }) => {
+        // oxlint-disable-next-line unicorn/consistent-function-scoping -- This initializer is serialized into the browser and cannot capture module helpers.
+        const success = <T>(value: T) => ({ ok: true as const, value });
         const connection = {
           status: "running",
           endpoint: "http://127.0.0.1:47781/mcp",
@@ -175,34 +177,37 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
         Object.defineProperty(window, "desktopBridge", {
           value: {
             loadWorkspaceSession: async () =>
-              JSON.parse(
-                localStorage.getItem("qa-session") ??
-                  JSON.stringify({
-                    openRepos: ["/projects/invoice"],
-                    activeRepo: "/projects/invoice",
-                    recentRepos: [],
-                  }),
+              success(
+                JSON.parse(
+                  localStorage.getItem("qa-session") ??
+                    JSON.stringify({
+                      openRepos: ["/projects/invoice"],
+                      activeRepo: "/projects/invoice",
+                      recentRepos: [],
+                    }),
+                ),
               ),
             saveWorkspaceSession: async (session: unknown) => {
               localStorage.setItem("qa-session", JSON.stringify(session));
-              return session;
+              return success(session);
             },
-            loadAppSettings: async () => settings,
-            saveAppSettings: async (settings: unknown) => settings,
-            getAppSettingsPath: async () => "/test/settings.json",
-            getUpdateState: async () => ({
-              enabled: false,
-              status: "disabled",
-              currentVersion: "0.0.0",
-              availableVersion: null,
-              downloadedVersion: null,
-              checkedAt: null,
-              downloadPercent: null,
-              message: null,
-              errorContext: null,
-              canRetry: false,
-              disabledReason: "Test",
-            }),
+            loadAppSettings: async () => success(settings),
+            saveAppSettings: async (settings: unknown) => success(settings),
+            getAppSettingsPath: async () => success("/test/settings.json"),
+            getUpdateState: async () =>
+              success({
+                enabled: false,
+                status: "disabled",
+                currentVersion: "0.0.0",
+                availableVersion: null,
+                downloadedVersion: null,
+                checkedAt: null,
+                downloadPercent: null,
+                message: null,
+                errorContext: null,
+                canRetry: false,
+                disabledReason: "Test",
+              }),
             onUpdateState: () => () => {},
             onLspDiagnostics: () => () => {},
             onAppSettingsChanged: () => () => {},
@@ -213,13 +218,14 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
               window.addEventListener("qa-guidance-navigate", receive);
               return () => window.removeEventListener("qa-guidance-navigate", receive);
             },
-            getGitSnapshot: async () => ({
-              repoRoot: "/projects/invoice",
-              branch: "main",
-              staged: [],
-              unstaged: [],
-              untracked: [],
-            }),
+            getGitSnapshot: async () =>
+              success({
+                repoRoot: "/projects/invoice",
+                branch: "main",
+                staged: [],
+                unstaged: [],
+                untracked: [],
+              }),
             getGitRepositoryState: async () => ({
               ok: true,
               value: {
@@ -239,28 +245,48 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
                 outgoing: [],
               },
             }),
-            resolveHostedRepo: async () => repository,
-            getPullRequestConversation: async () => ({
-              detail: { ...detail, headSha: await window.qaCurrentHead() },
-              issueComments: [],
-              reviewThreads: [],
-            }),
-            getPullRequestFiles: async () => files,
-            getPullRequestViewedFiles: async () => ({
-              storage: "device",
-              viewedPaths: [],
-              truncated: false,
-            }),
-            setPullRequestFileViewed: async () => undefined,
-            syncLspDocument: async () => undefined,
-            closeLspDocument: async () => undefined,
+            resolveHostedRepo: async () => success(repository),
+            getPullRequestConversation: async () =>
+              success({
+                detail: { ...detail, headSha: await window.qaCurrentHead() },
+                issueComments: [],
+                reviewThreads: [],
+              }),
+            getPullRequestFiles: async () => success(files),
+            listPullRequests: async () =>
+              success({
+                pullRequests: [
+                  {
+                    ...detail,
+                    headOwner: "team",
+                    headRepo: "invoice",
+                    commentCount: 0,
+                    reviewers: [],
+                    reviewDecision: null,
+                    checksState: null,
+                    additions: 2,
+                    deletions: 1,
+                    changedFiles: 2,
+                  },
+                ],
+                page: 1,
+                perPage: 25,
+                hasNextPage: false,
+              }),
+            getPullRequestReviewOverview: async () =>
+              success({ reviewers: [], viewerLogin: "alice", canManageReviewers: false }),
+            getPullRequestViewedFiles: async () =>
+              success({ storage: "device", viewedPaths: [], truncated: false }),
+            setPullRequestFileViewed: async () => success(undefined),
+            syncLspDocument: async () => success(undefined),
+            closeLspDocument: async () => success(undefined),
             preparePullRequestCompareRefs: async () => {
               await window.qaRecordComparisonCall("prepare");
-              return { ...refs, compareHeadRef: await window.qaCurrentHead() };
+              return success({ ...refs, compareHeadRef: await window.qaCurrentHead() });
             },
             getBranchFiles: async () => {
               await window.qaRecordComparisonCall("files");
-              return files;
+              return success(files);
             },
             getBranchFileVersions: async (
               _repo: string,
@@ -269,16 +295,16 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
               file: string,
             ) => {
               await window.qaRecordComparisonCall("versions", file);
-              return file.startsWith("test/") ? testVersions : versions;
+              return success(file.startsWith("test/") ? testVersions : versions);
             },
-            listProviderConnections: async () => [],
+            listProviderConnections: async () => success([]),
             getPullRequestGuidance: (input: unknown) => window.qaReadGuidance(input),
             getGuidanceActivity: (input: unknown) => window.qaGuidanceActivity(input),
             clearGuidanceMessages: (input: unknown) => window.qaClearGuidanceMessages(input),
             setGuidanceProgress: (input: unknown) => window.qaGuidanceProgress(input),
             addGuidanceMessage: (input: unknown) => window.qaGuidanceMessage(input),
-            getGuidanceConnection: async () => connection,
-            startGuidanceConnection: async () => connection,
+            getGuidanceConnection: async () => success(connection),
+            startGuidanceConnection: async () => success(connection),
           },
         });
       },
@@ -361,6 +387,17 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
     await page.getByRole("button", { name: "Expand unchanged sections" }).click();
     await expect(stepsPane).toBeVisible();
     await expect(filesPane).toBeVisible();
+    const reviewAction = page.getByRole("button", { name: "Review pull request", exact: true });
+    await expect(reviewAction).toHaveCount(1);
+    await expect(page.getByRole("navigation", { name: "Review sections" })).toContainText(
+      "Review…",
+    );
+    expect((await reviewAction.boundingBox())?.height).toBeLessThanOrEqual(26);
+    await reviewAction.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.locator('[data-slot="dialog-overlay"]').click({ position: { x: 8, y: 8 } });
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByText("No pending inline comments", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Files", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Previous", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Next", exact: true })).toHaveCount(0);

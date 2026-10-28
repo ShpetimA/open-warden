@@ -19,7 +19,8 @@ type PullRequestCommitListProps = Readonly<{
   selectedCommit: HistoryCommit | null;
   onCommitSelect: (commit: HistoryCommit) => void;
   commitsLoading: boolean;
-  commitsError: string;
+  commitsError: unknown;
+  onRetryCommits?: () => void;
 }>;
 
 type PullRequestChangesSidebarProps = PullRequestCommitListProps &
@@ -109,6 +110,7 @@ function PullRequestCommitPane({
   onCommitSelect,
   commitsLoading,
   commitsError,
+  onRetryCommits,
   target,
 }: PullRequestCommitListProps & {
   target: RefObject<PullRequestNavigationTarget>;
@@ -142,6 +144,7 @@ function PullRequestCommitPane({
         navRegion="pr-commits"
         loading={commitsLoading}
         error={commitsError}
+        onRetry={onRetryCommits}
         emptyMessage="No commits in this pull request."
         renderHoverContent={(commit) => (
           <CommitHoverDetails commitId={commit.commitId} summary={commit.summary} />

@@ -1,3 +1,4 @@
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { selectActiveWorkspace, type Workspace } from "@/features/workspaces/workspacesSlice";
 import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import { useEffect, useRef, useState } from "react";
@@ -113,7 +114,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     },
   );
 
-  const file = repoFileQuery.currentData ?? repoFileQuery.data;
+  const file = repoFileQuery.currentData;
   const errorMessage = file ? "" : errorMessageFrom(repoFileQuery.error, "");
   const selectedLine = target?.line && target.line > 0 ? target.line : null;
   const focusKey = target?.focusKey ?? null;
@@ -136,10 +137,22 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   });
 
   if (errorMessage) {
-    return <div className="text-destructive p-4 text-sm">{errorMessage}</div>;
+    return (
+      <ErrorState
+        title="Couldn’t open this file"
+        error={repoFileQuery.error}
+        busy={repoFileQuery.isFetching}
+        recovery={{
+          label: "Retry",
+          onAction: () => {
+            void repoFileQuery.refetch();
+          },
+        }}
+      />
+    );
   }
 
-  if (repoFileQuery.isFetching) {
+  if (repoFileQuery.isFetching && !file) {
     return <div className="text-muted-foreground p-4 text-sm">Loading file...</div>;
   }
 
@@ -149,6 +162,20 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col">
+      {repoFileQuery.error ? (
+        <ErrorNotice
+          title="Couldn’t refresh this file"
+          error={repoFileQuery.error}
+          busy={repoFileQuery.isFetching}
+          lastUpdated={repoFileQuery.fulfilledTimeStamp}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void repoFileQuery.refetch();
+            },
+          }}
+        />
+      ) : null}
       <div className="border-border/70 bg-surface-toolbar border-b px-4 py-2">
         <div className="flex min-w-0 items-center gap-3">
           {returnToDiffTarget ? (

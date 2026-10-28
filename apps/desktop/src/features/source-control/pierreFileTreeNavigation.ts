@@ -1,26 +1,18 @@
-import type { FileTree as PierreFileTreeModel } from "@pierre/trees";
-
-import {
-  collectVisibleFiles,
-  collectVisibleRowPaths,
-  type PierreFileTreeNavFile,
-} from "@/features/source-control/components/pierreFileTree";
-import {
-  buildSourceControlFileTree,
-  type BuildSourceControlFileTreeOptions,
-} from "@/features/source-control/fileTree";
+import type { FileTree as PierreFileTreeModel, FileTreePreparedInput } from "@pierre/trees";
+import type { PierreFileTreeNavFile } from "./components/pierreFileTree";
+import { collectPreparedTreeRowPaths } from "./components/pierreFileTreeProjection";
 import type { Bucket, SelectedFile } from "@/features/source-control/types";
 
 type PierreTreeNavEntry = {
   files: ReadonlyArray<PierreFileTreeNavFile>;
   model: PierreFileTreeModel;
   selectedPath?: string;
-  treeOptions?: BuildSourceControlFileTreeOptions<PierreFileTreeNavFile>;
+  preparedInput: FileTreePreparedInput;
 };
 
 type PierreTreeNavOptions = {
   selectedPath?: string;
-  treeOptions?: BuildSourceControlFileTreeOptions<PierreFileTreeNavFile>;
+  preparedInput: FileTreePreparedInput;
 };
 
 const pierreTreeNavRegistry = new Map<string, PierreTreeNavEntry[]>();
@@ -29,14 +21,14 @@ export function registerPierreFileTreeNav(
   regionId: string,
   files: ReadonlyArray<PierreFileTreeNavFile>,
   model: PierreFileTreeModel,
-  options: PierreTreeNavOptions = {},
+  options: PierreTreeNavOptions,
 ) {
   const entries = pierreTreeNavRegistry.get(regionId) ?? [];
   const existingEntry = entries.find((entry) => entry.model === model);
   if (existingEntry) {
     existingEntry.files = files;
     existingEntry.selectedPath = options.selectedPath;
-    existingEntry.treeOptions = options.treeOptions;
+    existingEntry.preparedInput = options.preparedInput;
     return;
   }
 
@@ -44,7 +36,7 @@ export function registerPierreFileTreeNav(
     files,
     model,
     selectedPath: options.selectedPath,
-    treeOptions: options.treeOptions,
+    preparedInput: options.preparedInput,
   });
   pierreTreeNavRegistry.set(regionId, entries);
 }
@@ -71,6 +63,33 @@ export function getPierreFileTreeVisiblePaths(regionId: string) {
   }
 
   return entries.flatMap((entry) => collectVisibleFilesForEntry(entry).map((file) => file.path));
+}
+
+/** Resolves rendered identities back to source paths without re-sorting the provider data. */
+export function getPierreFileTreeVisibleFiles(regionId: string) {
+  return (pierreTreeNavRegistry.get(regionId) ?? []).flatMap(collectVisibleFilesForEntry);
+}
+
+export function getNextUnviewedPierreFile(
+  regionId: string,
+  activePath: string,
+  viewedPaths: ReadonlySet<string>,
+) {
+  const visibleFiles = new Set(getPierreFileTreeVisibleFiles(regionId));
+  const files = (pierreTreeNavRegistry.get(regionId) ?? []).flatMap((entry) => {
+    const filesByPath = new Map(entry.files.map((file) => [file.path, file]));
+    return entry.preparedInput.paths.flatMap((path) => {
+      const file = filesByPath.get(path);
+      return file ? [file] : [];
+    });
+  });
+  const activeIndex = files.findIndex((file) => (file.realPath ?? file.path) === activePath);
+  if (activeIndex < 0) return null;
+  for (let offset = 1; offset < files.length; offset += 1) {
+    const file = files[(activeIndex + offset) % files.length];
+    if (file && visibleFiles.has(file) && !viewedPaths.has(file.realPath ?? file.path)) return file;
+  }
+  return null;
 }
 
 export function getPierreFileTreeVisibleSelectedFiles(regionId: string): SelectedFile[] {
@@ -129,9 +148,11 @@ export function getPierreFileTreeFocusedSelectedFile(regionId: string): Selected
 }
 
 function collectVisibleFilesForEntry(entry: PierreTreeNavEntry) {
-  const treeNodes = buildSourceControlFileTree(entry.files, entry.treeOptions);
-
-  return collectVisibleFiles(treeNodes, entry.model);
+  const filesByPath = new Map(entry.files.map((file) => [file.path, file]));
+  return collectVisibleRowPathsForEntry(entry).flatMap((path) => {
+    const file = filesByPath.get(path);
+    return file ? [file] : [];
+  });
 }
 
 export function scrollPierreFileTreePathIntoView(regionId: string, path: string) {
@@ -381,9 +402,7 @@ function findAdjacentEntryWithVisibleRows(
 }
 
 function collectVisibleRowPathsForEntry(entry: PierreTreeNavEntry) {
-  const treeNodes = buildSourceControlFileTree(entry.files, entry.treeOptions);
-
-  return collectVisibleRowPaths(treeNodes, entry.model);
+  return collectPreparedTreeRowPaths(entry.preparedInput.paths, entry.model);
 }
 
 function ensurePierreFileTreeOwnsFocus(model: PierreFileTreeModel, path: string) {

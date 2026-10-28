@@ -10,14 +10,6 @@ import type {
 } from "./guidance";
 import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
 
-export type ErrorCode = "INVALID_INPUT" | "INVALID_STATUS" | "BACKEND" | "UNAVAILABLE";
-
-export type ApiError = {
-  code: ErrorCode;
-  message: string;
-  details: string | null;
-};
-
 export type Bucket = "unstaged" | "staged" | "untracked";
 
 export type FileStatus =
@@ -597,7 +589,7 @@ export type LspLocation = {
   endCharacter: number;
 };
 
-export type DesktopApi = {
+export type DesktopHandlers = {
   getGuidanceActivity(input: GuidanceLocator): Promise<GuidanceResult<GuidanceActivity | null>>;
   clearGuidanceMessages(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument>>;
   getPullRequestGuidance(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument | null>>;
@@ -664,6 +656,7 @@ export type DesktopApi = {
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
   getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;
+  getHistoryGraph(repoPath: string): Promise<import("./history").HistoryGraph>;
   getCommitDetails(repoPath: string, commitId: string): Promise<CommitDetails>;
   getBranchCommits(repoPath: string, baseRef: string, headRef: string): Promise<HistoryCommit[]>;
   getBranches(repoPath: string): Promise<string[]>;
@@ -702,6 +695,22 @@ export type DesktopApi = {
   getLspReferences(input: GetLspReferencesInput): Promise<LspLocation[]>;
 };
 
+export type DesktopValue<T> = T extends { ok: true; value: infer Value }
+  ? Value
+  : T extends { ok: false }
+    ? never
+    : T extends { ok: true }
+      ? Omit<T, "ok">
+      : T;
+
+export type DesktopApi = {
+  [Method in keyof DesktopHandlers]: (
+    ...args: Parameters<DesktopHandlers[Method]>
+  ) => Promise<
+    import("./failure").DesktopResult<DesktopValue<Awaited<ReturnType<DesktopHandlers[Method]>>>>
+  >;
+};
+
 export type DesktopUpdateStatus =
   | "disabled"
   | "idle"
@@ -735,10 +744,10 @@ export type DesktopUpdateActionResult = {
 };
 
 export type DesktopUpdateApi = {
-  getUpdateState(): Promise<DesktopUpdateState>;
-  checkForUpdates(): Promise<DesktopUpdateActionResult>;
-  downloadUpdate(): Promise<DesktopUpdateActionResult>;
-  installUpdate(): Promise<DesktopUpdateActionResult>;
+  getUpdateState(): Promise<import("./failure").DesktopResult<DesktopUpdateState>>;
+  checkForUpdates(): Promise<import("./failure").DesktopResult<DesktopUpdateActionResult>>;
+  downloadUpdate(): Promise<import("./failure").DesktopResult<DesktopUpdateActionResult>>;
+  installUpdate(): Promise<import("./failure").DesktopResult<DesktopUpdateActionResult>>;
   onUpdateState(listener: (state: DesktopUpdateState) => void): () => void;
 };
 

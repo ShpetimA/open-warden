@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -65,6 +66,7 @@ type ReviewFileListProps = {
   emptyState?: ReactNode;
   isLoading?: boolean;
   error?: string;
+  onRetry?: () => void;
   paneClassName?: string;
   headerClassName?: string;
   bodyClassName?: string;
@@ -83,6 +85,7 @@ export function ReviewFileList({
   emptyState = null,
   isLoading = false,
   error = "",
+  onRetry,
   paneClassName,
   headerClassName,
   reviewThreads = [],
@@ -126,9 +129,13 @@ export function ReviewFileList({
       {isLoading && branchFiles.length === 0 ? (
         <ListLoadingState label="Loading changed files…" />
       ) : error ? (
-        <p role="alert" className="text-destructive p-3 text-sm">
-          {error}
-        </p>
+        <ErrorState
+          title="Couldn’t load compared files"
+          error={undefined}
+          message={error}
+          busy={isLoading}
+          recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+        />
       ) : branchFiles.length === 0 ? (
         emptyState
       ) : (

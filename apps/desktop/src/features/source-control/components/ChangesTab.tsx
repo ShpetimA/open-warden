@@ -1,7 +1,7 @@
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { Spinner } from "@/components/ui/spinner";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { confirmDiscard } from "@/features/comments/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
@@ -47,6 +47,7 @@ function ChangesFileList() {
     isLoadingSnapshot,
     refreshingSnapshot,
     snapshotError,
+    refetch,
   } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
@@ -55,7 +56,7 @@ function ChangesFileList() {
       snapshot: currentData,
       isLoadingSnapshot: isFetching && !currentData,
       refreshingSnapshot: isFetching && Boolean(currentData),
-      snapshotError: currentData ? "" : errorMessageFrom(error, ""),
+      snapshotError: error,
     }),
   });
   const snapshot = activeRepo ? snapshotData : undefined;
@@ -119,12 +120,32 @@ function ChangesFileList() {
           Refreshing changes…
         </div>
       ) : null}
+      {snapshotError && Boolean(snapshot) ? (
+        <ErrorNotice
+          title="Couldn’t refresh"
+          error={snapshotError}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void refetch();
+            },
+          }}
+        />
+      ) : null}
       {isLoadingSnapshot && !snapshot ? (
         <ListLoadingState label="Loading changes…" />
-      ) : snapshotError ? (
-        <p role="alert" className="text-destructive p-3 text-sm">
-          {snapshotError}
-        </p>
+      ) : snapshotError && !snapshot ? (
+        <ErrorState
+          title="Couldn’t load changes"
+          error={snapshotError}
+          busy={isLoadingSnapshot}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void refetch();
+            },
+          }}
+        />
       ) : (
         <ChangesUnifiedPierreFileTree
           mode={fileBrowserMode}

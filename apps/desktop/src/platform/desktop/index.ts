@@ -51,7 +51,6 @@ export type {
   AppSettings,
   AddPullRequestCommentInput,
   CreatePullRequestInput,
-  ApiError,
   Bucket,
   ConfirmOptions,
   ConnectProviderInput,

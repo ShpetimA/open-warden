@@ -34,9 +34,17 @@ export function WorkspaceSessionBootstrap({ children }: Props) {
     let previous = store.getState();
     const save = () => {
       clearTimeout(timer);
-      void persistWorkspaceSession(store.getState).catch(() =>
-        toast.error("Could not save workspace session"),
-      );
+      void persistWorkspaceSession(store.getState).then((result) => {
+        if (!result.ok) {
+          toast.error(result.error.message, {
+            id: "workspace-save",
+            duration: Infinity,
+            action: { label: "Retry", onClick: save },
+          });
+        } else {
+          toast.dismiss("workspace-save");
+        }
+      });
     };
     const unsubscribe = store.subscribe(() => {
       const next = store.getState();

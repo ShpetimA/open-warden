@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileCode2, LoaderCircle, Square, SquareCheckBig } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -109,17 +110,21 @@ function PullRequestChanges({
     parsedPullRequestNumber > 0,
   );
 
-  const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(
-    activeRepo,
-    {
-      skip: !activeRepo,
-      selectFromResult: ({ currentData, error, isFetching }) => ({
-        hostedRepo: currentData ?? null,
-        hostedRepoError: currentData ? "" : errorMessageFrom(error, ""),
-        resolvingHostedRepo: isFetching && !currentData,
-      }),
-    },
-  );
+  const {
+    hostedRepo,
+    hostedRepoError,
+    hostedRepoFailure,
+    resolvingHostedRepo,
+    refetch: retryHostedRepo,
+  } = useResolveHostedRepoQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ currentData, error, isFetching }) => ({
+      hostedRepo: currentData ?? null,
+      hostedRepoError: currentData ? "" : errorMessageFrom(error, ""),
+      hostedRepoFailure: error,
+      resolvingHostedRepo: isFetching && !currentData,
+    }),
+  });
 
   const routeMatchesActiveRepo = Boolean(
     hostedRepo &&
@@ -201,6 +206,34 @@ function PullRequestChanges({
     (reviewingCommit
       ? commitsLoading || Boolean(selectedCommit && !comparisonFiles && !filesError)
       : comparison.loading);
+  function retryFiles() {
+    if (hostedRepoError) {
+      void retryHostedRepo();
+      return;
+    }
+    if (comparison.error || !comparison.refs) {
+      comparison.retry();
+      return;
+    }
+    if (commitsError) {
+      void commitsQuery.refetch();
+      return;
+    }
+    if (groupedByCommit) {
+      void groupsQuery.refetch();
+      return;
+    }
+    if (selectedCommit) {
+      void commitFilesQuery.refetch();
+      return;
+    }
+    comparison.retry();
+  }
+  const filesFailure =
+    hostedRepoFailure ??
+    comparison.failure ??
+    commitsQuery.error ??
+    (groupedByCommit ? groupsQuery.error : commitFilesQuery.error);
   const viewedState = usePullRequestViewedFiles({
     repoPath: activeRepo ?? "",
     pullRequestNumber: parsedPullRequestNumber,
@@ -217,7 +250,8 @@ function PullRequestChanges({
         selectedCommit={selectedCommit}
         onCommitSelect={(commit) => setSelectedCommitId(commit.commitId)}
         commitsLoading={commitsLoading && !filesError}
-        commitsError={hostedRepoError || comparison.error || commitsError}
+        commitsError={filesFailure}
+        onRetryCommits={retryFiles}
         filesPane={
           groupedByCommit ? (
             <PullRequestCommitFileGroups
@@ -225,6 +259,7 @@ function PullRequestChanges({
               selectedCommit={selectedCommit}
               loading={filesLoading}
               error={filesError}
+              onRetry={retryFiles}
               onGroupingChange={setGrouping}
               onSelect={(commit, file) => {
                 setSelectedCommitId(commit.commitId);
@@ -239,6 +274,8 @@ function PullRequestChanges({
               compareBaseRef={compareBaseRef}
               compareHeadRef={compareHeadRef}
               filesError={filesError}
+              failure={filesFailure}
+              onRetry={retryFiles}
               isLoading={filesLoading}
               viewedState={!reviewingCommit ? viewedState : null}
               keyboardNavigationEnabled={view === "files"}
@@ -259,6 +296,7 @@ function PullRequestChanges({
             compareBaseRef={compareBaseRef}
             compareHeadRef={compareHeadRef}
             filesError={filesError}
+            onRetryFiles={retryFiles}
             filesLoading={filesLoading}
             files={files}
             conversation={conversation}
@@ -276,19 +314,8 @@ function PullRequestPreviewActiveFileSync({ files }: { files: PullRequestChanged
   const activeFilePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
 
   useEffect(() => {
-    const hasMatchingActiveFile = Boolean(
-      activeFilePath && files.some((file) => file.path === activeFilePath),
-    );
-
-    if (files.length === 0) {
-      if (activeFilePath) {
-        dispatch(setPullRequestPreviewActiveFilePath(""));
-      }
-      return;
-    }
-
-    if (!hasMatchingActiveFile) {
-      dispatch(setPullRequestPreviewActiveFilePath(files[0].path));
+    if (files.length === 0 && activeFilePath) {
+      dispatch(setPullRequestPreviewActiveFilePath(""));
     }
   }, [activeFilePath, dispatch, files]);
 
@@ -302,6 +329,7 @@ function FilesDiffViewer({
   compareBaseRef,
   compareHeadRef,
   filesError,
+  onRetryFiles,
   filesLoading,
   files,
   conversation,
@@ -314,6 +342,7 @@ function FilesDiffViewer({
   compareBaseRef: string;
   compareHeadRef: string;
   filesError: string;
+  onRetryFiles: () => void;
   filesLoading: boolean;
   files: PullRequestChangedFile[];
   conversation: PullRequestConversation | null;
@@ -392,9 +421,12 @@ function FilesDiffViewer({
   }
   if (filesError) {
     return (
-      <p role="alert" className="text-destructive p-4 text-sm">
-        {filesError}
-      </p>
+      <ErrorState
+        title="Couldn’t load this PR comparison"
+        error={undefined}
+        message={filesError}
+        recovery={{ label: "Retry", onAction: onRetryFiles }}
+      />
     );
   }
 
@@ -443,9 +475,17 @@ function FilesDiffViewer({
 
   if (branchFileVersionsError) {
     return (
-      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
-        {branchFileVersionsError}
-      </div>
+      <ErrorState
+        title="Couldn’t load this diff"
+        error={branchFileVersionsQuery.error}
+        busy={branchFileVersionsQuery.isFetching}
+        recovery={{
+          label: "Retry",
+          onAction: () => {
+            void branchFileVersionsQuery.refetch();
+          },
+        }}
+      />
     );
   }
 

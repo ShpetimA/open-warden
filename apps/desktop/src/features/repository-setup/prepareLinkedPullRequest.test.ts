@@ -1,3 +1,4 @@
+import { desktopHandlers } from "@/test/desktopHandlers";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -67,7 +68,7 @@ describe("prepare a linked pull request", () => {
     const stages: RepositorySetupStage[] = [];
     const checked: string[] = [];
     const result = await prepareLinkedPullRequest(
-      {
+      desktopHandlers({
         async resolveHostedRepo(path) {
           checked.push(path);
           if (path === "/missing") throw new Error("Folder removed");
@@ -80,7 +81,7 @@ describe("prepare a linked pull request", () => {
         async preparePullRequestFromUrl() {
           throw new Error("Unexpected download");
         },
-      },
+      }),
       link(),
       ["/missing", "/other", "/recent/invoice", "/recent/invoice"],
       (stage) => stages.push(stage),
@@ -101,7 +102,7 @@ describe("prepare a linked pull request", () => {
   it("prepares a managed checkout when no matching repository exists", async () => {
     const stages: RepositorySetupStage[] = [];
     const result = await prepareLinkedPullRequest(
-      {
+      desktopHandlers({
         async resolveHostedRepo() {
           return { ...hosted, providerId: "github" };
         },
@@ -112,7 +113,7 @@ describe("prepare a linked pull request", () => {
           expect(url).toBe(link().url);
           return prepared;
         },
-      },
+      }),
       link(),
       ["/unrelated"],
       (stage) => stages.push(stage),
@@ -127,7 +128,7 @@ describe("prepare a linked pull request", () => {
 
   it("returns a provider failure with the failed stage", async () => {
     const result = await prepareLinkedPullRequest(
-      {
+      desktopHandlers({
         async resolveHostedRepo() {
           return null;
         },
@@ -135,9 +136,13 @@ describe("prepare a linked pull request", () => {
           return conversation;
         },
         async preparePullRequestFromUrl() {
-          throw new Error("Connect Bitbucket in Settings");
+          throw {
+            operation: "preparePullRequestFromUrl",
+            code: "authentication",
+            message: "Connect Bitbucket in Settings",
+          };
         },
-      },
+      }),
       link(),
       [],
       () => {},
@@ -151,17 +156,21 @@ describe("prepare a linked pull request", () => {
 
   it("reports an inaccessible PR in an existing repo without creating another checkout", async () => {
     const result = await prepareLinkedPullRequest(
-      {
+      desktopHandlers({
         async resolveHostedRepo() {
           return hosted;
         },
         async getPullRequestConversation() {
-          throw new Error("Pull request not found");
+          throw {
+            operation: "getPullRequestConversation",
+            code: "not-found",
+            message: "Pull request not found",
+          };
         },
         async preparePullRequestFromUrl() {
           throw new Error("Unexpected download");
         },
-      },
+      }),
       link(),
       ["/invoice"],
       () => {},

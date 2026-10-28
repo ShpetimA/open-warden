@@ -1,7 +1,9 @@
 import {
   BookOpen,
+  ArrowLeftRight,
+  FileDiff,
+  FolderOpen,
   Files,
-  GitBranch,
   GitPullRequest,
   GitPullRequestArrow,
   History,
@@ -37,7 +39,7 @@ export function repoRailSections(): RailSection[] {
     {
       key: "changes",
       label: "Changes",
-      icon: <GitPullRequestArrow />,
+      icon: <FileDiff />,
       path: "/changes",
       isActive: (pathname) =>
         startsWith(pathname, "/changes") && !startsWith(pathname, "/changes/files"),
@@ -45,7 +47,7 @@ export function repoRailSections(): RailSection[] {
     {
       key: "files",
       label: "Repository files",
-      icon: <Files />,
+      icon: <FolderOpen />,
       path: "/changes/files",
       isActive: (pathname) => startsWith(pathname, "/changes/files"),
     },
@@ -66,7 +68,7 @@ export function repoRailSections(): RailSection[] {
     {
       key: "review",
       label: "Compare refs",
-      icon: <GitBranch />,
+      icon: <ArrowLeftRight />,
       path: "/review",
       isActive: (pathname) => startsWith(pathname, "/review"),
     },

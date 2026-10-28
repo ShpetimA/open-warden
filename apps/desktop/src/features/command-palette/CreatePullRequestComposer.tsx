@@ -3,6 +3,8 @@ import { GitBranch, GitPullRequest, LoaderCircle, PencilLine } from "lucide-reac
 import { toast } from "sonner";
 
 import { useAppSelector } from "@/app/hooks";
+import { ActionError } from "@/components/ui/error-state";
+import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Kbd } from "@/components/ui/kbd";
@@ -18,7 +20,6 @@ import type { ComposerCardStep } from "./CommandComposerCards";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
-import { failureMessage } from "./commandComposerModel";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
 type Step = "head" | "base" | "details" | "confirm" | "execute";
@@ -48,7 +49,7 @@ export function CreatePullRequestComposer({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<DesktopFailure | null>(null);
   const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -83,7 +84,7 @@ export function CreatePullRequestComposer({
 
   function selectBranch(branch: string) {
     if (!localBranches.includes(branch)) return;
-    setError("");
+    setError(null);
     setQuery("");
     setHighlightedId(null);
     if (step === "head") {
@@ -98,7 +99,7 @@ export function CreatePullRequestComposer({
 
   function goBack() {
     if (busy) return;
-    setError("");
+    setError(null);
     if (step === "head") onBack();
     else if (step === "base") {
       setHighlightedId(headRef);
@@ -118,7 +119,7 @@ export function CreatePullRequestComposer({
     if (step !== "confirm" || runningRef.current) return;
     runningRef.current = true;
     setBusy(true);
-    setError("");
+    setError(null);
     setStep("execute");
     try {
       const created = await createPullRequest({
@@ -131,7 +132,7 @@ export function CreatePullRequestComposer({
       toast.success(`Pull request #${created.number} created`);
       onClose();
     } catch (cause) {
-      setError(failureMessage(cause));
+      setError(failureFromUnknown(cause, "createPullRequest"));
       setStep("confirm");
     } finally {
       runningRef.current = false;
@@ -339,11 +340,7 @@ export function CreatePullRequestComposer({
             <LoaderCircle className="size-5 animate-spin" /> Creating pull request…
           </div>
         )}
-        {error ? (
-          <p role="alert" className="text-destructive text-xs">
-            {error}
-          </p>
-        ) : null}
+        {error ? <ActionError title="Couldn’t create this pull request" error={error} /> : null}
         <div className="change-composer-footer">
           <span>
             <Kbd>↑↓</Kbd> Choose

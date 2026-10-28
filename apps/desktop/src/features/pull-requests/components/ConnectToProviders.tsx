@@ -1,3 +1,5 @@
+import { ActionError } from "@/components/ui/error-state";
+import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,7 +47,9 @@ export function ConnectBitbucketDialog({ open, onOpenChange }: ConnectBitbucketD
       setSubmitError("");
       onOpenChange(false);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : String(error));
+      setSubmitError(
+        errorMessageFrom(error, "The provider connection couldn’t be completed. Try again."),
+      );
     }
   }
 
@@ -90,7 +94,13 @@ export function ConnectBitbucketDialog({ open, onOpenChange }: ConnectBitbucketD
               }}
               placeholder="App password or access token"
             />
-            {submitError ? <div className="text-destructive text-xs">{submitError}</div> : null}
+            {submitError ? (
+              <ActionError
+                title="Couldn’t connect this account"
+                error={undefined}
+                message={submitError}
+              />
+            ) : null}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isLoading}>
@@ -132,7 +142,9 @@ export function ConnectGitHubDialog({ open, onOpenChange }: ConnectGitHubDialogP
       setSubmitError("");
       onOpenChange(false);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : String(error));
+      setSubmitError(
+        errorMessageFrom(error, "The provider connection couldn’t be completed. Try again."),
+      );
     }
   }
 
@@ -165,7 +177,13 @@ export function ConnectGitHubDialog({ open, onOpenChange }: ConnectGitHubDialogP
               Use a token with repository read access. Private repositories usually require the
               `repo` scope.
             </div>
-            {submitError ? <div className="text-destructive text-xs">{submitError}</div> : null}
+            {submitError ? (
+              <ActionError
+                title="Couldn’t connect this account"
+                error={undefined}
+                message={submitError}
+              />
+            ) : null}
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isLoading}>

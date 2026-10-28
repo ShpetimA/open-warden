@@ -1,3 +1,4 @@
+import { desktopHandlers } from "@/test/desktopHandlers";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { Provider } from "react-redux";
@@ -83,16 +84,18 @@ function setup(prepareRefs: () => Promise<PullRequestCompareRefs>) {
   const requests: string[] = [];
   window.desktopBridge = {
     ...browserDesktopApi,
-    resolveHostedRepo: () => hostedRepo.promise,
-    preparePullRequestCompareRefs: prepareRefs,
-    getBranchFiles: () => {
-      requests.push("files");
-      return files.promise;
-    },
-    getPullRequestViewedFiles: async () => ({
-      storage: "device",
-      viewedPaths: [],
-      truncated: false,
+    ...desktopHandlers({
+      resolveHostedRepo: () => hostedRepo.promise,
+      preparePullRequestCompareRefs: prepareRefs,
+      getBranchFiles: () => {
+        requests.push("files");
+        return files.promise;
+      },
+      getPullRequestViewedFiles: async () => ({
+        storage: "device",
+        viewedPaths: [],
+        truncated: false,
+      }),
     }),
   };
   const store = createTestStore();
@@ -132,7 +135,11 @@ it("keeps the sidebar loading through remote resolution, ref preparation, and fi
 
 it("shows ref preparation failures instead of an empty file list", async () => {
   const { hostedRepo, sidebar } = setup(async () => {
-    throw new Error("Could not fetch PR refs");
+    throw {
+      operation: "preparePullRequestCompareRefs",
+      code: "unavailable",
+      message: "Could not fetch PR refs",
+    };
   });
   await act(async () => hostedRepo.resolve(repo));
   expect(await sidebar.findByText("Could not fetch PR refs")).toBeVisible();
@@ -144,9 +151,11 @@ it("keeps the inbox loading while connections and then PR results are pending", 
   const results = deferred<PullRequestPage>();
   window.desktopBridge = {
     ...browserDesktopApi,
-    resolveHostedRepo: async () => repo,
-    listProviderConnections: () => connections.promise,
-    listPullRequests: () => results.promise,
+    ...desktopHandlers({
+      resolveHostedRepo: async () => repo,
+      listProviderConnections: () => connections.promise,
+      listPullRequests: () => results.promise,
+    }),
   };
   render(
     <Provider store={createTestStore()}>

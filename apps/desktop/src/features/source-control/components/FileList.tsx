@@ -26,6 +26,7 @@ type FileListProps<TFile extends { path: string }> = {
   reviewGroupTitle?: string;
   reviewGroupHover?: ReactNode;
   autoFocus?: boolean;
+  selectFirstFile?: boolean;
   selectedPath?: string;
   navRegion: string;
   className?: string;
@@ -48,6 +49,7 @@ export function FileList<TFile extends { path: string }>({
   reviewGroupTitle,
   reviewGroupHover,
   autoFocus,
+  selectFirstFile,
   selectedPath = "",
   navRegion,
   className,
@@ -88,6 +90,7 @@ export function FileList<TFile extends { path: string }>({
     <PierreFileTreeBrowser
       key={mode}
       autoFocus={autoFocus}
+      selectFirstFile={selectFirstFile}
       directoryLabelPriority={reviewGroupTitle ? "start" : "end"}
       renderHoverContent={(path) =>
         path.replace(/\/$/, "") === reviewGroupTitle?.replaceAll("/", "∕").replaceAll("\\", "∖")

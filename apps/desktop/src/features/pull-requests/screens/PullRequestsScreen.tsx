@@ -1,3 +1,6 @@
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
+import { readDesktopFailure } from "@/platform/desktop/failure";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { MoreHorizontal, Plug, Unplug } from "lucide-react";
@@ -30,7 +33,6 @@ import { PullRequestInboxFilters } from "@/features/pull-requests/inbox/PullRequ
 import { PullRequestInboxPreview } from "@/features/pull-requests/inbox/PullRequestInboxPreview";
 import { PullRequestInboxRow } from "@/features/pull-requests/inbox/PullRequestInboxRow";
 import { usePullRequestInboxFilters } from "@/features/pull-requests/inbox/usePullRequestInboxFilters";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import { isTypingTarget } from "@/features/source-control/utils";
 import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import type { GitProviderId, PullRequestPerson, PullRequestSummary } from "@/platform/desktop";
@@ -94,28 +96,36 @@ export function PullRequestsScreen() {
   const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState<number | null>(null);
   const [filters] = usePullRequestInboxFilters();
 
-  const { connections, loadingConnections, connectionsError } = useListProviderConnectionsQuery(
-    undefined,
-    {
-      selectFromResult: ({ data, isFetching, error }) => ({
-        connections: data ?? [],
-        loadingConnections: isFetching && !data,
-        connectionsError: data ? "" : errorMessageFrom(error, ""),
-      }),
-    },
-  );
+  const {
+    connections,
+    loadingConnections,
+    fetchingConnections,
+    connectionsError,
+    refetch: retryConnections,
+  } = useListProviderConnectionsQuery(undefined, {
+    selectFromResult: ({ data, isFetching, error }) => ({
+      connections: data ?? [],
+      loadingConnections: isFetching && !data,
+      connectionsError: error,
+      fetchingConnections: isFetching,
+    }),
+  });
 
-  const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(
-    activeRepo,
-    {
-      skip: !activeRepo,
-      selectFromResult: ({ currentData, error, isFetching }) => ({
-        hostedRepo: currentData ?? null,
-        hostedRepoError: currentData ? "" : errorMessageFrom(error, ""),
-        resolvingHostedRepo: isFetching && !currentData,
-      }),
-    },
-  );
+  const {
+    hostedRepo,
+    hostedRepoError,
+    resolvingHostedRepo,
+    fetchingHostedRepo,
+    refetch: retryHostedRepo,
+  } = useResolveHostedRepoQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ currentData, error, isFetching }) => ({
+      hostedRepo: currentData ?? null,
+      hostedRepoError: error,
+      fetchingHostedRepo: isFetching,
+      resolvingHostedRepo: isFetching && !currentData,
+    }),
+  });
 
   const activeProviderConnection = hostedRepo
     ? (connections.find((connection) => connection.providerId === hostedRepo.providerId) ?? null)
@@ -130,6 +140,9 @@ export function PullRequestsScreen() {
     pullRequestsError,
     loadingPullRequests,
     fetchingPullRequests,
+    hasCachedPullRequests,
+    lastUpdated,
+    refetch: refetchPullRequests,
   } = useListPullRequestsQuery(
     activeRepo && hostedRepo && activeProviderConnection
       ? {
@@ -143,10 +156,12 @@ export function PullRequestsScreen() {
         }
       : skipToken,
     {
-      selectFromResult: ({ currentData, error, isLoading, isFetching }) => ({
+      selectFromResult: ({ currentData, error, isLoading, isFetching, fulfilledTimeStamp }) => ({
         pullRequests: currentData?.pullRequests ?? [],
         hasNextPullRequestsPage: currentData?.hasNextPage ?? false,
-        pullRequestsError: currentData ? "" : errorMessageFrom(error, ""),
+        pullRequestsError: error,
+        hasCachedPullRequests: currentData !== undefined,
+        lastUpdated: fulfilledTimeStamp,
         loadingPullRequests: isLoading || (isFetching && !currentData),
         fetchingPullRequests: isFetching,
       }),
@@ -326,11 +341,34 @@ export function PullRequestsScreen() {
     );
   }
 
-  function renderList() {
-    if (loadingPullRequests) return <RowSkeletons />;
-    if (pullRequestsError) {
-      return <div className="text-destructive p-4 text-sm">{pullRequestsError}</div>;
+  function pullRequestsRecovery() {
+    const failure = readDesktopFailure(pullRequestsError);
+    if ((failure?.code === "authentication" || failure?.code === "permission") && hostedRepo) {
+      return {
+        label: `Reconnect ${providerTitle(hostedRepo.providerId)}`,
+        onAction: () => onConnectProvider(hostedRepo.providerId),
+      };
     }
+    return {
+      label: "Retry",
+      onAction: () => {
+        void refetchPullRequests();
+      },
+    };
+  }
+
+  function renderList() {
+    if (pullRequestsError && !hasCachedPullRequests) {
+      return (
+        <ErrorState
+          title="Couldn’t load pull requests"
+          error={pullRequestsError}
+          busy={fetchingPullRequests}
+          recovery={pullRequestsRecovery()}
+        />
+      );
+    }
+    if (loadingPullRequests) return <RowSkeletons />;
     if (pullRequests.length === 0) {
       return (
         <EmptyState>
@@ -353,15 +391,35 @@ export function PullRequestsScreen() {
   }
 
   function renderContent() {
-    if (resolvingHostedRepo || loadingConnections) return <RowSkeletons />;
-    if (connectionsError)
+    if (connectionsError && connections.length === 0)
       return (
-        <div role="alert" className="text-destructive p-6 text-sm">
-          {connectionsError}
-        </div>
+        <ErrorState
+          title="Couldn’t load provider connections"
+          error={connectionsError}
+          busy={fetchingConnections}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryConnections();
+            },
+          }}
+        />
       );
-    if (hostedRepoError)
-      return <div className="text-destructive p-6 text-sm">{hostedRepoError}</div>;
+    if (hostedRepoError && !hostedRepo)
+      return (
+        <ErrorState
+          title="Couldn’t detect this repository’s provider"
+          error={hostedRepoError}
+          busy={fetchingHostedRepo}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryHostedRepo();
+            },
+          }}
+        />
+      );
+    if (resolvingHostedRepo || loadingConnections) return <RowSkeletons />;
     if (!hostedRepo) {
       return <EmptyState>No supported hosted remote was detected for this repository.</EmptyState>;
     }
@@ -390,36 +448,58 @@ export function PullRequestsScreen() {
     }
 
     return (
-      <div className="grid h-full min-h-0 lg:grid-cols-[minmax(420px,1.1fr)_minmax(380px,0.9fr)]">
-        <section className="border-border/70 relative flex min-h-0 flex-col overflow-hidden border-r">
-          {fetchingPullRequests && !loadingPullRequests ? (
-            <div
-              role="status"
-              className="text-muted-foreground flex items-center gap-2 border-b px-4 py-2 text-xs"
-            >
-              <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
-              Refreshing pull requests…
+      <ResizableSidebarLayout
+        panelId="primary"
+        contentPanelId="pr-files"
+        sidebarDefaultSize={55}
+        sidebarMinSize="360px"
+        sidebarMaxSize={100}
+        contentMinSize="280px"
+        sidebar={
+          <section
+            aria-label="Pull request list"
+            className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+          >
+            {pullRequestsError && hasCachedPullRequests ? (
+              <ErrorNotice
+                lastUpdated={lastUpdated}
+                title="Couldn’t refresh pull requests"
+                error={pullRequestsError}
+                busy={fetchingPullRequests}
+                recovery={pullRequestsRecovery()}
+              />
+            ) : null}
+            {fetchingPullRequests && !loadingPullRequests && !pullRequestsError ? (
+              <div
+                role="status"
+                className="text-muted-foreground flex items-center gap-2 border-b px-4 py-2 text-xs"
+              >
+                <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+                Refreshing pull requests…
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto">{renderList()}</div>
+            {renderPagination()}
+            <div className="border-border/70 text-muted-foreground border-t px-4 py-1.5 text-[11px]">
+              ↑↓ or J/K to move · Enter to open · / to search
             </div>
-          ) : null}
-          <div className="min-h-0 flex-1 overflow-y-auto">{renderList()}</div>
-          {renderPagination()}
-          <div className="border-border/70 text-muted-foreground border-t px-4 py-1.5 text-[11px]">
-            ↑↓ or J/K to move · Enter to open · / to search
-          </div>
-        </section>
-        {loadingPullRequests ? (
-          <aside className="bg-surface hidden lg:block">
-            <ListLoadingState label="Loading pull request preview…" />
-          </aside>
-        ) : (
-          <PullRequestInboxPreview
-            repoPath={activeRepo}
-            pullRequest={selectedPullRequest}
-            onOpen={onOpenPullRequest}
-            onActions={(pullRequest) => openComposer(undefined, pullRequest)}
-          />
-        )}
-      </div>
+          </section>
+        }
+        content={
+          loadingPullRequests ? (
+            <aside className="bg-surface h-full min-h-0">
+              <ListLoadingState label="Loading pull request preview…" />
+            </aside>
+          ) : (
+            <PullRequestInboxPreview
+              repoPath={activeRepo}
+              pullRequest={selectedPullRequest}
+              onOpen={onOpenPullRequest}
+              onActions={(pullRequest) => openComposer(undefined, pullRequest)}
+            />
+          )
+        }
+      />
     );
   }
 

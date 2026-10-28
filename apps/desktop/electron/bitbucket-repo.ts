@@ -1,3 +1,4 @@
+import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
   HostedRepoRef,
   PullRequestChangedFile,
@@ -14,6 +15,7 @@ import type {
   PullRequestPage,
 } from "../src/platform/desktop/contracts";
 import type { ProviderConnectionSecret } from "./providerConnections";
+import { collectBitbucketPages } from "./bitbucket-pagination";
 
 const BITBUCKET_API_BASE_URL = "https://api.bitbucket.org/2.0";
 
@@ -257,25 +259,6 @@ export function bitbucketAuthorizationValue(connection: BitbucketAuth) {
   return `Bearer ${connection.token}`;
 }
 
-function parseBitbucketErrorMessage(text: string, status: number) {
-  try {
-    const payload = JSON.parse(text) as {
-      error?: {
-        message?: string;
-      };
-      type?: string;
-    };
-    const message = payload.error?.message?.trim();
-    if (message) {
-      return message;
-    }
-  } catch {
-    // no-op
-  }
-
-  return text.trim() || `Bitbucket request failed with status ${status}`;
-}
-
 export async function bitbucketRequest<T>(
   pathnameOrUrl: string,
   connection: BitbucketAuth,
@@ -299,8 +282,9 @@ export async function bitbucketRequest<T>(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(parseBitbucketErrorMessage(message, response.status));
+    throw new DesktopAdapterError(
+      providerFailure("bitbucket", response.status, response.headers, Date.now()),
+    );
   }
 
   if (init?.responseType === "text") {
@@ -744,24 +728,13 @@ async function fetchBitbucketPaginatedValues<T>(
   firstPath: string,
   connection: ProviderConnectionSecret,
 ) {
-  const values: T[] = [];
-  let nextPathOrUrl: string | null = firstPath;
-  let pageCount = 0;
-
-  while (nextPathOrUrl) {
-    pageCount += 1;
-    if (pageCount > 30) {
-      break;
-    }
-
-    const pageResponse: { data: BitbucketPaginatedResponse<T>; headers: Headers } =
-      await bitbucketRequest<BitbucketPaginatedResponse<T>>(nextPathOrUrl, connection);
-    const page: BitbucketPaginatedResponse<T> = pageResponse.data;
-    values.push(...(Array.isArray(page.values) ? page.values : []));
-    nextPathOrUrl = typeof page.next === "string" && page.next.trim() ? page.next : null;
-  }
-
-  return values;
+  const result = await collectBitbucketPages(firstPath, async (url) => {
+    const { data } = await bitbucketRequest<BitbucketPaginatedResponse<T>>(url, connection);
+    return data;
+  });
+  if (result.ok) return result.values;
+  if (result.error.code === "request") throw result.error.cause;
+  throw new Error(result.error.message);
 }
 
 export async function listBitbucketPullRequests(

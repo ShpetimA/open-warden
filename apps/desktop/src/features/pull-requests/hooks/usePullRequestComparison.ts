@@ -1,3 +1,4 @@
+import { desktopFailure } from "@/platform/desktop/failure";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect, useRef } from "react";
 import { usePreparePullRequestCompareRefsQuery } from "@/features/hosted-repos/api";
@@ -44,5 +45,17 @@ export function usePullRequestComparison(
       !comparisonError &&
       (!refs || !matchesHead || !filesQuery.currentData),
     error: comparisonError,
+    failure:
+      error ??
+      filesQuery.error ??
+      (comparisonError
+        ? desktopFailure("preparePullRequestCompareRefs", "conflict", comparisonError)
+        : undefined),
+    refreshing: isFetching || filesQuery.isFetching,
+    retry() {
+      if (locator === skipToken) return;
+      if (error || !refs || !matchesHead) void refetch();
+      else void filesQuery.refetch();
+    },
   };
 }

@@ -1,7 +1,8 @@
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { Filter } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,10 @@ import type { usePullRequestViewedFiles } from "@/features/pull-requests/hooks/u
 import { ReviewFileViewControl } from "@/features/source-control/components/ReviewFileViewControl";
 import { CommitHoverDetails } from "@/features/source-control/components/CommitHoverDetails";
 import type { ReviewFileView } from "@/features/source-control/components/reviewFileGrouping";
+import {
+  getNextUnviewedPierreFile,
+  scrollPierreFileTreeRealPathIntoView,
+} from "@/features/source-control/pierreFileTreeNavigation";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useSimpleFileListKeyboardNav } from "@/features/source-control/hooks/useSimpleFileListKeyboardNav";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
@@ -37,6 +42,8 @@ type PullRequestFileListProps = {
   compareBaseRef: string;
   compareHeadRef: string;
   filesError: string;
+  failure?: unknown;
+  onRetry?: () => void;
   isLoading: boolean;
   viewedState: ReturnType<typeof usePullRequestViewedFiles> | null;
   keyboardNavigationEnabled?: boolean;
@@ -54,6 +61,8 @@ export default function PullRequestFileList({
   compareBaseRef,
   compareHeadRef,
   filesError,
+  failure,
+  onRetry,
   isLoading,
   viewedState,
   keyboardNavigationEnabled = true,
@@ -120,8 +129,6 @@ export default function PullRequestFileList({
   useSimpleFileListKeyboardNav({
     enabled: () => keyboardNavigationEnabled,
     regionId: "pull-request-files",
-    getAllFilePaths: () => visibleFiles.map((file) => file.path),
-    getActivePath: (state) => state.pullRequests.previewActiveFilePath,
     onSelectPath: (path) => {
       dispatch(setPullRequestPreviewActiveFilePath(path));
     },
@@ -139,9 +146,11 @@ export default function PullRequestFileList({
 
   return (
     <>
-      <PullRequestVisibleSelectionSync visibleFiles={visibleFiles} />
       {viewedState ? (
-        <PullRequestViewedFileHotkeys visibleFiles={visibleFiles} viewedState={viewedState} />
+        <PullRequestViewedFileHotkeys
+          enabled={keyboardNavigationEnabled}
+          viewedState={viewedState}
+        />
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="border-border flex shrink-0 flex-col gap-1 border-b px-2 py-1">
@@ -219,10 +228,25 @@ export default function PullRequestFileList({
             />
           </div>
         </div>
-        {isLoading && visibleFiles.length === 0 ? (
+        {filesError && files.length > 0 ? (
+          <ErrorNotice
+            title="Couldn’t refresh changed files"
+            error={failure}
+            message={filesError}
+            busy={isLoading}
+            recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+          />
+        ) : null}
+        {isLoading && !filesError && visibleFiles.length === 0 ? (
           <ListLoadingState label="Loading changed files…" />
-        ) : filesError ? (
-          <div className="text-destructive px-3 py-4 text-sm">{filesError}</div>
+        ) : filesError && files.length === 0 ? (
+          <ErrorState
+            title="Couldn’t load changed files"
+            error={failure}
+            message={filesError}
+            busy={isLoading}
+            recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+          />
         ) : visibleFiles.length === 0 ? (
           files.length === 0 ? (
             <div className="text-muted-foreground px-3 py-4 text-sm">
@@ -235,6 +259,7 @@ export default function PullRequestFileList({
           )
         ) : (
           <FileList
+            selectFirstFile
             files={visibleFiles}
             autoFocus={keyboardNavigationEnabled}
             mode={fileView}
@@ -259,34 +284,12 @@ export default function PullRequestFileList({
   );
 }
 
-function PullRequestVisibleSelectionSync({
-  visibleFiles,
-}: {
-  visibleFiles: PullRequestChangedFile[];
-}) {
-  const dispatch = useAppDispatch();
-  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
-
-  useEffect(() => {
-    if (visibleFiles.length === 0) {
-      return;
-    }
-
-    const activeVisibleFile = visibleFiles.find((file) => file.path === activePath);
-    if (!activeVisibleFile) {
-      dispatch(setPullRequestPreviewActiveFilePath(visibleFiles[0].path));
-    }
-  }, [activePath, dispatch, visibleFiles]);
-
-  return null;
-}
-
 /** `V` marks the active file viewed and moves on to the next unviewed one; `Shift+V` stays put. */
 function PullRequestViewedFileHotkeys({
-  visibleFiles,
+  enabled,
   viewedState,
 }: {
-  visibleFiles: PullRequestChangedFile[];
+  enabled: boolean;
   viewedState: ReturnType<typeof usePullRequestViewedFiles>;
 }) {
   const dispatch = useAppDispatch();
@@ -299,14 +302,16 @@ function PullRequestViewedFileHotkeys({
     void toggleViewed(activePath);
     if (!advance || !markingViewed) return;
 
-    const activeIndex = visibleFiles.findIndex((file) => file.path === activePath);
-    const ordered = [...visibleFiles.slice(activeIndex + 1), ...visibleFiles.slice(0, activeIndex)];
-    const next = ordered.find((file) => !viewedPaths.has(file.path));
-    if (next) dispatch(setPullRequestPreviewActiveFilePath(next.path));
+    const next = getNextUnviewedPierreFile("pull-request-files", activePath, viewedPaths);
+    if (next) {
+      const path = next.realPath ?? next.path;
+      dispatch(setPullRequestPreviewActiveFilePath(path));
+      scrollPierreFileTreeRealPathIntoView("pull-request-files", path);
+    }
   }
 
-  useHotkey("V", () => toggleActiveFile(true));
-  useHotkey("Shift+V", () => toggleActiveFile(false));
+  useHotkey("V", () => toggleActiveFile(true), { enabled });
+  useHotkey("Shift+V", () => toggleActiveFile(false), { enabled });
 
   return null;
 }

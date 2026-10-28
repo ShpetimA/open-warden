@@ -118,22 +118,26 @@ export function usePullRequestReviewSession() {
     },
   );
 
-  const { compareRefs, preparingCompareRefs, compareRefsError } =
-    usePreparePullRequestCompareRefsQuery(
-      activeRepo && activePullRequest
-        ? {
-            repoPath: activeRepo,
-            pullRequestNumber: activePullRequest.number,
-          }
-        : skipToken,
-      {
-        selectFromResult: ({ currentData, isFetching, error }) => ({
-          compareRefs: currentData ?? null,
-          preparingCompareRefs: isFetching && !currentData,
-          compareRefsError: currentData ? "" : errorMessageFrom(error, ""),
-        }),
-      },
-    );
+  const {
+    compareRefs,
+    preparingCompareRefs,
+    compareRefsError,
+    refetch: retryCompareRefs,
+  } = usePreparePullRequestCompareRefsQuery(
+    activeRepo && activePullRequest
+      ? {
+          repoPath: activeRepo,
+          pullRequestNumber: activePullRequest.number,
+        }
+      : skipToken,
+    {
+      selectFromResult: ({ currentData, isFetching, error }) => ({
+        compareRefs: currentData ?? null,
+        preparingCompareRefs: isFetching && !currentData,
+        compareRefsError: currentData ? "" : errorMessageFrom(error, ""),
+      }),
+    },
+  );
 
   const samePullRequestAsCurrentReview =
     currentReview !== null &&
@@ -235,6 +239,7 @@ export function usePullRequestReviewSession() {
     resolvedReview,
     preparingCompareRefs,
     compareRefsError,
+    retryCompareRefs,
     loadingReview:
       loadingSnapshot || loadingHostedRepo || loadingActivePullRequest || fetchingActivePullRequest,
   };

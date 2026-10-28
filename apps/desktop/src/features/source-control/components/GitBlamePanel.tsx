@@ -4,9 +4,11 @@ import { X } from "lucide-react";
 
 import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { selectHistoryPullRequestCommit } from "@/features/source-control/actions";
 import { desktop } from "@/platform/desktop";
 import type { GitBlameResult } from "@/platform/desktop";
+import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 
 export function GitBlamePanel({
   repoPath,
@@ -22,21 +24,36 @@ export function GitBlamePanel({
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [result, setResult] = useState<GitBlameResult | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<DesktopFailure | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [busy, setBusy] = useState(true);
+
   useEffect(() => {
     let active = true;
+    setBusy(true);
     void desktop.getGitBlame(repoPath, relPath, revision).then(
       (value) => {
-        if (active) setResult(value);
+        if (!active) return;
+        setBusy(false);
+        if (value.ok) {
+          setResult(value.value);
+          setError(null);
+        } else {
+          setError(value.error);
+        }
       },
       (cause) => {
-        if (active) setError(cause instanceof Error ? cause.message : "Could not load blame.");
+        if (!active) return;
+        setBusy(false);
+        setError(failureFromUnknown(cause, "getGitBlame"));
       },
     );
     return () => {
       active = false;
     };
-  }, [repoPath, relPath, revision]);
+  }, [repoPath, relPath, revision, attempt]);
+
+  const recovery = { label: "Retry", onAction: () => setAttempt((value) => value + 1) };
 
   return (
     <aside className="bg-surface-toolbar flex h-full w-[340px] min-w-[260px] max-w-[42%] flex-col border-l">
@@ -51,10 +68,11 @@ export function GitBlamePanel({
           <X />
         </Button>
       </div>
-      {error ? (
-        <p role="alert" className="text-destructive p-3 text-xs">
-          {error}
-        </p>
+      {error && result ? (
+        <ErrorNotice title="Couldn’t refresh blame" error={error} busy={busy} recovery={recovery} />
+      ) : null}
+      {error && !result ? (
+        <ErrorState title="Couldn’t load blame" error={error} busy={busy} recovery={recovery} />
       ) : !result ? (
         <p className="text-muted-foreground p-3 text-xs">Loading blame…</p>
       ) : (

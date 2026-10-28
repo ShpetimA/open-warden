@@ -83,7 +83,10 @@ function createTestStore() {
 describe("source control workspace actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(desktop.saveWorkspaceSession).mockImplementation(async (session) => session);
+    vi.mocked(desktop.saveWorkspaceSession).mockImplementation(async (session) => ({
+      ok: true,
+      value: session,
+    }));
   });
 
   it("reports whether a commit completed and preserves the message on failure", async () => {
@@ -99,7 +102,7 @@ describe("source control workspace actions", () => {
       }),
     );
     store.dispatch(setCommitMessage("A commit"));
-    vi.mocked(desktop.commitStaged).mockResolvedValue("abc123");
+    vi.mocked(desktop.commitStaged).mockResolvedValue({ ok: true, value: "abc123" });
 
     expect(await store.dispatch(commitAction())).toBe(true);
     expect(store.getState().sourceControl.commitMessage).toBe("");
@@ -124,8 +127,8 @@ describe("source control workspace actions", () => {
         recentRepos: ["/repo/a"],
       }),
     );
-    vi.mocked(desktop.stageAll).mockResolvedValue();
-    vi.mocked(desktop.unstageAll).mockResolvedValue();
+    vi.mocked(desktop.stageAll).mockResolvedValue({ ok: true, value: undefined });
+    vi.mocked(desktop.unstageAll).mockResolvedValue({ ok: true, value: undefined });
 
     expect(await store.dispatch(stageAllAction())).toBe(true);
     expect(await store.dispatch(unstageAllAction())).toBe(true);
@@ -142,28 +145,37 @@ describe("source control workspace actions", () => {
     const store = createTestStore();
 
     vi.mocked(desktop.loadWorkspaceSession).mockResolvedValue({
-      openRepos: ["/repo/a", "/missing"],
-      activeRepo: "/repo/a",
-      recentRepos: ["/missing", "/repo/b"],
+      ok: true,
+      value: {
+        openRepos: ["/repo/a", "/missing"],
+        activeRepo: "/repo/a",
+        recentRepos: ["/missing", "/repo/b"],
+      },
     });
     vi.mocked(desktop.getGitSnapshot).mockImplementation(async (repoPath: string) => {
       if (repoPath === "/repo/a") {
         return {
-          repoRoot: "/repo/a",
-          branch: "main",
-          staged: [],
-          unstaged: [],
-          untracked: [],
+          ok: true,
+          value: {
+            repoRoot: "/repo/a",
+            branch: "main",
+            staged: [],
+            unstaged: [],
+            untracked: [],
+          },
         };
       }
 
       if (repoPath === "/repo/b") {
         return {
-          repoRoot: "/repo/b",
-          branch: "main",
-          staged: [],
-          unstaged: [],
-          untracked: [],
+          ok: true,
+          value: {
+            repoRoot: "/repo/b",
+            branch: "main",
+            staged: [],
+            unstaged: [],
+            untracked: [],
+          },
         };
       }
 
@@ -196,11 +208,14 @@ describe("source control workspace actions", () => {
     store.dispatch(setSelectedFiles([{ bucket: "unstaged", path: "src/file.ts" }]));
 
     vi.mocked(desktop.getGitSnapshot).mockResolvedValue({
-      repoRoot: "/repo/a",
-      branch: "main",
-      staged: [],
-      unstaged: [],
-      untracked: [],
+      ok: true,
+      value: {
+        repoRoot: "/repo/a",
+        branch: "main",
+        staged: [],
+        unstaged: [],
+        untracked: [],
+      },
     });
 
     await store.dispatch(openRepo("/repo/a"));

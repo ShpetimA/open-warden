@@ -1,4 +1,6 @@
 import { gitApi } from "@/features/source-control/api";
+import { hostedReposApi } from "@/features/hosted-repos/api";
+import { CommandComposerLauncherProvider } from "@/features/command-palette/CommandComposerLauncher";
 import { configureStore } from "@reduxjs/toolkit";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { Provider } from "react-redux";
@@ -32,7 +34,7 @@ it("keeps reviews inside their project and hides the inner strip on ordinary scr
   Element.prototype.scrollIntoView = vi.fn();
   const store = configureStore({
     reducer: rootReducer,
-    middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+    middleware: (getDefault) => getDefault().concat(gitApi.middleware, hostedReposApi.middleware),
   });
   store.dispatch(repoWorkspaceUpserted({ repoPath: "/projects/alpha" }));
   store.dispatch(
@@ -53,7 +55,9 @@ it("keeps reviews inside their project and hides the inner strip on ordinary scr
   const router = createMemoryRouter([{ path: "*", element: <Shell /> }]);
   render(
     <Provider store={store}>
-      <RouterProvider router={router} />
+      <CommandComposerLauncherProvider open={() => {}}>
+        <RouterProvider router={router} />
+      </CommandComposerLauncherProvider>
     </Provider>,
   );
   const projects = screen.getByRole("navigation", { name: "Open projects" });

@@ -1,3 +1,4 @@
+import { ActionError } from "@/components/ui/error-state";
 import { useEffect, useRef, useState } from "react";
 import { Check, Circle, FolderGit2, GitPullRequest, LoaderCircle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -169,11 +170,12 @@ function RepositorySetupView({ url }: { url: string | null }) {
         </ol>
 
         {failed ? (
-          <div
-            role="alert"
-            className="flex flex-col gap-4 rounded-lg border border-destructive/30 bg-destructive/5 p-4"
-          >
-            <p className="text-destructive break-words text-sm">{progress.message}</p>
+          <div className="flex flex-col gap-3">
+            <ActionError
+              title="Repository setup couldn’t finish"
+              error={undefined}
+              message={progress.message}
+            />
             <div className="flex flex-wrap gap-2">
               <Button size="sm" onClick={() => void dispatch(startRepositorySetup(link))}>
                 Retry setup

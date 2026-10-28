@@ -23,7 +23,8 @@ export async function prepareLinkedPullRequest(
   try {
     onStage(stage);
     for (const repoPath of new Set(repoPaths)) {
-      const hosted = await desktop.resolveHostedRepo(repoPath).catch(() => null);
+      const resolved = await desktop.resolveHostedRepo(repoPath);
+      const hosted = resolved.ok ? resolved.value : null;
       if (
         hosted?.providerId !== link.providerId ||
         hosted.owner.toLowerCase() !== link.owner.toLowerCase() ||
@@ -31,10 +32,12 @@ export async function prepareLinkedPullRequest(
       )
         continue;
 
-      const { detail } = await desktop.getPullRequestConversation({
+      const result = await desktop.getPullRequestConversation({
         repoPath,
         pullRequestNumber: link.pullRequestNumber,
       });
+      if (!result.ok) return { ok: false, stage, message: result.error.message };
+      const { detail } = result.value;
       return {
         ok: true,
         workspace: {
@@ -50,7 +53,9 @@ export async function prepareLinkedPullRequest(
 
     stage = "downloading";
     onStage(stage);
-    const prepared = await desktop.preparePullRequestFromUrl(link.url);
+    const result = await desktop.preparePullRequestFromUrl(link.url);
+    if (!result.ok) return { ok: false, stage, message: result.error.message };
+    const prepared = result.value;
     return {
       ok: true,
       workspace: {

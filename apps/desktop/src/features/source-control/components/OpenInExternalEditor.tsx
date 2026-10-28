@@ -141,7 +141,8 @@ function targetLabel(target: OpenTarget): string {
 
 async function checkAppExists(appName: string): Promise<boolean> {
   try {
-    return await desktop.checkAppExists(appName);
+    const result = await desktop.checkAppExists(appName);
+    return result.ok && result.value;
   } catch {
     return false;
   }
@@ -216,7 +217,11 @@ export function OpenInExternalEditor({
     setOpeningApp(app);
 
     try {
-      await desktop.openPath(path, option.openWith ?? null);
+      const result = await desktop.openPath(path, option.openWith ?? null);
+      if (!result.ok) {
+        toast.error(result.error.message);
+        return;
+      }
     } catch (error) {
       toast.error(`Failed to open ${noun}`, { description: errorMessage(error) });
     } finally {

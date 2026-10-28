@@ -1,3 +1,5 @@
+import { ActionError } from "@/components/ui/error-state";
+import { toast } from "sonner";
 import { useNavigate } from "react-router";
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
@@ -36,7 +38,12 @@ export function GitOperationBanner() {
               okLabel: "Skip",
             })
             .then((confirmed) => {
-              if (confirmed) return execute({ repoPath, command: { kind: "skip", operation } });
+              if (!confirmed.ok) {
+                toast.error(confirmed.error.message);
+                return;
+              }
+              if (confirmed.value)
+                return execute({ repoPath, command: { kind: "skip", operation } });
             });
       }}
       onAbort={() => {
@@ -48,7 +55,12 @@ export function GitOperationBanner() {
               okLabel: "Abort",
             })
             .then((confirmed) => {
-              if (confirmed) return execute({ repoPath, command: { kind: "abort", operation } });
+              if (!confirmed.ok) {
+                toast.error(confirmed.error.message);
+                return;
+              }
+              if (confirmed.value)
+                return execute({ repoPath, command: { kind: "abort", operation } });
             });
       }}
       error={mutation.error && "message" in mutation.error ? String(mutation.error.message) : ""}
@@ -109,9 +121,7 @@ export function GitOperationStatus({
         ) : null}
       </div>
       {error ? (
-        <p role="alert" className="text-destructive mt-2 whitespace-pre-wrap text-xs">
-          {error}
-        </p>
+        <ActionError title="Git operation failed" error={undefined} message={error} />
       ) : null}
     </section>
   );

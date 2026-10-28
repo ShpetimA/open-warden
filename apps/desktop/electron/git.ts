@@ -78,7 +78,7 @@ class GitCommandError extends Error {
   constructor(
     readonly args: string[],
     readonly stderr: string,
-    readonly code: number | null,
+    readonly code: number | string | null,
   ) {
     super(stderr || `git ${args.join(" ")} failed`);
     this.name = "GitCommandError";
@@ -147,7 +147,17 @@ async function runGit(
 
     const rawCode = "code" in error ? error.code : null;
     if (rawCode === "ENOENT") {
-      throw new GitCommandError(args, "git is not installed or not available in PATH", null);
+      const repositoryExists = await fs.stat(repoPath).then(
+        (entry) => entry.isDirectory(),
+        () => false,
+      );
+      throw new GitCommandError(
+        args,
+        repositoryExists
+          ? "git is not installed or not available in PATH"
+          : "repository is no longer available",
+        repositoryExists ? "UNAVAILABLE" : "ENOENT",
+      );
     }
 
     if ("killed" in error && error.killed) {
@@ -580,18 +590,7 @@ export async function getRepoFiles(repoPath: string): Promise<RepoFileItem[]> {
   return parseRepoFilesOutput(output);
 }
 
-export async function getCommitHistory(repoPath: string, limit = 200): Promise<HistoryCommit[]> {
-  const normalizedLimit = limit > 0 ? String(limit) : "1";
-  const output = await runGit(repoPath, [
-    "log",
-    "-z",
-    "--format=%H%x00%h%x00%s%x00%an%x00%ar%x00",
-    "-n",
-    normalizedLimit,
-  ]);
-
-  return parseHistoryOutput(output);
-}
+export { getCommitHistory, getHistoryGraph } from "./history";
 
 const commitDetailsFields = z.tuple([
   z.string().min(1),
@@ -698,6 +697,7 @@ export async function getCommitFiles(repoPath: string, commitId: string): Promis
   const output = await runGit(repoPath, [
     "diff-tree",
     "--root",
+    "--diff-merges=first-parent",
     "--no-commit-id",
     "-r",
     "--name-status",

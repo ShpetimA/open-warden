@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { createAppSettings } from "../../src/platform/desktop/appSettings";
 import type {
@@ -176,7 +176,30 @@ test.beforeEach(async ({ page }) => {
         syncLspDocument: async () => {},
         closeLspDocument: async () => {},
       };
-      Object.defineProperty(window, "desktopBridge", { value: bridge });
+      const replies = Object.fromEntries(
+        Object.entries(bridge).map(([method, handler]) => [
+          method,
+          method.startsWith("on")
+            ? handler
+            : async (...args: unknown[]) => {
+                try {
+                  const value = await handler(...args);
+                  return { ok: true, value };
+                } catch (cause) {
+                  return {
+                    ok: false,
+                    error: {
+                      operation: method,
+                      code: "unavailable",
+                      message:
+                        cause instanceof Error ? cause.message : "The test operation failed.",
+                    },
+                  };
+                }
+              },
+        ]),
+      );
+      Object.defineProperty(window, "desktopBridge", { value: replies });
     },
     { detail, commits, settings: createAppSettings() },
   );
@@ -392,7 +415,14 @@ test("shows commit loading failures and allows returning to all files", async ({
   await page.evaluate(() => {
     if (window.desktopBridge) {
       window.desktopBridge.getBranchCommits = async () => {
-        throw new Error("Could not load PR commits");
+        return {
+          ok: false,
+          error: {
+            operation: "getBranchCommits",
+            code: "unavailable",
+            message: "Could not load PR commits",
+          },
+        };
       };
     }
   });
@@ -401,7 +431,7 @@ test("shows commit loading failures and allows returning to all files", async ({
     page
       .getByRole("complementary", { name: "Pull request commits", exact: true })
       .getByRole("alert"),
-  ).toHaveText("Could not load PR commits");
+  ).toContainText("Couldn’t load commits");
   await page.getByRole("tab", { name: "Files", exact: true }).click();
   await expect(sidebar.getByText("2 files · 0 viewed")).toBeVisible();
 });
@@ -416,7 +446,9 @@ test("keeps commits loading until the list arrives and handles an empty range", 
     if (window.desktopBridge) {
       window.desktopBridge.getBranchCommits = () =>
         new Promise((resolve) => {
-          window.addEventListener("qa-commits-ready", () => resolve([]), { once: true });
+          window.addEventListener("qa-commits-ready", () => resolve({ ok: true, value: [] }), {
+            once: true,
+          });
         });
     }
   });
@@ -618,8 +650,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
     await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
     const gutter = page.locator('[data-additions] [data-column-number="2"]');
-    await gutter.hover();
-    await page.locator("[data-additions] [data-utility-button]").click();
+    await gutter.click();
     const composer = page.getByPlaceholder("Leave a comment...");
     await composer.fill("Testing");
     await page.getByRole("button", { name: "Add", exact: true }).click();
@@ -674,3 +705,359 @@ for (const theme of ["light", "dark"] as const) {
     await expect(note).toHaveCount(0);
   });
 }
+
+test("retries a provider read and offers reconnect for authentication failures", async ({
+  page,
+}, testInfo) => {
+  await page.addInitScript(
+    ({ detail }) => {
+      let attempts = 0;
+      if (!window.desktopBridge) return;
+      window.desktopBridge.listProviderConnections = async () => ({
+        ok: true,
+        value: [
+          {
+            id: "bitbucket",
+            providerId: "bitbucket",
+            method: "pat",
+            login: "alice",
+            displayName: "Alice",
+            avatarUrl: null,
+            scopes: [],
+            createdAt: "",
+            updatedAt: "",
+          },
+        ],
+      });
+      window.desktopBridge.listPullRequests = async () => {
+        attempts += 1;
+        if (attempts === 1)
+          return {
+            ok: false,
+            error: {
+              operation: "listPullRequests",
+              code: "network",
+              message: "Couldn’t reach Bitbucket. Check your connection and try again.",
+              provider: "bitbucket",
+            },
+          };
+        if (attempts === 2)
+          return {
+            ok: true,
+            value: {
+              pullRequests: [
+                {
+                  ...detail,
+                  headOwner: "team",
+                  headRepo: "invoice",
+                  commentCount: 0,
+                  reviewers: [],
+                  reviewDecision: null,
+                  checksState: null,
+                  additions: 0,
+                  deletions: 0,
+                  changedFiles: 2,
+                },
+              ],
+              page: 1,
+              perPage: 25,
+              hasNextPage: false,
+            },
+          };
+        return {
+          ok: false,
+          error: {
+            operation: "listPullRequests",
+            code: "authentication",
+            message: "Your Bitbucket connection needs attention. Reconnect your account.",
+            provider: "bitbucket",
+            status: 401,
+          },
+        };
+      };
+    },
+    { detail },
+  );
+  await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+  await expect(page.getByRole("tree")).toBeVisible();
+  await page.getByRole("button", { name: "Pull requests", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Couldn’t load pull requests");
+  await page.screenshot({
+    path: testInfo.outputPath("provider-error.png"),
+    animations: "disabled",
+  });
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Validate invoice amounts", { exact: true }).first()).toBeVisible();
+  await page.getByPlaceholder("Search titles and descriptions").fill("invoice");
+  await expect(
+    page.getByRole("button", { name: "Reconnect Bitbucket", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Reconnect Bitbucket", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+async function configureInbox(page: Page, body: string, failDescriptionOnce = false) {
+  await page.addInitScript(
+    ({ detail, body, failDescriptionOnce }) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) return;
+
+      bridge.loadWorkspaceSession = async () => ({
+        ok: true,
+        value: {
+          openRepos: ["/projects/invoice"],
+          activeRepo: "/projects/invoice",
+          recentRepos: [],
+          workspaceTabs: {
+            items: [{ id: "/projects/invoice", kind: "repo", repoPath: "/projects/invoice" }],
+            activeWorkspaceId: "/projects/invoice",
+            activeByProject: { "/projects/invoice": "/projects/invoice" },
+            locations: { "/projects/invoice": "/pull-requests" },
+            views: {},
+            memory: {},
+          },
+        },
+      });
+      bridge.listProviderConnections = async () => ({
+        ok: true,
+        value: [
+          {
+            id: "bitbucket",
+            providerId: "bitbucket",
+            method: "pat",
+            login: "alice",
+            displayName: "Alice",
+            avatarUrl: null,
+            scopes: [],
+            createdAt: "",
+            updatedAt: "",
+          },
+        ],
+      });
+      bridge.listPullRequests = async () => ({
+        ok: true,
+        value: {
+          pullRequests: [
+            {
+              ...detail,
+              headOwner: "team",
+              headRepo: "invoice",
+              commentCount: 0,
+              reviewers: [],
+              reviewDecision: null,
+              checksState: "passed",
+              additions: 10,
+              deletions: 2,
+              changedFiles: 2,
+            },
+          ],
+          page: 1,
+          perPage: 25,
+          hasNextPage: false,
+        },
+      });
+      let reads = 0;
+      bridge.getPullRequestConversation = async () => {
+        reads += 1;
+        if (failDescriptionOnce && reads === 1) {
+          return {
+            ok: false,
+            error: {
+              operation: "getPullRequestConversation",
+              code: "network",
+              message: "The provider couldn’t be reached. Try again.",
+              provider: "bitbucket",
+            },
+          };
+        }
+        return {
+          ok: true,
+          value: { detail: { ...detail, body }, issueComments: [], reviewThreads: [] },
+        };
+      };
+    },
+    { detail, body, failDescriptionOnce },
+  );
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`shows the full inbox description and resizes both panes in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const body = [
+      "## Validation",
+      ...Array.from(
+        { length: 18 },
+        (_, index) =>
+          `### Check ${index + 1}\n\nValidate the real build and application navigation. Keep the entire description readable while resizing the preview.`,
+      ),
+      "End of the complete pull request description.",
+    ].join("\n\n");
+    await configureInbox(page, body);
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/pull-requests");
+
+    await expect(page.locator("html")).toHaveClass(new RegExp(theme));
+    const list = page.getByRole("region", { name: "Pull request list", exact: true });
+    const preview = page.getByRole("complementary", { name: "Pull request preview", exact: true });
+    const separator = page.getByRole("separator");
+    await expect(preview.getByText("End of the complete pull request description.")).toHaveCount(1);
+    await expect(preview.getByRole("button", { name: /Read more|Show less/ })).toHaveCount(0);
+    const scroll = preview.locator("[data-workspace-scroll]");
+    expect(await scroll.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+      true,
+    );
+
+    const before = await list.evaluate((element) => element.getBoundingClientRect().width);
+    const handle = await separator.boundingBox();
+    if (!handle) throw new Error("Missing inbox resize handle");
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x - 140, handle.y + handle.height / 2, { steps: 12 });
+    await page.mouse.up();
+    await expect
+      .poll(() => list.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeCloseTo(before - 140 - handle.width / 2, 0);
+    const resized = await list.evaluate((element) => element.getBoundingClientRect().width);
+    expect(resized).toBeLessThan(before - 100);
+
+    await page.getByRole("button", { name: "History", exact: true }).click();
+    await page.getByRole("button", { name: "Pull Requests", exact: true }).click();
+    await expect(list).toBeVisible();
+    await expect
+      .poll(() => list.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeCloseTo(resized, 0);
+
+    await page.keyboard.press("Meta+d");
+    await expect(preview).toBeHidden();
+    await expect(list).toBeVisible();
+    await page.keyboard.press("Meta+d");
+    await expect(preview).toBeVisible();
+    await page.keyboard.press("Meta+s");
+    await expect(list).toBeHidden();
+    await expect(preview).toBeVisible();
+    await page.getByRole("button", { name: "Toggle pull request list (⌘S)", exact: true }).click();
+    await expect(list).toBeVisible();
+
+    await separator.focus();
+    const keyboardWidth = await list.evaluate((element) => element.getBoundingClientRect().width);
+    await separator.press("ArrowRight");
+    await expect
+      .poll(() => list.evaluate((element) => element.getBoundingClientRect().width))
+      .toBeGreaterThan(keyboardWidth);
+    await page.screenshot({
+      path: testInfo.outputPath(`inbox-wide-${theme}.png`),
+      animations: "disabled",
+    });
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await preview
+      .getByText("End of the complete pull request description.")
+      .scrollIntoViewIfNeeded();
+    await expect(preview.getByRole("button", { name: "Open review", exact: false })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`inbox-narrow-${theme}.png`),
+      animations: "disabled",
+    });
+  });
+}
+
+test("retries a failed inbox description instead of presenting it as empty", async ({ page }) => {
+  await configureInbox(page, "The recovered pull request description.", true);
+  await page.goto("/#/pull-requests");
+  const preview = page.getByRole("complementary", { name: "Pull request preview", exact: true });
+  await expect(preview.getByRole("alert")).toContainText("Couldn’t load this description");
+  await expect(preview.getByText("No description provided.")).toHaveCount(0);
+  await preview.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(preview.getByText("The recovered pull request description.")).toBeVisible();
+  await expect(preview.getByRole("alert")).toHaveCount(0);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`shows delayed PR tab information without opening from keyboard in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    const tab = page
+      .getByRole("navigation", { name: "Project pull requests" })
+      .getByRole("button", { name: "#114 Validate invoice amounts", exact: true });
+    await expect(tab).toBeVisible();
+    await page.mouse.move(1000, 700);
+    await tab.focus();
+    await page.waitForTimeout(800);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await tab.hover();
+    await page.waitForTimeout(250);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    const card = page.getByRole("tooltip");
+    await expect(card.getByText("team/invoice · Bitbucket · #114", { exact: true })).toBeVisible();
+    await expect(card.getByText("Alice", { exact: true })).toBeVisible();
+    await expect(card.getByText("validation → main", { exact: true })).toBeVisible();
+    await expect(card.getByText(detail.body, { exact: true })).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`pr-tab-hover-${theme}.png`),
+      animations: "disabled",
+    });
+    await page.keyboard.press("j");
+    await expect(card).toBeHidden();
+    await page.waitForTimeout(800);
+    await expect(card).toHaveCount(0);
+  });
+}
+
+test("V and J/K follow rendered review groups, folders and flat order after filtering and collapsing", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const bridge = window.desktopBridge!;
+    const paths = ["pnpm-lock.yaml", "src/z.ts", "docs/guide.md", "src/a.test.ts", "src/a.ts"];
+    bridge.getBranchFiles = async () => ({
+      ok: true,
+      value: paths.map((path) => ({ path, previousPath: null, status: "modified" as const })),
+    });
+  });
+  await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+  const pane = page.getByRole("complementary", { name: "Changed files", exact: true });
+  const selected = pane.locator('[data-item-type="file"][aria-selected="true"]');
+  await expect(selected).toHaveAttribute("aria-label", "a.ts");
+  await pane.getByRole("treeitem", { name: "Tests", exact: true }).click();
+  await pane.getByRole("treeitem", { name: "a.ts", exact: true }).click();
+  await page.keyboard.press("j");
+  await expect(selected).toHaveAttribute("aria-label", "z.ts");
+  await page.keyboard.press("k");
+  await expect(selected).toHaveAttribute("aria-label", "a.ts");
+  await page.keyboard.press("v");
+  await expect(selected).toHaveAttribute("aria-label", "z.ts");
+  await page.keyboard.press("v");
+  await expect(selected).toHaveAttribute("aria-label", "guide.md");
+  await pane.getByRole("button", { name: "Group review files: Review groups" }).click();
+  await page.getByRole("menuitemradio", { name: "Folders", exact: true }).click();
+  await pane.getByRole("treeitem", { name: "a.test.ts", exact: true }).click();
+  await page.keyboard.press("v");
+  await expect(selected).toHaveAttribute("aria-label", "pnpm-lock.yaml");
+  await pane.getByRole("button", { name: "Group review files: Folders" }).click();
+  await page.getByRole("menuitemradio", { name: "Flat list", exact: true }).click();
+  await pane.getByRole("treeitem", { name: /^guide/ }).click();
+  await page.keyboard.press("Shift+v"); // mark without advancing
+  await expect(selected).toHaveAttribute("aria-label", /^guide/);
+  await page.keyboard.press("Shift+v"); // unmark without advancing
+  await expect(selected).toHaveAttribute("aria-label", /^guide/);
+  await page.keyboard.press("v");
+  await expect(selected).toHaveAttribute("aria-label", /^pnpm-lock/);
+  const filter = pane.getByRole("textbox", { name: "Filter changed files" });
+  await filter.fill(".ts");
+  await expect(selected).toHaveAttribute("aria-label", /^a\.test/);
+  await filter.press("Escape");
+  await pane.getByRole("treeitem", { name: /^a\.test/ }).click();
+  await page.keyboard.press("v"); // unmark, no advance
+  await expect(selected).toHaveAttribute("aria-label", /^a\.test/);
+  await page.keyboard.press("v"); // all visible files are now viewed
+  await expect(selected).toHaveAttribute("aria-label", /^a\.test/);
+});

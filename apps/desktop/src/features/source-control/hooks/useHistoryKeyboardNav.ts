@@ -18,11 +18,7 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import type { HistoryCommit } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
-import {
-  focusKeyboardNavItem,
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from "@/lib/keyboard-navigation";
+import { focusKeyboardNavItem, getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
 import {
   focusInputById,
   SOURCE_CONTROL_HOTKEY_OPTIONS,
@@ -102,7 +98,7 @@ export function useHistoryKeyboardNav() {
 
     const targetCommit = filteredHistoryCommits[targetIndex];
     if (!targetCommit) return;
-    scrollKeyboardNavItemIntoView("history-commits", targetIndex);
+    focusKeyboardNavItem("history-commits", targetIndex);
     void dispatch(selectHistoryCommit(targetCommit.commitId));
   };
 
@@ -129,9 +125,7 @@ export function useHistoryKeyboardNav() {
     );
     const targetIndex = activeIndex >= 0 ? activeIndex : 0;
 
-    window.requestAnimationFrame(() => {
-      focusKeyboardNavItem("history-commits", targetIndex);
-    });
+    focusKeyboardNavItem("history-commits", targetIndex);
   };
 
   const focusHistoryFileList = () => {

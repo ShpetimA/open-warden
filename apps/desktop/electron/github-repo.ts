@@ -1,3 +1,4 @@
+import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
   GitProviderId,
   HostedRepoRef,
@@ -156,42 +157,15 @@ export async function githubRequest<T>(pathname: string, token: string) {
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `GitHub request failed with status ${response.status}`);
+    throw new DesktopAdapterError(
+      providerFailure("github", response.status, response.headers, Date.now()),
+    );
   }
 
   return {
     data: (await response.json()) as T,
     headers: response.headers,
   };
-}
-
-function githubPermissionErrorHint(message: string) {
-  if (message.includes("Resource not accessible by personal access token")) {
-    return "Your GitHub token cannot create pull request comments. Reconnect with Issues: write or Pull requests: write permissions for this repository.";
-  }
-
-  return null;
-}
-
-function parseGitHubErrorMessage(text: string, status: number) {
-  try {
-    const payload = JSON.parse(text) as {
-      message?: unknown;
-      documentation_url?: unknown;
-      status?: unknown;
-    };
-    const message =
-      typeof payload.message === "string" && payload.message.trim()
-        ? payload.message
-        : `GitHub request failed with status ${status}`;
-    const hint = githubPermissionErrorHint(message);
-    return hint ? `${message}. ${hint}` : message;
-  } catch {
-    const fallback = text.trim() || `GitHub request failed with status ${status}`;
-    const hint = githubPermissionErrorHint(fallback);
-    return hint ? `${fallback}. ${hint}` : fallback;
-  }
 }
 
 export async function githubTextRequest(pathname: string, token: string, accept: string) {
@@ -205,8 +179,9 @@ export async function githubTextRequest(pathname: string, token: string, accept:
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(parseGitHubErrorMessage(message, response.status));
+    throw new DesktopAdapterError(
+      providerFailure("github", response.status, response.headers, Date.now()),
+    );
   }
 
   return response.text();
@@ -227,7 +202,9 @@ export async function githubEmptyRequest(
     },
   });
   if (!response.ok) {
-    throw new Error(parseGitHubErrorMessage(await response.text(), response.status));
+    throw new DesktopAdapterError(
+      providerFailure("github", response.status, response.headers, Date.now()),
+    );
   }
 }
 
@@ -252,8 +229,9 @@ export async function githubJsonRequest<T>(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(parseGitHubErrorMessage(message, response.status));
+    throw new DesktopAdapterError(
+      providerFailure("github", response.status, response.headers, Date.now()),
+    );
   }
 
   return (await response.json()) as T;
@@ -279,8 +257,9 @@ export async function githubGraphqlRequest<T>(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(parseGitHubErrorMessage(message, response.status));
+    throw new DesktopAdapterError(
+      providerFailure("github", response.status, response.headers, Date.now()),
+    );
   }
 
   const payload = (await response.json()) as T & { errors?: Array<{ message: string }> };

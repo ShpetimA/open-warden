@@ -1,3 +1,4 @@
+import { failureFromUnknown } from "@/platform/desktop/failure";
 import { serializeWorkspaceTabs } from "@/features/workspaces/workspaceState";
 import type { AppThunk, RootState } from "@/app/store";
 import { toast } from "sonner";
@@ -135,13 +136,13 @@ export async function persistWorkspaceSession(getState: () => RootState) {
   };
   const write = sessionWrite.then(() => desktop.saveWorkspaceSession(session));
   sessionWrite = write.catch(() => undefined);
-  await write;
+  return await write;
 }
 
 async function resolveRepoPath(repoPath: string): Promise<string | null> {
   try {
     const snapshot = await desktop.getGitSnapshot(repoPath);
-    return snapshot.repoRoot.trim() || repoPath;
+    return snapshot.ok ? snapshot.value.repoRoot.trim() || repoPath : null;
   } catch {
     return null;
   }
@@ -158,7 +159,13 @@ async function restoreRepoPaths(repoPaths: string[]): Promise<string[]> {
 
 export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dispatch) => {
   try {
-    const storedSession = await desktop.loadWorkspaceSession();
+    const loaded = await desktop.loadWorkspaceSession();
+    if (!loaded.ok) {
+      dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
+      toast.error(loaded.error.message, { id: "workspace-restore" });
+      return;
+    }
+    const storedSession = loaded.value;
     const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
     const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
     const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
@@ -187,7 +194,7 @@ export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dis
     await desktop.saveWorkspaceSession(workspaceSession);
   } catch (error) {
     dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
-    const message = error instanceof Error ? error.message : String(error);
+    const message = failureFromUnknown(error, "repositoryAction").message;
     toast.error(`Failed to restore workspace session: ${message}`);
   }
 };
@@ -233,9 +240,14 @@ export const selectFolder = (): AppThunk => async (dispatch) => {
   let selected: string | null;
 
   try {
-    selected = await desktop.selectFolder();
+    const result = await desktop.selectFolder();
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    selected = result.value;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = failureFromUnknown(error, "repositoryAction").message;
     toast.error(`Failed to select folder: ${message}`);
     return;
   }
@@ -513,7 +525,7 @@ const runRepoAction =
       await dispatch(thunk);
       return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = failureFromUnknown(error, "repositoryAction").message;
       toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
       return false;
     } finally {

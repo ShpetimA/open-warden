@@ -1,3 +1,4 @@
+import { failureFromUnknown } from "@/platform/desktop/failure";
 import type { AppThunk } from "@/app/store";
 import { preparePullRequestWorkspace } from "@/features/hosted-repos/services/hostedRepos";
 import { desktop } from "@/platform/desktop";
@@ -28,7 +29,9 @@ export const openPullRequestReview =
 
     try {
       if (openMode === "branch") {
-        const snapshot = await desktop.getGitSnapshot(activeRepo);
+        const result = await desktop.getGitSnapshot(activeRepo);
+        if (!result.ok) return { errorMessage: result.error.message, repoPath: null };
+        const snapshot = result.value;
         const hasLocalChanges =
           snapshot.unstaged.length > 0 ||
           snapshot.staged.length > 0 ||
@@ -42,12 +45,14 @@ export const openPullRequestReview =
         }
       }
 
-      const preparedWorkspace = await preparePullRequestWorkspace({
+      const prepared = await preparePullRequestWorkspace({
         repoPath: activeRepo,
         pullRequestNumber,
         openMode,
       });
 
+      if (!prepared.ok) return { errorMessage: prepared.error.message, repoPath: null };
+      const preparedWorkspace = prepared.value;
       await dispatch(openRepo(preparedWorkspace.repoPath, { workspace: "preserve" }));
       if (workspace?.kind === "pull-request") {
         dispatch(
@@ -57,7 +62,7 @@ export const openPullRequestReview =
       await dispatch(refreshActiveRepo());
       return { errorMessage: null, repoPath: preparedWorkspace.repoPath };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = failureFromUnknown(error, "repositoryAction").message;
       return { errorMessage: message, repoPath: null };
     }
   };

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { createAppSettings } from "../../src/platform/desktop/appSettings";
 import type { DesktopBridge, HistoryCommit } from "../../src/platform/desktop/contracts";
+import type { HistoryGraph } from "../../src/platform/desktop/history";
 
 if (process.env.OPEN_WARDEN_BROWSER_EXECUTABLE) {
   test.use({ launchOptions: { executablePath: process.env.OPEN_WARDEN_BROWSER_EXECUTABLE } });
@@ -38,6 +39,34 @@ const commits: HistoryCommit[] = [
   })),
 ];
 
+const graphId = (index: number) => (index + 1).toString(16).padStart(40, "0");
+const graph: HistoryGraph = {
+  shallow: false,
+  commits: Array.from({ length: 1005 }, (_, index) => ({
+    commitId: graphId(index),
+    shortId: graphId(index).slice(-8),
+    summary:
+      index === 0
+        ? "Merge invoice validation"
+        : index === 1004
+          ? "Oldest original invoice commit"
+          : `Earlier change ${index}`,
+    author: index % 2 ? "Bob" : "Alice",
+    authorEmail: index % 2 ? "bob@example.com" : "alice@example.com",
+    authoredAt: "2026-10-27T12:00:00Z",
+    relativeTime: "1 day ago",
+    parents:
+      index === 0
+        ? [graphId(1), graphId(3)]
+        : index === 2 || index === 3
+          ? [graphId(4)]
+          : index === 1004
+            ? []
+            : [graphId(index + 1)],
+    refs: index === 0 ? ["HEAD", "refs/heads/main"] : index === 3 ? ["refs/heads/validation"] : [],
+  })),
+};
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(
     ({ commits, settings }) => {
@@ -46,6 +75,14 @@ test.beforeEach(async ({ page }) => {
           openRepos: ["/projects/invoice"],
           activeRepo: "/projects/invoice",
           recentRepos: [],
+          workspaceTabs: {
+            items: [{ id: "/projects/invoice", kind: "repo", repoPath: "/projects/invoice" }],
+            activeWorkspaceId: "/projects/invoice",
+            activeByProject: { "/projects/invoice": "/projects/invoice" },
+            locations: { "/projects/invoice": "/history" },
+            views: {},
+            memory: {},
+          },
         }),
         saveWorkspaceSession: async (session) => session,
         loadAppSettings: async () => settings,
@@ -107,7 +144,30 @@ test.beforeEach(async ({ page }) => {
         syncLspDocument: async () => {},
         closeLspDocument: async () => {},
       };
-      Object.defineProperty(window, "desktopBridge", { value: bridge });
+      const replies = Object.fromEntries(
+        Object.entries(bridge).map(([method, handler]) => [
+          method,
+          method.startsWith("on")
+            ? handler
+            : async (...args: unknown[]) => {
+                try {
+                  const value = await handler(...args);
+                  return { ok: true, value };
+                } catch (cause) {
+                  return {
+                    ok: false,
+                    error: {
+                      operation: method,
+                      code: "unavailable",
+                      message:
+                        cause instanceof Error ? cause.message : "The test operation failed.",
+                    },
+                  };
+                }
+              },
+        ]),
+      );
+      Object.defineProperty(window, "desktopBridge", { value: replies });
     },
     { commits, settings: createAppSettings() },
   );
@@ -201,7 +261,8 @@ for (const theme of ["light", "dark"] as const) {
 
 test("shows an empty history with the shared pane", async ({ page }) => {
   await page.addInitScript(() => {
-    if (window.desktopBridge) window.desktopBridge.getCommitHistory = async () => [];
+    if (window.desktopBridge)
+      window.desktopBridge.getCommitHistory = async () => ({ ok: true, value: [] });
   });
   await page.goto("/#/history");
   await expect(page.getByText("No commits found.", { exact: true })).toBeVisible();
@@ -211,9 +272,247 @@ test("shows history loading failures in the shared pane", async ({ page }) => {
   await page.addInitScript(() => {
     if (window.desktopBridge)
       window.desktopBridge.getCommitHistory = async () => {
-        throw new Error("History unavailable");
+        return {
+          ok: false,
+          error: {
+            operation: "getCommitHistory",
+            code: "unavailable",
+            message: "History unavailable",
+          },
+        };
       };
   });
   await page.goto("/#/history");
   await expect(page.getByRole("alert").filter({ hasText: "History unavailable" })).toBeVisible();
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`recovers a failed History read and keeps cached selection on refresh failure in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.addInitScript((commits) => {
+      let attempts = 0;
+      if (window.desktopBridge)
+        window.desktopBridge.getCommitHistory = async () => {
+          attempts += 1;
+          if (attempts === 1 || attempts === 3)
+            return {
+              ok: false,
+              error: {
+                operation: "getCommitHistory",
+                code: "busy",
+                message:
+                  "Another Git operation is using this repository. Wait for it to finish, then try again.",
+              },
+            };
+          return { ok: true, value: commits };
+        };
+    }, commits);
+    await page.goto("/#/history");
+    const pane = page.getByRole("complementary", { name: "History commits", exact: true });
+    await expect(pane.getByRole("alert")).toContainText("Couldn’t load commits");
+    await page.screenshot({
+      path: testInfo.outputPath(`history-error-${theme}.png`),
+      animations: "disabled",
+    });
+    await pane.getByRole("button", { name: "Retry", exact: true }).click();
+    const filter = pane.getByRole("textbox", { name: "Filter commits" });
+    await filter.fill("Bob");
+    const selected = pane.getByRole("button", { name: /Store signup steps/ });
+    await selected.click();
+    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Refresh repository status" }).click();
+    await expect(pane.getByRole("status")).toContainText("Couldn’t refresh commits");
+    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    await expect(filter).toHaveValue("Bob");
+    await page.screenshot({
+      path: testInfo.outputPath(`history-stale-${theme}.png`),
+      animations: "disabled",
+    });
+    await pane.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(pane.getByText("Couldn’t refresh commits", { exact: true })).toHaveCount(0);
+    await expect(selected).toHaveAttribute("aria-pressed", "true");
+    await expect(filter).toHaveValue("Bob");
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`opens full-page ancestry and contribution counts in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.addInitScript((graph) => {
+      if (window.desktopBridge)
+        window.desktopBridge.getHistoryGraph = async () => ({ ok: true, value: graph });
+    }, graph);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/#/history");
+    await expect(page.getByRole("button", { name: /^Update invoice state URLs/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.getByRole("button", { name: "Graph", exact: true }).click();
+    const graphView = page.getByRole("region", { name: "Repository history graph", exact: true });
+    await expect(graphView.getByText("All branches and tags", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("complementary", { name: "History commits", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      graphView.getByText("1,005 commits · 2 contributors · locally available history"),
+    ).toBeVisible();
+    const merge = graphView.getByRole("button", { name: /^Merge: Merge invoice validation/ });
+    await expect(merge).toHaveAttribute("aria-pressed", "true");
+    expect(await graphView.getByRole("listitem").count()).toBeLessThan(60);
+    expect(await graphView.locator("[data-history-graph-mark] path").count()).toBeGreaterThan(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`graph-${theme}-wide.png`),
+      animations: "disabled",
+    });
+
+    await graphView.getByRole("button", { name: "Contributors", exact: true }).click();
+    const contributors = page.locator('[data-slot="popover-content"]');
+    await expect(contributors).toContainText("Contributions by commit count");
+    await expect(contributors.getByRole("button", { name: /Alice/ })).toContainText("503");
+    await expect(contributors.getByRole("button", { name: /Bob/ })).toContainText("502");
+    await contributors.getByRole("button", { name: /Bob/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(
+      graphView.getByText("502 matches · connections hidden while filtering"),
+    ).toBeVisible();
+    await expect(graphView.locator("[data-history-graph-mark] path")).toHaveCount(0);
+    await graphView.getByRole("button", { name: "Clear", exact: true }).click();
+    await graphView
+      .getByRole("textbox", { name: "Filter graph commits", exact: true })
+      .fill("Oldest original");
+    const oldest = graphView.getByRole("button", { name: /^Oldest original invoice commit/ });
+    await expect(oldest).toBeVisible();
+    await graphView.getByRole("button", { name: "Clear", exact: true }).click();
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.screenshot({
+      path: testInfo.outputPath(`graph-${theme}-narrow.png`),
+      animations: "disabled",
+    });
+    await merge.click();
+    await page.keyboard.press("j");
+    await expect(graphView.getByRole("button", { name: /^Earlier change 1 / })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await merge.click();
+    await merge.press("Enter");
+    await expect(page.getByRole("button", { name: "List", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(
+      page.getByText(`export const revision = '${graphId(0)}';`, { exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  });
+}
+
+test("searches and navigates beyond 200 commits while keeping the list virtualized", async ({
+  page,
+}) => {
+  await page.addInitScript((graph) => {
+    if (window.desktopBridge)
+      window.desktopBridge.getCommitHistory = async () => ({ ok: true, value: graph.commits });
+  }, graph);
+  await page.goto("/#/history");
+  const pane = page.getByRole("complementary", { name: "History commits", exact: true });
+  await expect(pane.getByText("1005", { exact: true })).toBeVisible();
+  expect(await pane.locator('[data-slot="commit-row"]').count()).toBeLessThan(60);
+  await page.keyboard.press("h");
+  await page.keyboard.press("k");
+  await expect(
+    pane.getByRole("button", { name: /^Oldest original invoice commit / }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    pane.getByRole("button", { name: /^Oldest original invoice commit / }),
+  ).toBeVisible();
+  const filter = pane.getByRole("textbox", { name: "Filter commits", exact: true });
+  await filter.fill("Oldest original");
+  await expect(pane.getByText("1 / 1005", { exact: true })).toBeVisible();
+  await expect(pane.locator('[data-slot="commit-row"]')).toHaveCount(1);
+});
+
+test("recovers graph failures and keeps filtered content after a failed refresh", async ({
+  page,
+}) => {
+  await page.addInitScript((graph) => {
+    let attempts = 0;
+    if (window.desktopBridge)
+      window.desktopBridge.getHistoryGraph = async () => {
+        attempts += 1;
+        if (attempts === 1 || attempts === 3)
+          return {
+            ok: false,
+            error: {
+              operation: "getHistoryGraph",
+              code: "busy",
+              message: "Another Git operation is using this repository. Try again.",
+            },
+          };
+        return { ok: true, value: graph };
+      };
+  }, graph);
+  await page.goto("/#/history");
+  await expect(page.getByRole("button", { name: /^Update invoice state URLs/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Couldn’t load the history graph");
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  const view = page.getByRole("region", { name: "Repository history graph", exact: true });
+  const filter = view.getByRole("textbox", { name: "Filter graph commits", exact: true });
+  await filter.fill("bob@example.com");
+  const commit = view.getByRole("button", { name: /^Earlier change 3 / });
+  await commit.click();
+  await view.getByRole("button", { name: "Refresh history graph", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Couldn’t refresh the history graph");
+  await expect(filter).toHaveValue("bob@example.com");
+  await expect(commit).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(filter).toHaveValue("bob@example.com");
+  await expect(commit).toHaveAttribute("aria-pressed", "true");
+});
+
+test("returns to the selected older commit when switching back to Graph", async ({ page }) => {
+  await page.addInitScript((graph) => {
+    if (!window.desktopBridge) return;
+    window.desktopBridge.getHistoryGraph = async () => ({ ok: true, value: graph });
+    window.desktopBridge.getCommitHistory = async () => ({ ok: true, value: graph.commits });
+  }, graph);
+  await page.goto("/#/history");
+  await expect(
+    page
+      .getByRole("complementary", { name: "History commits", exact: true })
+      .getByText("1005", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Filter graph commits", exact: true })
+    .fill("Oldest original");
+  await page.getByRole("button", { name: /^Oldest original invoice commit / }).press("Enter");
+  const list = page.getByRole("complementary", { name: "History commits", exact: true });
+  await expect(list).toBeVisible();
+  await expect(
+    list.getByRole("button", { name: /^Oldest original invoice commit / }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    list.getByRole("button", { name: /^Oldest original invoice commit / }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  const view = page.getByRole("region", { name: "Repository history graph", exact: true });
+  await expect(
+    view.getByRole("button", { name: /^Oldest original invoice commit / }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    view.getByRole("button", { name: /^Oldest original invoice commit / }),
+  ).toBeVisible();
 });

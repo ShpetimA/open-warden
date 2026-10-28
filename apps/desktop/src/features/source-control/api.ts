@@ -1,3 +1,7 @@
+import { historyGraphSchema } from "@/platform/desktop/history";
+import { buildHistoryGraph, type HistoryGraphViewData } from "./historyGraph";
+import { desktop } from "@/platform/desktop";
+import { queryResult, desktopFailure, type DesktopFailure } from "@/platform/desktop/failure";
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
 import type {
@@ -34,8 +38,6 @@ import {
   updateWorktreeFileContents,
 } from "./services/git";
 
-type ErrorResult = { message: string };
-
 type CommitHistoryArgs = { repoPath: string; limit?: number };
 type BranchFilesArgs = { repoPath: string; baseRef: string; headRef: string };
 type CommitFilesArgs = { repoPath: string; commitId: string };
@@ -62,10 +64,6 @@ type UpdateWorktreeFileContentsArgs = { repoPath: string; relPath: string; conte
 type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket };
 type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> };
 type CommitStagedArgs = { repoPath: string; message: string };
-
-function toErrorResult(error: unknown): ErrorResult {
-  return { message: error instanceof Error ? error.message : String(error) };
-}
 
 function normalizeFilePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\/+/, "");
@@ -94,7 +92,7 @@ function normalizeGitSnapshot(snapshot: GitSnapshot): GitSnapshot {
 
 export const gitApi = createApi({
   reducerPath: "gitApi",
-  baseQuery: fakeBaseQuery<ErrorResult>(),
+  baseQuery: fakeBaseQuery<DesktopFailure>(),
   tagTypes: [
     "Snapshot",
     "RepoFiles",
@@ -107,72 +105,63 @@ export const gitApi = createApi({
   endpoints: (builder) => ({
     getGitSnapshot: builder.query<GitSnapshot, string>({
       async queryFn(repoPath) {
-        try {
-          return { data: normalizeGitSnapshot(await getGitSnapshot(repoPath)) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getGitSnapshot(repoPath), (value) => normalizeGitSnapshot(value));
       },
       providesTags: (_result, _error, repoPath) => [{ type: "Snapshot", id: repoPath }],
     }),
     getRepoFiles: builder.query<RepoFileItem[], string>({
       async queryFn(repoPath) {
-        try {
-          return { data: (await getRepoFiles(repoPath)).map(normalizeRepoFileItem) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getRepoFiles(repoPath), (value) =>
+          value.map(normalizeRepoFileItem),
+        );
       },
       providesTags: (_result, _error, repoPath) => [{ type: "RepoFiles", id: repoPath }],
     }),
     getCommitHistory: builder.query<HistoryCommit[], CommitHistoryArgs>({
       async queryFn({ repoPath, limit }) {
-        try {
-          return { data: await getCommitHistory(repoPath, limit) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getCommitHistory(repoPath, limit));
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "HistoryCommits", id: repoPath }],
     }),
+    getHistoryGraph: builder.query<HistoryGraphViewData, string>({
+      async queryFn(repoPath) {
+        const result = await desktop.getHistoryGraph(repoPath);
+        if (!result.ok) return { error: result.error };
+        const parsed = historyGraphSchema.safeParse(result.value);
+        return parsed.success
+          ? { data: buildHistoryGraph(parsed.data) }
+          : {
+              error: desktopFailure(
+                "getHistoryGraph",
+                "unavailable",
+                "The history graph could not be read. Try refreshing the repository.",
+              ),
+            };
+      },
+      providesTags: (_data, _error, repoPath) => [{ type: "HistoryCommits", id: repoPath }],
+    }),
     getCommitDetails: builder.query<CommitDetails, CommitFilesArgs>({
       async queryFn({ repoPath, commitId }) {
-        try {
-          return { data: await getCommitDetails(repoPath, commitId) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getCommitDetails(repoPath, commitId));
       },
     }),
     getBranches: builder.query<string[], string>({
       async queryFn(repoPath) {
-        try {
-          return { data: await getBranches(repoPath) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getBranches(repoPath));
       },
       providesTags: (_result, _error, repoPath) => [{ type: "Branches", id: repoPath }],
     }),
     getBranchCommits: builder.query<HistoryCommit[], BranchFilesArgs>({
       async queryFn({ repoPath, baseRef, headRef }) {
-        try {
-          return { data: await getBranchCommits(repoPath, baseRef, headRef) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getBranchCommits(repoPath, baseRef, headRef));
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "HistoryCommits", id: repoPath }],
     }),
     getBranchFiles: builder.query<FileItem[], BranchFilesArgs>({
       async queryFn({ repoPath, baseRef, headRef }) {
-        try {
-          return {
-            data: (await getBranchFiles(repoPath, baseRef, headRef)).map(normalizeFileItem),
-          };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getBranchFiles(repoPath, baseRef, headRef), (value) =>
+          value.map(normalizeFileItem),
+        );
       },
       providesTags: (_result, _error, { repoPath, baseRef, headRef }) => [
         { type: "BranchFiles", id: `${repoPath}:${baseRef}:${headRef}` },
@@ -180,11 +169,9 @@ export const gitApi = createApi({
     }),
     getCommitFiles: builder.query<FileItem[], CommitFilesArgs>({
       async queryFn({ repoPath, commitId }) {
-        try {
-          return { data: (await getCommitFiles(repoPath, commitId)).map(normalizeFileItem) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getCommitFiles(repoPath, commitId), (value) =>
+          value.map(normalizeFileItem),
+        );
       },
       providesTags: (_result, _error, { repoPath, commitId }) => [
         { type: "HistoryFiles", id: `${repoPath}:${commitId}` },
@@ -192,11 +179,7 @@ export const gitApi = createApi({
     }),
     getRepoFile: builder.query<DiffFile | null, RepoFileArgs>({
       async queryFn({ repoPath, relPath, revision }) {
-        try {
-          return { data: await getRepoFile(repoPath, relPath, revision) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getRepoFile(repoPath, relPath, revision));
       },
       providesTags: (_result, _error, { repoPath, relPath, revision }) => [
         { type: "FileVersions", id: `file:${repoPath}:${revision ?? "worktree"}:${relPath}` },
@@ -204,11 +187,7 @@ export const gitApi = createApi({
     }),
     getCommitFileVersions: builder.query<FileVersions, CommitFileVersionsArgs>({
       async queryFn({ repoPath, commitId, relPath, previousPath }) {
-        try {
-          return { data: await getCommitFileVersions(repoPath, commitId, relPath, previousPath) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getCommitFileVersions(repoPath, commitId, relPath, previousPath));
       },
       providesTags: (_result, _error, { repoPath, commitId, relPath }) => [
         { type: "FileVersions", id: `history:${repoPath}:${commitId}:${relPath}` },
@@ -216,11 +195,7 @@ export const gitApi = createApi({
     }),
     getFileVersions: builder.query<FileVersions, FileVersionsArgs>({
       async queryFn({ repoPath, bucket, relPath }) {
-        try {
-          return { data: await getFileVersions(repoPath, bucket, relPath) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await getFileVersions(repoPath, bucket, relPath));
       },
       providesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "FileVersions", id: `${repoPath}:${relPath}` },
@@ -228,13 +203,9 @@ export const gitApi = createApi({
     }),
     getBranchFileVersions: builder.query<FileVersions, BranchFileVersionsArgs>({
       async queryFn({ repoPath, baseRef, headRef, relPath, previousPath }) {
-        try {
-          return {
-            data: await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
-          };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(
+          await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
+        );
       },
       providesTags: (_result, _error, { repoPath, baseRef, headRef, relPath }) => [
         { type: "FileVersions", id: `branch:${repoPath}:${baseRef}:${headRef}:${relPath}` },
@@ -242,12 +213,7 @@ export const gitApi = createApi({
     }),
     stageFile: builder.mutation<void, StageFileArgs>({
       async queryFn({ repoPath, relPath }) {
-        try {
-          await stageFile(repoPath, relPath);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await stageFile(repoPath, relPath), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
@@ -256,12 +222,7 @@ export const gitApi = createApi({
     }),
     unstageFile: builder.mutation<void, UnstageFileArgs>({
       async queryFn({ repoPath, relPath }) {
-        try {
-          await unstageFile(repoPath, relPath);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await unstageFile(repoPath, relPath), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
@@ -270,12 +231,10 @@ export const gitApi = createApi({
     }),
     updateIndexFileContents: builder.mutation<void, UpdateIndexFileContentsArgs>({
       async queryFn({ repoPath, relPath, contents }) {
-        try {
-          await updateIndexFileContents(repoPath, relPath, contents);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(
+          await updateIndexFileContents(repoPath, relPath, contents),
+          () => undefined,
+        );
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
@@ -284,12 +243,10 @@ export const gitApi = createApi({
     }),
     updateWorktreeFileContents: builder.mutation<void, UpdateWorktreeFileContentsArgs>({
       async queryFn({ repoPath, relPath, contents }) {
-        try {
-          await updateWorktreeFileContents(repoPath, relPath, contents);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(
+          await updateWorktreeFileContents(repoPath, relPath, contents),
+          () => undefined,
+        );
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
@@ -298,12 +255,7 @@ export const gitApi = createApi({
     }),
     discardFile: builder.mutation<void, DiscardFileArgs>({
       async queryFn({ repoPath, relPath, bucket }) {
-        try {
-          await discardFile(repoPath, relPath, bucket);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await discardFile(repoPath, relPath, bucket), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
@@ -312,44 +264,25 @@ export const gitApi = createApi({
     }),
     discardFiles: builder.mutation<void, DiscardFilesArgs>({
       async queryFn({ repoPath, files }) {
-        try {
-          await discardFiles(repoPath, files);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await discardFiles(repoPath, files), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath }) => [{ type: "Snapshot", id: repoPath }],
     }),
     stageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
-        try {
-          await stageAll(repoPath);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await stageAll(repoPath), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath }) => [{ type: "Snapshot", id: repoPath }],
     }),
     unstageAll: builder.mutation<void, { repoPath: string }>({
       async queryFn({ repoPath }) {
-        try {
-          await unstageAll(repoPath);
-          return { data: undefined };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await unstageAll(repoPath), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath }) => [{ type: "Snapshot", id: repoPath }],
     }),
     commitStaged: builder.mutation<string, CommitStagedArgs>({
       async queryFn({ repoPath, message }) {
-        try {
-          return { data: await commitStaged(repoPath, message) };
-        } catch (error) {
-          return { error: toErrorResult(error) };
-        }
+        return queryResult(await commitStaged(repoPath, message));
       },
       invalidatesTags: (_result, _error, { repoPath }) => [
         { type: "Snapshot", id: repoPath },
@@ -363,6 +296,7 @@ export const {
   useGetGitSnapshotQuery,
   useGetRepoFilesQuery,
   useGetCommitHistoryQuery,
+  useGetHistoryGraphQuery,
   useGetCommitDetailsQuery,
   useGetBranchCommitsQuery,
   useGetBranchesQuery,

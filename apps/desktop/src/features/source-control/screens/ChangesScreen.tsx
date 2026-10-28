@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -130,7 +131,17 @@ function ChangesDiffPane() {
       <section className="flex h-full min-h-0 min-w-0 flex-col">
         <div className="min-h-0 min-w-0 flex-1">
           {errorMessage ? (
-            <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+            <ErrorState
+              title="Couldn’t load this diff"
+              error={workingFileVersions.error}
+              recovery={{
+                label: "Retry",
+                onAction: () => {
+                  void workingFileVersions.refetch();
+                },
+              }}
+              busy={workingFileVersions.isFetching}
+            />
           ) : loadingPatch ? (
             <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
           ) : !activePath ? (

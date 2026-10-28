@@ -13,8 +13,6 @@ import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 type UseSimpleFileListKeyboardNavOptions = {
   regionId: string;
-  getAllFilePaths: (state: RootState) => string[];
-  getActivePath: (state: RootState) => string;
   onSelectPath: (path: string) => void;
   enabled?: (state: RootState) => boolean;
   includeSymbolPeek?: boolean;

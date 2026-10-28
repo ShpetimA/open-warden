@@ -1,3 +1,5 @@
+import { captureDesktopOperation } from "../src/platform/desktop/failure";
+import { classifyDesktopFailure } from "./desktop-failure";
 import path from "node:path";
 
 import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
@@ -139,22 +141,49 @@ ipcMain.removeHandler(DESKTOP_INVOKE_CHANNEL);
 ipcMain.handle(
   DESKTOP_INVOKE_CHANNEL,
   async (_event, method: DesktopMethod, ...args: unknown[]) => {
-    if (!(method in desktopApi)) {
-      throw new Error(`Unknown desktop method: ${String(method)}`);
+    if (!Object.hasOwn(desktopApi, method)) {
+      return {
+        ok: false,
+        error: {
+          operation: "desktop.invoke",
+          code: "unavailable",
+          message: "This desktop operation is unavailable. Reload the app and try again.",
+        },
+      };
     }
 
     const handler = desktopApi[method] as (...params: unknown[]) => unknown;
-    return handler(...args);
+    return captureDesktopOperation(method, () => handler(...args), classifyDesktopFailure);
   },
 );
 ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
-ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () => updateManager.getState());
+ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () =>
+  captureDesktopOperation("getUpdateState", () => updateManager.getState(), classifyDesktopFailure),
+);
 ipcMain.removeHandler(UPDATE_CHECK_CHANNEL);
-ipcMain.handle(UPDATE_CHECK_CHANNEL, async () => updateManager.checkForUpdates("manual"));
+ipcMain.handle(UPDATE_CHECK_CHANNEL, async () =>
+  captureDesktopOperation(
+    "checkForUpdates",
+    () => updateManager.checkForUpdates("manual"),
+    classifyDesktopFailure,
+  ),
+);
 ipcMain.removeHandler(UPDATE_DOWNLOAD_CHANNEL);
-ipcMain.handle(UPDATE_DOWNLOAD_CHANNEL, async () => updateManager.downloadUpdate());
+ipcMain.handle(UPDATE_DOWNLOAD_CHANNEL, async () =>
+  captureDesktopOperation(
+    "downloadUpdate",
+    () => updateManager.downloadUpdate(),
+    classifyDesktopFailure,
+  ),
+);
 ipcMain.removeHandler(UPDATE_INSTALL_CHANNEL);
-ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => updateManager.installUpdate());
+ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () =>
+  captureDesktopOperation(
+    "installUpdate",
+    () => updateManager.installUpdate(),
+    classifyDesktopFailure,
+  ),
+);
 
 app.whenReady().then(() => {
   configureGuidanceNavigation((target) => {

@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { PullRequestReviewButton } from "@/features/pull-requests/components/PullRequestReviewControl";
 
 import { PullRequestHeaderActions } from "./PullRequestHeaderActions";
 import { PullRequestMergeBox } from "./PullRequestMergeBox";
@@ -211,14 +210,6 @@ function OverviewPreview({ pullRequest }: { pullRequest: PullRequestOverviewView
               pullRequest={pullRequest}
               actions={
                 <div className="flex flex-wrap items-center gap-2">
-                  <PullRequestReviewButton
-                    disabledReason={
-                      pullRequest.state !== "open"
-                        ? "Only open pull requests ready for review can be reviewed"
-                        : undefined
-                    }
-                    onReview={() => {}}
-                  />
                   <PullRequestHeaderActions
                     lifecycleActions={["edit", "draft", "update-branch", "close"]}
                     opening={null}

@@ -111,7 +111,12 @@ export function DesktopUpdateButton() {
       className={buttonClassName(state)}
       onClick={() => {
         void runUpdateAction(state.status)
-          .then((result) => {
+          .then((reply) => {
+            if (!reply.ok) {
+              toast.error(reply.error.message, { id: "desktop-update" });
+              return;
+            }
+            const result = reply.value;
             if (!result.accepted) {
               return;
             }

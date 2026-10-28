@@ -1,14 +1,6 @@
 import { desktop } from "@/platform/desktop";
 
-import type {
-  Bucket,
-  DiffFile,
-  FileItem,
-  FileVersions,
-  GitSnapshot,
-  HistoryCommit,
-  RepoFileItem,
-} from "../types";
+import type { Bucket } from "../types";
 
 type DiscardFileRequest = {
   relPath: string;
@@ -16,15 +8,15 @@ type DiscardFileRequest = {
 };
 
 export async function getGitSnapshot(repoPath: string) {
-  return desktop.getGitSnapshot(repoPath) as Promise<GitSnapshot>;
+  return desktop.getGitSnapshot(repoPath);
 }
 
 export async function getRepoFiles(repoPath: string) {
-  return desktop.getRepoFiles(repoPath) as Promise<RepoFileItem[]>;
+  return desktop.getRepoFiles(repoPath);
 }
 
 export async function getCommitHistory(repoPath: string, limit?: number) {
-  return desktop.getCommitHistory(repoPath, limit) as Promise<HistoryCommit[]>;
+  return desktop.getCommitHistory(repoPath, limit);
 }
 
 export async function getCommitDetails(repoPath: string, commitId: string) {
@@ -40,15 +32,15 @@ export async function getBranches(repoPath: string) {
 }
 
 export async function getBranchFiles(repoPath: string, baseRef: string, headRef: string) {
-  return desktop.getBranchFiles(repoPath, baseRef, headRef) as Promise<FileItem[]>;
+  return desktop.getBranchFiles(repoPath, baseRef, headRef);
 }
 
 export async function getCommitFiles(repoPath: string, commitId: string) {
-  return desktop.getCommitFiles(repoPath, commitId) as Promise<FileItem[]>;
+  return desktop.getCommitFiles(repoPath, commitId);
 }
 
 export async function getRepoFile(repoPath: string, relPath: string, revision?: string | null) {
-  return desktop.getRepoFile({ repoPath, relPath, revision }) as Promise<DiffFile | null>;
+  return desktop.getRepoFile({ repoPath, relPath, revision });
 }
 
 export async function getCommitFileVersions(
@@ -57,16 +49,11 @@ export async function getCommitFileVersions(
   relPath: string,
   previousPath?: string,
 ) {
-  return desktop.getCommitFileVersions(
-    repoPath,
-    commitId,
-    relPath,
-    previousPath,
-  ) as Promise<FileVersions>;
+  return desktop.getCommitFileVersions(repoPath, commitId, relPath, previousPath);
 }
 
 export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
-  return desktop.getFileVersions(repoPath, relPath, bucket) as Promise<FileVersions>;
+  return desktop.getFileVersions(repoPath, relPath, bucket);
 }
 
 export async function getBranchFileVersions(
@@ -76,25 +63,19 @@ export async function getBranchFileVersions(
   relPath: string,
   previousPath?: string,
 ) {
-  return desktop.getBranchFileVersions(
-    repoPath,
-    baseRef,
-    headRef,
-    relPath,
-    previousPath,
-  ) as Promise<FileVersions>;
+  return desktop.getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath);
 }
 
 export async function stageFile(repoPath: string, relPath: string) {
-  await desktop.stageFile(repoPath, relPath);
+  return desktop.stageFile(repoPath, relPath);
 }
 
 export async function unstageFile(repoPath: string, relPath: string) {
-  await desktop.unstageFile(repoPath, relPath);
+  return desktop.unstageFile(repoPath, relPath);
 }
 
 export async function updateIndexFileContents(repoPath: string, relPath: string, contents: string) {
-  await desktop.updateIndexFileContents(repoPath, relPath, contents);
+  return desktop.updateIndexFileContents(repoPath, relPath, contents);
 }
 
 export async function updateWorktreeFileContents(
@@ -102,23 +83,23 @@ export async function updateWorktreeFileContents(
   relPath: string,
   contents: string,
 ) {
-  await desktop.updateWorktreeFileContents(repoPath, relPath, contents);
+  return desktop.updateWorktreeFileContents(repoPath, relPath, contents);
 }
 
 export async function discardFile(repoPath: string, relPath: string, bucket: Bucket) {
-  await desktop.discardFile(repoPath, relPath, bucket);
+  return desktop.discardFile(repoPath, relPath, bucket);
 }
 
 export async function discardFiles(repoPath: string, files: DiscardFileRequest[]) {
-  await desktop.discardFiles(repoPath, files);
+  return desktop.discardFiles(repoPath, files);
 }
 
 export async function stageAll(repoPath: string) {
-  await desktop.stageAll(repoPath);
+  return desktop.stageAll(repoPath);
 }
 
 export async function unstageAll(repoPath: string) {
-  await desktop.unstageAll(repoPath);
+  return desktop.unstageAll(repoPath);
 }
 
 export async function commitStaged(repoPath: string, message: string) {

@@ -1,6 +1,6 @@
 import { ProjectMonogram } from "./project-monogram";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { FileDiff, GitPullRequest, History, Link2 } from "lucide-react";
+import { FileDiff, GitPullRequest, History, Link2, List } from "lucide-react";
 import { useState } from "react";
 
 import { WorkspaceTabs, type WorkspaceTabItem } from "@/components/ui/workspace-tabs";
@@ -147,5 +147,35 @@ export const ProjectReviews: Story = {
     ],
     activeId: "review",
     onClose: () => {},
+  },
+};
+
+export const PullRequestHoverCards: Story = {
+  args: {
+    variant: "secondary",
+    activeId: "review",
+    items: [
+      { id: "inbox", label: "Pull requests", icon: <List />, closable: false },
+      {
+        id: "review",
+        label: "#418 Keep review navigation in the rendered file order",
+        icon: <GitPullRequest />,
+        hoverContent: (
+          <div className="flex max-w-80 flex-col gap-2 leading-relaxed">
+            <p className="text-muted-foreground">team/open-warden · GitHub · #418</p>
+            <p className="font-medium">Keep review navigation in the rendered file order</p>
+            <p className="border-border border-t pt-2">Alice · Open · review-navigation → main</p>
+            <p>Use the same ordered files for rendering, selection, and keyboard actions.</p>
+          </div>
+        ),
+      },
+      {
+        id: "second-review",
+        label: "#419 Compact commit history",
+        icon: <GitPullRequest />,
+        hoverContent: <p>Compact commit history · Bob · Draft</p>,
+      },
+    ],
+    onClose: () => undefined,
   },
 };

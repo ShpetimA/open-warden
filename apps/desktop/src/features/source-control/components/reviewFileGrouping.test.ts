@@ -1,20 +1,21 @@
 import { FileTree, prepareFileTreeInput } from "@pierre/trees";
 import { describe, expect, it } from "vitest";
 
-import { buildSourceControlFileTree } from "../fileTree";
 import {
   getPierreFileTreeVisibleSelectedFiles,
+  getPierreFileTreeVisibleFiles,
+  getNextUnviewedPierreFile,
   movePierreFileTreeFocusByFile,
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
 } from "../pierreFileTreeNavigation";
 import {
   buildReviewDisplayFiles,
-  compareReviewDirectories,
   compareReviewFileEntries,
   getReviewFileGroup,
 } from "./reviewFileGrouping";
-import { buildNavTreeOptions } from "./pierreFileTree";
+
+import { buildDisplayFiles, compareFlatPierreEntries } from "./flatPierreTree";
 
 describe("review file groups", () => {
   it.each([
@@ -61,10 +62,16 @@ describe("review file groups", () => {
       { path: "src/invoice.ts", comments: 3 },
     ];
     const displayFiles = buildReviewDisplayFiles(files);
-    const options = buildNavTreeOptions(compareReviewDirectories, false, compareReviewFileEntries);
-    const roots = buildSourceControlFileTree(displayFiles, options);
-
-    expect(roots.map((root) => root.name)).toEqual(["Changes", "Tests", "Docs", "Generated"]);
+    const prepared = prepareFileTreeInput(
+      displayFiles.map((file) => file.path),
+      { sort: compareReviewFileEntries },
+    );
+    expect(prepared.paths.map((path) => path.split("/")[0])).toEqual([
+      "Changes",
+      "Tests",
+      "Docs",
+      "Generated",
+    ]);
     expect(displayFiles.map((file) => file.realPath)).toEqual(files.map((file) => file.path));
     for (const [index, file] of displayFiles.entries()) expect(file.source).toBe(files[index]);
     expect(new Set(displayFiles.map((file) => file.path)).size).toBe(files.length);
@@ -89,7 +96,10 @@ describe("review file groups", () => {
     });
     const region = "review-group-navigation";
     registerPierreFileTreeNav(region, files, model, {
-      treeOptions: buildNavTreeOptions(compareReviewDirectories, false, compareReviewFileEntries),
+      preparedInput: prepareFileTreeInput(
+        files.map((file) => file.path),
+        { sort: compareReviewFileEntries },
+      ),
     });
     try {
       expect(getPierreFileTreeVisibleSelectedFiles(region).map((file) => file.path)).toEqual([
@@ -125,7 +135,10 @@ describe("review file groups", () => {
     });
     const region = "review-group-file-navigation";
     registerPierreFileTreeNav(region, files, model, {
-      treeOptions: buildNavTreeOptions(compareReviewDirectories, false, compareReviewFileEntries),
+      preparedInput: prepareFileTreeInput(
+        files.map((file) => file.path),
+        { sort: compareReviewFileEntries },
+      ),
     });
 
     try {
@@ -189,3 +202,81 @@ describe("review file groups", () => {
     }
   });
 });
+
+it.each(["review", "tree", "list"] as const)(
+  "shares %s render order between J/K and next unviewed",
+  (mode) => {
+    const sources = [
+      "pnpm-lock.yaml",
+      "src/z.ts",
+      "docs/guide.md",
+      "src/a.test.ts",
+      "src/a.ts",
+    ].map((path) => ({ path }));
+    const files =
+      mode === "review"
+        ? buildReviewDisplayFiles(sources)
+        : buildDisplayFiles(mode, sources, {
+            sort: (left, right) =>
+              left.path.localeCompare(right.path, undefined, {
+                numeric: true,
+                sensitivity: "base",
+              }),
+          });
+    const sort =
+      mode === "review"
+        ? compareReviewFileEntries
+        : mode === "list"
+          ? compareFlatPierreEntries
+          : "default";
+    const preparedInput = prepareFileTreeInput(
+      files.map((file) => file.path),
+      { sort, flattenEmptyDirectories: mode === "tree" },
+    );
+    const model = new FileTree({
+      preparedInput,
+      sort,
+      initialExpansion: "open",
+      flattenEmptyDirectories: mode === "tree",
+    });
+    const region = `shared-${mode}`;
+    registerPierreFileTreeNav(region, files, model, { preparedInput });
+    try {
+      const expected =
+        mode === "review"
+          ? ["src/a.ts", "src/z.ts", "src/a.test.ts", "docs/guide.md", "pnpm-lock.yaml"]
+          : mode === "tree"
+            ? ["docs/guide.md", "src/a.test.ts", "src/a.ts", "src/z.ts", "pnpm-lock.yaml"]
+            : ["docs/guide.md", "pnpm-lock.yaml", "src/a.test.ts", "src/a.ts", "src/z.ts"];
+      expect(getPierreFileTreeVisibleFiles(region).map((file) => file.realPath)).toEqual(expected);
+      for (let index = 0; index < expected.length - 1; index += 1) {
+        const file = files.find((file) => file.realPath === expected[index])!;
+        model.focusPath(file.path);
+        expect(movePierreFileTreeFocusByFile(region, true)?.realPath).toBe(expected[index + 1]);
+        expect(getNextUnviewedPierreFile(region, expected[index]!, new Set())?.realPath).toBe(
+          expected[index + 1],
+        );
+      }
+      expect(getNextUnviewedPierreFile(region, expected.at(-1)!, new Set())?.realPath).toBe(
+        expected[0],
+      );
+      expect(getNextUnviewedPierreFile(region, expected[0]!, new Set(expected))).toBeNull();
+      expect(
+        getNextUnviewedPierreFile(region, expected[0]!, new Set([expected[1]!]))?.realPath,
+      ).toBe(expected[2]);
+      if (mode === "review") {
+        const tests = model.getItem("Tests");
+        if (tests?.isDirectory()) tests.collapse();
+        expect(getNextUnviewedPierreFile(region, "src/z.ts", new Set())?.realPath).toBe(
+          "docs/guide.md",
+        );
+        expect(getNextUnviewedPierreFile(region, "src/a.test.ts", new Set())?.realPath).toBe(
+          "docs/guide.md",
+        );
+      }
+    } finally {
+      unregisterPierreFileTreeNav(region, model);
+      model.cleanUp();
+    }
+  },
+);

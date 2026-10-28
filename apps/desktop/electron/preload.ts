@@ -1,7 +1,11 @@
+import { readDesktopReply } from "../src/platform/desktop/failure";
 import { contextBridge, ipcRenderer } from "electron";
 
 import { guidanceNavigateSchema } from "../src/platform/desktop/guidance";
-import { createDesktopApiFromInvoker } from "../src/platform/desktop/createDesktopApi";
+import {
+  createDesktopApiFromInvoker,
+  createDesktopUpdateCommands,
+} from "../src/platform/desktop/createDesktopApi";
 import type { DesktopBridge } from "../src/platform/desktop/contracts";
 import {
   GUIDANCE_NAVIGATE_CHANNEL,
@@ -16,7 +20,7 @@ import {
 } from "./ipc-channels";
 
 const desktopApi = createDesktopApiFromInvoker((method, ...args) =>
-  ipcRenderer.invoke(DESKTOP_INVOKE_CHANNEL, method, ...args),
+  readDesktopReply(() => ipcRenderer.invoke(DESKTOP_INVOKE_CHANNEL, method, ...args), method),
 );
 
 const desktopBridge: DesktopBridge = {
@@ -29,10 +33,16 @@ const desktopBridge: DesktopBridge = {
     return () => ipcRenderer.removeListener(GUIDANCE_NAVIGATE_CHANNEL, receive);
   },
   ...desktopApi,
-  getUpdateState: () => ipcRenderer.invoke(UPDATE_GET_STATE_CHANNEL),
-  checkForUpdates: () => ipcRenderer.invoke(UPDATE_CHECK_CHANNEL),
-  downloadUpdate: () => ipcRenderer.invoke(UPDATE_DOWNLOAD_CHANNEL),
-  installUpdate: () => ipcRenderer.invoke(UPDATE_INSTALL_CHANNEL),
+  ...createDesktopUpdateCommands((method) =>
+    ipcRenderer.invoke(
+      {
+        getUpdateState: UPDATE_GET_STATE_CHANNEL,
+        checkForUpdates: UPDATE_CHECK_CHANNEL,
+        downloadUpdate: UPDATE_DOWNLOAD_CHANNEL,
+        installUpdate: UPDATE_INSTALL_CHANNEL,
+      }[method],
+    ),
+  ),
   onUpdateState: (listener) => {
     const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
       if (typeof state !== "object" || state === null) {

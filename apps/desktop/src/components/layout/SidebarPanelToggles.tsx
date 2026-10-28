@@ -30,7 +30,11 @@ export function SidebarPanelToggles() {
         {sidebars.map((sidebar) => {
           const entry = panels.get(sidebar.panelId);
           const isCollapsed = entry?.collapsed ?? true;
-          const tooltipLabel = sidebar.icon === "right" ? "Toggle files pane" : "Toggle sidebar";
+          const labels =
+            location.pathname === "/pull-requests"
+              ? { left: "Toggle pull request list", right: "Toggle preview" }
+              : { left: "Toggle sidebar", right: "Toggle files pane" };
+          const tooltipLabel = labels[sidebar.icon];
           const shortcut = sidebar.icon === "left" ? "⌘S" : "⌘D";
 
           return (
