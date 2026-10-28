@@ -17,8 +17,7 @@ import {
   getPierreFileTreeFocusedSelectedFile,
   getPierreFileTreeFocusedPath,
   getPierreFileTreeVisibleSelectedFiles,
-  movePierreFileTreeFocus,
-  movePierreFileTreeFocusFile,
+  movePierreFileTreeFileForKey,
   scrollPierreFileTreeBucketedFileIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import { getUnifiedChangeDirectoryContext } from "@/features/source-control/components/changesUnifiedPierreTree";
@@ -93,7 +92,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
         return;
       }
 
-      const targetFile = movePierreFileTreeFocusFile("repo-files", nextKey);
+      const targetFile = movePierreFileTreeFileForKey("repo-files", event.key, nextKey);
       const targetPath = targetFile?.realPath ?? targetFile?.path;
       if (!targetPath) {
         return;
@@ -106,6 +105,12 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
           relPath: targetPath,
         }),
       );
+      return;
+    }
+
+    if (!extendSelection) {
+      const file = movePierreFileTreeFileForKey("changes-files", event.key, nextKey);
+      if (file?.bucket) void dispatch(selectFile(file.bucket, file.realPath ?? file.path));
       return;
     }
 
@@ -124,19 +129,6 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
         .map((file) => toBucketedFile(file, "unstaged")),
       ...untracked.map((file) => toBucketedFile(file, "untracked")),
     ];
-
-    if (!extendSelection) {
-      const targetPath = movePierreFileTreeFocus("changes-files", nextKey);
-      if (!targetPath) {
-        return;
-      }
-
-      const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
-      if (focusedFile) {
-        void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
-      }
-      return;
-    }
 
     const visibleTreeRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
     const visibleChangeRows =

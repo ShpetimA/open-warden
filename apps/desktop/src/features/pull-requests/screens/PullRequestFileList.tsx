@@ -25,6 +25,7 @@ import {
   getNextUnviewedPierreFile,
   scrollPierreFileTreeRealPathIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
+import { selectPullRequestFilePath } from "@/features/source-control/fileSelection";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useSimpleFileListKeyboardNav } from "@/features/source-control/hooks/useSimpleFileListKeyboardNav";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
@@ -73,7 +74,6 @@ export default function PullRequestFileList({
   commitId,
 }: PullRequestFileListProps) {
   const dispatch = useAppDispatch();
-  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const comments = useAppSelector((state) => state.comments);
   const [searchQuery, setSearchQuery] = useState("");
   const [commentFilter, setCommentFilter] = useState<FileCommentFilter>("all");
@@ -269,7 +269,7 @@ export default function PullRequestFileList({
                 <CommitHoverDetails commitId={commitId} summary={commitTitle ?? commitId} />
               ) : undefined
             }
-            selectedPath={activePath}
+            selection={selectPullRequestFilePath}
             navRegion="pull-request-files"
             onActivatePath={(path) => {
               dispatch(setPullRequestPreviewActiveFilePath(path));

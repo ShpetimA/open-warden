@@ -37,7 +37,7 @@ import {
 
 export type { PierreFileTreeBrowserFile } from "./pierreFileTree";
 
-type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
+export type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
   selectedPath: string;
   autoFocus?: boolean;
@@ -337,6 +337,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     registerPierreFileTreeNav(navRegion, navFilesRef.current, model, {
       selectedPath: selectedPathRef.current,
       preparedInput: preparedInputRef.current,
+      flattenEmptyDirectories,
     });
   }, [compareTreeDirectories, files, flattenEmptyDirectories, model, navRegion, sort]);
 
@@ -344,8 +345,9 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     registerPierreFileTreeNav(navRegion, navFilesRef.current, model, {
       selectedPath,
       preparedInput: preparedInputRef.current,
+      flattenEmptyDirectories,
     });
-  }, [model, navRegion, selectedPath]);
+  }, [flattenEmptyDirectories, model, navRegion, selectedPath]);
 
   useEffect(() => {
     if (!selectFirstFile || (selectedPath && filePathSetRef.current?.has(selectedPath))) return;
@@ -470,7 +472,12 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   const handleHostKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.shiftKey && isRangeNavigationKey(event)) {
-      const targetPath = getShiftNavigationTargetPath(model, preparedInputRef.current.paths, event);
+      const targetPath = getShiftNavigationTargetPath(
+        model,
+        preparedInputRef.current.paths,
+        event,
+        flattenEmptyDirectories,
+      );
       if (!targetPath) {
         return;
       }
@@ -619,11 +626,14 @@ function getShiftNavigationTargetPath(
   model: PierreFileTreeModel,
   orderedPaths: readonly string[],
   event: KeyboardEvent<HTMLElement>,
+  flattenEmptyDirectories: boolean,
 ) {
   const filePaths = new Set(orderedPaths);
-  const visibleFilePaths = collectPreparedTreeRowPaths(orderedPaths, model).filter((path) =>
-    filePaths.has(path),
-  );
+  const visibleFilePaths = collectPreparedTreeRowPaths(
+    orderedPaths,
+    model,
+    flattenEmptyDirectories,
+  ).filter((path) => filePaths.has(path));
   if (visibleFilePaths.length === 0) {
     return null;
   }

@@ -7,8 +7,7 @@ import {
   useVerticalNavigationHotkeys,
 } from "@/features/source-control/hooks/keyboardNavigation";
 import {
-  movePierreFileTreeFocusByFile,
-  movePierreFileTreeFocusFile,
+  movePierreFileTreeFileForKey,
   scrollPierreFileTreeRealPathIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import { isTypingTarget } from "@/features/source-control/utils";
@@ -63,10 +62,7 @@ export function useGuidancePaneNavigation({
     event.preventDefault();
 
     if (target.current === "files") {
-      const move = /^[jk]$/i.test(event.key)
-        ? movePierreFileTreeFocusByFile
-        : movePierreFileTreeFocusFile;
-      const file = move("guidance-files", forward);
+      const file = movePierreFileTreeFileForKey("guidance-files", event.key, forward);
       if (!file) return;
       const index = step.references.findIndex((item) => item.path === (file.realPath ?? file.path));
       if (index >= 0) onSelectReference(index);

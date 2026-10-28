@@ -5,13 +5,7 @@ import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { BranchCombobox } from "../components/BranchCombobox";
 import {
   Empty,
   EmptyHeader,
@@ -61,42 +55,6 @@ function firstDifferentBranch(branches: string[], current: string): string {
 
 const EMPTY_BRANCHES: string[] = [];
 const EMPTY_BRANCH_FILES: FileItem[] = [];
-
-type BranchSelectFieldProps = {
-  label: string;
-  value: string;
-  placeholder: string;
-  options: string[];
-  onChange: (value: string) => void;
-};
-
-function BranchSelectField({
-  label,
-  value,
-  placeholder,
-  options,
-  onChange,
-}: BranchSelectFieldProps) {
-  return (
-    <div className="min-w-0">
-      <div className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-[0.12em] uppercase">
-        {label}
-      </div>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-7 w-full text-xs">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((branch) => (
-            <SelectItem key={`${label}-${branch}`} value={branch}>
-              {branch}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
 
 type ReviewDiffPaneProps = {
   activeRepo: string;
@@ -298,10 +256,9 @@ export function ReviewScreen() {
             </div>
             <div className="border-input bg-surface mt-2 rounded-md border p-2">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-1.5">
-                <BranchSelectField
+                <BranchCombobox
                   label="Base"
                   value={reviewBaseRef}
-                  placeholder="Base ref"
                   options={branchList}
                   onChange={(value) => {
                     dispatch(setReviewBaseRef(value));
@@ -326,10 +283,9 @@ export function ReviewScreen() {
                   <ArrowRightLeft className="h-3.5 w-3.5" />
                 </Button>
 
-                <BranchSelectField
+                <BranchCombobox
                   label="Compare"
                   value={reviewHeadRef}
-                  placeholder="Compare ref"
                   options={branchList}
                   onChange={(value) => {
                     dispatch(setReviewHeadRef(value));

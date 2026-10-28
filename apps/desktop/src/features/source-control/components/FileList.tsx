@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import type { RootState } from "@/app/store";
+import { SelectedPierreFileTree } from "./SelectedPierreFileTree";
 import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
 import { buildDisplayFiles, compareFlatPierreEntries } from "./flatPierreTree";
 import { buildGitStatusForDisplayFiles } from "./pierreFileTree";
@@ -8,7 +10,7 @@ import {
   compareReviewDirectories,
   compareReviewFileEntries,
 } from "./reviewFileGrouping";
-import { PierreFileTreeBrowser } from "./PierreFileTreeBrowser";
+import { type PierreFileTreeBrowserProps } from "./PierreFileTreeBrowser";
 
 export type FileListContextMenuItem = {
   kind: "directory" | "file";
@@ -27,7 +29,7 @@ type FileListProps<TFile extends { path: string }> = {
   reviewGroupHover?: ReactNode;
   autoFocus?: boolean;
   selectFirstFile?: boolean;
-  selectedPath?: string;
+  selection: string | ((state: RootState) => string);
   navRegion: string;
   className?: string;
   onActivatePath: (path: string, file: TFile) => void;
@@ -50,7 +52,7 @@ export function FileList<TFile extends { path: string }>({
   reviewGroupHover,
   autoFocus,
   selectFirstFile,
-  selectedPath = "",
+  selection,
   navRegion,
   className,
   onActivatePath,
@@ -72,8 +74,7 @@ export function FileList<TFile extends { path: string }>({
 
   const sourceByDisplayPath = new Map(displayFiles.map((file) => [file.path, file.source]));
 
-  const pierreSelectedPath =
-    displayFiles.find((file) => file.source.path === selectedPath)?.path ?? "";
+  const displayPathBySourcePath = new Map(displayFiles.map((file) => [file.realPath, file.path]));
   const groupCounts = new Map<string, number>();
   if (mode === "review") {
     for (const file of displayFiles) {
@@ -86,8 +87,28 @@ export function FileList<TFile extends { path: string }>({
     ? buildGitStatusForDisplayFiles(displayFiles, getFileStatus)
     : undefined;
 
+  const renderRowDecoration: PierreFileTreeBrowserProps<TFile>["renderRowDecoration"] = ({
+    item,
+  }) => {
+    if (item.kind === "directory") {
+      const count = groupCounts.get(item.path.replace(/\/$/, ""));
+      return count === undefined
+        ? null
+        : { text: String(count), title: `${count} ${count === 1 ? "file" : "files"}` };
+    }
+    const file = sourceByDisplayPath.get(item.path);
+    if (!file) return null;
+    const viewed = isViewed?.(file) ?? false;
+    const commentCount = getCommentCount?.(file) ?? 0;
+    if (!viewed && commentCount === 0) return null;
+    return {
+      text: `${viewed ? "✓" : ""}${viewed && commentCount ? " " : ""}${commentCount || ""}`,
+      title: `${viewed ? "Viewed" : ""}${viewed && commentCount ? " · " : ""}${commentCount ? `${commentCount} comment${commentCount === 1 ? "" : "s"}` : ""}`,
+    };
+  };
+
   return (
-    <PierreFileTreeBrowser
+    <SelectedPierreFileTree
       key={mode}
       autoFocus={autoFocus}
       selectFirstFile={selectFirstFile}
@@ -98,7 +119,8 @@ export function FileList<TFile extends { path: string }>({
           : undefined
       }
       files={displayFiles}
-      selectedPath={pierreSelectedPath}
+      selection={selection}
+      displayPathBySourcePath={displayPathBySourcePath}
       navRegion={navRegion}
       className={className}
       flattenEmptyDirectories={mode === "tree"}
@@ -113,23 +135,8 @@ export function FileList<TFile extends { path: string }>({
         }
       }}
       gitStatus={gitStatus}
-      renderRowDecoration={({ item }) => {
-        if (item.kind === "directory") {
-          const count = groupCounts.get(item.path.replace(/\/$/, ""));
-          return count === undefined
-            ? null
-            : { text: String(count), title: `${count} ${count === 1 ? "file" : "files"}` };
-        }
-        const file = sourceByDisplayPath.get(item.path);
-        if (!file) return null;
-        const viewed = isViewed?.(file) ?? false;
-        const commentCount = getCommentCount?.(file) ?? 0;
-        if (!viewed && commentCount === 0) return null;
-        return {
-          text: `${viewed ? "✓" : ""}${viewed && commentCount ? " " : ""}${commentCount || ""}`,
-          title: `${viewed ? "Viewed" : ""}${viewed && commentCount ? " · " : ""}${commentCount ? `${commentCount} comment${commentCount === 1 ? "" : "s"}` : ""}`,
-        };
-      }}
+      renderRowDecoration={renderRowDecoration}
+      rowDecorationInvalidationKey={renderRowDecoration}
       renderContextMenu={
         renderContextMenu
           ? (item, context) => {

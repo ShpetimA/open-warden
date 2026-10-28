@@ -8,11 +8,13 @@ type PierreTreeNavEntry = {
   model: PierreFileTreeModel;
   selectedPath?: string;
   preparedInput: FileTreePreparedInput;
+  flattenEmptyDirectories?: boolean;
 };
 
 type PierreTreeNavOptions = {
   selectedPath?: string;
   preparedInput: FileTreePreparedInput;
+  flattenEmptyDirectories?: boolean;
 };
 
 const pierreTreeNavRegistry = new Map<string, PierreTreeNavEntry[]>();
@@ -29,6 +31,7 @@ export function registerPierreFileTreeNav(
     existingEntry.files = files;
     existingEntry.selectedPath = options.selectedPath;
     existingEntry.preparedInput = options.preparedInput;
+    existingEntry.flattenEmptyDirectories = options.flattenEmptyDirectories;
     return;
   }
 
@@ -37,6 +40,7 @@ export function registerPierreFileTreeNav(
     model,
     selectedPath: options.selectedPath,
     preparedInput: options.preparedInput,
+    flattenEmptyDirectories: options.flattenEmptyDirectories,
   });
   pierreTreeNavRegistry.set(regionId, entries);
 }
@@ -226,6 +230,12 @@ export function movePierreFileTreeFocusFile(regionId: string, next: boolean) {
   return findFileInEntry(movement.entry, movement.targetPath);
 }
 
+export function movePierreFileTreeFileForKey(regionId: string, key: string, next: boolean) {
+  return /^[jk]$/i.test(key)
+    ? movePierreFileTreeFocusByFile(regionId, next)
+    : movePierreFileTreeFocusFile(regionId, next);
+}
+
 export function movePierreFileTreeFocusByFile(regionId: string, next: boolean) {
   const entries = pierreTreeNavRegistry.get(regionId);
   if (!entries?.length) return null;
@@ -402,7 +412,11 @@ function findAdjacentEntryWithVisibleRows(
 }
 
 function collectVisibleRowPathsForEntry(entry: PierreTreeNavEntry) {
-  return collectPreparedTreeRowPaths(entry.preparedInput.paths, entry.model);
+  return collectPreparedTreeRowPaths(
+    entry.preparedInput.paths,
+    entry.model,
+    entry.flattenEmptyDirectories,
+  );
 }
 
 function ensurePierreFileTreeOwnsFocus(model: PierreFileTreeModel, path: string) {

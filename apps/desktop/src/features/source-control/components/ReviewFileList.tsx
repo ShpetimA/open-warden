@@ -3,10 +3,14 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
-import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
+import {
+  areCommentCountMapsEqual,
+  selectReviewCommentCountsForRepo,
+} from "@/features/comments/selectors";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
 import { ReviewFileViewControl } from "./ReviewFileViewControl";
 import type { ReviewFileView } from "./reviewFileGrouping";
+import { selectReviewFilePath } from "../fileSelection";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useReviewKeyboardNav } from "@/features/source-control/hooks/useReviewKeyboardNav";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
@@ -44,11 +48,6 @@ export function ReviewSelectionSync({
         dispatch(setReviewActivePath(""));
       }
       return;
-    }
-
-    const existing = branchFiles.find((file) => file.path === reviewActivePath);
-    if (!existing) {
-      dispatch(setReviewActivePath(branchFiles[0].path));
     }
   }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath]);
 
@@ -92,8 +91,10 @@ export function ReviewFileList({
 }: ReviewFileListProps) {
   const dispatch = useAppDispatch();
   const [fileView, setFileView] = useState<ReviewFileView>("review");
-  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
-  const comments = useAppSelector((state) => state.comments);
+  const commentCounts = useAppSelector<ReadonlyMap<string, number>>(
+    (state) => selectReviewCommentCountsForRepo(state, activeRepo, reviewBaseRef, reviewHeadRef),
+    areCommentCountMapsEqual,
+  );
 
   useReviewKeyboardNav(navRegion);
 
@@ -102,12 +103,7 @@ export function ReviewFileList({
       path: file.path,
       previousPath: file.previousPath,
       reviewThreads,
-    }) +
-    countCommentsForPathInRepoContext(comments, activeRepo, file.path, {
-      kind: "review",
-      baseRef: reviewBaseRef,
-      headRef: reviewHeadRef,
-    });
+    }) + (commentCounts.get(file.path) ?? 0);
 
   return (
     <aside
@@ -142,7 +138,8 @@ export function ReviewFileList({
         <FileList
           files={branchFiles}
           mode={fileView}
-          selectedPath={reviewActivePath}
+          selection={selectReviewFilePath}
+          selectFirstFile
           navRegion={navRegion}
           onActivatePath={(path) => {
             dispatch(setReviewActivePath(path));

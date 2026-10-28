@@ -8,7 +8,7 @@ import { selectHistoryCommit, selectHistoryFile } from "@/features/source-contro
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
 import {
   movePierreFileTreeFocus,
-  movePierreFileTreeFocusFile,
+  movePierreFileTreeFileForKey,
   scrollPierreFileTreePathIntoView,
   scrollPierreFileTreeRealPathIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
@@ -66,7 +66,7 @@ export function useHistoryKeyboardNav() {
       getNavigationData();
 
     if (historyNavTarget === "files") {
-      const targetFile = movePierreFileTreeFocusFile("history-files", nextKey);
+      const targetFile = movePierreFileTreeFileForKey("history-files", event.key, nextKey);
       if (!targetFile) return;
       void dispatch(selectHistoryFile(targetFile.realPath ?? targetFile.path));
       return;

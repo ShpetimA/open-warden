@@ -2,7 +2,6 @@ import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import type { FileTreeSortComparator } from "@pierre/trees";
 import { useState } from "react";
 
-import { useAppSelector } from "@/app/hooks";
 import { Input } from "@/components/ui/input";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import {
@@ -10,7 +9,8 @@ import {
   commitGroupTitle,
   type CommitFileGroup,
 } from "@/features/pull-requests/commitFileGroups";
-import { PierreFileTreeBrowser } from "@/features/source-control/components/PierreFileTreeBrowser";
+import { SelectedPierreFileTree } from "@/features/source-control/components/SelectedPierreFileTree";
+import { selectPullRequestFilePath } from "@/features/source-control/fileSelection";
 import { CommitHoverDetails } from "@/features/source-control/components/CommitHoverDetails";
 import { buildGitStatusForDisplayFiles } from "@/features/source-control/components/pierreFileTree";
 import { ReviewFileViewControl } from "@/features/source-control/components/ReviewFileViewControl";
@@ -19,10 +19,7 @@ import {
   type ReviewFileView,
 } from "@/features/source-control/components/reviewFileGrouping";
 import { useVerticalNavigationHotkeys } from "@/features/source-control/hooks/keyboardNavigation";
-import {
-  movePierreFileTreeFocusByFile,
-  movePierreFileTreeFocusFile,
-} from "@/features/source-control/pierreFileTreeNavigation";
+import { movePierreFileTreeFileForKey } from "@/features/source-control/pierreFileTreeNavigation";
 import { isTypingTarget } from "@/features/source-control/utils";
 import type { FileItem, HistoryCommit } from "@/platform/desktop";
 
@@ -44,7 +41,6 @@ export function PullRequestCommitFileGroups({
   onGroupingChange: (view: ReviewFileView) => void;
 }) {
   const [filter, setFilter] = useState("");
-  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const query = filter.trim().toLowerCase();
   const displayFiles = buildCommitGroupFiles(groups).filter(
     (file) =>
@@ -58,10 +54,11 @@ export function PullRequestCommitFileGroups({
     const title = commitGroupTitle(file.commit);
     groupCounts.set(title, (groupCounts.get(title) ?? 0) + 1);
   }
-  const selectedPath =
-    displayFiles.find(
-      (file) => file.commit.commitId === selectedCommit?.commitId && file.realPath === activePath,
-    )?.path ?? "";
+  const displayPathBySourcePath = new Map(
+    displayFiles
+      .filter((file) => file.commit.commitId === selectedCommit?.commitId)
+      .map((file) => [file.realPath, file.path]),
+  );
   const compareGroups = (left: { path: string }, right: { path: string }) =>
     (groupOrder.get(left.path.split("/")[0] ?? "") ?? 0) -
     (groupOrder.get(right.path.split("/")[0] ?? "") ?? 0);
@@ -70,10 +67,7 @@ export function PullRequestCommitFileGroups({
 
   function navigate(event: KeyboardEvent, forward: boolean) {
     if (isTypingTarget(event.target)) return;
-    const move = /^[jk]$/i.test(event.key)
-      ? movePierreFileTreeFocusByFile
-      : movePierreFileTreeFocusFile;
-    const next = move("pr-commit-groups", forward);
+    const next = movePierreFileTreeFileForKey("pr-commit-groups", event.key, forward);
     const file = next ? fileByPath.get(next.path) : undefined;
     if (!file) return;
     event.preventDefault();
@@ -128,10 +122,11 @@ export function PullRequestCommitFileGroups({
           {query ? "No files match the current filter." : "No changed files in these commits."}
         </p>
       ) : (
-        <PierreFileTreeBrowser
+        <SelectedPierreFileTree
           selectFirstFile
           files={displayFiles}
-          selectedPath={selectedPath}
+          selection={selectPullRequestFilePath}
+          displayPathBySourcePath={displayPathBySourcePath}
           navRegion="pr-commit-groups"
           flattenEmptyDirectories={false}
           directoryLabelPriority="start"

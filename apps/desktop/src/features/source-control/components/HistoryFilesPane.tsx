@@ -18,6 +18,7 @@ import {
   useGetCommitHistoryQuery,
 } from "@/features/source-control/api";
 import { selectHistoryFile } from "@/features/source-control/actions";
+import { selectHistoryFilePath } from "../fileSelection";
 import { FileList } from "@/features/source-control/components/FileList";
 import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
 import { getHistoryComparison } from "@/features/source-control/historySelection";
@@ -26,7 +27,6 @@ import type { FileItem } from "@/features/source-control/types";
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const comments = useAppSelector((state) => state.comments);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
   const historySelectedCommitIds = useAppSelector(
@@ -82,11 +82,12 @@ export function HistoryFilesPane() {
                 ? `${historyCommitId.slice(0, 8)} · ${files.length} file${files.length === 1 ? "" : "s"}`
                 : "No commit selected"}
         </div>
-        {!comparison &&
-        historyCommitId &&
-        activePath &&
-        files.some((file) => file.path === activePath) ? (
-          <RestoreHistoryFile repoPath={activeRepo} commit={historyCommitId} path={activePath} />
+        {!comparison && historyCommitId ? (
+          <SelectedHistoryFileRestore
+            repoPath={activeRepo}
+            commit={historyCommitId}
+            files={files}
+          />
         ) : null}
       </div>
       {!comparison && historyFilesError ? (
@@ -128,7 +129,7 @@ export function HistoryFilesPane() {
           autoFocus={false}
           files={files}
           mode={fileBrowserMode}
-          selectedPath={activePath}
+          selection={selectHistoryFilePath}
           navRegion="history-files"
           onActivatePath={(path) => {
             dispatch(setHistoryNavTarget("files"));
@@ -155,4 +156,18 @@ export function HistoryFilesPane() {
       )}
     </aside>
   );
+}
+
+function SelectedHistoryFileRestore({
+  repoPath,
+  commit,
+  files,
+}: {
+  repoPath: string;
+  commit: string;
+  files: readonly FileItem[];
+}) {
+  const activePath = useAppSelector(selectHistoryFilePath);
+  if (!activePath || !files.some((file) => file.path === activePath)) return null;
+  return <RestoreHistoryFile repoPath={repoPath} commit={commit} path={activePath} />;
 }

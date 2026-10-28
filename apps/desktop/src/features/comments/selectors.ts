@@ -57,6 +57,18 @@ export const selectChangesCommentCountByPathForRepo: (
     createCommentCountByPathForRepo(comments, repoPath, CHANGES_COMMENT_CONTEXT),
 );
 
+export const selectReviewCommentCountsForRepo = createSelector(
+  [
+    (state: CommentsStateContainer) => state.comments,
+    (_state: CommentsStateContainer, repoPath: string) => repoPath,
+    (_state: CommentsStateContainer, _repoPath: string, baseRef: string) => baseRef,
+    (_state: CommentsStateContainer, _repoPath: string, _baseRef: string, headRef: string) =>
+      headRef,
+  ],
+  (comments, repoPath, baseRef, headRef) =>
+    createCommentCountByPathForRepo(comments, repoPath, { kind: "review", baseRef, headRef }),
+);
+
 export function areCommentCountMapsEqual(
   left: ReadonlyMap<string, number>,
   right: ReadonlyMap<string, number>,

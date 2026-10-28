@@ -82,7 +82,7 @@ function GroupedFilesExample({
           files={files}
           mode={view}
           reviewGroupTitle={commitTitle}
-          selectedPath={selected}
+          selection={selected}
           navRegion="review-browsing-story"
           onActivatePath={setSelected}
           getFileStatus={(file) => file.status}

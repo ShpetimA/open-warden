@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   areCommentCountMapsEqual,
   selectChangesCommentCountByPathForRepo,
+  selectReviewCommentCountsForRepo,
 } from "@/features/comments/selectors";
 import type { CommentItem } from "@/features/source-control/types";
 
@@ -65,4 +66,26 @@ describe("areCommentCountMapsEqual", () => {
       false,
     );
   });
+});
+
+it("indexes review comments by repository and comparison refs and retains counts on selection changes", () => {
+  const comments = [
+    createComment({ id: "matching", contextKind: "review", baseRef: "main", headRef: "feature" }),
+    createComment({
+      id: "other-repo",
+      repoPath: "/repo/b",
+      contextKind: "review",
+      baseRef: "main",
+      headRef: "feature",
+    }),
+    createComment({ id: "other-base", contextKind: "review", baseRef: "dev", headRef: "feature" }),
+    createComment({ id: "other-head", contextKind: "review", baseRef: "main", headRef: "other" }),
+    createComment({ id: "changes", contextKind: "changes" }),
+  ];
+  const counts = selectReviewCommentCountsForRepo({ comments }, "/repo/a", "main", "feature");
+  expect([...counts]).toEqual([["src/file.ts", 1]]);
+  expect(selectReviewCommentCountsForRepo({ comments }, "/repo/a", "main", "feature")).toBe(counts);
+  expect([...selectReviewCommentCountsForRepo({ comments }, "/repo/a", "main", "other")]).toEqual([
+    ["src/file.ts", 1],
+  ]);
 });

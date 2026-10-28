@@ -8,12 +8,12 @@ import {
   openFileViewer,
   setRepoTreeActivePath,
 } from "@/features/source-control/sourceControlSlice";
+import { selectRepoFilePath } from "../fileSelection";
 import { FileList } from "./FileList";
 
 export function RepoFilesTab() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const activePath = useAppSelector((state) => state.sourceControl.repoTreeActivePath);
   const comments = useAppSelector((state) => state.comments);
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
@@ -84,7 +84,7 @@ export function RepoFilesTab() {
         <FileList
           files={repoFiles}
           mode={fileBrowserMode}
-          selectedPath={activePath}
+          selection={selectRepoFilePath}
           navRegion="repo-files"
           onActivatePath={(path) => {
             openRepoFilePath(path);

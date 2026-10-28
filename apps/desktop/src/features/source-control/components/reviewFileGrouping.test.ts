@@ -6,6 +6,7 @@ import {
   getPierreFileTreeVisibleFiles,
   getNextUnviewedPierreFile,
   movePierreFileTreeFocusByFile,
+  movePierreFileTreeFileForKey,
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
 } from "../pierreFileTreeNavigation";
@@ -280,3 +281,31 @@ it.each(["review", "tree", "list"] as const)(
     }
   },
 );
+
+it("uses actual flattened folder anchors and the same J/K policy for every screen", () => {
+  const files = [{ path: "first/one/file.ts" }, { path: "last/two/file.ts" }];
+  const preparedInput = prepareFileTreeInput(
+    files.map((file) => file.path),
+    { flattenEmptyDirectories: true },
+  );
+  const model = new FileTree({
+    preparedInput,
+    flattenEmptyDirectories: true,
+    initialExpansion: "open",
+  });
+  const region = "flattened-navigation";
+  registerPierreFileTreeNav(region, files, model, { preparedInput, flattenEmptyDirectories: true });
+  try {
+    model.focusPath("last/two");
+    expect(movePierreFileTreeFileForKey(region, "j", true)?.path).toBe("last/two/file.ts");
+    expect(movePierreFileTreeFileForKey(region, "k", false)?.path).toBe("first/one/file.ts");
+    const folder = model.getItem("first/one");
+    if (folder?.isDirectory()) folder.collapse();
+    expect(getPierreFileTreeVisibleFiles(region).map((file) => file.path)).toEqual([
+      "last/two/file.ts",
+    ]);
+  } finally {
+    unregisterPierreFileTreeNav(region, model);
+    model.cleanUp();
+  }
+});
