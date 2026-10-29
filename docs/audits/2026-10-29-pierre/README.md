@@ -74,3 +74,22 @@ These specialized viewers should not be forced through a tree-selection API. The
 - Browser coverage exercises a 2,400-file branch comparison, searchable choices among 304 branches, no-match search, keyboard selection, Escape, long refs, swapping, and light/dark layouts at 1,440 and 1,000 px.
 - Existing PR, History, and Guidance browser suites cover grouping, duplicate file names across commits, folder collapse, filters, V, J/K, pane navigation, and delayed hover cards.
 - The synthetic browser fixture navigated without replacing visible file rows. Timing from one local run is not evidence of a performance guarantee for the user's repository; the regression guard checks repeated work directly.
+
+## Follow-up: native navigation profiling
+
+The initial synthetic browser check missed a second bottleneck. Profiling a real comparison of about 5,900 files in Electron showed that every J/K press rebuilt the visible directory walk and repeatedly asked Pierre to resolve the same ancestor paths for different files. Tree nodes did not need to remount for that work to block navigation.
+
+Navigation now keeps a prepared row index with directory handles and subtree boundaries. Selection changes reuse it. Expansion stays live, each visible directory is checked once, and a collapsed subtree is skipped directly. Source-file lookup maps also belong to the prepared generation. Shift navigation reads this same registry projection.
+
+The deep-path regression renders 6,000 files and verifies that twenty navigation reads do not resolve directory handles again. It also checks live collapse, re-expansion, and flattened chains. An opt-in Electron test uses real Git file versions and records a CPU profile while navigating the requested file:
+
+```sh
+OPEN_WARDEN_REVIEW_REPO=/path/to/repository \
+OPEN_WARDEN_REVIEW_BASE=origin/main \
+OPEN_WARDEN_REVIEW_HEAD=feature/branch \
+OPEN_WARDEN_REVIEW_FILE=path/to/changed-file \
+pnpm --filter desktop test:electron \
+  tests/electron/branch-review-navigation.spec.ts
+```
+
+The Electron build must exist and a renderer server must be running at `http://127.0.0.1:1420`; `OPEN_WARDEN_RENDERER_URL` can override it. The test creates an isolated user-data directory and does not switch or modify repository branches.

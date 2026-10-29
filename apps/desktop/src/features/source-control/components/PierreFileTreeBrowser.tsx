@@ -16,11 +16,11 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { collectPreparedTreeRowPaths } from "./pierreFileTreeProjection";
 import { TreeRowHover } from "./TreeRowHover";
 
 import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
 import {
+  getPierreFileTreeVisiblePaths,
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
 } from "@/features/source-control/pierreFileTreeNavigation";
@@ -472,12 +472,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   const handleHostKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.shiftKey && isRangeNavigationKey(event)) {
-      const targetPath = getShiftNavigationTargetPath(
-        model,
-        preparedInputRef.current.paths,
-        event,
-        flattenEmptyDirectories,
-      );
+      const targetPath = getShiftNavigationTargetPath(model, navRegion, event);
       if (!targetPath) {
         return;
       }
@@ -624,16 +619,10 @@ function isRangeNavigationKey(event: KeyboardEvent<HTMLElement>) {
 
 function getShiftNavigationTargetPath(
   model: PierreFileTreeModel,
-  orderedPaths: readonly string[],
+  navRegion: string,
   event: KeyboardEvent<HTMLElement>,
-  flattenEmptyDirectories: boolean,
 ) {
-  const filePaths = new Set(orderedPaths);
-  const visibleFilePaths = collectPreparedTreeRowPaths(
-    orderedPaths,
-    model,
-    flattenEmptyDirectories,
-  ).filter((path) => filePaths.has(path));
+  const visibleFilePaths = getPierreFileTreeVisiblePaths(navRegion);
   if (visibleFilePaths.length === 0) {
     return null;
   }

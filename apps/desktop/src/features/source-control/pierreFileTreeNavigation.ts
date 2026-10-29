@@ -1,11 +1,17 @@
 import type { FileTree as PierreFileTreeModel, FileTreePreparedInput } from "@pierre/trees";
 import type { PierreFileTreeNavFile } from "./components/pierreFileTree";
-import { collectPreparedTreeRowPaths } from "./components/pierreFileTreeProjection";
+import {
+  createPreparedTreeProjection,
+  type PreparedTreeProjection,
+} from "./components/pierreFileTreeProjection";
 import type { Bucket, SelectedFile } from "@/features/source-control/types";
 
 type PierreTreeNavEntry = {
   files: ReadonlyArray<PierreFileTreeNavFile>;
   model: PierreFileTreeModel;
+  filesByPath: ReadonlyMap<string, PierreFileTreeNavFile>;
+  orderedFiles: readonly PierreFileTreeNavFile[];
+  projection: PreparedTreeProjection;
   selectedPath?: string;
   preparedInput: FileTreePreparedInput;
   flattenEmptyDirectories?: boolean;
@@ -28,21 +34,59 @@ export function registerPierreFileTreeNav(
   const entries = pierreTreeNavRegistry.get(regionId) ?? [];
   const existingEntry = entries.find((entry) => entry.model === model);
   if (existingEntry) {
-    existingEntry.files = files;
+    const filesChanged = existingEntry.files !== files;
+    const projectionChanged =
+      existingEntry.preparedInput !== options.preparedInput ||
+      existingEntry.flattenEmptyDirectories !== options.flattenEmptyDirectories;
+    if (filesChanged) {
+      existingEntry.files = files;
+      existingEntry.filesByPath = new Map(files.map((file) => [file.path, file]));
+    }
+    if (projectionChanged) {
+      existingEntry.projection = createPreparedTreeProjection(
+        options.preparedInput.paths,
+        model,
+        options.flattenEmptyDirectories,
+      );
+    }
+    if (filesChanged || projectionChanged) {
+      existingEntry.orderedFiles = resolveOrderedFiles(
+        options.preparedInput,
+        existingEntry.filesByPath,
+      );
+    }
     existingEntry.selectedPath = options.selectedPath;
     existingEntry.preparedInput = options.preparedInput;
     existingEntry.flattenEmptyDirectories = options.flattenEmptyDirectories;
     return;
   }
 
+  const filesByPath = new Map(files.map((file) => [file.path, file]));
   entries.push({
     files,
     model,
+    filesByPath,
+    orderedFiles: resolveOrderedFiles(options.preparedInput, filesByPath),
+    projection: createPreparedTreeProjection(
+      options.preparedInput.paths,
+      model,
+      options.flattenEmptyDirectories,
+    ),
     selectedPath: options.selectedPath,
     preparedInput: options.preparedInput,
     flattenEmptyDirectories: options.flattenEmptyDirectories,
   });
   pierreTreeNavRegistry.set(regionId, entries);
+}
+
+function resolveOrderedFiles(
+  input: FileTreePreparedInput,
+  filesByPath: ReadonlyMap<string, PierreFileTreeNavFile>,
+) {
+  return input.paths.flatMap((path) => {
+    const file = filesByPath.get(path);
+    return file ? [file] : [];
+  });
 }
 
 export function unregisterPierreFileTreeNav(regionId: string, model: PierreFileTreeModel) {
@@ -80,13 +124,7 @@ export function getNextUnviewedPierreFile(
   viewedPaths: ReadonlySet<string>,
 ) {
   const visibleFiles = new Set(getPierreFileTreeVisibleFiles(regionId));
-  const files = (pierreTreeNavRegistry.get(regionId) ?? []).flatMap((entry) => {
-    const filesByPath = new Map(entry.files.map((file) => [file.path, file]));
-    return entry.preparedInput.paths.flatMap((path) => {
-      const file = filesByPath.get(path);
-      return file ? [file] : [];
-    });
-  });
+  const files = (pierreTreeNavRegistry.get(regionId) ?? []).flatMap((entry) => entry.orderedFiles);
   const activeIndex = files.findIndex((file) => (file.realPath ?? file.path) === activePath);
   if (activeIndex < 0) return null;
   for (let offset = 1; offset < files.length; offset += 1) {
@@ -152,9 +190,8 @@ export function getPierreFileTreeFocusedSelectedFile(regionId: string): Selected
 }
 
 function collectVisibleFilesForEntry(entry: PierreTreeNavEntry) {
-  const filesByPath = new Map(entry.files.map((file) => [file.path, file]));
   return collectVisibleRowPathsForEntry(entry).flatMap((path) => {
-    const file = filesByPath.get(path);
+    const file = entry.filesByPath.get(path);
     return file ? [file] : [];
   });
 }
@@ -245,11 +282,10 @@ export function movePierreFileTreeFocusByFile(regionId: string, next: boolean) {
 
   const focusedPath = activeEntry.model.getFocusedPath() ?? activeEntry.selectedPath;
   const rows = entries.flatMap((entry) => {
-    const filesByPath = new Map(entry.files.map((file) => [file.path, file]));
     return collectVisibleRowPathsForEntry(entry).map((path) => ({
       entry,
       path,
-      file: filesByPath.get(path),
+      file: entry.filesByPath.get(path),
     }));
   });
   const currentIndex = rows.findIndex(
@@ -390,7 +426,7 @@ function getEntryFocusedBucketedFile(entry: PierreTreeNavEntry): SelectedFile | 
 }
 
 function findFileInEntry(entry: PierreTreeNavEntry, path: string) {
-  return entry.files.find((file) => file.path === path) ?? null;
+  return entry.filesByPath.get(path) ?? null;
 }
 
 function findAdjacentEntryWithVisibleRows(
@@ -412,11 +448,7 @@ function findAdjacentEntryWithVisibleRows(
 }
 
 function collectVisibleRowPathsForEntry(entry: PierreTreeNavEntry) {
-  return collectPreparedTreeRowPaths(
-    entry.preparedInput.paths,
-    entry.model,
-    entry.flattenEmptyDirectories,
-  );
+  return entry.projection.getVisiblePaths();
 }
 
 function ensurePierreFileTreeOwnsFocus(model: PierreFileTreeModel, path: string) {

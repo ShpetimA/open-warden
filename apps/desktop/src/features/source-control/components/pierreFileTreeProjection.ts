@@ -1,49 +1,75 @@
 import type { FileTree } from "@pierre/trees";
 
-/** Prepared paths already contain Pierre's render order. Expansion is read live from its model. */
-export function collectPreparedTreeRowPaths(
-  orderedPaths: readonly string[],
-  model: FileTree,
-  flattenEmptyDirectories = false,
-): string[] {
-  const children = new Map<string, Set<string>>();
-  const directoryPaths = new Set<string>();
-  if (flattenEmptyDirectories) {
-    for (const path of orderedPaths) {
-      const segments = path.split("/");
-      for (let depth = 1; depth < segments.length; depth += 1) {
-        const directory = segments.slice(0, depth).join("/");
-        const child = segments.slice(0, depth + 1).join("/");
-        directoryPaths.add(directory);
-        const entries = children.get(directory) ?? new Set<string>();
-        entries.add(child);
-        children.set(directory, entries);
-      }
-    }
-  }
+type ProjectionNode = {
+  path: string;
+  children: Map<string, ProjectionNode> | null;
+};
 
-  const rows: string[] = [];
-  const directories = new Set<string>();
+type ProjectionRow = {
+  path: string;
+  subtreeEnd: number;
+  isExpanded: (() => boolean) | null;
+};
+
+export type PreparedTreeProjection = {
+  getVisiblePaths(): string[];
+};
+
+/** Structure and path handles belong to the prepared input; only expansion is read during navigation. */
+export function createPreparedTreeProjection(
+  orderedPaths: readonly string[],
+  model: Pick<FileTree, "getItem">,
+  flattenEmptyDirectories = false,
+): PreparedTreeProjection {
+  const roots = new Map<string, ProjectionNode>();
   for (const path of orderedPaths) {
     const segments = path.split("/");
-    let visible = true;
-    for (let depth = 1; depth < segments.length; depth += 1) {
-      const directory = segments.slice(0, depth).join("/");
-      const entries = children.get(directory);
-      const onlyChild = entries?.size === 1 ? entries.values().next().value : undefined;
-      if (onlyChild && directoryPaths.has(onlyChild)) continue;
-
-      if (!directories.has(directory)) {
-        directories.add(directory);
-        rows.push(directory);
+    let siblings = roots;
+    for (let depth = 1; depth <= segments.length; depth += 1) {
+      const nodePath = segments.slice(0, depth).join("/");
+      let node = siblings.get(nodePath);
+      if (!node) {
+        node = { path: nodePath, children: depth < segments.length ? new Map() : null };
+        siblings.set(nodePath, node);
       }
-      const item = model.getItem(directory);
-      if (item && "isExpanded" in item && !item.isExpanded()) {
-        visible = false;
-        break;
+      if (node.children) siblings = node.children;
+    }
+  }
+
+  const rows: ProjectionRow[] = [];
+  function append(node: ProjectionNode) {
+    if (flattenEmptyDirectories && node.children?.size === 1) {
+      const child = node.children.values().next().value;
+      if (child?.children) {
+        append(child);
+        return;
       }
     }
-    if (visible) rows.push(path);
+
+    const item = node.children ? model.getItem(node.path) : null;
+    const row: ProjectionRow = {
+      path: node.path,
+      subtreeEnd: rows.length + 1,
+      isExpanded: item && "isExpanded" in item ? () => item.isExpanded() : null,
+    };
+    rows.push(row);
+    if (node.children) {
+      for (const child of node.children.values()) append(child);
+      row.subtreeEnd = rows.length;
+    }
   }
-  return rows;
+  for (const root of roots.values()) append(root);
+
+  return {
+    getVisiblePaths() {
+      const visible: string[] = [];
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        if (!row) continue;
+        visible.push(row.path);
+        if (row.isExpanded && !row.isExpanded()) index = row.subtreeEnd - 1;
+      }
+      return visible;
+    },
+  };
 }
