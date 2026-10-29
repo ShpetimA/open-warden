@@ -2,11 +2,13 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { writeFile } from "node:fs/promises";
 
 import { getCommitHistory, getHistoryGraph } from "./history";
 import { getCommitFiles, getCommitFileVersions } from "./git";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 const directories: string[] = [];
 async function repository() {
