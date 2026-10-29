@@ -292,6 +292,23 @@ const sourceControlSlice = createSlice({
       state.fileViewerTarget = action.payload;
       state.symbolPeek = null;
     },
+    repositoryEntryTrashed(state, { payload }: PayloadAction<{ repoPath: string; path: string }>) {
+      if (state.activeRepo !== payload.repoPath) return;
+      const contains = (path: string) =>
+        path === payload.path || path.startsWith(`${payload.path}/`);
+      if (contains(state.repoTreeActivePath)) state.repoTreeActivePath = "";
+      if (
+        state.fileViewerTarget &&
+        !state.fileViewerTarget.revision &&
+        contains(state.fileViewerTarget.relPath)
+      ) {
+        state.fileViewerTarget = null;
+        state.symbolPeek = null;
+      }
+    },
+    clearFileViewerFocus(state) {
+      if (state.fileViewerTarget) state.fileViewerTarget.focusKey = null;
+    },
     closeFileViewer(state) {
       if (state.fileViewerTarget !== null) {
         state.fileViewerTarget = null;
@@ -335,6 +352,8 @@ export const {
   clearDiffFocusTarget,
   clearDiffSelection,
   closeFileViewer,
+  clearFileViewerFocus,
+  repositoryEntryTrashed,
   clearHistoryCommitSelection,
   clearHistorySelection,
   clearReviewSelection,

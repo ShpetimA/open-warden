@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGetGitSnapshotQuery } from "../api";
 import { useGetGitRepositoryStateQuery, useRunGitCommandMutation } from "../gitOperationsApi";
 import { commitAction, setCommitMessageValue } from "../actions";
@@ -32,6 +33,9 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const busy = Boolean(runningAction) || mutation.isLoading;
   const editableCommit = lastCommit && !lastCommit.published;
+  const undoDescription = lastCommit?.published
+    ? "Last commit is published. Use Revert in History to undo it."
+    : "Undo the last unpublished commit and keep its changes staged";
   const canCommit = Boolean(
     repoPath &&
     commitMessage.trim() &&
@@ -73,6 +77,7 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <label className="flex items-center gap-1.5">
           <Checkbox
+            aria-description={lastCommit?.published ? undoDescription : undefined}
             checked={Boolean(amendHead)}
             disabled={busy || !editableCommit}
             onCheckedChange={(checked) => {
@@ -88,28 +93,35 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
           />
           Amend last commit
         </label>
-        <Button
-          variant="ghost"
-          size="xs"
-          disabled={busy || !editableCommit || Boolean(amendHead)}
-          title="Undo the last unpublished commit and keep its changes staged"
-          onClick={() => {
-            if (!lastCommit) return;
-            void execute({ repoPath, command: { kind: "undo", expectedHead: lastCommit.id } }).then(
-              (result) => {
-                if ("data" in result) dispatch(setCommitMessageValue(lastCommit.message));
-              },
-            );
-          }}
-        >
-          Undo commit
-        </Button>
+        <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  disabled={busy || !editableCommit || Boolean(amendHead)}
+                  aria-description={undoDescription}
+                  onClick={() => {
+                    if (!lastCommit) return;
+                    void execute({
+                      repoPath,
+                      command: { kind: "undo", expectedHead: lastCommit.id },
+                    }).then((result) => {
+                      if ("data" in result) dispatch(setCommitMessageValue(lastCommit.message));
+                    });
+                  }}
+                >
+                  Undo commit
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-64 rounded-md">
+              {undoDescription}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
-      {lastCommit?.published ? (
-        <p className="text-muted-foreground text-[11px]">
-          Last commit is published. Use Revert in History to undo it.
-        </p>
-      ) : null}
       <Button className="w-full" size="sm" disabled={!canCommit} onClick={() => void submit()}>
         <GitCommitHorizontal />
         {busy ? "Working…" : amendHead ? "Amend commit" : "Commit"}

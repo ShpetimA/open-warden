@@ -14,9 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { desktop } from "@/platform/desktop";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
 const OPEN_APP_PREFERENCE_KEY = "open-warden.open-app";
+const SPLIT_BUTTON_SEGMENT =
+  "h-full hover:shadow-none hover:ring-0 data-[state=open]:ring-0 focus-visible:relative focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset";
 
 const OPEN_APPS = [
   "finder",
@@ -245,14 +248,16 @@ export function OpenInExternalEditor({
 
   if (compact) {
     return (
-      <TooltipProvider>
+      <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
         <DropdownMenu>
-          <div className="border-border/70 bg-surface-alt/50 flex h-6 items-center overflow-hidden rounded-md border">
+          <div className="border-border/70 bg-surface-alt/50 flex h-7 items-center overflow-hidden rounded-md border">
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
                   type="button"
-                  className="text-muted-foreground hover:text-foreground inline-flex h-full w-6 items-center justify-center px-1"
+                  variant="toolbar"
+                  size="icon-sm"
+                  className={`${SPLIT_BUTTON_SEGMENT} w-7 rounded-l-[5px] rounded-r-none px-1`}
                   aria-label={`Open ${noun} in ${current.label}`}
                   disabled={openDisabled}
                   onClick={() => {
@@ -264,9 +269,9 @@ export function OpenInExternalEditor({
                   ) : (
                     <FolderOpen className="h-3.5 w-3.5" />
                   )}
-                </button>
+                </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom">
+              <TooltipContent side="bottom" className="rounded-md">
                 Open {noun} in {current.label}
               </TooltipContent>
             </Tooltip>
@@ -275,18 +280,24 @@ export function OpenInExternalEditor({
 
             <Tooltip>
               <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground inline-flex h-full w-5 items-center justify-center"
-                    aria-label={`Choose app for opening ${noun}`}
-                    disabled={openDisabled}
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </button>
-                </DropdownMenuTrigger>
+                <span className="inline-flex h-full">
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="toolbar"
+                      size="icon-sm"
+                      className={`${SPLIT_BUTTON_SEGMENT} w-6 rounded-l-none rounded-r-[5px]`}
+                      aria-label={`Choose app for opening ${noun}`}
+                      disabled={openDisabled}
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </span>
               </TooltipTrigger>
-              <TooltipContent side="bottom">Open in...</TooltipContent>
+              <TooltipContent side="bottom" className="rounded-md">
+                Open in...
+              </TooltipContent>
             </Tooltip>
           </div>
 
@@ -332,10 +343,12 @@ export function OpenInExternalEditor({
   }
 
   return (
-    <div className="border-border/70 bg-surface-alt/50 flex h-6 items-center overflow-hidden rounded-md border">
-      <button
+    <div className="border-border/70 bg-surface-alt/50 flex h-7 items-center overflow-hidden rounded-md border">
+      <Button
         type="button"
-        className="text-muted-foreground hover:text-foreground inline-flex h-full items-center gap-1.5 border-none px-2 text-[11px] font-medium"
+        variant="toolbar"
+        size="xs"
+        className={`${SPLIT_BUTTON_SEGMENT} gap-1.5 rounded-l-[5px] rounded-r-none border-none px-2 text-[11px]`}
         title={`Open ${noun} in ${current.label}`}
         aria-label={`Open ${noun} in ${current.label}`}
         disabled={openDisabled}
@@ -345,20 +358,22 @@ export function OpenInExternalEditor({
       >
         {opening ? <Spinner className="size-3.5" /> : <FolderOpen className="h-3.5 w-3.5" />}
         <span>Open</span>
-      </button>
+      </Button>
 
       <div className="bg-border/70 h-full w-px" />
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
+          <Button
             type="button"
-            className="text-muted-foreground hover:text-foreground inline-flex h-full w-6 items-center justify-center"
+            variant="toolbar"
+            size="icon-sm"
+            className={`${SPLIT_BUTTON_SEGMENT} w-6 rounded-l-none rounded-r-[5px]`}
             aria-label={`Choose app for opening ${noun}`}
             disabled={openDisabled}
           >
             <ChevronDown className="h-3.5 w-3.5" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="w-52">

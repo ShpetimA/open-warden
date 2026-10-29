@@ -1,3 +1,11 @@
+import { useEffect } from "react";
+import { clearFileViewerFocus } from "@/features/source-control/sourceControlSlice";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { useSidebarPanelRegistryOptional } from "@/components/layout/SidebarPanelRegistry";
+import {
+  cancelPierreFileTreeFocus,
+  requestPierreFileTreeFocus,
+} from "@/features/source-control/pierreFileTreeNavigation";
 import {
   BookOpen,
   ArrowLeftRight,
@@ -154,7 +162,9 @@ function ActivePullRequestSegments({
 }
 
 export function WorkspaceRail() {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const panels = useSidebarPanelRegistryOptional();
   const location = useLocation();
   const activeWorkspace = useAppSelector(selectActiveWorkspace);
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -165,6 +175,36 @@ export function WorkspaceRail() {
     }),
   });
 
+  useEffect(() => {
+    if (location.pathname !== "/changes/files") return;
+    const frame = requestAnimationFrame(() => panels?.getSnapshot().get("primary")?.ref.expand());
+    return () => cancelAnimationFrame(frame);
+  }, [location.pathname, panels]);
+
+  function openSection(path: string) {
+    if (path === "/changes/files") {
+      dispatch(clearFileViewerFocus());
+      panels?.getSnapshot().get("primary")?.ref.expand();
+      requestPierreFileTreeFocus("repo-files");
+    } else {
+      cancelPierreFileTreeFocus("repo-files");
+    }
+    navigate(path);
+  }
+  const hotkeyOptions = { enabled: Boolean(activeWorkspace), ignoreInputs: false };
+  useHotkey("Mod+Shift+E", () => openSection("/changes/files"), hotkeyOptions);
+  useHotkey("Mod+Shift+C", () => openSection("/changes"), hotkeyOptions);
+  useHotkey("Mod+Shift+P", () => openSection("/pull-requests"), hotkeyOptions);
+  useHotkey("Mod+Shift+H", () => openSection("/history"), hotkeyOptions);
+  useHotkey("Mod+Shift+D", () => openSection("/review"), hotkeyOptions);
+
+  const sectionShortcuts: Record<string, string> = {
+    changes: "⌘⇧C",
+    files: "⌘⇧E",
+    "pull-requests": "⌘⇧P",
+    history: "⌘⇧H",
+    review: "⌘⇧D",
+  };
   const sections = activeWorkspace ? repoRailSections() : [];
 
   if (!activeWorkspace) return null;
@@ -179,8 +219,9 @@ export function WorkspaceRail() {
           key={section.key}
           icon={section.icon}
           label={section.label}
+          shortcut={sectionShortcuts[section.key]}
           isActive={section.isActive(location.pathname)}
-          onClick={() => navigate(section.path)}
+          onClick={() => openSection(section.path)}
         />
       ))}
 

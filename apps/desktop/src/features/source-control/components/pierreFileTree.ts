@@ -84,6 +84,17 @@ export function collapseDirectoryPaths(
   }
 }
 
+export function collectExpandedDirectoryPaths<TFile extends PierreFileTreeBrowserFile>(
+  files: ReadonlyArray<TFile>,
+  model: PierreFileTreeModel,
+  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
+) {
+  return collectDirectoryPaths(buildSourceControlFileTree(files, treeOptions)).filter((path) => {
+    const item = model.getItem(path);
+    return item && "isExpanded" in item && item.isExpanded();
+  });
+}
+
 export function toPierreGitStatus(status: FileStatus | undefined): GitStatus | null {
   if (!status) {
     return null;
@@ -156,4 +167,12 @@ export function buildCommentCountDecoration<TFile>(
         }
       : null;
   };
+}
+
+export function expandPierreFileTreeParents(model: PierreFileTreeModel, path: string) {
+  const segments = path.split("/").filter((segment) => segment.length > 0);
+  for (let depth = 1; depth < segments.length; depth += 1) {
+    const directory = model.getItem(segments.slice(0, depth).join("/"));
+    if (directory && "expand" in directory) directory.expand();
+  }
 }

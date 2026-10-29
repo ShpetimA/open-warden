@@ -116,3 +116,9 @@ describe("collectDirectoryPaths", () => {
     expect(collectDirectoryPaths(tree)).toEqual(["src", "src/features", "src/lib"]);
   });
 });
+
+it("keeps an explicit empty folder as a directory with no file count", () => {
+  expect(buildSourceControlFileTree([{ path: "src/empty/" }])).toEqual([
+    { kind: "directory", name: "src/empty", path: "src/empty", fileCount: 0, children: [] },
+  ]);
+});

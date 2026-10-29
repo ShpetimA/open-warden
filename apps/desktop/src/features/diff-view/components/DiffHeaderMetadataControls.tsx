@@ -116,7 +116,7 @@ export function DiffHeaderMetadataControls({
           disabled={!activePath}
         />
 
-        {commentContext.kind === "changes" ? (
+        {commentContext.kind === "changes" || fileViewerRevision ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

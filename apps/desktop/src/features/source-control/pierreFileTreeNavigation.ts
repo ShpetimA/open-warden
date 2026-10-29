@@ -1,5 +1,8 @@
 import type { FileTree as PierreFileTreeModel, FileTreePreparedInput } from "@pierre/trees";
-import type { PierreFileTreeNavFile } from "./components/pierreFileTree";
+import {
+  expandPierreFileTreeParents,
+  type PierreFileTreeNavFile,
+} from "./components/pierreFileTree";
 import {
   createPreparedTreeProjection,
   type PreparedTreeProjection,
@@ -58,6 +61,7 @@ export function registerPierreFileTreeNav(
     existingEntry.selectedPath = options.selectedPath;
     existingEntry.preparedInput = options.preparedInput;
     existingEntry.flattenEmptyDirectories = options.flattenEmptyDirectories;
+    schedulePendingTreeFocus(regionId);
     return;
   }
 
@@ -77,6 +81,7 @@ export function registerPierreFileTreeNav(
     flattenEmptyDirectories: options.flattenEmptyDirectories,
   });
   pierreTreeNavRegistry.set(regionId, entries);
+  schedulePendingTreeFocus(regionId);
 }
 
 function resolveOrderedFiles(
@@ -267,10 +272,39 @@ export function movePierreFileTreeFocusFile(regionId: string, next: boolean) {
   return findFileInEntry(movement.entry, movement.targetPath);
 }
 
-export function movePierreFileTreeFileForKey(regionId: string, key: string, next: boolean) {
-  return /^[jk]$/i.test(key)
+export function movePierreFileTreeFileForKey(
+  regionId: string,
+  key: string,
+  next: boolean,
+  options: { includeDirectories?: boolean } = {},
+) {
+  return /^[jk]$/i.test(key) && !options.includeDirectories
     ? movePierreFileTreeFocusByFile(regionId, next)
     : movePierreFileTreeFocusFile(regionId, next);
+}
+
+export function movePierreFileTreeHierarchy(regionId: string, key: "ArrowLeft" | "ArrowRight") {
+  const entries = pierreTreeNavRegistry.get(regionId);
+  if (!entries?.length) return null;
+  const entry = entries[getActiveEntryIndex(entries)];
+  if (!entry) return null;
+  const path = entry.model.getFocusedPath() ?? entry.projection.getVisiblePaths()[0];
+  if (!path) return null;
+  entry.model.focusNearestPath(path);
+  ensurePierreFileTreeOwnsFocus(entry.model, path);
+  getPierreFileTreeKeyboardTarget(entry.model)?.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key,
+      code: key,
+      bubbles: true,
+      composed: true,
+      cancelable: true,
+    }),
+  );
+  const focusedPath = entry.model.getFocusedPath();
+  if (!focusedPath) return null;
+  scrollPierreFileTreeRowIntoView(entry.model, focusedPath);
+  return findFileInEntry(entry, focusedPath);
 }
 
 export function movePierreFileTreeFocusByFile(regionId: string, next: boolean) {
@@ -504,4 +538,98 @@ function getPierreFileTreeRowElement(model: PierreFileTreeModel, path: string) {
       (item) => item.dataset.itemPath === path,
     ) ?? null
   );
+}
+
+type TreeFocusRequest = { path?: string; frame: number | null; attempts: number };
+const pendingTreeFocus = new Map<string, TreeFocusRequest>();
+
+export function isPierreFileTreeFocused(regionId: string) {
+  return (pierreTreeNavRegistry.get(regionId) ?? []).some((entry) =>
+    pierreFileTreeHasDomFocus(entry.model),
+  );
+}
+
+export function getPierreFileTreeFocusedEntry(regionId: string) {
+  const entries = pierreTreeNavRegistry.get(regionId) ?? [];
+  const entry = entries[getActiveEntryIndex(entries)];
+  const treePath = entry?.model.getFocusedPath();
+  if (!entry || !treePath) return null;
+  const item = entry.model.getItem(treePath);
+  if (!item) return null;
+  const file = findFileInEntry(entry, treePath);
+  return {
+    path: (file?.realPath ?? treePath).replace(/\/$/, ""),
+    kind: item.isDirectory() ? ("directory" as const) : ("file" as const),
+    treePath,
+  };
+}
+
+export function getPierreFileTreeCreationContext(regionId: string) {
+  const entry = getPierreFileTreeFocusedEntry(regionId);
+  if (!entry) return { prefix: "", anchorPath: undefined, returnPath: null };
+  const prefix =
+    entry.kind === "directory"
+      ? `${entry.path}/`
+      : entry.path.slice(0, entry.path.lastIndexOf("/") + 1);
+  return {
+    prefix,
+    anchorPath: entry.kind === "directory" ? prefix : entry.path,
+    returnPath: entry.treePath,
+  };
+}
+
+export function cancelPierreFileTreeFocus(regionId: string) {
+  const request = pendingTreeFocus.get(regionId);
+  if (request?.frame != null) cancelAnimationFrame(request.frame);
+  pendingTreeFocus.delete(regionId);
+}
+
+export function requestPierreFileTreeFocus(regionId: string, path?: string) {
+  cancelPierreFileTreeFocus(regionId);
+  pendingTreeFocus.set(regionId, { path, frame: null, attempts: 0 });
+  schedulePendingTreeFocus(regionId);
+}
+
+function schedulePendingTreeFocus(regionId: string) {
+  const request = pendingTreeFocus.get(regionId);
+  if (!request || request.frame !== null) return;
+  request.attempts = 0;
+  const tryFocus = () => {
+    request.frame = null;
+    if (pendingTreeFocus.get(regionId) !== request) return;
+    const entries = pierreTreeNavRegistry.get(regionId) ?? [];
+    const entry = entries[getActiveEntryIndex(entries)];
+    if (entry && focusTreeEntry(entry, request.path)) {
+      pendingTreeFocus.delete(regionId);
+      return;
+    }
+    request.attempts += 1;
+    if (request.attempts < 12) request.frame = requestAnimationFrame(tryFocus);
+  };
+  request.frame = requestAnimationFrame(tryFocus);
+}
+
+function focusTreeEntry(entry: PierreTreeNavEntry, requestedPath?: string) {
+  const file = requestedPath
+    ? entry.files.find(
+        (file) =>
+          (file.realPath ?? file.path).replace(/\/$/, "") === requestedPath.replace(/\/$/, ""),
+      )
+    : null;
+  if (requestedPath && !file && !entry.model.getItem(requestedPath)) return false;
+
+  const target =
+    file?.path ??
+    requestedPath ??
+    (pierreFileTreeHasDomFocus(entry.model) ? entry.model.getFocusedPath() : entry.selectedPath) ??
+    entry.model.getFocusedPath();
+  if (target) expandPierreFileTreeParents(entry.model, target);
+  const focusedPath = entry.model.focusNearestPath(target ?? null);
+  if (!focusedPath) return false;
+
+  const row = getPierreFileTreeRowElement(entry.model, focusedPath);
+  if (!row) return false;
+  scrollPierreFileTreeRowIntoView(entry.model, focusedPath);
+  row.focus({ preventScroll: true });
+  return true;
 }

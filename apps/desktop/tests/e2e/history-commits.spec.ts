@@ -4,6 +4,7 @@ import { writeFile } from "node:fs/promises";
 import { createAppSettings } from "../../src/platform/desktop/appSettings";
 import type { DesktopBridge, HistoryCommit } from "../../src/platform/desktop/contracts";
 import type { HistoryGraph } from "../../src/platform/desktop/history";
+import type { GitRepositoryState } from "../../src/platform/desktop/gitOperations";
 
 if (process.env.OPEN_WARDEN_BROWSER_EXECUTABLE) {
   test.use({ launchOptions: { executablePath: process.env.OPEN_WARDEN_BROWSER_EXECUTABLE } });
@@ -685,11 +686,14 @@ test("recovers graph failures and keeps filtered content after a failed refresh"
   const commit = view.getByRole("button", { name: /^Earlier change 3 / });
   await commit.click();
   await view.getByRole("button", { name: "Refresh history graph", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("Couldn’t refresh the history graph");
+  const refreshFailure = page
+    .getByRole("status")
+    .filter({ hasText: "Couldn’t refresh the history graph" });
+  await expect(refreshFailure).toBeVisible();
   await expect(filter).toHaveValue("bob@example.com");
   await expect(commit).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(refreshFailure).toHaveCount(0);
   await expect(filter).toHaveValue("bob@example.com");
   await expect(commit).toHaveAttribute("aria-pressed", "true");
 });
@@ -728,3 +732,123 @@ test("returns to the selected older commit when switching back to Graph", async 
     view.getByRole("button", { name: /^Oldest original invoice commit / }),
   ).toBeVisible();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`shows clear repository action feedback in ${theme}`, async ({ page }, testInfo) => {
+    const repository: GitRepositoryState = {
+      branch: "feature/outgoing-invoice-and-proforma-exports-with-a-long-name",
+      upstream: "origin/feature/exports",
+      ahead: 6,
+      behind: 0,
+      operation: null,
+      remotes: ["origin"],
+      conflicts: [],
+      lastCommit: null,
+      stashes: [],
+      branches: [],
+      tags: [],
+      worktrees: [],
+      incoming: [],
+      outgoing: [],
+    };
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.addInitScript((repository) => {
+      if (window.desktopBridge)
+        window.desktopBridge.getGitRepositoryState = async () => ({ ok: true, value: repository });
+    }, repository);
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.goto("/#/history");
+    const fetch = page.getByRole("button", { name: "Fetch remote changes", exact: true });
+    const pull = page.getByRole("button", { name: "Pull (fast-forward only)", exact: true });
+    const push = page.getByRole("button", { name: "Push commits", exact: true });
+    await expect(fetch).toBeEnabled();
+    await expect(pull).toBeDisabled();
+    const restingColor = await fetch.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
+    const restingBox = await fetch.boundingBox();
+    await fetch.hover();
+    await expect(page.getByRole("tooltip", { name: /^Fetch remote changes/ })).toContainText(
+      "Choose a remote to fetch from",
+    );
+    expect(await fetch.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(
+      restingColor,
+    );
+    expect(await fetch.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
+    expect(await fetch.boundingBox()).toEqual(restingBox);
+    await page.screenshot({
+      path: testInfo.outputPath(`repository-hover-${theme}.png`),
+      animations: "disabled",
+    });
+    await pull.locator("..").hover();
+    await expect(page.getByRole("tooltip", { name: /^Pull \(fast-forward only\)/ })).toContainText(
+      "No incoming commits. Your branch is up to date.",
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`repository-disabled-${theme}.png`),
+      animations: "disabled",
+    });
+    await push.hover();
+    await expect(page.getByRole("tooltip", { name: /^Push commits/ })).toContainText(
+      "6 outgoing commits",
+      { timeout: 250 },
+    );
+    await fetch.focus();
+    await expect(page.getByRole("tooltip", { name: /^Fetch remote changes/ })).toContainText(
+      "Fetch remote changes",
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`repository-focus-${theme}.png`),
+      animations: "disabled",
+    });
+    const branch = page.getByRole("button", { name: /feature\/outgoing-invoice/ });
+    await branch.hover();
+    await expect(page.getByRole("tooltip", { name: /^Switch branch/ })).toContainText(
+      repository.branch,
+    );
+    const menu = page.getByRole("button", {
+      name: "Choose app for opening repository",
+      exact: true,
+    });
+    await menu.hover();
+    await expect(page.getByRole("tooltip", { name: "Open in...", exact: true })).toBeVisible();
+    const tooltip = page.locator('[data-slot="tooltip-content"]');
+    await expect(tooltip.locator("svg")).toHaveCount(0);
+    expect(
+      await menu.evaluate((element) => {
+        const dimensions = getComputedStyle(element).boxShadow.match(/-?\d+(?:\.\d+)?px/g) ?? [];
+        return dimensions.every((value) => Number.parseFloat(value) === 0);
+      }),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`repository-split-hover-${theme}.png`),
+      animations: "disabled",
+    });
+    await menu.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    await expect(menu).toBeFocused();
+    expect(await menu.evaluate((element) => getComputedStyle(element).boxShadow)).toContain(
+      "2px inset",
+    );
+    await page.screenshot({
+      path: testInfo.outputPath(`repository-split-focus-${theme}.png`),
+      animations: "disabled",
+    });
+    await menu.click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    await expect(
+      page.locator('button[aria-label="Choose app for opening repository"]'),
+    ).toHaveAttribute("data-state", "open");
+    await page.screenshot({
+      path: testInfo.outputPath(`repository-open-menu-${theme}.png`),
+      animations: "disabled",
+    });
+    await page.keyboard.press("Escape");
+    await fetch.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Confirm Fetch$/i })).toBeVisible();
+    await page.keyboard.press("Meta+k");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+}

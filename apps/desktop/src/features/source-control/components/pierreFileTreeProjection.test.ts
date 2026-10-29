@@ -84,3 +84,21 @@ it("keeps prepared file order and treats a flattened chain as one live expansion
     model.cleanUp();
   }
 });
+
+it("preserves explicit empty folders without projecting a blank child row", () => {
+  const preparedInput = prepareFileTreeInput(["src/empty/", "src/file.ts"]);
+  const model = new FileTree({
+    preparedInput,
+    initialExpansion: "open",
+    flattenEmptyDirectories: false,
+  });
+  try {
+    const projection = createPreparedTreeProjection(preparedInput.paths, model);
+    expect(projection.getVisiblePaths()).toEqual(["src", "src/empty", "src/file.ts"]);
+    const src = model.getItem("src");
+    if (src && "collapse" in src) src.collapse();
+    expect(projection.getVisiblePaths()).toEqual(["src"]);
+  } finally {
+    model.cleanUp();
+  }
+});

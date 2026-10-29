@@ -7,7 +7,7 @@ const meta = {
   component: RepositoryControlButtons,
   decorators: [
     (Story) => (
-      <div className="bg-background text-foreground w-[320px] max-w-full p-4">
+      <div className="bg-surface-toolbar text-foreground w-[320px] max-w-full p-4">
         <Story />
       </div>
     ),
@@ -47,3 +47,5 @@ export const Unpublished: Story = {
     state: { ...meta.args.state, upstream: "", ahead: 0, behind: 0, incoming: [], outgoing: [] },
   },
 };
+export const UpToDate: Story = { args: { state: { ...meta.args.state, ahead: 0, behind: 0 } } };
+export const Loading: Story = { args: { state: undefined } };

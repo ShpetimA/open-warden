@@ -35,7 +35,7 @@ export function SidebarPanelToggles() {
               ? { left: "Toggle pull request list", right: "Toggle preview" }
               : { left: "Toggle sidebar", right: "Toggle files pane" };
           const tooltipLabel = labels[sidebar.icon];
-          const shortcut = sidebar.icon === "left" ? "⌘S" : "⌘D";
+          const shortcut = sidebar.icon === "left" ? "⌘B" : "⌘D";
 
           return (
             <Tooltip key={sidebar.panelId}>

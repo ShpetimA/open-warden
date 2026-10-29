@@ -28,8 +28,9 @@ export function BlameCommandComposer({
   const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const { data: files = [], isLoading } = useGetRepoFilesQuery(repoPath, { skip: !repoPath });
-  const matches = files.filter((file) =>
-    file.path.toLowerCase().includes(query.trim().toLowerCase()),
+  const matches = files.filter(
+    (file) =>
+      !file.path.endsWith("/") && file.path.toLowerCase().includes(query.trim().toLowerCase()),
   );
   const choices = matches.slice(0, 50).map((file) => ({
     id: file.path,

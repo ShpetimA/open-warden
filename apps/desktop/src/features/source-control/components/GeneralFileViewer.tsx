@@ -1,7 +1,7 @@
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { selectActiveWorkspace, type Workspace } from "@/features/workspaces/workspacesSlice";
 import { workspacePath } from "@/features/workspaces/workspaceRoutes";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentProps } from "react";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { File as PierreFile, Virtualizer } from "@pierre/diffs/react";
 import { ArrowLeft, GitCommitHorizontal } from "lucide-react";
@@ -17,7 +17,11 @@ import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocumen
 import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek";
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
-import { GitBlamePanel } from "@/features/source-control/components/GitBlamePanel";
+import { FileBlameGutter } from "@/features/source-control/components/FileBlameGutter";
+import { BLAME_LINE_HEIGHT } from "@/features/source-control/blameGroups";
+import { WorkingFileControls, WorkingFileEditor } from "./WorkingFileEditor";
+import { workingFileKey } from "../fileEditorSlice";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { DiffReturnTarget, FileViewerTarget } from "@/features/source-control/types";
 
@@ -29,6 +33,8 @@ const FILE_VIEWER_CSS = `
     :host {
       min-width: 0;
       max-width: 100%;
+      --diffs-line-height: ${BLAME_LINE_HEIGHT}px;
+      --diffs-gap-block: 0px;
     }
 
     [data-diffs-header] {
@@ -93,8 +99,14 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   const { resolvedTheme } = useTheme();
   const reduxTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
   const target = props.target ?? reduxTarget;
+  const hasDraft = useAppSelector((state) => {
+    const document =
+      target && !target.revision ? state.fileEditor.documents[workingFileKey(target)] : null;
+    return Boolean(document && document.contents !== document.baseContents);
+  });
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const [showBlame, setShowBlame] = useState(Boolean(target?.blame));
+  const blameVisible = showBlame && !hasDraft;
   useEffect(() => {
     setShowBlame(Boolean(target?.blame));
   }, [target?.repoPath, target?.relPath, target?.revision, target?.blame]);
@@ -127,7 +139,6 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     },
   );
 
-  useCurrentLspDocument(target?.repoPath ?? "", target?.relPath ?? "", lspText);
   useDiffLineFocus({
     containerRef: viewerRef,
     lineNumber: file ? selectedLine : null,
@@ -160,8 +171,31 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     return <div className="text-muted-foreground p-4 text-sm">Select a file to view it.</div>;
   }
 
+  const fileProps = {
+    file,
+    className: "block min-w-0 flex-1",
+    metrics: {
+      lineHeight: BLAME_LINE_HEIGHT,
+      hunkLineCount: 100,
+      diffHeaderHeight: 0,
+      spacing: 0,
+      paddingTop: 0,
+      paddingBottom: 0,
+    },
+    selectedLines: selectedLine ? { start: selectedLine, end: selectedLine } : null,
+    options: {
+      theme: getDiffTheme(),
+      themeType: getDiffThemeType(resolvedTheme),
+      unsafeCSS: FILE_VIEWER_CSS,
+      disableLineNumbers: false,
+      disableFileHeader: true,
+      overflow: "scroll",
+      onTokenClick,
+    },
+  } satisfies ComponentProps<typeof PierreFile>;
+
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col">
+    <section className="relative flex h-full min-h-0 min-w-0 flex-col">
       {repoFileQuery.error ? (
         <ErrorNotice
           title="Couldn’t refresh this file"
@@ -176,7 +210,8 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
           }}
         />
       ) : null}
-      <div className="border-border/70 bg-surface-toolbar border-b px-4 py-2">
+      {target?.revision ? <ReadOnlyFileLspSync target={target} contents={lspText} /> : null}
+      <div className="border-border/70 bg-surface-toolbar border-b px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-3">
           {returnToDiffTarget ? (
             <Button
@@ -191,55 +226,109 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
               Back to diff
             </Button>
           ) : null}
-          <div className="text-muted-foreground truncate text-xs">
+          <div
+            className="text-muted-foreground min-w-0 flex-1 truncate text-xs"
+            title={target?.relPath}
+          >
             {returnToDiffTarget ? formatReturnToDiffLabel(returnToDiffTarget) : target?.relPath}
           </div>
-          <Button
-            className="ml-auto shrink-0"
-            size="sm"
-            variant={showBlame ? "secondary" : "ghost"}
-            onClick={() => setShowBlame((value) => !value)}
-          >
-            <GitCommitHorizontal className="size-4" /> Blame
-          </Button>
+          {target && !target.revision ? (
+            <WorkingFileControls target={target} />
+          ) : (
+            <span className="text-muted-foreground shrink-0 text-[11px]">Read only</span>
+          )}
+          {target ? (
+            <FileBlameButton
+              target={target}
+              shown={blameVisible}
+              onToggle={() => setShowBlame((value) => !value)}
+            />
+          ) : null}
         </div>
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
         <div
           key={file.name}
           ref={viewerRef}
-          className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+          className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden"
         >
-          <Virtualizer className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden">
-            <PierreFile
-              file={file}
-              className="block min-w-0 max-w-full"
-              selectedLines={selectedLine ? { start: selectedLine, end: selectedLine } : null}
-              options={{
-                theme: getDiffTheme(),
-                themeType: getDiffThemeType(resolvedTheme),
-                unsafeCSS: FILE_VIEWER_CSS,
-                disableLineNumbers: false,
-                disableFileHeader: false,
-                onTokenClick,
-              }}
-            />
+          <Virtualizer
+            className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
+            contentClassName="flex min-h-full min-w-0 items-start"
+          >
+            {blameVisible && target ? (
+              <FileBlameGutter
+                key={`${target.repoPath}:${target.relPath}:${target.revision ?? ""}`}
+                target={target}
+              />
+            ) : null}
+            {target && !target.revision ? (
+              <WorkingFileEditor
+                key={workingFileKey(target)}
+                {...fileProps}
+                target={target}
+                editing={!blameVisible}
+              />
+            ) : (
+              <PierreFile key="source" {...fileProps} />
+            )}
           </Virtualizer>
           <LspSymbolPeekContainer
             document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
             containerRef={viewerRef}
           />
         </div>
-        {showBlame && target ? (
-          <GitBlamePanel
-            key={`${target.repoPath}:${target.relPath}:${target.revision ?? ""}`}
-            repoPath={target.repoPath}
-            relPath={target.relPath}
-            revision={target.revision}
-            onClose={() => setShowBlame(false)}
-          />
-        ) : null}
       </div>
     </section>
+  );
+}
+
+function ReadOnlyFileLspSync({
+  target,
+  contents,
+}: {
+  target: FileViewerTarget;
+  contents: string | null;
+}) {
+  useCurrentLspDocument(target.repoPath, target.relPath, contents);
+  return null;
+}
+
+function FileBlameButton({
+  target,
+  shown,
+  onToggle,
+}: {
+  target: FileViewerTarget;
+  shown: boolean;
+  onToggle: () => void;
+}) {
+  const dirty = useAppSelector((state) => {
+    const document = state.fileEditor.documents[workingFileKey(target)];
+    return !target.revision && Boolean(document && document.contents !== document.baseContents);
+  });
+  return (
+    <TooltipProvider delayDuration={450} skipDelayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex shrink-0">
+            <Button
+              size="xs"
+              disabled={dirty}
+              aria-pressed={shown}
+              variant={shown ? "secondary" : "ghost"}
+              onClick={onToggle}
+            >
+              <GitCommitHorizontal className="size-3.5" /> Blame
+            </Button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {dirty
+            ? "Save changes before showing line attribution"
+            : "Show who last changed each line"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }

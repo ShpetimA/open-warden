@@ -33,7 +33,9 @@ export const compareFlatPierreEntries: FileTreeSortComparator = (left, right) =>
 };
 
 export function toDisplayPath(mode: FileBrowserMode, realPath: string, index: number): string {
-  return mode === "list" ? toFlatPierreLeafPath(realPath, index) : realPath;
+  if (mode !== "list") return realPath;
+  const leaf = toFlatPierreLeafPath(realPath, index);
+  return realPath.endsWith("/") ? `${leaf}/` : leaf;
 }
 
 export function buildDisplayFiles<TSource extends { path: string }>(

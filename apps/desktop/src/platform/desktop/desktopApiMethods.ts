@@ -58,6 +58,8 @@ export const DESKTOP_API_METHODS = [
   "preparePullRequestFromUrl",
   "getGitSnapshot",
   "getRepoFiles",
+  "createRepositoryEntry",
+  "trashRepositoryEntry",
   "getCommitHistory",
   "getHistoryGraph",
   "getCommitDetails",

@@ -309,3 +309,9 @@ it("uses actual flattened folder anchors and the same J/K policy for every scree
     model.cleanUp();
   }
 });
+
+it("preserves explicit folders when projecting the flat file list", () => {
+  const [folder] = buildDisplayFiles("list", [{ path: "src/empty/" }]);
+  expect(folder?.realPath).toBe("src/empty/");
+  expect(folder?.path.endsWith("/")).toBe(true);
+});

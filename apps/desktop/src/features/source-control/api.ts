@@ -1,3 +1,4 @@
+import type { RepositoryEntryPathInput, RepositoryEntry } from "@/platform/desktop/contracts";
 import { historyGraphSchema } from "@/platform/desktop/history";
 import { buildHistoryGraph, type HistoryGraphViewData } from "./historyGraph";
 import { desktop } from "@/platform/desktop";
@@ -13,7 +14,7 @@ import type {
   HistoryCommit,
   RepoFileItem,
 } from "./types";
-import type { CommitDetails } from "@/platform/desktop";
+import type { CommitDetails, GitBlameResult } from "@/platform/desktop";
 import {
   getBranches,
   getBranchFiles,
@@ -59,8 +60,10 @@ type BranchFileVersionsArgs = {
 
 type StageFileArgs = { repoPath: string; relPath: string };
 type UnstageFileArgs = { repoPath: string; relPath: string };
+type IndexFilesArgs = { repoPath: string; relPaths: readonly string[] };
 type UpdateIndexFileContentsArgs = { repoPath: string; relPath: string; contents: string };
 type UpdateWorktreeFileContentsArgs = { repoPath: string; relPath: string; contents: string };
+type SaveWorkingFileArgs = UpdateWorktreeFileContentsArgs & { expectedContents: string };
 type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket };
 type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> };
 type CommitStagedArgs = { repoPath: string; message: string };
@@ -109,6 +112,39 @@ export const gitApi = createApi({
       },
       providesTags: (_result, _error, repoPath) => [{ type: "Snapshot", id: repoPath }],
     }),
+    createRepositoryEntry: builder.mutation<RepositoryEntry, RepositoryEntryPathInput>({
+      async queryFn(input) {
+        return queryResult(await desktop.createRepositoryEntry(input));
+      },
+      invalidatesTags: (entry, error, { repoPath }) =>
+        error
+          ? []
+          : [
+              { type: "Snapshot", id: repoPath },
+              { type: "RepoFiles", id: repoPath },
+              ...(entry?.kind === "file"
+                ? [
+                    {
+                      type: "FileVersions" as const,
+                      id: `file:${repoPath}:worktree:${entry.path}`,
+                    },
+                  ]
+                : []),
+            ],
+    }),
+    trashRepositoryEntry: builder.mutation<void, RepositoryEntryPathInput>({
+      async queryFn(input) {
+        return queryResult(await desktop.trashRepositoryEntry(input), () => undefined);
+      },
+      invalidatesTags: (_result, error, { repoPath }) =>
+        error
+          ? []
+          : [
+              { type: "Snapshot", id: repoPath },
+              { type: "RepoFiles", id: repoPath },
+              "FileVersions",
+            ],
+    }),
     getRepoFiles: builder.query<RepoFileItem[], string>({
       async queryFn(repoPath) {
         return queryResult(await getRepoFiles(repoPath), (value) =>
@@ -116,6 +152,13 @@ export const gitApi = createApi({
         );
       },
       providesTags: (_result, _error, repoPath) => [{ type: "RepoFiles", id: repoPath }],
+    }),
+    getFileBlame: builder.query<GitBlameResult, RepoFileArgs>({
+      async queryFn({ repoPath, relPath, revision }) {
+        return queryResult(await desktop.getGitBlame(repoPath, relPath, revision));
+      },
+      providesTags: (_result, _error, { repoPath, relPath, revision }) =>
+        revision ? [] : [{ type: "FileVersions", id: `${repoPath}:${relPath}` }],
     }),
     getCommitHistory: builder.query<HistoryCommit[], CommitHistoryArgs>({
       async queryFn({ repoPath, limit }) {
@@ -220,6 +263,19 @@ export const gitApi = createApi({
         { type: "FileVersions", id: `${repoPath}:${relPath}` },
       ],
     }),
+    stageFiles: builder.mutation<void, IndexFilesArgs>({
+      async queryFn({ repoPath, relPaths }) {
+        for (const path of relPaths) {
+          const result = await stageFile(repoPath, path);
+          if (!result.ok) return { error: result.error };
+        }
+        return { data: undefined };
+      },
+      invalidatesTags: (_result, _error, { repoPath, relPaths }) => [
+        { type: "Snapshot", id: repoPath },
+        ...relPaths.map((path) => ({ type: "FileVersions" as const, id: `${repoPath}:${path}` })),
+      ],
+    }),
     unstageFile: builder.mutation<void, UnstageFileArgs>({
       async queryFn({ repoPath, relPath }) {
         return queryResult(await unstageFile(repoPath, relPath), () => undefined);
@@ -227,6 +283,19 @@ export const gitApi = createApi({
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
         { type: "FileVersions", id: `${repoPath}:${relPath}` },
+      ],
+    }),
+    unstageFiles: builder.mutation<void, IndexFilesArgs>({
+      async queryFn({ repoPath, relPaths }) {
+        for (const path of relPaths) {
+          const result = await unstageFile(repoPath, path);
+          if (!result.ok) return { error: result.error };
+        }
+        return { data: undefined };
+      },
+      invalidatesTags: (_result, _error, { repoPath, relPaths }) => [
+        { type: "Snapshot", id: repoPath },
+        ...relPaths.map((path) => ({ type: "FileVersions" as const, id: `${repoPath}:${path}` })),
       ],
     }),
     updateIndexFileContents: builder.mutation<void, UpdateIndexFileContentsArgs>({
@@ -239,6 +308,30 @@ export const gitApi = createApi({
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
         { type: "FileVersions", id: `${repoPath}:${relPath}` },
+      ],
+    }),
+    saveWorkingFile: builder.mutation<void, SaveWorkingFileArgs>({
+      async queryFn({ repoPath, relPath, contents, expectedContents }) {
+        const current = await getRepoFile(repoPath, relPath);
+        if (!current.ok) return { error: current.error };
+        if (!current.value || current.value.contents !== expectedContents) {
+          return {
+            error: desktopFailure(
+              "saveWorkingFile",
+              "conflict",
+              "This file changed on disk. Reload it before saving to keep those changes.",
+            ),
+          };
+        }
+        return queryResult(
+          await updateWorktreeFileContents(repoPath, relPath, contents),
+          () => undefined,
+        );
+      },
+      invalidatesTags: (_result, _error, { repoPath, relPath }) => [
+        { type: "Snapshot", id: repoPath },
+        { type: "FileVersions", id: `${repoPath}:${relPath}` },
+        { type: "FileVersions", id: `file:${repoPath}:worktree:${relPath}` },
       ],
     }),
     updateWorktreeFileContents: builder.mutation<void, UpdateWorktreeFileContentsArgs>({
@@ -295,6 +388,9 @@ export const gitApi = createApi({
 export const {
   useGetGitSnapshotQuery,
   useGetRepoFilesQuery,
+  useCreateRepositoryEntryMutation,
+  useTrashRepositoryEntryMutation,
+  useGetFileBlameQuery,
   useGetCommitHistoryQuery,
   useGetHistoryGraphQuery,
   useGetCommitDetailsQuery,

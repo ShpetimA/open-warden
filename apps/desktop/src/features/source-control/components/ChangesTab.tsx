@@ -1,7 +1,6 @@
-import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ListLoadingState } from "@/components/ui/list-loading-state";
-import { Spinner } from "@/components/ui/spinner";
+import type { ReactNode } from "react";
+import { RetainedFileList } from "./RetainedFileList";
 import { confirmDiscard } from "@/features/comments/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
@@ -42,22 +41,11 @@ function ChangesFileList() {
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
-  const {
-    snapshot: snapshotData,
-    isLoadingSnapshot,
-    refreshingSnapshot,
-    snapshotError,
-    refetch,
-  } = useGetGitSnapshotQuery(activeRepo, {
+  const { snapshot: snapshotData } = useGetGitSnapshotQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
-    selectFromResult: ({ currentData, isFetching, error }) => ({
-      snapshot: currentData,
-      isLoadingSnapshot: isFetching && !currentData,
-      refreshingSnapshot: isFetching && Boolean(currentData),
-      snapshotError: error,
-    }),
+    selectFromResult: ({ currentData }) => ({ snapshot: currentData }),
   });
   const snapshot = activeRepo ? snapshotData : undefined;
 
@@ -113,56 +101,47 @@ function ChangesFileList() {
   };
 
   return (
-    <div className="bg-surface-toolbar flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      {refreshingSnapshot ? (
-        <div role="status" className="text-muted-foreground flex items-center gap-2 p-3 text-xs">
-          <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
-          Refreshing changes…
-        </div>
-      ) : null}
-      {snapshotError && Boolean(snapshot) ? (
-        <ErrorNotice
-          title="Couldn’t refresh"
-          error={snapshotError}
-          recovery={{
-            label: "Retry",
-            onAction: () => {
-              void refetch();
-            },
-          }}
-        />
-      ) : null}
-      {isLoadingSnapshot && !snapshot ? (
-        <ListLoadingState label="Loading changes…" />
-      ) : snapshotError && !snapshot ? (
-        <ErrorState
-          title="Couldn’t load changes"
-          error={snapshotError}
-          busy={isLoadingSnapshot}
-          recovery={{
-            label: "Retry",
-            onAction: () => {
-              void refetch();
-            },
-          }}
-        />
-      ) : (
-        <ChangesUnifiedPierreFileTree
-          mode={fileBrowserMode}
-          stagedRows={stagedRows}
-          changedRows={changedFiles}
-          conflictRows={conflictRows}
-          activeRepo={activeRepo}
-          onStageAll={onStageAll}
-          onUnstageAll={onUnstageAll}
-          onStageFile={onStageFile}
-          onUnstageFile={onUnstageFile}
-          onStageFiles={onStageFiles}
-          onUnstageFiles={onUnstageFiles}
-          onDiscardFile={onDiscardFile}
-          onDiscardChangesGroup={onDiscardChangesGroup}
-        />
-      )}
-    </div>
+    <ChangesFileReadState repoPath={activeRepo}>
+      <ChangesUnifiedPierreFileTree
+        mode={fileBrowserMode}
+        stagedRows={stagedRows}
+        changedRows={changedFiles}
+        conflictRows={conflictRows}
+        activeRepo={activeRepo}
+        onStageAll={onStageAll}
+        onUnstageAll={onUnstageAll}
+        onStageFile={onStageFile}
+        onUnstageFile={onUnstageFile}
+        onStageFiles={onStageFiles}
+        onUnstageFiles={onUnstageFiles}
+        onDiscardFile={onDiscardFile}
+        onDiscardChangesGroup={onDiscardChangesGroup}
+      />
+    </ChangesFileReadState>
+  );
+}
+
+function ChangesFileReadState({ repoPath, children }: { repoPath: string; children: ReactNode }) {
+  const { hasData, fetching, error, refetch } = useGetGitSnapshotQuery(repoPath, {
+    skip: !repoPath,
+    selectFromResult: ({ currentData, isFetching, error }) => ({
+      hasData: Boolean(currentData),
+      fetching: isFetching,
+      error,
+    }),
+  });
+  return (
+    <RetainedFileList
+      hasData={hasData}
+      fetching={fetching}
+      error={error}
+      loadingLabel="Loading changes…"
+      errorTitle="Couldn’t load changes"
+      onRetry={() => {
+        void refetch();
+      }}
+    >
+      {children}
+    </RetainedFileList>
   );
 }

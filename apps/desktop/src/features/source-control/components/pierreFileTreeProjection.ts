@@ -23,13 +23,16 @@ export function createPreparedTreeProjection(
 ): PreparedTreeProjection {
   const roots = new Map<string, ProjectionNode>();
   for (const path of orderedPaths) {
-    const segments = path.split("/");
+    const segments = path.split("/").filter((segment) => segment.length > 0);
     let siblings = roots;
     for (let depth = 1; depth <= segments.length; depth += 1) {
       const nodePath = segments.slice(0, depth).join("/");
       let node = siblings.get(nodePath);
       if (!node) {
-        node = { path: nodePath, children: depth < segments.length ? new Map() : null };
+        node = {
+          path: nodePath,
+          children: depth < segments.length || path.endsWith("/") ? new Map() : null,
+        };
         siblings.set(nodePath, node);
       }
       if (node.children) siblings = node.children;

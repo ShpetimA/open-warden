@@ -23,18 +23,25 @@ import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMe
 
 export function ChangesScreen() {
   useChangesKeyboardNav("changes");
-  useChangesSync();
 
   return (
-    <ResizableSidebarLayout
-      panelId="primary"
-      sidebarDefaultSize={22}
-      sidebarMinSize={14}
-      sidebarMaxSize={34}
-      sidebar={<ChangesSidebar />}
-      content={<ChangesDiffPane />}
-    />
+    <>
+      <ChangesSelectionSync />
+      <ResizableSidebarLayout
+        panelId="primary"
+        sidebarDefaultSize={22}
+        sidebarMinSize={14}
+        sidebarMaxSize={34}
+        sidebar={<ChangesSidebar />}
+        content={<ChangesDiffPane />}
+      />
+    </>
   );
+}
+
+function ChangesSelectionSync() {
+  useChangesSync();
+  return null;
 }
 
 function ChangesDiffPane() {
@@ -44,15 +51,19 @@ function ChangesDiffPane() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
 
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo ?? "", {
+  const { isMergeConflict } = useGetGitSnapshotQuery(activeRepo ?? "", {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
+    selectFromResult: ({ currentData }) => ({
+      isMergeConflict: Boolean(
+        activePath &&
+        currentData?.unstaged.some(
+          (file) => file.path === activePath && file.status === "unmerged",
+        ),
+      ),
+    }),
   });
-
-  const isMergeConflict =
-    activePath &&
-    (snapshot?.unstaged.some((f) => f.path === activePath && f.status === "unmerged") ?? false);
 
   const previewSelection = useThrottledDiffSelection(
     activePath && !isMergeConflict

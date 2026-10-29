@@ -1,5 +1,7 @@
+import { preparePierreTreeInput } from "./preparePierreTreeInput";
+import { InlinePierreTreeRow, type PierreTreeInlineEditor } from "./InlinePierreTreeRow";
+import { expandPierreFileTreeParents } from "./pierreFileTree";
 import {
-  prepareFileTreeInput,
   type FileTree as PierreFileTreeModel,
   type FileTreePreparedInput,
   type FileTreeRowDecorationRenderer,
@@ -31,6 +33,7 @@ import {
   buildTreeOptions,
   collectCollapsedDirectoryPaths,
   collapseDirectoryPaths,
+  collectExpandedDirectoryPaths,
   type PierreFileTreeBrowserFile,
   type PierreFileTreeNavFile,
 } from "./pierreFileTree";
@@ -40,8 +43,10 @@ export type { PierreFileTreeBrowserFile } from "./pierreFileTree";
 export type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
   selectedPath: string;
+  inlineEditor?: PierreTreeInlineEditor;
   autoFocus?: boolean;
   selectFirstFile?: boolean;
+  initialExpansion?: "open" | "closed";
   directoryLabelPriority?: "start" | "end";
   selectedPaths?: readonly string[];
   navRegion: string;
@@ -96,6 +101,28 @@ const TREE_HOST_STYLE: CSSProperties = {
 };
 
 const TREE_UNSAFE_CSS = `
+  [data-item-section='content']:has([data-tree-inline-editor]) {
+    flex: 1 1 0;
+  }
+  [data-item-section='content']:has([data-tree-inline-editor]) ~ [data-item-section='decoration'],
+  [data-item-section='content']:has([data-tree-inline-editor]) ~ [data-item-section='git'],
+  [data-item-section='content']:has([data-tree-inline-editor]) ~ [data-item-section='action'] {
+    display: none;
+  }
+  [data-item-section='content']:has([data-tree-inline-editor]) > :not([data-tree-inline-editor]) {
+    display: none;
+  }
+  [data-tree-inline-editor] {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+  }
+  [data-tree-inline-spinner] { animation: tree-inline-spin 1s linear infinite; }
+  @keyframes tree-inline-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-tree-inline-spinner] { animation: none; }
+  }
+
   [data-file-tree-virtualized-scroll='true'] {
     padding-block: 2px;
   }
@@ -141,6 +168,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   files,
   selectedPath,
   selectedPaths,
+  inlineEditor,
   navRegion,
   className = "",
   autoFocus = true,
@@ -151,6 +179,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   compareTreeDirectories,
   onActivatePath,
   selectFirstFile = false,
+  initialExpansion = "open",
   onTogglePathSelection,
   onRangeSelectPath,
   gitStatus,
@@ -175,6 +204,12 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   const suppressClickPathRef = useRef<string | null>(null);
   const suppressPierreSelectionChangeRef = useRef(false);
   const syncingSelectionRef = useRef(false);
+  const preparedInlineAnchorRef = useRef(inlineEditor?.anchorPath);
+  // Pierre retains its initial comparator to validate later resetPaths calls.
+  const preparedSortRef = useRef<FileTreeSortComparator>(() => 0);
+  const controllerSortRef = useRef<FileTreeSortComparator>((left, right) =>
+    preparedSortRef.current(left, right),
+  );
 
   onActivatePathRef.current = onActivatePath;
   onTogglePathSelectionRef.current = onTogglePathSelection;
@@ -194,10 +229,16 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   const initialSelectedPaths = initialSelectedPathsRef.current;
 
   if (initialPreparedInputRef.current === null) {
-    initialPreparedInputRef.current = prepareFileTreeInput(initialFilePaths, {
-      flattenEmptyDirectories,
-      sort,
-    });
+    const initialInput = preparePierreTreeInput(
+      initialFilePaths,
+      {
+        flattenEmptyDirectories,
+        sort,
+      },
+      inlineEditor,
+    );
+    initialPreparedInputRef.current = initialInput.preparedInput;
+    preparedSortRef.current = initialInput.sort;
   }
   const initialPreparedInput = initialPreparedInputRef.current;
   const preparedInputRef = useRef(initialPreparedInput);
@@ -214,7 +255,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     flattenEmptyDirectories,
     gitStatus,
     icons: "complete",
-    initialExpansion: "open",
+    initialExpansion,
     initialSelectedPaths,
     itemHeight: PIERRE_FILE_TREE_ITEM_HEIGHT,
     onSelectionChange: (selectedPaths) => {
@@ -238,7 +279,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     },
     preparedInput: initialPreparedInput,
     renderRowDecoration: (context) => renderRowDecorationRef.current?.(context) ?? null,
-    sort,
+    sort: controllerSortRef.current,
     stickyFolders: false,
     unsafeCSS: TREE_UNSAFE_CSS + (directoryLabelPriority === "start" ? DIRECTORY_TITLE_CSS : ""),
     composition: renderContextMenu
@@ -254,6 +295,9 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   useEffect(() => {
     const nextSelectedPaths = selectedPaths ?? (selectedPath ? [selectedPath] : []);
+    if (initialExpansion === "closed" && selectedPath) {
+      expandPierreFileTreeParents(model, selectedPath);
+    }
     syncPierreSelectedPaths(
       model,
       filePathSetRef,
@@ -261,7 +305,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       syncingSelectionRef,
       nextSelectedPaths,
     );
-  }, [model, selectedPath, selectedPaths]);
+  }, [initialExpansion, model, selectedPath, selectedPaths]);
 
   useEffect(() => {
     if (!selectedPath || !filePathSetRef.current?.has(selectedPath)) {
@@ -296,24 +340,40 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     const nextPaths = files.map((file) => file.path);
     filePathSetRef.current = new Set(nextPaths);
 
-    if (pathsChanged) {
+    if (pathsChanged || preparedInlineAnchorRef.current !== inlineEditor?.anchorPath) {
       const focusedPath = model.getFocusedPath();
       const collapsedDirectoryPaths = collectCollapsedDirectoryPaths(
         filesRef.current,
         model,
         treeOptions,
       );
-      const nextPreparedInput = prepareFileTreeInput(nextPaths, {
-        flattenEmptyDirectories,
-        sort,
-      });
+      const expandedDirectoryPaths =
+        initialExpansion === "closed"
+          ? collectExpandedDirectoryPaths(filesRef.current, model, treeOptions)
+          : undefined;
+      const nextInput = preparePierreTreeInput(
+        nextPaths,
+        {
+          flattenEmptyDirectories,
+          sort,
+        },
+        inlineEditor,
+      );
+      const nextPreparedInput = nextInput.preparedInput;
+      preparedSortRef.current = nextInput.sort;
       syncingSelectionRef.current = true;
       try {
-        model.resetPaths(nextPaths, { preparedInput: nextPreparedInput });
+        model.resetPaths(nextPaths, {
+          preparedInput: nextPreparedInput,
+          initialExpandedPaths: expandedDirectoryPaths,
+        });
         preparedInputRef.current = nextPreparedInput;
         collapseDirectoryPaths(model, collapsedDirectoryPaths);
         const currentSelectedPath = selectedPathRef.current;
         if (currentSelectedPath && filePathSetRef.current.has(currentSelectedPath)) {
+          if (initialExpansion === "closed") {
+            expandPierreFileTreeParents(model, currentSelectedPath);
+          }
           model.focusPath(currentSelectedPath);
         } else {
           model.focusNearestPath(focusedPath);
@@ -330,7 +390,16 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       }
     }
     filesRef.current = files;
-  }, [compareTreeDirectories, files, flattenEmptyDirectories, model, sort]);
+    preparedInlineAnchorRef.current = inlineEditor?.anchorPath;
+  }, [
+    compareTreeDirectories,
+    files,
+    flattenEmptyDirectories,
+    initialExpansion,
+    inlineEditor,
+    model,
+    sort,
+  ]);
 
   useEffect(() => {
     navFilesRef.current = files.map(toPierreFileTreeNavFile);
@@ -537,6 +606,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
           renderContextMenu={renderContextMenu}
         />
       </TreeRowHover>
+      {inlineEditor ? <InlinePierreTreeRow model={model} {...inlineEditor} /> : null}
     </div>
   );
 }

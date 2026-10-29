@@ -10,7 +10,7 @@ function Harness({ sidebars, toggles }: { sidebars: SidebarConfig[]; toggles: st
   return <input aria-label="Filter" />;
 }
 
-test("Cmd+S and Cmd+D toggle independent panels, including while typing", () => {
+test("Cmd+B and Cmd+D toggle independent panels, including while typing", () => {
   const toggles: string[] = [];
   render(
     <HotkeysProvider defaultOptions={{ hotkey: { platform: "mac" } }}>
@@ -18,9 +18,9 @@ test("Cmd+S and Cmd+D toggle independent panels, including while typing", () => 
     </HotkeysProvider>,
   );
   const input = screen.getByRole("textbox");
-  fireEvent.keyDown(input, { key: "s", code: "KeyS", metaKey: true });
+  fireEvent.keyDown(input, { key: "b", code: "KeyB", metaKey: true });
   fireEvent.keyDown(input, { key: "d", code: "KeyD", metaKey: true });
-  fireEvent.keyDown(input, { key: "S", code: "KeyS", metaKey: true, shiftKey: true });
+  fireEvent.keyDown(input, { key: "B", code: "KeyB", metaKey: true, shiftKey: true });
   expect(toggles).toEqual(["primary", "history-files"]);
 });
 
@@ -32,6 +32,6 @@ test("does not bind Cmd+D when the view has no second panel", () => {
     </HotkeysProvider>,
   );
   fireEvent.keyDown(document, { key: "d", code: "KeyD", metaKey: true });
-  fireEvent.keyDown(document, { key: "s", code: "KeyS", metaKey: true });
+  fireEvent.keyDown(document, { key: "b", code: "KeyB", metaKey: true });
   expect(toggles).toEqual(["review"]);
 });

@@ -33,6 +33,16 @@ export type FileItem = {
   status: FileStatus;
 };
 
+export type RepositoryEntryPathInput = {
+  readonly repoPath: string;
+  readonly path: string;
+};
+
+export type RepositoryEntry = {
+  readonly path: string;
+  readonly kind: "file" | "directory";
+};
+
 export type RepoFileItem = {
   path: string;
 };
@@ -654,6 +664,12 @@ export type DesktopHandlers = {
     input: PreparePullRequestWorkspaceInput,
   ): Promise<PreparedPullRequestWorkspace>;
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
+  createRepositoryEntry(
+    input: RepositoryEntryPathInput,
+  ): Promise<import("./failure").DesktopResult<RepositoryEntry>>;
+  trashRepositoryEntry(
+    input: RepositoryEntryPathInput,
+  ): Promise<import("./failure").DesktopResult<void>>;
   getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;
   getHistoryGraph(repoPath: string): Promise<import("./history").HistoryGraph>;

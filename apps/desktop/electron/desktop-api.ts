@@ -1,3 +1,4 @@
+import { shell } from "electron";
 import {
   getPullRequestGuidance,
   getGuidanceActivity,
@@ -62,6 +63,8 @@ import {
   getBranchCommits,
   getFileVersions,
   getRepoFiles,
+  createRepositoryEntry,
+  trashRepositoryEntry,
   getRepoFile,
   getGitBlame,
   getGitSnapshot,
@@ -137,6 +140,8 @@ export const desktopApi: DesktopHandlers = {
   preparePullRequestFromUrl,
   getGitSnapshot,
   getRepoFiles,
+  createRepositoryEntry,
+  trashRepositoryEntry: (input) => trashRepositoryEntry(input, (path) => shell.trashItem(path)),
   getCommitHistory,
   getHistoryGraph,
   getCommitDetails,

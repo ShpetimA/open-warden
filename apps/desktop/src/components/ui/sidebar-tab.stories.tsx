@@ -16,6 +16,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Playground: Story = {};
+export const WithShortcut: Story = {
+  args: { label: "Repository files", icon: <FolderOpen />, shortcut: "⌘⇧E", isActive: true },
+};
 
 const sections = [
   { label: "Changes", Icon: FileDiff },

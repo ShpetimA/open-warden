@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
+  mkdirSync,
+  symlinkSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -8,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { rm } from "node:fs/promises";
+import { rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -16,6 +18,9 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import {
   commitStaged,
+  createRepositoryEntry,
+  getRepoFiles,
+  trashRepositoryEntry,
   discardAll,
   discardFile,
   discardFiles,
@@ -432,5 +437,165 @@ describe("electron git backend", () => {
     } finally {
       process.env.PATH = previousPath;
     }
+  });
+});
+
+describe("repository entry creation", () => {
+  test("creates nested files and retains empty folders in the repository tree", async () => {
+    const repo = makeRepo();
+    expect(await createRepositoryEntry({ repoPath: repo, path: "src/nested/new.ts" })).toEqual({
+      ok: true,
+      value: { path: "src/nested/new.ts", kind: "file" },
+    });
+    expect(readFileSync(path.join(repo, "src/nested/new.ts"), "utf8")).toBe("");
+    expect(await createRepositoryEntry({ repoPath: repo, path: "src/empty/deep/" })).toEqual({
+      ok: true,
+      value: { path: "src/empty/deep", kind: "directory" },
+    });
+    expect(await getRepoFiles(repo)).toEqual([
+      { path: "src/nested/new.ts" },
+      { path: "src/empty/deep/" },
+    ]);
+    expect(await getRepoFiles(repo)).toContainEqual({ path: "src/empty/deep/" });
+  });
+
+  test("preserves existing files, folders and symlinks", async () => {
+    const repo = makeRepo();
+    writeFileSync(path.join(repo, "keep.ts"), "keep me");
+    mkdirSync(path.join(repo, "existing"));
+    symlinkSync(path.join(repo, "keep.ts"), path.join(repo, "link.ts"));
+    for (const entryPath of ["keep.ts", "existing/", "link.ts"]) {
+      expect(await createRepositoryEntry({ repoPath: repo, path: entryPath })).toMatchObject({
+        ok: false,
+        error: { code: "conflict" },
+      });
+    }
+    expect(readFileSync(path.join(repo, "keep.ts"), "utf8")).toBe("keep me");
+  });
+
+  test.each([
+    "../escape.ts",
+    "/tmp/escape.ts",
+    "C:\\escape.ts",
+    "a/../escape.ts",
+    "a//file.ts",
+    "./file.ts",
+    ".git/config",
+    "a/.GiT/config",
+    "a/\0file.ts",
+    "a/\nfile.ts",
+    " ",
+  ])("rejects unsafe path %j", async (entryPath) => {
+    const repo = makeRepo();
+    expect(await createRepositoryEntry({ repoPath: repo, path: entryPath })).toMatchObject({
+      ok: false,
+      error: { code: "invalid-input" },
+    });
+  });
+
+  test("does not traverse symlink parents or enumerate ignored folders", async () => {
+    const repo = makeRepo();
+    const outside = makeRepo();
+    symlinkSync(outside, path.join(repo, "linked"));
+    expect(await createRepositoryEntry({ repoPath: repo, path: "linked/escape.ts" })).toMatchObject(
+      { ok: false, error: { code: "invalid-input" } },
+    );
+    expect(existsSync(path.join(outside, "escape.ts"))).toBe(false);
+    writeFileSync(path.join(repo, ".gitignore"), "node_modules/\n**/cache/\n");
+    mkdirSync(path.join(repo, "node_modules/package/empty"), { recursive: true });
+    mkdirSync(path.join(repo, "src/cache/empty"), { recursive: true });
+    mkdirSync(path.join(repo, "src/visible/empty"), { recursive: true });
+    expect(await getRepoFiles(repo)).toEqual([
+      { path: ".gitignore" },
+      { path: "linked" },
+      { path: "src/visible/empty/" },
+    ]);
+  });
+});
+
+test("concurrent file creation chooses one result without overwriting, preserving path whitespace", async () => {
+  const repo = makeRepo();
+  const results = await Promise.all([
+    createRepositoryEntry({ repoPath: repo, path: "src/spaced name.ts " }),
+    createRepositoryEntry({ repoPath: repo, path: "src/spaced name.ts " }),
+  ]);
+  expect(results.filter((result) => result.ok)).toHaveLength(1);
+  expect(results.filter((result) => !result.ok)).toMatchObject([
+    { ok: false, error: { code: "conflict" } },
+  ]);
+  expect(await getRepoFiles(repo)).toEqual([{ path: "src/spaced name.ts " }]);
+});
+
+describe("repository Trash", () => {
+  test("moves tracked files and folders through the Trash seam and removes them from Files", async () => {
+    const repo = makeRepo();
+    const trash = makeRepo();
+    mkdirSync(path.join(repo, "src/nested"), { recursive: true });
+    writeFileSync(path.join(repo, "src/file.ts"), "recoverable file");
+    writeFileSync(path.join(repo, "src/nested/child.ts"), "recoverable child");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "Files to trash"]);
+    const moveToTrash = async (absolute: string) => {
+      await rename(absolute, path.join(trash, path.basename(absolute)));
+    };
+    expect(
+      await trashRepositoryEntry({ repoPath: repo, path: "src/file.ts" }, moveToTrash),
+    ).toEqual({ ok: true, value: undefined });
+    expect(readFileSync(path.join(trash, "file.ts"), "utf8")).toBe("recoverable file");
+    expect(await getRepoFiles(repo)).toEqual([{ path: "src/nested/child.ts" }]);
+    expect((await getGitSnapshot(repo)).unstaged).toContainEqual({
+      path: "src/file.ts",
+      previousPath: null,
+      status: "deleted",
+    });
+    expect(await trashRepositoryEntry({ repoPath: repo, path: "src/" }, moveToTrash)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(readFileSync(path.join(trash, "src/nested/child.ts"), "utf8")).toBe("recoverable child");
+    expect(await getRepoFiles(repo)).toEqual([]);
+  });
+
+  test("refuses repository roots, traversal, metadata and symlink parents", async () => {
+    const repo = makeRepo();
+    const outside = makeRepo();
+    writeFileSync(path.join(outside, "keep.ts"), "keep");
+    symlinkSync(outside, path.join(repo, "linked"));
+    const requests: string[] = [];
+    const moveToTrash = async (absolute: string) => {
+      requests.push(absolute);
+    };
+    for (const entry of ["", ".", "/", "../", ".git", ".git/config", "linked/keep.ts"]) {
+      expect(
+        await trashRepositoryEntry({ repoPath: repo, path: entry }, moveToTrash),
+      ).toMatchObject({ ok: false, error: { code: "invalid-input" } });
+    }
+    expect(requests).toEqual([]);
+    expect(readFileSync(path.join(outside, "keep.ts"), "utf8")).toBe("keep");
+  });
+
+  test("trashes a symlink itself and preserves the original target", async () => {
+    const repo = makeRepo();
+    const trash = makeRepo();
+    writeFileSync(path.join(repo, "keep.ts"), "keep");
+    symlinkSync(path.join(repo, "keep.ts"), path.join(repo, "link.ts"));
+    expect(
+      await trashRepositoryEntry({ repoPath: repo, path: "link.ts" }, async (absolute) => {
+        await rename(absolute, path.join(trash, "link.ts"));
+      }),
+    ).toEqual({ ok: true, value: undefined });
+    expect(readFileSync(path.join(repo, "keep.ts"), "utf8")).toBe("keep");
+    expect(existsSync(path.join(repo, "link.ts"))).toBe(false);
+    expect(readFileSync(path.join(trash, "link.ts"), "utf8")).toBe("keep");
+  });
+
+  test("reports Trash failures without removing the source", async () => {
+    const repo = makeRepo();
+    writeFileSync(path.join(repo, "keep.ts"), "keep");
+    const result = await trashRepositoryEntry({ repoPath: repo, path: "keep.ts" }, async () => {
+      throw Object.assign(new Error("Trash unavailable"), { code: "EACCES" });
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "permission" } });
+    expect(readFileSync(path.join(repo, "keep.ts"), "utf8")).toBe("keep");
   });
 });

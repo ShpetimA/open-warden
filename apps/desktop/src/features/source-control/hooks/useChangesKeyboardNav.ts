@@ -18,6 +18,7 @@ import {
   getPierreFileTreeFocusedPath,
   getPierreFileTreeVisibleSelectedFiles,
   movePierreFileTreeFileForKey,
+  movePierreFileTreeHierarchy,
   scrollPierreFileTreeBucketedFileIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import { getUnifiedChangeDirectoryContext } from "@/features/source-control/components/changesUnifiedPierreTree";
@@ -92,7 +93,9 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
         return;
       }
 
-      const targetFile = movePierreFileTreeFileForKey("repo-files", event.key, nextKey);
+      const targetFile = movePierreFileTreeFileForKey("repo-files", event.key, nextKey, {
+        includeDirectories: true,
+      });
       const targetPath = targetFile?.realPath ?? targetFile?.path;
       if (!targetPath) {
         return;
@@ -295,4 +298,22 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
   useHotkey("Mod+Enter", stageOrUnstageSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
   useHotkey("Mod+Escape", discardSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
+
+  function navigateHierarchy(event: KeyboardEvent, direction: "ArrowLeft" | "ArrowRight") {
+    if (mode !== "files" || isTypingTarget(event.target)) return;
+    const repoPath = store.getState().sourceControl.activeRepo;
+    if (!repoPath) return;
+    event.preventDefault();
+    const file = movePierreFileTreeHierarchy("repo-files", direction);
+    if (file) dispatch(openFileViewer({ repoPath, relPath: file.realPath ?? file.path }));
+  }
+
+  useHotkey("H", (event) => navigateHierarchy(event, "ArrowLeft"), {
+    ...SOURCE_CONTROL_HOTKEY_OPTIONS,
+    enabled: mode === "files",
+  });
+  useHotkey("L", (event) => navigateHierarchy(event, "ArrowRight"), {
+    ...SOURCE_CONTROL_HOTKEY_OPTIONS,
+    enabled: mode === "files",
+  });
 }

@@ -32,6 +32,14 @@ export const Variants: Story = {
           { label: "Secondary", content: <Button variant="secondary">Stage all</Button> },
           { label: "Outline", content: <Button variant="outline">Open repository</Button> },
           { label: "Ghost", content: <Button variant="ghost">Cancel</Button> },
+          {
+            label: "Toolbar",
+            content: (
+              <Button variant="toolbar" aria-label="Add repository" size="icon-sm">
+                <Plus />
+              </Button>
+            ),
+          },
           { label: "Destructive", content: <Button variant="destructive">Discard changes</Button> },
           { label: "Disabled", content: <Button disabled>Create commit</Button> },
           {

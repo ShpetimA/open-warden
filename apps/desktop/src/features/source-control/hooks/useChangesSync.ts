@@ -17,7 +17,10 @@ export function useChangesSync() {
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const selectedFiles = useAppSelector((state) => state.sourceControl.selectedFiles);
   const selectionAnchor = useAppSelector((state) => state.sourceControl.selectionAnchor);
-  const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
+  const { snapshot: snapshotData } = useGetGitSnapshotQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ currentData }) => ({ snapshot: currentData }),
+  });
   const snapshot = activeRepo ? snapshotData : undefined;
 
   useEffect(() => {

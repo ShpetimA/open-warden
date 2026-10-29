@@ -464,7 +464,7 @@ test("keeps commits loading until the list arrives and handles an empty range", 
   await expect(sidebar.getByRole("status")).toHaveCount(0);
 });
 
-test("uses History-style pane navigation and independent Cmd+S / Cmd+D toggles", async ({
+test("uses History-style pane navigation and independent Cmd+B / Cmd+D toggles", async ({
   page,
 }) => {
   await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
@@ -496,7 +496,7 @@ test("uses History-style pane navigation and independent Cmd+S / Cmd+D toggles",
   await expect(commitPane).toBeVisible();
   await page.keyboard.press("Meta+d");
   await expect(filePane).toBeVisible();
-  await page.keyboard.press("Meta+s");
+  await page.keyboard.press("Meta+b");
   await expect(commitPane).toBeHidden();
   await expect(filePane).toBeVisible();
   await page.keyboard.press("h");
@@ -935,10 +935,10 @@ for (const theme of ["light", "dark"] as const) {
     await expect(list).toBeVisible();
     await page.keyboard.press("Meta+d");
     await expect(preview).toBeVisible();
-    await page.keyboard.press("Meta+s");
+    await page.keyboard.press("Meta+b");
     await expect(list).toBeHidden();
     await expect(preview).toBeVisible();
-    await page.getByRole("button", { name: "Toggle pull request list (⌘S)", exact: true }).click();
+    await page.getByRole("button", { name: "Toggle pull request list (⌘B)", exact: true }).click();
     await expect(list).toBeVisible();
 
     await separator.focus();

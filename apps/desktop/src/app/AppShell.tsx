@@ -16,6 +16,7 @@ import type { PullRequestSummary } from "@/platform/desktop/contracts";
 import { WorkspaceContent } from "@/features/workspaces/components/WorkspaceContent";
 import { WorkspaceNavigation } from "@/features/workspaces/components/WorkspaceNavigation";
 import { WorkspaceRail } from "@/features/workspaces/components/WorkspaceRail";
+import { FileQuickOpen } from "@/features/source-control/components/FileQuickOpen";
 
 export type AppShellOutletContext = {
   openRepositoryComposer: () => void;
@@ -25,6 +26,7 @@ export function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [fileQuickOpen, setFileQuickOpen] = useState(false);
   const [composerInitialAction, setComposerInitialAction] = useState<ComposerAction | null>(null);
   const [composerInitialPullRequest, setComposerInitialPullRequest] =
     useState<PullRequestSummary | null>(null);
@@ -36,6 +38,7 @@ export function AppShell() {
   };
 
   const openComposer = (action?: ComposerAction, pullRequest?: PullRequestSummary) => {
+    setFileQuickOpen(false);
     setComposerInitialAction(action ?? null);
     setComposerInitialPullRequest(pullRequest ?? null);
     setCommandPaletteOpen(true);
@@ -54,7 +57,9 @@ export function AppShell() {
       <SidebarPanelRegistryProvider>
         <CommandComposerLauncherProvider open={openComposer}>
           <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-            <HotkeysProvider defaultOptions={{ hotkey: { enabled: !commandPaletteOpen } }}>
+            <HotkeysProvider
+              defaultOptions={{ hotkey: { enabled: !commandPaletteOpen && !fileQuickOpen } }}
+            >
               <WorkspaceNavigation />
               <GuidanceNavigation />
               <WorkspaceChrome
@@ -84,11 +89,19 @@ export function AppShell() {
               initialAction={composerInitialAction}
               initialPullRequest={composerInitialPullRequest}
               onOpenChange={(open) => {
+                if (open) setFileQuickOpen(false);
                 if (!open) {
                   setComposerInitialAction(null);
                   setComposerInitialPullRequest(null);
                 }
                 setCommandPaletteOpen(open);
+              }}
+            />
+            <FileQuickOpen
+              open={fileQuickOpen}
+              onOpenChange={(open) => {
+                if (open) setCommandPaletteOpen(false);
+                setFileQuickOpen(open);
               }}
             />
           </div>

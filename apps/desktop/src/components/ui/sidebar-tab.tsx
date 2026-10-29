@@ -6,10 +6,11 @@ type Props = {
   isActive: boolean;
   icon: React.ReactNode;
   label: string;
+  shortcut?: string;
   onClick: () => void;
 };
 
-const SidebarTabButton = ({ isActive, icon, label, onClick }: Props) => {
+const SidebarTabButton = ({ isActive, icon, label, shortcut, onClick }: Props) => {
   return (
     <Button
       type="button"
@@ -21,7 +22,7 @@ const SidebarTabButton = ({ isActive, icon, label, onClick }: Props) => {
       )}
       aria-current={isActive ? "page" : undefined}
       aria-label={label}
-      title={label}
+      title={shortcut ? `${label} (${shortcut})` : label}
       onClick={onClick}
     >
       {icon}

@@ -284,7 +284,12 @@ export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
   if (!activeRepo) return;
 
-  dispatch(gitApi.util.invalidateTags([{ type: "Snapshot", id: activeRepo }]));
+  dispatch(
+    gitApi.util.invalidateTags([
+      { type: "Snapshot", id: activeRepo },
+      { type: "RepoFiles", id: activeRepo },
+    ]),
+  );
   dispatch(gitApi.util.invalidateTags(["FileVersions"]));
   dispatch(
     gitApi.util.invalidateTags([{ type: "HistoryCommits", id: activeRepo }, "HistoryFiles"]),
@@ -623,12 +628,10 @@ export const stageFilesAction =
     const paths = [...new Set(files.map((file) => file.path))];
     await dispatch(
       runRepoAction("stage-files", async (innerDispatch) => {
-        for (const path of paths) {
-          const result = innerDispatch(
-            gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: path }),
-          );
-          await result.unwrap();
-        }
+        const result = innerDispatch(
+          gitApi.endpoints.stageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
+        );
+        await result.unwrap();
       }),
     );
   };
@@ -642,12 +645,10 @@ export const unstageFilesAction =
     const paths = [...new Set(files.map((file) => file.path))];
     await dispatch(
       runRepoAction("unstage-files", async (innerDispatch) => {
-        for (const path of paths) {
-          const result = innerDispatch(
-            gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: path }),
-          );
-          await result.unwrap();
-        }
+        const result = innerDispatch(
+          gitApi.endpoints.unstageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
+        );
+        await result.unwrap();
       }),
     );
   };

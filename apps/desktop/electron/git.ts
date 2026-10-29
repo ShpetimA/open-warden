@@ -15,8 +15,17 @@ import type {
   HistoryCommit,
   CommitDetails,
   RepoFileItem,
+  RepositoryEntryPathInput,
+  RepositoryEntry,
   GitBlameResult,
 } from "../src/platform/desktop/contracts";
+
+import { classifyDesktopFailure } from "./desktop-failure";
+import {
+  desktopFailure,
+  desktopSuccess,
+  type DesktopResult,
+} from "../src/platform/desktop/failure";
 
 export async function getGitBlame(
   repoPath: string,
@@ -385,9 +394,7 @@ function parseHistoryOutput(output: Buffer) {
 }
 
 function parseRepoFilesOutput(output: Buffer): RepoFileItem[] {
-  const paths = splitNullTerminated(output)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
+  const paths = splitNullTerminated(output).filter((entry) => entry.length > 0);
 
   return [...new Set(paths)]
     .toSorted((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }))
@@ -578,16 +585,216 @@ export async function getGitSnapshot(repoPath: string): Promise<GitSnapshot> {
   };
 }
 
-export async function getRepoFiles(repoPath: string): Promise<RepoFileItem[]> {
-  const output = await runGit(repoPath, [
-    "ls-files",
-    "-z",
-    "--cached",
-    "--others",
-    "--exclude-standard",
-  ]);
+const repositoryEntryPathSchema = z.strictObject({
+  repoPath: z.string().min(1),
+  path: z.string().min(1).max(4096),
+});
 
-  return parseRepoFilesOutput(output);
+function parseRepositoryEntryInput(
+  input: unknown,
+  operation: string,
+): DesktopResult<{
+  repoPath: string;
+  path: string;
+  segments: string[];
+  kind: "file" | "directory";
+}> {
+  const parsed = repositoryEntryPathSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: desktopFailure(operation, "invalid-input", "Enter a repository-relative path."),
+    };
+  }
+
+  const normalizedPath = parsed.data.path.replaceAll("\\", "/");
+  const kind = normalizedPath.endsWith("/") ? "directory" : "file";
+  const segments = normalizedPath.replace(/\/$/, "").split("/");
+  if (
+    normalizedPath.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalizedPath) ||
+    normalizedPath.includes("\0") ||
+    /[\r\n]/.test(normalizedPath) ||
+    segments.some(
+      (segment) =>
+        !segment.trim() || segment === "." || segment === ".." || segment.toLowerCase() === ".git",
+    )
+  ) {
+    return {
+      ok: false,
+      error: desktopFailure(
+        operation,
+        "invalid-input",
+        "Use a relative path without empty segments, . or .., or .git.",
+      ),
+    };
+  }
+
+  return desktopSuccess({
+    repoPath: parsed.data.repoPath,
+    path: segments.join("/"),
+    segments,
+    kind,
+  });
+}
+
+export async function createRepositoryEntry(
+  input: RepositoryEntryPathInput,
+): Promise<DesktopResult<RepositoryEntry>> {
+  const operation = "createRepositoryEntry";
+  const result = parseRepositoryEntryInput(input, operation);
+  if (!result.ok) return result;
+  const { repoPath, segments, kind, path: relativePath } = result.value;
+  try {
+    await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+    let parent = await fs.realpath(repoPath);
+    for (const segment of segments.slice(0, -1)) {
+      parent = path.join(parent, segment);
+      try {
+        await fs.mkdir(parent);
+      } catch (cause) {
+        if (!(cause instanceof Error && "code" in cause && cause.code === "EEXIST")) throw cause;
+      }
+      const stat = await fs.lstat(parent);
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        return {
+          ok: false,
+          error: desktopFailure(
+            operation,
+            "invalid-input",
+            "A parent path must be a folder, without symbolic links.",
+          ),
+        };
+      }
+    }
+
+    const target = path.join(parent, segments.at(-1) ?? "");
+    if (kind === "directory") {
+      await fs.mkdir(target);
+    } else {
+      const file = await fs.open(target, "wx");
+      await file.close();
+    }
+    return desktopSuccess({ path: relativePath, kind });
+  } catch (cause) {
+    if (cause instanceof Error && "code" in cause && cause.code === "EEXIST") {
+      return {
+        ok: false,
+        error: desktopFailure(
+          operation,
+          "conflict",
+          "A file or folder already exists at this path. Choose another name.",
+        ),
+      };
+    }
+    return { ok: false, error: classifyDesktopFailure(cause, operation) };
+  }
+}
+
+export async function trashRepositoryEntry(
+  input: RepositoryEntryPathInput,
+  moveToTrash: (absolutePath: string) => Promise<void>,
+): Promise<DesktopResult<void>> {
+  const operation = "trashRepositoryEntry";
+  const result = parseRepositoryEntryInput(input, operation);
+  if (!result.ok) return result;
+  const { repoPath, segments } = result.value;
+  try {
+    await runGit(repoPath, ["rev-parse", "--show-toplevel"]);
+    let parent = await fs.realpath(repoPath);
+    for (const segment of segments.slice(0, -1)) {
+      parent = path.join(parent, segment);
+      const stat = await fs.lstat(parent);
+      if (!stat.isDirectory() || stat.isSymbolicLink()) {
+        return {
+          ok: false,
+          error: desktopFailure(
+            operation,
+            "invalid-input",
+            "A parent path must be a folder, without symbolic links.",
+          ),
+        };
+      }
+    }
+    const target = path.join(parent, segments.at(-1) ?? "");
+    await fs.lstat(target);
+    await moveToTrash(target);
+    return desktopSuccess(undefined);
+  } catch (cause) {
+    return { ok: false, error: classifyDesktopFailure(cause, operation) };
+  }
+}
+
+export async function getRepoFiles(repoPath: string): Promise<RepoFileItem[]> {
+  const [output, directoryOutput, ignoredOutput, deletedOutput] = await Promise.all([
+    runGit(repoPath, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]),
+    runGit(repoPath, ["ls-files", "-z", "--others", "--directory", "--exclude-standard"]),
+    runGit(repoPath, [
+      "ls-files",
+      "-z",
+      "--others",
+      "--ignored",
+      "--directory",
+      "--exclude-standard",
+    ]),
+    runGit(repoPath, ["ls-files", "-z", "--deleted"]),
+  ]);
+  const deletedPaths = new Set(parseRepoFilesOutput(deletedOutput).map((file) => file.path));
+  const files = parseRepoFilesOutput(output).filter((file) => !deletedPaths.has(file.path));
+  const ignoredDirectories = new Set(
+    parseRepoFilesOutput(ignoredOutput)
+      .filter((file) => file.path.endsWith("/"))
+      .map((file) => file.path),
+  );
+  const directoriesWithFiles = new Set<string>();
+  for (const file of files) {
+    const segments = file.path.split("/");
+    for (let depth = 1; depth < segments.length; depth += 1) {
+      directoriesWithFiles.add(`${segments.slice(0, depth).join("/")}/`);
+    }
+  }
+
+  const pending = parseRepoFilesOutput(directoryOutput)
+    .filter((file) => file.path.endsWith("/"))
+    .map((file) => file.path);
+  const emptyDirectories: RepoFileItem[] = [];
+  const directoryReadBatchSize = 16;
+  while (pending.length > 0) {
+    const batch = pending.splice(0, directoryReadBatchSize);
+    const results = await Promise.all(
+      batch.map(async (directory) => {
+        let entries;
+        try {
+          entries = await fs.readdir(path.join(repoPath, directory), { withFileTypes: true });
+        } catch (cause) {
+          if (
+            cause instanceof Error &&
+            "code" in cause &&
+            (cause.code === "ENOENT" || cause.code === "ENOTDIR")
+          ) {
+            return { directory, children: null };
+          }
+          throw cause;
+        }
+        const children = entries
+          .filter((entry) => entry.isDirectory() && entry.name !== ".git")
+          .map((entry) => `${directory}${entry.name}/`)
+          .filter((child) => !ignoredDirectories.has(child));
+        return { directory, children };
+      }),
+    );
+    for (const { directory, children } of results) {
+      if (!children) continue;
+      pending.push(...children);
+      if (children.length === 0 && !directoriesWithFiles.has(directory)) {
+        emptyDirectories.push({ path: directory });
+      }
+    }
+  }
+  return [
+    ...files,
+    ...emptyDirectories.toSorted((left, right) => left.path.localeCompare(right.path)),
+  ];
 }
 
 export { getCommitHistory, getHistoryGraph } from "./history";

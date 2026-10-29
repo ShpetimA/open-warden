@@ -1,9 +1,10 @@
+import type { PierreTreeInlineEditor } from "./InlinePierreTreeRow";
 import type { ReactNode } from "react";
 
 import type { RootState } from "@/app/store";
 import { SelectedPierreFileTree } from "./SelectedPierreFileTree";
 import type { FileBrowserMode, FileStatus } from "@/features/source-control/types";
-import { buildDisplayFiles, compareFlatPierreEntries } from "./flatPierreTree";
+import { buildDisplayFiles, compareFlatPierreEntries, toDisplayPath } from "./flatPierreTree";
 import { buildGitStatusForDisplayFiles } from "./pierreFileTree";
 import {
   buildReviewDisplayFiles,
@@ -18,17 +19,17 @@ export type FileListContextMenuItem = {
   path: string;
 };
 
-export type FileListContextMenuOpenContext = {
-  close: (options?: { restoreFocus?: boolean }) => void;
-};
+export type FileListContextMenuOpenContext = import("@pierre/trees").ContextMenuOpenContext;
 
 type FileListProps<TFile extends { path: string }> = {
   files: ReadonlyArray<TFile>;
+  inlineEditor?: PierreTreeInlineEditor;
   mode: FileBrowserMode | "review";
   reviewGroupTitle?: string;
   reviewGroupHover?: ReactNode;
   autoFocus?: boolean;
   selectFirstFile?: boolean;
+  initialExpansion?: "open" | "closed";
   selection: string | ((state: RootState) => string);
   navRegion: string;
   className?: string;
@@ -36,6 +37,10 @@ type FileListProps<TFile extends { path: string }> = {
   getCommentCount?: (file: TFile) => number;
   isViewed?: (file: TFile) => boolean;
   getFileStatus?: (file: TFile) => FileStatus | undefined;
+  renderDirectoryContextMenu?: (
+    item: FileListContextMenuItem,
+    context: FileListContextMenuOpenContext,
+  ) => ReactNode;
   renderContextMenu?: (
     file: TFile,
     item: FileListContextMenuItem,
@@ -47,11 +52,13 @@ const SORT_LOCALE_OPTIONS: Intl.CollatorOptions = { numeric: true, sensitivity: 
 
 export function FileList<TFile extends { path: string }>({
   files,
+  inlineEditor,
   mode,
   reviewGroupTitle,
   reviewGroupHover,
   autoFocus,
   selectFirstFile,
+  initialExpansion,
   selection,
   navRegion,
   className,
@@ -60,6 +67,7 @@ export function FileList<TFile extends { path: string }>({
   isViewed,
   getFileStatus,
   renderContextMenu,
+  renderDirectoryContextMenu,
 }: FileListProps<TFile>) {
   const isList = mode === "list";
 
@@ -72,9 +80,17 @@ export function FileList<TFile extends { path: string }>({
             : undefined,
         });
 
+  const inlinePath = inlineEditor
+    ? toDisplayPath(mode === "list" ? "list" : "tree", inlineEditor.path, displayFiles.length)
+    : null;
+  const displayPathBySourcePath = new Map(displayFiles.map((file) => [file.realPath, file.path]));
+  const renderedFiles =
+    inlineEditor && inlinePath
+      ? [...displayFiles, { path: inlinePath, realPath: inlineEditor.path }]
+      : displayFiles;
+
   const sourceByDisplayPath = new Map(displayFiles.map((file) => [file.path, file.source]));
 
-  const displayPathBySourcePath = new Map(displayFiles.map((file) => [file.realPath, file.path]));
   const groupCounts = new Map<string, number>();
   if (mode === "review") {
     for (const file of displayFiles) {
@@ -112,13 +128,25 @@ export function FileList<TFile extends { path: string }>({
       key={mode}
       autoFocus={autoFocus}
       selectFirstFile={selectFirstFile}
+      initialExpansion={initialExpansion}
       directoryLabelPriority={reviewGroupTitle ? "start" : "end"}
       renderHoverContent={(path) =>
         path.replace(/\/$/, "") === reviewGroupTitle?.replaceAll("/", "∕").replaceAll("\\", "∖")
           ? reviewGroupHover
           : undefined
       }
-      files={displayFiles}
+      files={renderedFiles}
+      inlineEditor={
+        inlineEditor && inlinePath
+          ? {
+              path: inlinePath,
+              anchorPath: inlineEditor.anchorPath
+                ? (displayPathBySourcePath.get(inlineEditor.anchorPath) ?? inlineEditor.anchorPath)
+                : undefined,
+              children: inlineEditor.children,
+            }
+          : undefined
+      }
       selection={selection}
       displayPathBySourcePath={displayPathBySourcePath}
       navRegion={navRegion}
@@ -138,13 +166,19 @@ export function FileList<TFile extends { path: string }>({
       renderRowDecoration={renderRowDecoration}
       rowDecorationInvalidationKey={renderRowDecoration}
       renderContextMenu={
-        renderContextMenu
+        renderContextMenu || renderDirectoryContextMenu
           ? (item, context) => {
               if (item.kind === "directory") {
-                return null;
+                const source = sourceByDisplayPath.get(item.path);
+                return (
+                  renderDirectoryContextMenu?.(
+                    { ...item, path: source?.path ?? item.path },
+                    context,
+                  ) ?? null
+                );
               }
               const file = sourceByDisplayPath.get(item.path);
-              return file ? renderContextMenu(file, item, context) : null;
+              return file ? (renderContextMenu?.(file, item, context) ?? null) : null;
             }
           : undefined
       }
