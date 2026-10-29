@@ -6,7 +6,7 @@ import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayo
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import { HistorySidebar } from "@/features/source-control/components/HistorySidebar";
 import { HistoryGraphScreen } from "@/features/source-control/screens/HistoryGraphScreen";
-import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function HistoryRouteLayout() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -20,42 +20,34 @@ export function HistoryRouteLayout() {
   });
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-col">
-      <header className="bg-surface-toolbar flex h-10 shrink-0 items-center gap-3 border-b px-3">
+    <Tabs
+      value={graph ? "graph" : "list"}
+      onValueChange={(value) => {
+        if (value !== "list" && value !== "graph") return;
+        const next = new URLSearchParams(searchParams);
+        if (value === "graph") next.set("view", "graph");
+        else next.delete("view");
+        setSearchParams(next);
+      }}
+      className="h-full min-h-0"
+    >
+      <header className="bg-surface-toolbar flex h-9 shrink-0 items-center gap-3 border-b px-2">
         <h1 className="text-[13px] font-medium">History</h1>
-        <div role="group" aria-label="History view" className="flex items-center gap-1">
-          <Button
-            size="xs"
-            variant={graph ? "ghost" : "secondary"}
-            aria-pressed={!graph}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              next.delete("view");
-              setSearchParams(next);
-            }}
-          >
+        <TabsList aria-label="History view" className="p-0">
+          <TabsTrigger value="list">
             <List />
             List
-          </Button>
-          <Button
-            size="xs"
-            variant={graph ? "secondary" : "ghost"}
-            aria-pressed={graph}
-            onClick={() => {
-              const next = new URLSearchParams(searchParams);
-              next.set("view", "graph");
-              setSearchParams(next);
-            }}
-          >
+          </TabsTrigger>
+          <TabsTrigger value="graph">
             <GitGraph />
             Graph
-          </Button>
-        </div>
+          </TabsTrigger>
+        </TabsList>
         <span className="text-muted-foreground ml-auto text-[11px]">
           {graph ? "All locally available refs" : "Current branch"}
         </span>
       </header>
-      <div className="min-h-0 min-w-0 flex-1">
+      <TabsContent value={graph ? "graph" : "list"}>
         {graph ? (
           <HistoryGraphScreen />
         ) : (
@@ -72,7 +64,7 @@ export function HistoryRouteLayout() {
             }
           />
         )}
-      </div>
-    </section>
+      </TabsContent>
+    </Tabs>
   );
 }

@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { useState } from "react";
+import { configureStore } from "@reduxjs/toolkit";
+import { Provider } from "react-redux";
+
+import { rootReducer } from "@/app/store";
+import { gitApi } from "../api";
+import { hostedReposApi } from "@/features/hosted-repos/api";
 
 import { buildHistoryGraph } from "../historyGraph";
 import { HistoryGraphView } from "./HistoryGraphScreen";
@@ -52,18 +58,64 @@ const data = buildHistoryGraph({
   })),
 });
 
-function Example({ shallow = false, empty = false }: { shallow?: boolean; empty?: boolean }) {
+const denseData = buildHistoryGraph({
+  shallow: false,
+  commits: data.rows.map(({ commit }, index) =>
+    index === 0
+      ? {
+          ...commit,
+          summary:
+            "Preserve incoming document behavior while implementing outgoing invoice and proforma ZIP downloads across desktop and mobile layouts",
+          parents: data.rows.slice(1, 65).map((row) => row.commit.commitId),
+          refs: [
+            "HEAD",
+            "refs/heads/OF-11384-document-exports-with-a-long-name",
+            "refs/remotes/origin/OF-11384-document-exports-with-a-long-name",
+          ],
+        }
+      : commit,
+  ),
+});
+
+function Example({
+  shallow = false,
+  empty = false,
+  dense = false,
+  narrow = false,
+}: {
+  shallow?: boolean;
+  empty?: boolean;
+  dense?: boolean;
+  narrow?: boolean;
+}) {
   const [opened, setOpened] = useState("");
-  const view = empty ? buildHistoryGraph({ shallow: false, commits: [] }) : { ...data, shallow };
+  const [store] = useState(() =>
+    configureStore({
+      reducer: rootReducer,
+      middleware: (getDefaultMiddleware) =>
+        getDefaultMiddleware().concat(gitApi.middleware, hostedReposApi.middleware),
+    }),
+  );
+  const view = empty
+    ? buildHistoryGraph({ shallow: false, commits: [] })
+    : { ...(dense ? denseData : data), shallow };
   return (
-    <HotkeysProvider>
-      <div className="bg-background flex h-screen min-h-[600px] flex-col">
-        <HistoryGraphView data={view} onOpen={setOpened} onRefresh={() => {}} />
-        {opened ? <output className="border-t p-2 text-xs">Opened commit {opened}</output> : null}
-      </div>
-    </HotkeysProvider>
+    <Provider store={store}>
+      <HotkeysProvider>
+        <div
+          className="bg-background flex h-screen min-h-[600px] flex-col"
+          style={narrow ? { maxWidth: 720 } : undefined}
+        >
+          <HistoryGraphView data={view} onOpen={setOpened} onRefresh={() => {}} />
+          {opened ? <output className="border-t p-2 text-xs">Opened commit {opened}</output> : null}
+        </div>
+      </HotkeysProvider>
+    </Provider>
   );
 }
 export const Repository: Story = { render: () => <Example /> };
 export const ShallowClone: Story = { render: () => <Example shallow /> };
 export const EmptyRepository: Story = { render: () => <Example empty /> };
+
+export const ManyBranchesAndLongRefs: Story = { render: () => <Example dense /> };
+export const NarrowGraph: Story = { render: () => <Example dense narrow /> };

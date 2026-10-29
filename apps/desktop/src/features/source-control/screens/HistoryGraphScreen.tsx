@@ -1,21 +1,26 @@
 import { skipToken } from "@reduxjs/toolkit/query";
-import { useHotkey } from "@tanstack/react-hotkeys";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, GitMerge, RefreshCw, Users, X } from "lucide-react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { RefreshCw, Users, X, ArrowUp, ArrowDown } from "lucide-react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useStore } from "react-redux";
 import { useSearchParams } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import type { RootState } from "@/app/store";
 import { Button } from "@/components/ui/button";
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
+import type { HistoryGraphCommit } from "@/platform/desktop/history";
 import { selectHistoryPullRequestCommit } from "../actions";
 import { useGetHistoryGraphQuery } from "../api";
-import { graphRefLabel, type GraphRow, type HistoryGraphViewData } from "../historyGraph";
-import { isTypingTarget } from "../utils";
+import type { HistoryGraphViewData } from "../historyGraph";
+import { buildGraphNavigation } from "../historyGraphNavigation";
+import { selectGraphCommit } from "../historyGraphUiSlice";
+import { HistoryGraphCommitDetails } from "../components/HistoryGraphCommitDetails";
+import { HistoryGraphRows } from "../components/HistoryGraphRows";
+import { HistoryGraphInspector } from "../components/HistoryGraphInspector";
 
 export function HistoryGraphScreen() {
   const dispatch = useAppDispatch();
@@ -69,12 +74,14 @@ export function HistoryGraphScreen() {
         />
       ) : null}
       <HistoryGraphView
+        key={repoPath}
         data={data}
         initialCommitId={searchParams.get("commit") ?? lastCommitId}
         busy={isFetching}
         onRefresh={() => {
           void refetch();
         }}
+        renderDetails={(commit) => <HistoryGraphCommitDetails commit={commit} />}
         onOpen={(commitId) => {
           void dispatch(selectHistoryPullRequestCommit(commitId));
           const next = new URLSearchParams(searchParams);
@@ -87,176 +94,73 @@ export function HistoryGraphScreen() {
   );
 }
 
-const ROW_HEIGHT = 40;
-const HEADER_HEIGHT = 28;
-const color = (index: number) => `var(--chart-${(index % 5) + 1})`;
-const x = (column: number) => 16 + column * 16;
-
-function ancestryLabel(parentCount: number, shallow: boolean) {
-  if (parentCount > 1) return `Merge · ${parentCount} parents`;
-  if (parentCount === 0) return shallow ? "Root or shallow boundary" : "Root commit";
-  return "1 parent";
-}
-
-function GraphMark({ row, width, filtered }: { row: GraphRow; width: number; filtered: boolean }) {
-  const column = filtered ? 0 : row.column;
-  return (
-    <svg
-      data-history-graph-mark
-      aria-hidden="true"
-      width={width}
-      height={ROW_HEIGHT}
-      className="shrink-0 overflow-visible"
-    >
-      {!filtered
-        ? row.edges.map((edge) => {
-            const from = x(edge.column);
-            const to = x(edge.target);
-            const path =
-              edge.part === "through"
-                ? `M${from} 0V40`
-                : edge.part === "incoming"
-                  ? `M${from} 0V20`
-                  : `M${from} 20C${from} 32 ${to} 28 ${to} 40`;
-            return (
-              <path
-                key={`${edge.part}:${edge.column}:${edge.target}`}
-                d={path}
-                fill="none"
-                stroke={color(edge.color)}
-                strokeWidth={1.5}
-              />
-            );
-          })
-        : null}
-      <circle
-        cx={x(column)}
-        cy={20}
-        r={row.commit.parents.length > 1 ? 5 : 3.5}
-        fill="var(--background)"
-        stroke={color(row.color)}
-        strokeWidth={2}
-      />
-      {row.commit.parents.length > 1 ? (
-        <circle cx={x(column)} cy={20} r={1.5} fill={color(row.color)} />
-      ) : null}
-    </svg>
-  );
-}
-
 export function HistoryGraphView({
   data,
   onOpen,
   onRefresh,
   busy = false,
   initialCommitId,
+  renderDetails,
 }: {
   data: HistoryGraphViewData;
   onOpen: (commitId: string) => void;
   onRefresh: () => void;
   busy?: boolean;
   initialCommitId?: string;
+  renderDetails?: (commit: HistoryGraphCommit) => ReactNode;
 }) {
+  const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(
-    initialCommitId || data.rows[0]?.commit.commitId || "",
-  );
+  const [author, setAuthor] = useState<{ name: string; email: string } | null>(null);
+  const [contributorsOpen, setContributorsOpen] = useState(false);
   const filterRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pendingFocus = useRef<number | null>(null);
-  const revealed = useRef(false);
-  const filter = query.trim().toLowerCase();
-  const rows = filter
-    ? data.rows.filter((row) =>
-        [
-          row.commit.summary,
-          row.commit.author,
-          row.commit.authorEmail,
-          row.commit.commitId,
-          ...row.commit.refs.map(graphRefLabel),
-        ].some((value) => value.toLowerCase().includes(filter)),
-      )
-    : data.rows;
-  const selected = rows.find((row) => row.commit.commitId === selectedId) ?? rows[0];
-  const graphWidth = filter ? 40 : data.width;
-  const columns = `${graphWidth}px minmax(240px, 1fr) 150px 110px 90px`;
-  const minimumWidth = graphWidth + 630;
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
-    overscan: 12,
-    scrollMargin: HEADER_HEIGHT,
-    getItemKey: (index) => rows[index]?.commit.commitId ?? index,
-  });
-  const visible = virtualizer.getVirtualItems();
-  const viewportHeight = virtualizer.scrollRect?.height ?? 0;
+  const moveRef = useRef<((direction: number) => void) | null>(null);
+  const scrollToRef = useRef<((index: number) => void) | null>(null);
+  const opened = useRef(false);
+  const model = buildGraphNavigation(data, { query, author });
+  const filtering = model.filtering;
+  const matchingIndices = model.matchingIndices;
 
   useLayoutEffect(() => {
-    if (!viewportHeight || revealed.current) return;
-    revealed.current = true;
-    const index = rows.findIndex((row) => row.commit.commitId === selectedId);
-    if (index >= 0) virtualizer.scrollToIndex(index, { align: "auto" });
-  }, [rows, selectedId, viewportHeight, virtualizer]);
+    const currentId = store.getState().historyGraphUi.commitId;
+    const preferredId = opened.current ? currentId : initialCommitId;
+    const row = data.rows.find((item) => item.commit.commitId === preferredId) ?? data.rows[0];
+    opened.current = true;
+    if (row)
+      dispatch(
+        selectGraphCommit({
+          commitId: row.commit.commitId,
+          column: row.column,
+          totalLanes: model.totalLanes,
+        }),
+      );
+  }, [data, model.totalLanes, initialCommitId, store, dispatch]);
 
-  useLayoutEffect(() => {
-    const index = pendingFocus.current;
-    if (index === null) return;
-    const element = scrollRef.current?.querySelector<HTMLElement>(`[data-graph-index="${index}"]`);
-    if (element) {
-      element.focus({ preventScroll: true });
-      pendingFocus.current = null;
+  function applyFilter(text: string, identity = author) {
+    setQuery(text);
+    setAuthor(identity);
+    const next = buildGraphNavigation(data, { query: text, author: identity });
+    const index = next.matchingIndices[0];
+    const row = index === undefined ? undefined : next.rows[index];
+    if (row && index !== undefined) {
+      dispatch(
+        selectGraphCommit({
+          commitId: row.commit.commitId,
+          column: row.column,
+          totalLanes: next.totalLanes,
+        }),
+      );
+      scrollToRef.current?.(index);
     }
-  }, [visible]);
-
-  function ignoresKeys(event: KeyboardEvent) {
-    return (
-      isTypingTarget(event.target) ||
-      (event.target instanceof Element &&
-        Boolean(
-          event.target.closest('[role="dialog"], [role="menu"], [data-slot="popover-content"]'),
-        ))
-    );
   }
-  function move(event: KeyboardEvent, direction: number) {
-    if (ignoresKeys(event) || !rows.length) return;
-    event.preventDefault();
-    const current = rows.findIndex((row) => row.commit.commitId === selected?.commit.commitId);
-    const index = Math.max(0, Math.min(rows.length - 1, current + direction));
-    const row = rows[index];
-    if (!row) return;
-    setSelectedId(row.commit.commitId);
-    pendingFocus.current = index;
-    virtualizer.scrollToIndex(index, { align: "auto" });
-    scrollRef.current
-      ?.querySelector<HTMLElement>(`[data-graph-index="${index}"]`)
-      ?.focus({ preventScroll: true });
-  }
-  const hotkeyOptions = {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  } as const;
-  useHotkey("J", (event) => move(event, 1), hotkeyOptions);
-  useHotkey("ArrowDown", (event) => move(event, 1), hotkeyOptions);
-  useHotkey("K", (event) => move(event, -1), hotkeyOptions);
-  useHotkey("ArrowUp", (event) => move(event, -1), hotkeyOptions);
-  useHotkey(
-    "/",
-    (event) => {
-      if (ignoresKeys(event)) return;
-      event.preventDefault();
-      filterRef.current?.focus();
-    },
-    hotkeyOptions,
-  );
 
   return (
     <section
       aria-label="Repository history graph"
-      className="bg-background flex min-h-0 min-w-0 flex-1 flex-col"
+      className="bg-background @container flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
-      <header className="flex flex-wrap items-center gap-3 border-b px-3 py-2">
+      <header className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
         <div className="mr-auto min-w-0">
           <div className="text-xs font-medium">All branches and tags</div>
           <p className="text-muted-foreground text-[11px] tabular-nums">
@@ -267,22 +171,19 @@ export function HistoryGraphView({
         <Input
           ref={filterRef}
           aria-label="Filter graph commits"
-          placeholder="Message, author, hash or ref…"
+          placeholder="Find message, author, hash or ref…"
           value={query}
-          className="h-7 w-64 text-xs"
-          onChange={(event) => {
-            setQuery(event.target.value);
-            virtualizer.scrollToOffset(0);
-          }}
+          className="h-7 w-64 max-w-full text-xs"
+          onChange={(event) => applyFilter(event.target.value)}
         />
-        <Popover>
+        <Popover open={contributorsOpen} onOpenChange={setContributorsOpen}>
           <PopoverTrigger asChild>
-            <Button size="xs" variant="outline">
+            <Button size="xs" variant="outline" className="max-w-48" aria-pressed={Boolean(author)}>
               <Users />
-              Contributors
+              <span className="truncate">{author?.name ?? "Contributors"}</span>
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
+          <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] p-0">
             <div className="border-b p-3">
               <h2 className="text-xs font-semibold">Contributions by commit count</h2>
               <p className="text-muted-foreground mt-1 text-[11px]">
@@ -294,10 +195,10 @@ export function HistoryGraphView({
                 <button
                   key={contributor.email || contributor.name}
                   type="button"
-                  className="hover:bg-accent focus-visible:bg-accent flex w-full items-center gap-3 border-b px-3 py-2 text-left text-xs outline-none"
+                  className="hover:bg-accent focus-visible:bg-accent flex min-h-10 w-full items-center gap-3 border-b px-3 py-2 text-left text-xs outline-none"
                   onClick={() => {
-                    setQuery(contributor.email || contributor.name);
-                    virtualizer.scrollToOffset(0);
+                    applyFilter(query, contributor);
+                    setContributorsOpen(false);
                   }}
                 >
                   <span className="min-w-0 flex-1">
@@ -336,140 +237,48 @@ export function HistoryGraphView({
           history to see earlier commits.
         </p>
       ) : null}
-      {filter ? (
-        <div className="text-muted-foreground flex items-center gap-2 border-b px-3 py-1 text-[11px]">
-          <span>{rows.length.toLocaleString()} matches · connections hidden while filtering</span>
-          <Button size="xs" variant="ghost" onClick={() => setQuery("")}>
+      {filtering ? (
+        <div className="text-muted-foreground flex flex-wrap items-center gap-2 border-b px-3 py-1 text-[11px]">
+          <span aria-live="polite" className="mr-auto tabular-nums">
+            {matchingIndices.length.toLocaleString()} matches · ancestry retained
+          </span>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label="Previous matching commit"
+            disabled={!matchingIndices.length}
+            onClick={() => moveRef.current?.(-1)}
+          >
+            <ArrowUp />
+          </Button>
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label="Next matching commit"
+            disabled={!matchingIndices.length}
+            onClick={() => moveRef.current?.(1)}
+          >
+            <ArrowDown />
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => applyFilter("", null)}>
             <X />
             Clear
           </Button>
         </div>
       ) : null}
-      <div ref={scrollRef} data-workspace-scroll className="min-h-0 flex-1 overflow-auto">
-        <div
-          className="bg-surface-toolbar text-muted-foreground sticky top-0 z-10 grid h-7 items-center border-b text-[11px]"
-          style={{ gridTemplateColumns: columns, minWidth: minimumWidth }}
-        >
-          <span />
-          <span>Commit / refs</span>
-          <span>Author</span>
-          <span>Authored</span>
-          <span>Commit</span>
-        </div>
-        {rows.length ? (
-          <div
-            role="list"
-            aria-label="Commit ancestry"
-            className="relative"
-            style={{ height: virtualizer.getTotalSize(), minWidth: minimumWidth }}
-          >
-            {visible.map((item) => {
-              const row = rows[item.index];
-              if (!row) return null;
-              const commit = row.commit;
-              return (
-                <div
-                  role="listitem"
-                  key={commit.commitId}
-                  className="absolute left-0 top-0 w-full"
-                  style={{
-                    height: ROW_HEIGHT,
-                    transform: `translateY(${item.start - HEADER_HEIGHT}px)`,
-                  }}
-                >
-                  <button
-                    type="button"
-                    data-graph-index={item.index}
-                    aria-pressed={selected?.commit.commitId === commit.commitId}
-                    title={commit.summary}
-                    aria-label={`${commit.parents.length > 1 ? "Merge: " : ""}${commit.summary} ${commit.shortId} ${commit.author}`}
-                    className="border-border/40 hover:bg-accent focus-visible:ring-ring/50 grid h-10 w-full items-center border-b text-left text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset aria-pressed:bg-surface-active"
-                    style={{ gridTemplateColumns: columns }}
-                    onClick={() => setSelectedId(commit.commitId)}
-                    onDoubleClick={() => onOpen(commit.commitId)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        onOpen(commit.commitId);
-                      }
-                    }}
-                  >
-                    <GraphMark row={row} width={graphWidth} filtered={Boolean(filter)} />
-                    <span className="flex min-w-0 items-center gap-2 pr-3">
-                      {commit.parents.length > 1 ? (
-                        <GitMerge
-                          aria-hidden="true"
-                          className="text-muted-foreground size-3 shrink-0"
-                        />
-                      ) : null}
-                      <span className="truncate font-medium">
-                        {commit.summary || "(no commit message)"}
-                      </span>
-                      {commit.refs.slice(0, 2).map((ref) => (
-                        <span
-                          key={ref}
-                          title={ref}
-                          className="bg-surface-toolbar max-w-48 shrink-0 truncate rounded border px-1 py-0.5 text-[10px]"
-                        >
-                          {graphRefLabel(ref)}
-                        </span>
-                      ))}
-                      {commit.refs.length > 2 ? (
-                        <span
-                          title={commit.refs.map(graphRefLabel).join(", ")}
-                          className="text-muted-foreground shrink-0 text-[10px]"
-                        >
-                          +{commit.refs.length - 2}
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className="text-muted-foreground truncate pr-3"
-                      title={`${commit.author} <${commit.authorEmail}>`}
-                    >
-                      {commit.author}
-                    </span>
-                    <span
-                      className="text-muted-foreground truncate text-[11px]"
-                      title={commit.authoredAt}
-                    >
-                      {commit.relativeTime}
-                    </span>
-                    <span className="text-muted-foreground font-mono text-[11px]">
-                      {commit.shortId}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="text-muted-foreground p-6 text-center text-sm">
-            {filter ? "No commits match this filter." : "No commits in this repository yet."}
-          </p>
-        )}
-      </div>
-      <footer className="flex min-h-10 items-center gap-3 border-t px-3 py-1.5 text-[11px]">
-        <span className="text-muted-foreground min-w-0 flex-1 truncate">
-          {selected
-            ? `${selected.commit.shortId} · ${ancestryLabel(selected.commit.parents.length, data.shallow)} · ${selected.commit.summary}`
-            : "Select a commit"}
-        </span>
-        <span className="text-muted-foreground hidden shrink-0 sm:inline">
-          J/K to move · Enter to open
-        </span>
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={!selected}
-          onClick={() => {
-            if (selected) onOpen(selected.commit.commitId);
-          }}
-        >
-          Open changes
-          <ArrowRight />
-        </Button>
-      </footer>
+      <HistoryGraphRows
+        model={model}
+        filterRef={filterRef}
+        moveRef={moveRef}
+        scrollToRef={scrollToRef}
+        onOpen={onOpen}
+      />
+      <HistoryGraphInspector
+        model={model}
+        shallow={data.shallow}
+        onOpen={onOpen}
+        renderDetails={renderDetails}
+      />
     </section>
   );
 }

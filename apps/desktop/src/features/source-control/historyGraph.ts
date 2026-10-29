@@ -27,7 +27,7 @@ export type HistoryGraphViewData = Readonly<{
 }>;
 
 export function buildHistoryGraph(data: HistoryGraph): HistoryGraphViewData {
-  const lanes: Array<Lane | null> = [];
+  let lanes: Array<Lane | null> = [];
   const rows: GraphRow[] = [];
   const contributors = new Map<
     string,
@@ -70,8 +70,21 @@ export function buildHistoryGraph(data: HistoryGraph): HistoryGraphViewData {
       edges.push({ column, target, color: lanes[target]?.color ?? color, part: "outgoing" });
     }
     columns = Math.max(columns, lanes.length, column + 1);
-    while (lanes.length && lanes.at(-1) === null) lanes.pop();
-    rows.push({ commit, column, color, edges });
+    const compacted: Lane[] = [];
+    const targets = new Map<number, number>();
+    lanes.forEach((lane, index) => {
+      if (!lane) return;
+      targets.set(index, compacted.length);
+      compacted.push(lane);
+    });
+    const connectedEdges = edges.map((edge) => {
+      if (edge.part === "incoming") return edge;
+      const target = targets.get(edge.target);
+      if (target === undefined) throw new Error("History graph edge has no continuation lane");
+      return { column: edge.column, color: edge.color, part: edge.part, target };
+    });
+    lanes = compacted;
+    rows.push({ commit, column, color, edges: connectedEdges });
 
     const identity = commit.authorEmail.toLowerCase() || commit.author;
     const contributor = contributors.get(identity) ?? {

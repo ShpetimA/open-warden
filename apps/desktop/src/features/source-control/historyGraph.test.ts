@@ -72,3 +72,14 @@ test("supports octopus merges, unrelated roots, and exact ref labels", () => {
   expect(graphRefLabel("refs/tags/release,one")).toBe("tag: release,one");
   expect(buildHistoryGraph({ shallow: false, commits: [] }).rows).toEqual([]);
 });
+
+test("closes empty lanes and routes surviving ancestry into the next row", () => {
+  const graph = buildHistoryGraph({
+    shallow: false,
+    commits: [commit("merge", ["a", "b", "c"]), commit("a", []), commit("b", []), commit("c", [])],
+  });
+  expect(graph.rows[1]?.edges).toContainEqual({ part: "through", column: 1, target: 0, color: 1 });
+  expect(graph.rows[2]?.column).toBe(0);
+  expect(graph.rows[2]?.edges).toContainEqual({ part: "through", column: 1, target: 0, color: 2 });
+  expect(graph.rows[3]?.column).toBe(0);
+});

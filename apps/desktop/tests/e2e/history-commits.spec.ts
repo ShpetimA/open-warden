@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { writeFile } from "node:fs/promises";
 
 import { createAppSettings } from "../../src/platform/desktop/appSettings";
 import type { DesktopBridge, HistoryCommit } from "../../src/platform/desktop/contracts";
@@ -352,7 +353,7 @@ for (const theme of ["light", "dark"] as const) {
       "aria-pressed",
       "true",
     );
-    await page.getByRole("button", { name: "Graph", exact: true }).click();
+    await page.getByRole("tab", { name: "Graph", exact: true }).click();
     const graphView = page.getByRole("region", { name: "Repository history graph", exact: true });
     await expect(graphView.getByText("All branches and tags", { exact: true })).toBeVisible();
     await expect(
@@ -376,11 +377,22 @@ for (const theme of ["light", "dark"] as const) {
     await expect(contributors.getByRole("button", { name: /Alice/ })).toContainText("503");
     await expect(contributors.getByRole("button", { name: /Bob/ })).toContainText("502");
     await contributors.getByRole("button", { name: /Bob/ }).click();
-    await page.keyboard.press("Escape");
-    await expect(
-      graphView.getByText("502 matches · connections hidden while filtering"),
-    ).toBeVisible();
-    await expect(graphView.locator("[data-history-graph-mark] path")).toHaveCount(0);
+    await expect(contributors).toBeHidden();
+    await expect(graphView.getByText("502 matches · ancestry retained")).toBeVisible();
+    expect(await graphView.locator("[data-history-graph-mark] path").count()).toBeGreaterThan(0);
+    await expect(graphView.locator('[data-graph-index="0"]')).toHaveAttribute(
+      "data-filter-match",
+      "false",
+    );
+    await expect(graphView.locator('[data-graph-index="1"]')).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await graphView.getByRole("button", { name: "Next matching commit", exact: true }).click();
+    await expect(graphView.locator('[data-graph-index="3"]')).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await graphView.getByRole("button", { name: "Clear", exact: true }).click();
     await graphView
       .getByRole("textbox", { name: "Filter graph commits", exact: true })
@@ -393,6 +405,9 @@ for (const theme of ["light", "dark"] as const) {
       path: testInfo.outputPath(`graph-${theme}-narrow.png`),
       animations: "disabled",
     });
+    await graphView.locator("[data-history-graph-scroll]").evaluate((element) => {
+      element.scrollTop = 0;
+    });
     await merge.click();
     await page.keyboard.press("j");
     await expect(graphView.getByRole("button", { name: /^Earlier change 1 / })).toHaveAttribute(
@@ -401,8 +416,8 @@ for (const theme of ["light", "dark"] as const) {
     );
     await merge.click();
     await merge.press("Enter");
-    await expect(page.getByRole("button", { name: "List", exact: true })).toHaveAttribute(
-      "aria-pressed",
+    await expect(page.getByRole("tab", { name: "List", exact: true })).toHaveAttribute(
+      "aria-selected",
       "true",
     );
     await expect(
@@ -439,6 +454,203 @@ test("searches and navigates beyond 200 commits while keeping the list virtualiz
   await expect(pane.locator('[data-slot="commit-row"]')).toHaveCount(1);
 });
 
+for (const theme of ["light", "dark"] as const) {
+  test(`fits a wide graph and exposes full commit details in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const summary =
+      "Preserve the complete invoice export description and incoming document behavior while updating ZIP download permissions across desktop and mobile layouts";
+    const wideGraph: HistoryGraph = {
+      shallow: false,
+      commits: graph.commits.map((commit, index) =>
+        index === 0
+          ? {
+              ...commit,
+              summary,
+              parents: graph.commits.slice(1, 81).map((parent) => parent.commitId),
+              refs: [
+                "HEAD",
+                "refs/heads/OF-11390-msw-mocks-rework-with-a-long-branch-name",
+                "refs/remotes/origin/OF-11390-msw-mocks-rework-with-a-long-branch-name",
+              ],
+            }
+          : commit,
+      ),
+    };
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.addInitScript((graph) => {
+      if (window.desktopBridge)
+        window.desktopBridge.getHistoryGraph = async () => ({ ok: true, value: graph });
+    }, wideGraph);
+    await page.goto("/#/history");
+    await expect(page.getByRole("button", { name: /^Update invoice state URLs/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.getByRole("tab", { name: "Graph", exact: true }).click();
+    const view = page.getByRole("region", { name: "Repository history graph", exact: true });
+    const details = view.getByRole("region", { name: "Selected commit details", exact: true });
+    await expect(details.getByRole("heading", { name: summary, exact: true })).toBeVisible();
+    await expect(
+      details.getByText("Keep invoice navigation stable while splitting the onboarding flow.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      details.getByText("Alice <alice@example.com>", { exact: true }).first(),
+    ).toBeVisible();
+    for (const width of [1440, 1000, 720]) {
+      await page.setViewportSize({ width, height: 800 });
+      const scroll = view.locator("[data-history-graph-scroll]");
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollWidth <= element.clientWidth))
+        .toBe(true);
+      const heading = details.getByRole("heading", { name: summary, exact: true });
+      expect(await heading.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+        true,
+      );
+      const row = view.locator('[data-graph-index="0"]');
+      const title = row.getByText(summary, { exact: true });
+      const titleBox = await title.boundingBox();
+      expect(titleBox?.width).toBeGreaterThan(200);
+      expect(titleBox?.x).toBeLessThan(300);
+      expect(await row.locator("[data-history-graph-mark] path").count()).toBeLessThanOrEqual(10);
+      await page.screenshot({
+        path: testInfo.outputPath(`graph-details-${theme}-${width}.png`),
+        animations: "disabled",
+      });
+    }
+    const textX = (
+      await view.locator('[data-graph-index="0"]').getByText(summary, { exact: true }).boundingBox()
+    )?.x;
+    await view.getByRole("button", { name: "Later graph lanes", exact: true }).click();
+    await expect(view.getByText("7–14 / 80", { exact: true })).toBeVisible();
+    await view.getByRole("button", { name: "Contributors", exact: true }).click();
+    await expect(view.getByText("7–14 / 80", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    expect(
+      (
+        await view
+          .locator('[data-graph-index="0"]')
+          .getByText(summary, { exact: true })
+          .boundingBox()
+      )?.x,
+    ).toBe(textX);
+    await view.locator('[data-graph-index="0"]').focus();
+    await page.keyboard.press("j");
+    await expect(
+      view.getByRole("button", { name: "Earlier graph lanes", exact: true }),
+    ).toBeDisabled();
+    await view.locator('[data-graph-index="0"]').click();
+    await view.getByRole("button", { name: "Commit details", exact: true }).click();
+    await expect(details.getByRole("heading")).toHaveCount(0);
+    await view.getByRole("button", { name: "Commit details", exact: true }).click();
+    await expect(details.getByRole("heading", { name: summary, exact: true })).toBeVisible();
+    const filter = view.getByRole("textbox", { name: "Filter graph commits", exact: true });
+    await filter.fill("not-a-real-commit-or-author");
+    await expect(view.getByText("0 matches · ancestry retained", { exact: true })).toBeVisible();
+    await expect(
+      view.getByRole("button", { name: "Next matching commit", exact: true }),
+    ).toBeDisabled();
+    expect(await view.locator("[data-history-graph-mark] path").count()).toBeGreaterThan(0);
+  });
+}
+
+test("keeps graph geometry and static rows stable during rapid navigation", async ({
+  page,
+}, testInfo) => {
+  const performanceGraph: HistoryGraph = {
+    shallow: false,
+    commits: Array.from({ length: 20_000 }, (_, index) => ({
+      commitId: graphId(index),
+      shortId: graphId(index).slice(-8),
+      summary: index === 0 ? "Merge invoice validation" : `Invoice change ${index}`,
+      author: "Alice",
+      authorEmail: "alice@example.com",
+      authoredAt: "2026-10-29T12:00:00Z",
+      relativeTime: "today",
+      refs: [],
+      parents: index === 19_999 ? [] : [graphId(index + 1)],
+    })),
+  };
+  await page.addInitScript((graph) => {
+    if (!window.desktopBridge) return;
+    const calls: string[] = [];
+    Object.defineProperty(window, "graphDetailRequests", { value: calls });
+    window.desktopBridge.getHistoryGraph = async () => ({ ok: true, value: graph });
+    window.desktopBridge.getCommitDetails = async (_repo, commitId) => {
+      calls.push(commitId);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      return {
+        ok: true,
+        value: {
+          commitId,
+          summary: commitId,
+          body:
+            commitId === graph.commits[0]?.commitId
+              ? "Short body"
+              : "A long explanation with several paragraphs.\n".repeat(50),
+          author: "Alice",
+          authorEmail: "alice@example.com",
+          authoredAt: "2026-10-29T12:00:00Z",
+          committer: "Alice",
+          committerEmail: "alice@example.com",
+          committedAt: "2026-10-29T12:00:00Z",
+          parents: [],
+        },
+      };
+    };
+  }, performanceGraph);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#/history");
+  await expect(page.getByRole("button", { name: /^Update invoice state URLs/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.getByRole("tab", { name: "Graph", exact: true }).click();
+  const view = page.getByRole("region", { name: "Repository history graph", exact: true });
+  const scroll = view.locator("[data-history-graph-scroll]");
+  const details = view.getByRole("region", { name: "Selected commit details", exact: true });
+  await expect(details.getByText("Short body", { exact: true })).toBeVisible();
+  const originalBox = await scroll.boundingBox();
+  await view.getByRole("button", { name: /^Merge invoice validation/ }).click();
+  const before = await page.evaluate(() => Reflect.get(window, "graphDetailRequests").length);
+  const started = Date.now();
+  for (let index = 0; index < 60; index += 1) await page.keyboard.down("j");
+  await page.keyboard.up("j");
+  const elapsed = Date.now() - started;
+  await expect(view.locator('[data-graph-index="60"]')).toHaveAttribute("aria-pressed", "true");
+  for (let index = 0; index < 60; index += 1) await page.keyboard.down("k");
+  await page.keyboard.up("k");
+  await expect(view.locator('[data-graph-index="0"]')).toHaveAttribute("aria-pressed", "true");
+  const nextBox = await scroll.boundingBox();
+  expect(nextBox?.y).toBe(originalBox?.y);
+  expect(nextBox?.height).toBe(originalBox?.height);
+  expect(
+    (await page.evaluate(() => Reflect.get(window, "graphDetailRequests").length)) - before,
+  ).toBeLessThanOrEqual(3);
+  expect(elapsed).toBeLessThan(2500);
+  const timingPath = testInfo.outputPath("navigation-timing.json");
+  await writeFile(
+    timingPath,
+    JSON.stringify({
+      commits: 20_000,
+      keys: 60,
+      elapsedMs: elapsed,
+      intermediateRequests:
+        (await page.evaluate(() => Reflect.get(window, "graphDetailRequests").length)) - before,
+    }),
+  );
+  await testInfo.attach("navigation-timing", { path: timingPath, contentType: "application/json" });
+  const unchangedGraph = view.locator('[data-graph-index="0"] [data-history-graph-mark]');
+  const svgHandle = await unchangedGraph.elementHandle();
+  await page.keyboard.press("j");
+  await expect(view.locator('[data-graph-index="1"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(details.getByText("A long explanation", { exact: false })).toBeVisible();
+  expect(await scroll.boundingBox()).toEqual(originalBox);
+  expect(await svgHandle?.evaluate((element) => element.isConnected)).toBe(true);
+});
+
 test("recovers graph failures and keeps filtered content after a failed refresh", async ({
   page,
 }) => {
@@ -464,7 +676,7 @@ test("recovers graph failures and keeps filtered content after a failed refresh"
     "aria-pressed",
     "true",
   );
-  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  await page.getByRole("tab", { name: "Graph", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Couldn’t load the history graph");
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   const view = page.getByRole("region", { name: "Repository history graph", exact: true });
@@ -494,7 +706,7 @@ test("returns to the selected older commit when switching back to Graph", async 
       .getByRole("complementary", { name: "History commits", exact: true })
       .getByText("1005", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  await page.getByRole("tab", { name: "Graph", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Filter graph commits", exact: true })
     .fill("Oldest original");
@@ -507,7 +719,7 @@ test("returns to the selected older commit when switching back to Graph", async 
   await expect(
     list.getByRole("button", { name: /^Oldest original invoice commit / }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Graph", exact: true }).click();
+  await page.getByRole("tab", { name: "Graph", exact: true }).click();
   const view = page.getByRole("region", { name: "Repository history graph", exact: true });
   await expect(
     view.getByRole("button", { name: /^Oldest original invoice commit / }),

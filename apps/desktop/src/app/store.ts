@@ -16,6 +16,7 @@ import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice"
 import { settingsReducer } from "@/features/settings/settingsSlice";
 import { gitApi } from "@/features/source-control/api";
 import { sourceControlReducer } from "@/features/source-control/sourceControlSlice";
+import { historyGraphUiReducer } from "@/features/source-control/historyGraphUiSlice";
 import { workspacesReducer } from "@/features/workspaces/workspacesSlice";
 
 import { repositorySetupReducer } from "@/features/repository-setup/repositorySetupSlice";
@@ -28,6 +29,7 @@ const combinedReducer = combineReducers({
   desktopUpdate: desktopUpdateReducer,
   lsp: lspReducer,
   sourceControl: sourceControlReducer,
+  historyGraphUi: historyGraphUiReducer,
   workspaces: workspacesReducer,
   workspaceViews: (state: ReturnType<typeof reduceWorkspaceState>["workspaceViews"] = {}) => state,
   pullRequests: pullRequestsReducer,
