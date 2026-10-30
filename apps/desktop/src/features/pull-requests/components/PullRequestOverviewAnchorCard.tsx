@@ -14,6 +14,8 @@ import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { CommentContext, PullRequestReviewAnchor } from "@/features/source-control/types";
 import type { GitProviderId } from "@/platform/desktop";
+import { getFileContentMetadata, getTextFile } from "@/platform/desktop/fileContent";
+import { FileContentNotice } from "@/features/diff-view/components/FileContentNotice";
 
 type PullRequestOverviewAnchorCardProps = {
   providerId?: GitProviderId;
@@ -64,6 +66,7 @@ export function PullRequestOverviewAnchorCard({
   const fileVersions = fileVersionsQuery.currentData ?? null;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
+  const metadata = getFileContentMetadata(oldFile) ?? getFileContentMetadata(newFile);
   const loadingSnippet = hasCompareRefs && !fileVersions && fileVersionsQuery.isFetching;
   const snippetError = fileVersions ? "" : errorMessageFrom(fileVersionsQuery.error, "");
   const hasPendingDrafts = anchor.pendingDrafts.length > 0;
@@ -146,10 +149,18 @@ export function PullRequestOverviewAnchorCard({
           <div className="text-muted-foreground rounded-md border border-border/70 px-3 py-2 text-sm">
             Loading snippet...
           </div>
-        ) : oldFile || newFile ? (
-          <PullRequestAnchorSnippet
+        ) : metadata ? (
+          <FileContentNotice
+            activePath={anchor.path}
+            metadata={metadata}
             oldFile={oldFile}
             newFile={newFile}
+            mode="comparison"
+          />
+        ) : oldFile || newFile ? (
+          <PullRequestAnchorSnippet
+            oldFile={getTextFile(oldFile)}
+            newFile={getTextFile(newFile)}
             activePath={anchor.path}
             commentContext={commentContext}
             anchor={anchor}
@@ -163,7 +174,7 @@ export function PullRequestOverviewAnchorCard({
         )}
       </div>
 
-      {snippetError || (!oldFile && !newFile && !loadingSnippet) ? (
+      {snippetError || metadata || (!oldFile && !newFile && !loadingSnippet) ? (
         <div className="mt-3 flex flex-col gap-2.5">
           {anchor.remoteThreads.map((thread) => (
             <PullRequestInlineReviewThread

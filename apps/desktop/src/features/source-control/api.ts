@@ -4,12 +4,22 @@ import type { RepositoryEntryPathInput, RepositoryEntry } from "@/platform/deskt
 import { historyGraphSchema } from "@/platform/desktop/history";
 import { buildHistoryGraph, type HistoryGraphViewData } from "./historyGraph";
 import { desktop } from "@/platform/desktop";
-import { queryResult, desktopFailure, type DesktopFailure } from "@/platform/desktop/failure";
+import {
+  queryResult,
+  desktopFailure,
+  type DesktopFailure,
+  type DesktopResult,
+} from "@/platform/desktop/failure";
+import { type ZodType } from "zod";
+import {
+  fileContentSchema,
+  fileVersionsSchema,
+  type FileContent,
+} from "@/platform/desktop/fileContent";
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
 import type {
   Bucket,
-  DiffFile,
   FileItem,
   FileVersions,
   GitSnapshot,
@@ -35,8 +45,10 @@ import {
   getGitSnapshot,
   stageAll,
   stageFile,
+  stageFiles,
   unstageAll,
   unstageFile,
+  unstageFiles,
   updateIndexFileContents,
   updateWorktreeFileContents,
 } from "./services/git";
@@ -51,7 +63,12 @@ type CommitFileVersionsArgs = {
   relPath: string;
   previousPath?: string;
 };
-type FileVersionsArgs = { repoPath: string; bucket: Bucket; relPath: string };
+type FileVersionsArgs = {
+  repoPath: string;
+  bucket: Bucket;
+  relPath: string;
+  previousPath: string | null;
+};
 type BranchFileVersionsArgs = {
   repoPath: string;
   baseRef: string;
@@ -87,6 +104,24 @@ type CommitStagedArgs = { repoPath: string; message: string };
 
 function normalizeFilePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\/+/, "");
+}
+
+function parseFileRead<T>(result: DesktopResult<unknown>, schema: ZodType<T>, operation: string) {
+  if (!result.ok) return { error: result.error };
+
+  const parsed = schema.safeParse(result.value);
+
+  if (!parsed.success) {
+    return {
+      error: desktopFailure(
+        operation,
+        "unavailable",
+        "The desktop service returned unreadable file data. Reload to try again.",
+      ),
+    };
+  }
+
+  return { data: parsed.data };
 }
 
 function normalizeFileItem(file: FileItem): FileItem {
@@ -255,9 +290,13 @@ export const gitApi = createApi({
         { type: "CommitData", id: repoPath },
       ],
     }),
-    getRepoFile: builder.query<DiffFile | null, RepoFileArgs>({
+    getRepoFile: builder.query<FileContent | null, RepoFileArgs>({
       async queryFn({ repoPath, relPath, revision }) {
-        return queryResult(await getRepoFile(repoPath, relPath, revision));
+        return parseFileRead(
+          await getRepoFile(repoPath, relPath, revision),
+          fileContentSchema.nullable(),
+          "getRepoFile",
+        );
       },
       providesTags: (_result, _error, { repoPath, relPath, revision }) => [
         { type: "FileVersions", id: `file:${repoPath}:${revision ?? "worktree"}:${relPath}` },
@@ -266,7 +305,11 @@ export const gitApi = createApi({
     }),
     getCommitFileVersions: builder.query<FileVersions, CommitFileVersionsArgs>({
       async queryFn({ repoPath, commitId, relPath, previousPath }) {
-        return queryResult(await getCommitFileVersions(repoPath, commitId, relPath, previousPath));
+        return parseFileRead(
+          await getCommitFileVersions(repoPath, commitId, relPath, previousPath),
+          fileVersionsSchema,
+          "getCommitFileVersions",
+        );
       },
       providesTags: (_result, _error, { repoPath, commitId, relPath }) => [
         { type: "FileVersions", id: `history:${repoPath}:${commitId}:${relPath}` },
@@ -274,8 +317,12 @@ export const gitApi = createApi({
       ],
     }),
     getFileVersions: builder.query<FileVersions, FileVersionsArgs>({
-      async queryFn({ repoPath, bucket, relPath }) {
-        return queryResult(await getFileVersions(repoPath, bucket, relPath));
+      async queryFn({ repoPath, bucket, relPath, previousPath }) {
+        return parseFileRead(
+          await getFileVersions(repoPath, bucket, relPath, previousPath),
+          fileVersionsSchema,
+          "getFileVersions",
+        );
       },
       providesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "FileVersions", id: `${repoPath}:${relPath}` },
@@ -284,8 +331,10 @@ export const gitApi = createApi({
     }),
     getBranchFileVersions: builder.query<FileVersions, BranchFileVersionsArgs>({
       async queryFn({ repoPath, baseRef, headRef, relPath, previousPath }) {
-        return queryResult(
+        return parseFileRead(
           await getBranchFileVersions(repoPath, baseRef, headRef, relPath, previousPath),
+          fileVersionsSchema,
+          "getBranchFileVersions",
         );
       },
       providesTags: (_result, _error, { repoPath, baseRef, headRef, relPath }) => [
@@ -307,11 +356,7 @@ export const gitApi = createApi({
     }),
     stageFiles: builder.mutation<void, IndexFilesArgs>({
       async queryFn({ repoPath, relPaths }) {
-        for (const path of relPaths) {
-          const result = await stageFile(repoPath, path);
-          if (!result.ok) return { error: result.error };
-        }
-        return { data: undefined };
+        return queryResult(await stageFiles(repoPath, relPaths), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, relPaths }) =>
         hasRepositoryEventBridge()
@@ -338,11 +383,7 @@ export const gitApi = createApi({
     }),
     unstageFiles: builder.mutation<void, IndexFilesArgs>({
       async queryFn({ repoPath, relPaths }) {
-        for (const path of relPaths) {
-          const result = await unstageFile(repoPath, path);
-          if (!result.ok) return { error: result.error };
-        }
-        return { data: undefined };
+        return queryResult(await unstageFiles(repoPath, relPaths), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, relPaths }) =>
         hasRepositoryEventBridge()

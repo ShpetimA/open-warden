@@ -11,11 +11,14 @@ import type {
 } from "./guidance";
 import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
 import type { DesktopResult } from "./failure";
+import type { FileContent, FileVersions } from "./fileContent";
 import type {
   RepositoryConfiguration,
   RepositoryConfigurationCommand,
   RepositorySetupInput,
 } from "./repositoryManagement";
+
+export type { DiffFile, FileContent, FileContentMetadata, FileVersions } from "./fileContent";
 
 export type Bucket = "unstaged" | "staged" | "untracked";
 
@@ -28,11 +31,6 @@ export type FileStatus =
   | "unmerged"
   | "modified"
   | "untracked";
-
-export type DiffFile = {
-  readonly name: string;
-  readonly contents: string;
-};
 
 export type FileItem = {
   path: string;
@@ -52,11 +50,6 @@ export type RepositoryEntry = {
 
 export type RepoFileItem = {
   path: string;
-};
-
-export type FileVersions = {
-  oldFile: DiffFile | null;
-  newFile: DiffFile | null;
 };
 
 export type GitSnapshot = {
@@ -709,7 +702,12 @@ export type DesktopHandlers = {
     relPath: string,
     previousPath?: string,
   ): Promise<FileVersions>;
-  getFileVersions(repoPath: string, relPath: string, bucket: Bucket): Promise<FileVersions>;
+  getFileVersions(
+    repoPath: string,
+    relPath: string,
+    bucket: Bucket,
+    previousPath: string | null,
+  ): Promise<FileVersions>;
   getBranchFileVersions(
     repoPath: string,
     baseRef: string,
@@ -719,6 +717,14 @@ export type DesktopHandlers = {
   ): Promise<FileVersions>;
   stageFile(repoPath: string, relPath: string): Promise<import("./failure").DesktopResult<void>>;
   unstageFile(repoPath: string, relPath: string): Promise<import("./failure").DesktopResult<void>>;
+  stageFiles(
+    repoPath: string,
+    relPaths: readonly string[],
+  ): Promise<import("./failure").DesktopResult<void>>;
+  unstageFiles(
+    repoPath: string,
+    relPaths: readonly string[],
+  ): Promise<import("./failure").DesktopResult<void>>;
   updateIndexFileContents(
     repoPath: string,
     relPath: string,
@@ -747,7 +753,7 @@ export type DesktopHandlers = {
     repoPath: string,
     message: string,
   ): Promise<import("./failure").DesktopResult<string>>;
-  getRepoFile(input: GetRepoFileInput): Promise<DiffFile | null>;
+  getRepoFile(input: GetRepoFileInput): Promise<FileContent | null>;
   getGitBlame(repoPath: string, relPath: string, revision?: string | null): Promise<GitBlameResult>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;

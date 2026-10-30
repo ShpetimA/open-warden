@@ -54,6 +54,25 @@ test.beforeEach(async ({ page }) => {
       },
     };
     window.changesRefreshTest = control;
+
+    async function stage(path: string) {
+      control.stageCalls.push(path);
+      if (control.holdStages) await new Promise<void>((resolve) => waiters.push(resolve));
+      await new Promise((resolve) => setTimeout(resolve, 35));
+
+      if (control.failStageAt === control.stageCalls.length) {
+        throw new Error("Couldn’t stage this file");
+      }
+
+      staged.add(path);
+    }
+
+    async function unstage(path: string) {
+      control.unstageCalls.push(path);
+      await new Promise((resolve) => setTimeout(resolve, 35));
+      staged.delete(path);
+    }
+
     const handlers: Partial<DesktopHandlers> = {
       loadWorkspaceSession: async () => ({
         openRepos: ["/projects/changes"],
@@ -102,17 +121,16 @@ test.beforeEach(async ({ page }) => {
         newFile: { name: path, contents: "const value = 2;" },
       }),
       stageFile: async (_repo, path) => {
-        control.stageCalls.push(path);
-        if (control.holdStages) await new Promise<void>((resolve) => waiters.push(resolve));
-        await new Promise((resolve) => setTimeout(resolve, 35));
-        if (control.failStageAt === control.stageCalls.length)
-          throw new Error("Couldn’t stage this file");
-        staged.add(path);
+        await stage(path);
       },
       unstageFile: async (_repo, path) => {
-        control.unstageCalls.push(path);
-        await new Promise((resolve) => setTimeout(resolve, 35));
-        staged.delete(path);
+        await unstage(path);
+      },
+      stageFiles: async (_repo, paths) => {
+        for (const path of paths) await stage(path);
+      },
+      unstageFiles: async (_repo, paths) => {
+        for (const path of paths) await unstage(path);
       },
       getGitRepositoryState: async () => ({
         branch: "main",

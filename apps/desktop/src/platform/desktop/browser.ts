@@ -177,8 +177,10 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
     case "getBranchFileVersions":
       return "Branch file diff loading";
     case "stageFile":
+    case "stageFiles":
       return "Staging files";
     case "unstageFile":
+    case "unstageFiles":
       return "Unstaging files";
     case "stageAll":
       return "Staging all files";

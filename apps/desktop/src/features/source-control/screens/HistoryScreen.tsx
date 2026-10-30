@@ -22,6 +22,7 @@ import { useHistoryKeyboardNav } from "@/features/source-control/hooks/useHistor
 import { useHistorySync } from "@/features/source-control/hooks/useHistorySync";
 import { selectHistoryPullRequestCommit } from "@/features/source-control/actions";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
+import { getTextFile } from "@/platform/desktop/fileContent";
 
 export function HistoryScreen() {
   useHistoryKeyboardNav();
@@ -118,7 +119,7 @@ function HistoryDiffPane() {
   const newFile = fileVersions?.newFile ?? null;
   const initialReadFailed = !fileVersions && Boolean(query.error);
   const previewPath = previewSelection.path;
-  const lspText = !loadingPatch && newFile ? newFile.contents : null;
+  const lspText = !loadingPatch ? (getTextFile(newFile)?.contents ?? null) : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null
       ? { repoPath: activeRepo, relPath: previewPath }
@@ -181,7 +182,11 @@ function HistoryDiffPane() {
                 }}
               />
             ) : null}
-            <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
+            <LspStatusNotice
+              repoPath={activeRepo}
+              relPath={previewPath}
+              active={lspText !== null}
+            />
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}

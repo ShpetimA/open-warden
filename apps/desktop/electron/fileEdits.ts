@@ -16,7 +16,8 @@ import {
   desktopSuccess,
   type DesktopResult,
 } from "../src/platform/desktop/failure";
-import { getFileVersions } from "./git";
+import { getFileVersions, getGitSnapshot } from "./git";
+import { getTextFile, getFileContentMetadata } from "../src/platform/desktop/fileContent";
 import {
   repositoryWriteEvents,
   worktreeFileWriteEvent,
@@ -114,22 +115,54 @@ async function inspectTarget(edit: Edit, operation: string): Promise<DesktopResu
 
 async function checkExpected(edit: Edit, operation: string): Promise<DesktopResult<void>> {
   if (edit.expected.kind === "diff") {
-    const versions = await getFileVersions(edit.repoPath, edit.relPath, edit.expected.bucket);
-    return (versions.oldFile?.contents ?? null) === edit.expected.oldContents &&
-      (versions.newFile?.contents ?? null) === edit.expected.newContents
+    const snapshot = await getGitSnapshot(edit.repoPath);
+    const entry = snapshot[edit.expected.bucket].find((file) => file.path === edit.relPath);
+    const versions = await getFileVersions(
+      edit.repoPath,
+      edit.relPath,
+      edit.expected.bucket,
+      entry?.previousPath ?? null,
+    );
+
+    if (getFileContentMetadata(versions.oldFile) || getFileContentMetadata(versions.newFile)) {
+      return unsupportedTextEdit(operation);
+    }
+
+    return (getTextFile(versions.oldFile)?.contents ?? null) === edit.expected.oldContents &&
+      (getTextFile(versions.newFile)?.contents ?? null) === edit.expected.newContents
       ? desktopSuccess(undefined)
       : stale(operation);
   }
 
   try {
     const bytes = await fs.readFile(path.join(edit.repoPath, edit.relPath));
-    return decoder.decode(bytes) === edit.expected.contents
-      ? desktopSuccess(undefined)
-      : stale(operation);
+
+    if (bytes.includes(0)) return unsupportedTextEdit(operation);
+
+    let contents: string;
+
+    try {
+      contents = decoder.decode(bytes);
+    } catch {
+      return unsupportedTextEdit(operation);
+    }
+
+    return contents === edit.expected.contents ? desktopSuccess(undefined) : stale(operation);
   } catch (cause) {
     if (isMissing(cause)) return stale(operation);
     throw cause;
   }
+}
+
+function unsupportedTextEdit(operation: string): DesktopResult<never> {
+  return {
+    ok: false,
+    error: desktopFailure(
+      operation,
+      "invalid-input",
+      "Text edits cannot be applied to binary files or files that exceed the preview limit.",
+    ),
+  };
 }
 
 function encodeContents(contents: string, original: Buffer): Buffer {

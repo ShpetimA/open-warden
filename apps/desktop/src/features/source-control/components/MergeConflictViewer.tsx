@@ -9,6 +9,8 @@ import { gitApi, useGetRepoFileQuery } from "@/features/source-control/api";
 import { ActionError, ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import { getDiffTheme, getDiffThemeType } from "@/features/diff-view/diffRenderConfig";
+import { getFileContentMetadata, getTextFile } from "@/platform/desktop/fileContent";
+import { FileContentNotice } from "@/features/diff-view/components/FileContentNotice";
 
 const STICKY_HEADER_CSS = `
 :host {
@@ -61,6 +63,7 @@ export function MergeConflictViewer({ repoPath, relPath }: MergeConflictViewerPr
     { refetchOnFocus: true, refetchOnReconnect: true },
   );
   const repoFile = repoFileQuery.currentData;
+  const textFile = getTextFile(repoFile ?? null);
   const [saveError, setSaveError] = useState<DesktopFailure | null>(null);
 
   // Local applied copy so accepted conflict updates are visible immediately
@@ -80,12 +83,12 @@ export function MergeConflictViewer({ repoPath, relPath }: MergeConflictViewerPr
 
   const file: FileContents | null = useMemo(() => {
     if (workingFile) return workingFile;
-    if (!repoFile) return null;
+    if (!textFile) return null;
     return {
-      name: repoFile.name,
-      contents: repoFile.contents,
+      name: textFile.name,
+      contents: textFile.contents,
     };
-  }, [repoFile, workingFile]);
+  }, [textFile, workingFile]);
 
   const options = useMemo(
     () => ({
@@ -155,6 +158,25 @@ export function MergeConflictViewer({ repoPath, relPath }: MergeConflictViewerPr
       mutation.reset();
       setIsApplying(false);
     }
+  }
+
+  const metadata = getFileContentMetadata(repoFile ?? null);
+
+  if (metadata) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <p className="text-muted-foreground border-b px-3 py-2 text-xs">
+          Resolve this conflict externally, then stage the file.
+        </p>
+        <FileContentNotice
+          activePath={relPath}
+          metadata={metadata}
+          oldFile={null}
+          newFile={repoFile ?? null}
+          mode="file"
+        />
+      </div>
+    );
   }
 
   if (!file) {

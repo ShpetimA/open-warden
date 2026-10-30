@@ -31,6 +31,7 @@ import {
   InactivePullRequestReviewPlaceholder,
   usePullRequestReviewSession,
 } from "./PullRequestReviewShared";
+import { getTextFile } from "@/platform/desktop/fileContent";
 
 const EMPTY_BRANCH_FILES: FileItem[] = [];
 
@@ -112,7 +113,7 @@ function PullRequestDiffPane({
   const newFile = reviewVersions?.newFile ?? null;
   const loadingPatch = !reviewVersions && branchFileVersionsQuery.isLoading;
   const errorMessage = reviewVersions ? "" : errorMessageFrom(branchFileVersionsQuery.error, "");
-  const lspText = !loadingPatch && newFile ? newFile.contents : null;
+  const lspText = !loadingPatch ? (getTextFile(newFile)?.contents ?? null) : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null
       ? { repoPath: activeRepo, relPath: previewPath }
@@ -138,7 +139,11 @@ function PullRequestDiffPane({
           <div className="text-muted-foreground p-3 text-sm">Select a file to view diff.</div>
         ) : (
           <div className="relative flex h-full min-h-0 min-w-0 flex-col" key="pr-diff-viewer">
-            <LspStatusNotice repoPath={activeRepo} relPath={previewPath ?? ""} active />
+            <LspStatusNotice
+              repoPath={activeRepo}
+              relPath={previewPath ?? ""}
+              active={lspText !== null}
+            />
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}

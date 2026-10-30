@@ -76,8 +76,10 @@ import {
   getGitSnapshot,
   stageAll,
   stageFile,
+  stageFiles,
   unstageAll,
   unstageFile,
+  unstageFiles,
   updateIndexFileContents,
   updateWorktreeFileContents,
 } from "./git";
@@ -184,6 +186,14 @@ export const desktopApi: DesktopHandlers = {
   unstageFile: (repoPath, ...args) =>
     coordinateRepositoryWrite(repoPath, repositoryWriteEvents.unstageFile, async () =>
       desktopSuccess(await unstageFile(repoPath, ...args)),
+    ),
+  stageFiles: (repoPath, paths) =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.stageFiles, async () =>
+      desktopSuccess(await stageFiles(repoPath, paths)),
+    ),
+  unstageFiles: (repoPath, paths) =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.unstageFiles, async () =>
+      desktopSuccess(await unstageFiles(repoPath, paths)),
     ),
   updateIndexFileContents,
   updateWorktreeFileContents,

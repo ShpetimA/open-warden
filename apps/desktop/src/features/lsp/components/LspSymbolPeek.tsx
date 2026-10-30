@@ -30,6 +30,7 @@ import {
   setSymbolPeekQuery,
 } from "@/features/source-control/sourceControlSlice";
 import type { LspLocation, SymbolPeekKind, SymbolPeekState } from "@/features/source-control/types";
+import { getTextFile } from "@/platform/desktop/fileContent";
 
 const SYMBOL_PEEK_MAX_HEIGHT_REM = 32;
 const SYMBOL_PEEK_OFFSET_PX = 4;
@@ -259,7 +260,7 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
     },
   );
 
-  const previewFile = previewQuery.currentData;
+  const previewFile = getTextFile(previewQuery.currentData ?? null);
   const previewError = errorMessageFrom(previewQuery.error, "");
   const locationPaths = useMemo(
     () => Array.from(new Set(locations.map((location) => location.relPath))),
@@ -269,10 +270,11 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
   const cachedFileContentsByPath = useAppSelector((state) => {
     const next: Record<string, string> = {};
     for (const relPath of locationPaths) {
-      const cached = gitApi.endpoints.getRepoFile.select({
+      const result = gitApi.endpoints.getRepoFile.select({
         repoPath: document.repoPath,
         relPath,
       })(state).data;
+      const cached = getTextFile(result ?? null);
       if (cached?.contents) {
         next[relPath] = cached.contents;
       }
@@ -506,7 +508,7 @@ export function LspSymbolPeek({ document, containerRef, symbolPeek }: LspSymbolP
         <section className="min-h-0 min-w-0 border-r border-border">
           {previewError ? (
             <div className="text-destructive px-3 py-2 text-xs">{previewError}</div>
-          ) : previewQuery.isFetching && previewFile === undefined ? (
+          ) : previewQuery.isFetching && previewQuery.currentData === undefined ? (
             <div className="text-muted-foreground px-3 py-2 text-xs">Loading preview...</div>
           ) : (
             <SymbolPeekPreview location={activeLocation} contents={previewFile?.contents ?? null} />

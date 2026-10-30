@@ -207,6 +207,46 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`binary changes remain reviewable in PR files and commits in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 900 });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    await expect(
+      page.getByRole("complementary", { name: "Changed files", exact: true }),
+    ).toBeVisible();
+
+    await page.evaluate(() => {
+      const bridge = window.desktopBridge;
+
+      if (!bridge) throw new Error("Expected the test desktop bridge");
+
+      bridge.getBranchFileVersions = async (_repo, _base, _head, path) => ({
+        ok: true,
+        value: {
+          oldFile: { kind: "binary", name: path, byteLength: 128 },
+          newFile: { kind: "binary", name: path, byteLength: 256 },
+        },
+      });
+    });
+
+    await page.getByRole("treeitem", { name: "invoice.test.ts", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Binary file", exact: true })).toBeVisible();
+    await expect(page.getByText("128 bytes", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark file viewed", exact: true })).toBeVisible();
+    await expect(page.locator("diffs-container")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`binary-pr-files-${theme}.png`) });
+
+    await page.getByRole("tab", { name: "Commits" }).click();
+    await expect(page.getByRole("heading", { name: "Binary file", exact: true })).toBeVisible();
+    await expect(page.getByText("256 bytes", { exact: true })).toBeVisible();
+    await expect(page.locator("diffs-container")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`binary-pr-commit-${theme}.png`) });
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
   test(`scopes files and diffs to a commit with compact spacing in ${theme} theme`, async ({
     page,
   }, testInfo) => {

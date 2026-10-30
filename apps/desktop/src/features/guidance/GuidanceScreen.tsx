@@ -32,6 +32,7 @@ import {
 import { GuidanceView } from "./GuidanceView";
 import { GuidanceActivityStatus } from "./GuidanceActivityStatus";
 import { useGetGuidanceActivityQuery, useClearGuidanceMessagesMutation } from "./api";
+import { getFileContentMetadata, getTextFile } from "@/platform/desktop/fileContent";
 
 export function GuidanceScreen() {
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
@@ -253,31 +254,56 @@ function GuidanceDiff({
     reviewThreads: comparison.stale ? [] : (conversation?.reviewThreads ?? []),
   });
   const mentions = usePullRequestMentionCandidates(conversation);
+
   if (comparisonError || error)
     return (
       <p role="alert" className="text-destructive p-4 text-sm">
         {comparisonError || errorMessageFrom(error, "The referenced file could not be loaded.")}
       </p>
     );
+
   if (loading || (!versions && isFetching))
     return <ListLoadingState label="Loading referenced changes…" />;
+
   if (!file || !refs || !versions)
     return (
       <p role="alert" className="text-warning p-4 text-sm">
         This file is no longer available in the PR. Ask your agent to refresh the walkthrough.
       </p>
     );
+
+  const metadata =
+    getFileContentMetadata(versions.oldFile) ?? getFileContentMetadata(versions.newFile);
+
+  if (metadata) {
+    return (
+      <DiffWorkspace
+        oldFile={versions.oldFile}
+        newFile={versions.newFile}
+        activePath={reference.path}
+        commentContext={{
+          kind: "review",
+          baseRef: refs.compareBaseRef,
+          headRef: refs.compareHeadRef,
+        }}
+        canComment={false}
+      />
+    );
+  }
+
   const references = step.references.filter((item) => item.path === reference.path);
   const invalidReference = references.some((item) => {
-    const content = item.side === "base" ? versions.oldFile : versions.newFile;
+    const content = getTextFile(item.side === "base" ? versions.oldFile : versions.newFile);
     return !content || item.endLine > content.contents.split("\n").length;
   });
+
   if (invalidReference)
     return (
       <p role="alert" className="text-warning p-4 text-sm">
         This code reference does not match the file. Ask your agent to correct the line range.
       </p>
     );
+
   const explanations: DiffLineAnnotation<DiffAnnotationItem>[] = references.map((item) => ({
     side: item.side === "base" ? "deletions" : "additions",
     lineNumber: item.startLine - 1,

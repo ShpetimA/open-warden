@@ -1,5 +1,6 @@
 import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
+import { getTextFile } from "@/platform/desktop/fileContent";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
@@ -51,11 +52,13 @@ function ChangesDiffPane() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
 
-  const { isMergeConflict } = useGetGitSnapshotQuery(activeRepo ?? "", {
+  const { isMergeConflict, previousPath } = useGetGitSnapshotQuery(activeRepo ?? "", {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
     selectFromResult: ({ currentData }) => ({
+      previousPath:
+        currentData?.[activeBucket].find((file) => file.path === activePath)?.previousPath ?? null,
       isMergeConflict: Boolean(
         activePath &&
         currentData?.unstaged.some(
@@ -70,13 +73,19 @@ function ChangesDiffPane() {
       ? {
           bucket: activeBucket,
           path: activePath,
+          previousPath,
         }
       : null,
   );
 
   const workingFileVersions = useGetFileVersionsQuery(
     activeRepo && previewSelection
-      ? { repoPath: activeRepo, bucket: previewSelection.bucket, relPath: previewSelection.path }
+      ? {
+          repoPath: activeRepo,
+          bucket: previewSelection.bucket,
+          relPath: previewSelection.path,
+          previousPath: previewSelection.previousPath,
+        }
       : skipToken,
     {
       refetchOnFocus: true,
@@ -89,7 +98,7 @@ function ChangesDiffPane() {
   const newFile = fileVersions?.newFile ?? null;
   const errorMessage = fileVersions ? "" : errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? activePath ?? "";
-  const lspText = !loadingPatch && newFile ? newFile.contents : null;
+  const lspText = !loadingPatch ? (getTextFile(newFile)?.contents ?? null) : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null && !isMergeConflict
       ? { repoPath: activeRepo, relPath: previewPath }
@@ -184,7 +193,11 @@ function ChangesDiffPane() {
                   }}
                 />
               ) : null}
-              <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
+              <LspStatusNotice
+                repoPath={activeRepo}
+                relPath={previewPath}
+                active={lspText !== null}
+              />
               <DiffWorkspace
                 oldFile={oldFile}
                 newFile={newFile}

@@ -24,6 +24,9 @@ import { workingFileKey } from "../fileEditorSlice";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { DiffReturnTarget, FileViewerTarget } from "@/features/source-control/types";
+import { getFileContentMetadata, getTextFile } from "@/platform/desktop/fileContent";
+import { FileContentNotice } from "@/features/diff-view/components/FileContentNotice";
+import { OpenInExternalEditor } from "./OpenInExternalEditor";
 
 type GeneralFileViewerProps = {
   target?: FileViewerTarget | null;
@@ -126,8 +129,10 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     },
   );
 
-  const file = repoFileQuery.currentData;
-  const errorMessage = file ? "" : errorMessageFrom(repoFileQuery.error, "");
+  const content = repoFileQuery.currentData;
+  const file = getTextFile(content ?? null);
+  const metadata = getFileContentMetadata(content ?? null);
+  const errorMessage = content ? "" : errorMessageFrom(repoFileQuery.error, "");
   const selectedLine = target?.line && target.line > 0 ? target.line : null;
   const focusKey = target?.focusKey ?? null;
   const lspText = file?.contents ?? null;
@@ -163,36 +168,38 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     );
   }
 
-  if (repoFileQuery.isFetching && !file) {
+  if (repoFileQuery.isFetching && !content) {
     return <div className="text-muted-foreground p-4 text-sm">Loading file...</div>;
   }
 
-  if (!file) {
+  if (!content) {
     return <div className="text-muted-foreground p-4 text-sm">Select a file to view it.</div>;
   }
 
-  const fileProps = {
-    file,
-    className: "block min-w-0 flex-1",
-    metrics: {
-      lineHeight: BLAME_LINE_HEIGHT,
-      hunkLineCount: 100,
-      diffHeaderHeight: 0,
-      spacing: 0,
-      paddingTop: 0,
-      paddingBottom: 0,
-    },
-    selectedLines: selectedLine ? { start: selectedLine, end: selectedLine } : null,
-    options: {
-      theme: getDiffTheme(),
-      themeType: getDiffThemeType(resolvedTheme),
-      unsafeCSS: FILE_VIEWER_CSS,
-      disableLineNumbers: false,
-      disableFileHeader: true,
-      overflow: "scroll",
-      onTokenClick,
-    },
-  } satisfies ComponentProps<typeof PierreFile>;
+  const fileProps = file
+    ? ({
+        file,
+        className: "block min-w-0 flex-1",
+        metrics: {
+          lineHeight: BLAME_LINE_HEIGHT,
+          hunkLineCount: 100,
+          diffHeaderHeight: 0,
+          spacing: 0,
+          paddingTop: 0,
+          paddingBottom: 0,
+        },
+        selectedLines: selectedLine ? { start: selectedLine, end: selectedLine } : null,
+        options: {
+          theme: getDiffTheme(),
+          themeType: getDiffThemeType(resolvedTheme),
+          unsafeCSS: FILE_VIEWER_CSS,
+          disableLineNumbers: false,
+          disableFileHeader: true,
+          overflow: "scroll",
+          onTokenClick,
+        },
+      } satisfies ComponentProps<typeof PierreFile>)
+    : null;
 
   return (
     <section className="relative flex h-full min-h-0 min-w-0 flex-col">
@@ -232,53 +239,73 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
           >
             {returnToDiffTarget ? formatReturnToDiffLabel(returnToDiffTarget) : target?.relPath}
           </div>
-          {target && !target.revision ? (
+          {target && !target.revision && file ? (
             <WorkingFileControls target={target} />
           ) : (
             <span className="text-muted-foreground shrink-0 text-[11px]">Read only</span>
           )}
-          {target ? (
+          {target && file ? (
             <FileBlameButton
               target={target}
               shown={blameVisible}
               onToggle={() => setShowBlame((value) => !value)}
             />
           ) : null}
+          {target && !target.revision && metadata ? (
+            <OpenInExternalEditor
+              repoPath={target.repoPath}
+              filePath={target.relPath}
+              target="file"
+              compact
+            />
+          ) : null}
         </div>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1">
-        <div
-          key={file.name}
-          ref={viewerRef}
-          className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden"
-        >
-          <Virtualizer
-            className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
-            contentClassName="flex min-h-full min-w-0 items-start"
+      {metadata ? (
+        <FileContentNotice
+          activePath={target?.relPath ?? content.name}
+          metadata={metadata}
+          oldFile={null}
+          newFile={content}
+          mode="file"
+          hideHeader
+        />
+      ) : null}
+      {file && fileProps ? (
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <div
+            key={file.name}
+            ref={viewerRef}
+            className="@container relative min-h-0 min-w-0 flex-1 overflow-hidden"
           >
-            {blameVisible && target ? (
-              <FileBlameGutter
-                key={`${target.repoPath}:${target.relPath}:${target.revision ?? ""}`}
-                target={target}
-              />
-            ) : null}
-            {target && !target.revision ? (
-              <WorkingFileEditor
-                key={workingFileKey(target)}
-                {...fileProps}
-                target={target}
-                editing={!blameVisible}
-              />
-            ) : (
-              <PierreFile key="source" {...fileProps} />
-            )}
-          </Virtualizer>
-          <LspSymbolPeekContainer
-            document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
-            containerRef={viewerRef}
-          />
+            <Virtualizer
+              className="file-viewer-scroll relative h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
+              contentClassName="flex min-h-full min-w-0 items-start"
+            >
+              {blameVisible && target ? (
+                <FileBlameGutter
+                  key={`${target.repoPath}:${target.relPath}:${target.revision ?? ""}`}
+                  target={target}
+                />
+              ) : null}
+              {target && !target.revision ? (
+                <WorkingFileEditor
+                  key={workingFileKey(target)}
+                  {...fileProps}
+                  target={target}
+                  editing={!blameVisible}
+                />
+              ) : (
+                <PierreFile key="source" {...fileProps} />
+              )}
+            </Virtualizer>
+            <LspSymbolPeekContainer
+              document={target ? { repoPath: target.repoPath, relPath: target.relPath } : undefined}
+              containerRef={viewerRef}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
     </section>
   );
 }

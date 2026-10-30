@@ -64,6 +64,8 @@ export const repositoryWriteEvents = {
   trashRepositoryEntry: { operation: "trashRepositoryEntry", impact: entriesChanged },
   stageFile: { operation: "stageFile", impact: indexChanged },
   unstageFile: { operation: "unstageFile", impact: indexChanged },
+  stageFiles: { operation: "stageFiles", impact: indexChanged },
+  unstageFiles: { operation: "unstageFiles", impact: indexChanged },
   stageAll: { operation: "stageAll", impact: indexChanged },
   unstageAll: { operation: "unstageAll", impact: indexChanged },
   updateIndexFileContents: { operation: "updateIndexFileContents", impact: indexChanged },

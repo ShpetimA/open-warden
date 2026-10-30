@@ -5,6 +5,7 @@ import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 
 import type { DiffEditExpectation } from "../src/platform/desktop/fileEdits";
+import { getTextFile } from "../src/platform/desktop/fileContent";
 import { getFileVersions } from "./git";
 import { updateIndexFileContents, updateWorktreeFileContents } from "./fileEdits";
 import { runGitCommand } from "./gitOperations";
@@ -34,12 +35,12 @@ async function expectation(
   repo: string,
   bucket: "staged" | "unstaged",
 ): Promise<DiffEditExpectation> {
-  const versions = await getFileVersions(repo, "file.txt", bucket);
+  const versions = await getFileVersions(repo, "file.txt", bucket, null);
   return {
     kind: "diff",
     bucket,
-    oldContents: versions.oldFile?.contents ?? null,
-    newContents: versions.newFile?.contents ?? null,
+    oldContents: getTextFile(versions.oldFile)?.contents ?? null,
+    newContents: getTextFile(versions.newFile)?.contents ?? null,
   };
 }
 afterEach(async () => {

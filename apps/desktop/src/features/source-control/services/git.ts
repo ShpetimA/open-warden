@@ -53,8 +53,13 @@ export async function getCommitFileVersions(
   return desktop.getCommitFileVersions(repoPath, commitId, relPath, previousPath);
 }
 
-export async function getFileVersions(repoPath: string, bucket: Bucket, relPath: string) {
-  return desktop.getFileVersions(repoPath, relPath, bucket);
+export async function getFileVersions(
+  repoPath: string,
+  bucket: Bucket,
+  relPath: string,
+  previousPath: string | null,
+) {
+  return desktop.getFileVersions(repoPath, relPath, bucket, previousPath);
 }
 
 export async function getBranchFileVersions(
@@ -73,6 +78,14 @@ export async function stageFile(repoPath: string, relPath: string) {
 
 export async function unstageFile(repoPath: string, relPath: string) {
   return desktop.unstageFile(repoPath, relPath);
+}
+
+export async function stageFiles(repoPath: string, relPaths: readonly string[]) {
+  return desktop.stageFiles(repoPath, relPaths);
+}
+
+export async function unstageFiles(repoPath: string, relPaths: readonly string[]) {
+  return desktop.unstageFiles(repoPath, relPaths);
 }
 
 export async function updateIndexFileContents(

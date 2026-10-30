@@ -33,6 +33,7 @@ import {
 } from "../fileEditorSlice";
 import type { FileViewerTarget } from "../types";
 import { WorkingFileActions } from "./WorkingFileActions";
+import { getTextFile } from "@/platform/desktop/fileContent";
 
 type WorkingFileEditorProps = ComponentProps<typeof PierreFile> & {
   target: FileViewerTarget;
@@ -222,7 +223,7 @@ export function WorkingFileControls({ target }: { target: WorkingFileTarget }) {
   async function reload() {
     setReloading(true);
     try {
-      const file = await refetch().unwrap();
+      const file = getTextFile(await refetch().unwrap());
       if (file) dispatch(fileDocumentReloaded({ ...target, contents: file.contents }));
     } catch (cause: unknown) {
       dispatch(fileSaveFailed({ ...target, error: failureFromUnknown(cause, "getRepoFile") }));

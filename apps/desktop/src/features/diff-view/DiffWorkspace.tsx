@@ -2,6 +2,14 @@ import { useCallback, useMemo, useRef, type ReactNode, type RefObject } from "re
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 import { useAppSelector } from "@/app/hooks";
+import {
+  getFileContentMetadata,
+  getTextFile,
+  type FileContent,
+  type FileContentMetadata,
+} from "@/platform/desktop/fileContent";
+import { FileContentNotice } from "./components/FileContentNotice";
+import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { DiagnosticTokenPopover } from "@/features/diff-view/components/DiagnosticTokenPopover";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
@@ -35,8 +43,8 @@ import { useDiffAnnotationRenderer } from "@/features/diff-view/hooks/useDiffAnn
 import { type DiffLineAnnotation, type FileDiffOptions } from "@pierre/diffs";
 
 type Props = {
-  oldFile: DiffFile | null;
-  newFile: DiffFile | null;
+  oldFile: FileContent | null;
+  newFile: FileContent | null;
   activePath: string;
   commentContext: CommentContext;
   canComment: boolean;
@@ -144,7 +152,58 @@ function buildReturnToDiffTarget(
   };
 }
 
-export function DiffWorkspace({
+export function DiffWorkspace(props: Props) {
+  const metadata = getFileContentMetadata(props.oldFile) ?? getFileContentMetadata(props.newFile);
+
+  if (metadata) {
+    return <NonTextDiffWorkspace {...props} metadata={metadata} />;
+  }
+
+  return (
+    <TextDiffWorkspace
+      {...props}
+      oldFile={getTextFile(props.oldFile)}
+      newFile={getTextFile(props.newFile)}
+    />
+  );
+}
+
+function NonTextDiffWorkspace({ metadata, ...props }: Props & { metadata: FileContentMetadata }) {
+  const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
+  const workingFile = props.commentContext.kind === "changes" && props.newFile !== null;
+
+  return (
+    <FileContentNotice
+      activePath={props.activePath}
+      metadata={metadata}
+      oldFile={props.oldFile}
+      newFile={props.newFile}
+      mode="comparison"
+      headerAction={
+        props.hideHeaderMetadataControls ? null : (
+          <div className="flex shrink-0 items-center gap-1">
+            {props.headerAction}
+            {workingFile ? (
+              <OpenInExternalEditor
+                repoPath={repoPath}
+                filePath={props.activePath}
+                target="file"
+                compact
+              />
+            ) : null}
+          </div>
+        )
+      }
+    />
+  );
+}
+
+type TextProps = Omit<Props, "oldFile" | "newFile"> & {
+  oldFile: DiffFile | null;
+  newFile: DiffFile | null;
+};
+
+function TextDiffWorkspace({
   oldFile,
   newFile,
   activePath,
@@ -167,7 +226,7 @@ export function DiffWorkspace({
   headerAction,
   hunkOperations = EMPTY_HUNK_OPERATIONS,
   onHunkAction,
-}: Props) {
+}: TextProps) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const jumpContext: LspJumpContextKind | null =

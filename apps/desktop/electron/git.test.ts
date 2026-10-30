@@ -15,6 +15,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { getTextFile } from "../src/platform/desktop/fileContent";
 
 import {
   commitStaged,
@@ -125,8 +126,8 @@ describe("electron git backend", () => {
       { path: "renamed.md", previousPath: "notes.md", status: "renamed" },
     ]);
     const versions = await getBranchFileVersions(repo, `${head}^`, head, "renamed.md", "notes.md");
-    expect(versions.oldFile?.contents).toBe("updated\n");
-    expect(versions.newFile?.contents).toBe("updated\n");
+    expect(getTextFile(versions.oldFile)?.contents).toBe("updated\n");
+    expect(getTextFile(versions.newFile)?.contents).toBe("updated\n");
   });
 
   test("reads snapshot buckets from system git", async () => {
@@ -211,9 +212,9 @@ describe("electron git backend", () => {
       },
     ]);
     expect(combinedVersions.oldFile).toBeNull();
-    expect(combinedVersions.newFile?.contents.trim()).toEqual("v2");
-    expect(versions.oldFile?.contents.trim()).toEqual("v1");
-    expect(versions.newFile?.contents.trim()).toEqual("v2");
+    expect(getTextFile(combinedVersions.newFile)?.contents.trim()).toEqual("v2");
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("v1");
+    expect(getTextFile(versions.newFile)?.contents.trim()).toEqual("v2");
   });
 
   test("compares branches with rename-aware and copy-aware diff metadata", async () => {
@@ -260,10 +261,14 @@ describe("electron git backend", () => {
     ]);
     expect(renamedVersions.oldFile?.name).toEqual("file.txt");
     expect(renamedVersions.newFile?.name).toEqual("renamed.txt");
-    expect(renamedVersions.oldFile?.contents).toEqual(renamedVersions.newFile?.contents);
+    expect(getTextFile(renamedVersions.oldFile)?.contents).toEqual(
+      getTextFile(renamedVersions.newFile)?.contents,
+    );
     expect(copiedVersions.oldFile?.name).toEqual("file.txt");
     expect(copiedVersions.newFile?.name).toEqual("copied.txt");
-    expect(copiedVersions.oldFile?.contents).toEqual(copiedVersions.newFile?.contents);
+    expect(getTextFile(copiedVersions.oldFile)?.contents).toEqual(
+      getTextFile(copiedVersions.newFile)?.contents,
+    );
   });
 
   test("reports detached HEAD state and still lists branches", async () => {
@@ -284,7 +289,7 @@ describe("electron git backend", () => {
     expect(branches).toContain(initialBranch);
   });
 
-  test("rejects binary file contents in a controlled way", async () => {
+  test("returns binary file metadata as a successful read", async () => {
     const repo = makeRepo();
 
     writeFileSync(path.join(repo, "binary.bin"), Buffer.from([0x00, 0x01, 0x02]));
@@ -293,9 +298,14 @@ describe("electron git backend", () => {
 
     const history = await getCommitHistory(repo);
 
-    await expect(getCommitFileVersions(repo, history[0]!.commitId, "binary.bin")).rejects.toThrow(
-      /binary file is not supported/i,
-    );
+    const commit = history[0];
+
+    if (!commit) throw new Error("Expected the binary commit");
+
+    expect(await getCommitFileVersions(repo, commit.commitId, "binary.bin")).toEqual({
+      oldFile: null,
+      newFile: { kind: "binary", name: "binary.bin", byteLength: 3 },
+    });
   });
 
   test("stages, unstages, discards, and commits without Rust", async () => {
@@ -311,14 +321,14 @@ describe("electron git backend", () => {
     await stageFile(repo, "tracked.txt");
     await unstageFile(repo, "tracked.txt");
 
-    let versions = await getFileVersions(repo, "tracked.txt", "unstaged");
-    expect(versions.oldFile?.contents.trim()).toEqual("one");
-    expect(versions.newFile?.contents.trim()).toEqual("two");
+    let versions = await getFileVersions(repo, "tracked.txt", "unstaged", null);
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("one");
+    expect(getTextFile(versions.newFile)?.contents.trim()).toEqual("two");
 
     await stageFile(repo, "tracked.txt");
-    versions = await getFileVersions(repo, "tracked.txt", "staged");
-    expect(versions.oldFile?.contents.trim()).toEqual("one");
-    expect(versions.newFile?.contents.trim()).toEqual("two");
+    versions = await getFileVersions(repo, "tracked.txt", "staged", null);
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("one");
+    expect(getTextFile(versions.newFile)?.contents.trim()).toEqual("two");
 
     await unstageAll(repo);
     await discardFile(repo, "tracked.txt", "unstaged");
@@ -338,14 +348,14 @@ describe("electron git backend", () => {
     unlinkSync(path.join(repo, "delete-me.txt"));
     writeFileSync(path.join(repo, "scratch.txt"), "scratch\n");
 
-    const versions = await getFileVersions(repo, "delete-me.txt", "unstaged");
-    expect(versions.oldFile?.contents.trim()).toEqual("delete me");
+    const versions = await getFileVersions(repo, "delete-me.txt", "unstaged", null);
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("delete me");
     expect(versions.newFile).toBeNull();
 
     await stageAll(repo);
 
-    const stagedDeletedVersions = await getFileVersions(repo, "delete-me.txt", "staged");
-    expect(stagedDeletedVersions.oldFile?.contents.trim()).toEqual("delete me");
+    const stagedDeletedVersions = await getFileVersions(repo, "delete-me.txt", "staged", null);
+    expect(getTextFile(stagedDeletedVersions.oldFile)?.contents.trim()).toEqual("delete me");
     expect(stagedDeletedVersions.newFile).toBeNull();
 
     await unstageAll(repo);

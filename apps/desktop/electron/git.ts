@@ -1,5 +1,6 @@
 import { execFile as nodeExecFile } from "node:child_process";
 import { promises as fs } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -10,6 +11,7 @@ import type {
   FileItem,
   FileStatus,
   FileVersions,
+  FileContent,
   GitSnapshot,
   HistoryCommit,
   CommitDetails,
@@ -19,7 +21,7 @@ import type {
   GitBlameResult,
 } from "../src/platform/desktop/contracts";
 
-import { classifyDesktopFailure } from "./desktop-failure";
+import { classifyDesktopFailure, DesktopAdapterError } from "./desktop-failure";
 import {
   desktopFailure,
   desktopSuccess,
@@ -129,6 +131,18 @@ function decodeUtf8(buffer: Buffer, label: string) {
   } catch {
     throw new Error(`binary file is not supported: ${label}`);
   }
+}
+
+function readFileContent(buffer: Buffer, name: string): FileContent {
+  if (!buffer.includes(0)) {
+    try {
+      return { name, contents: textDecoder.decode(buffer) };
+    } catch {
+      // Non-UTF-8 bytes need the same read-only state as other binary content.
+    }
+  }
+
+  return { kind: "binary", name, byteLength: buffer.length };
 }
 
 async function runGit(
@@ -292,7 +306,7 @@ function parseStatusOutput(
     const x = entry[0] ?? " ";
     const y = entry[1] ?? " ";
     const xy = `${x}${y}`;
-    const status = mapStatusCode(xy);
+    const unmerged = mapStatusCode(xy) === "unmerged";
     const pathname = entry.slice(3);
 
     if (!pathname) continue;
@@ -302,16 +316,28 @@ function parseStatusOutput(
       continue;
     }
 
-    if (x === "R" || x === "C" || y === "R" || y === "C") {
-      index += 1;
-    }
+    const stagedRename = x === "R" || x === "C";
+    const unstagedRename = y === "R" || y === "C";
+    const previousPath = stagedRename || unstagedRename ? (entries[++index] ?? null) : null;
 
     if (x !== " ") {
-      staged.push(makeFileItem(pathname, status));
+      staged.push(
+        makeFileItem(
+          pathname,
+          unmerged ? "unmerged" : mapStatusCode(x),
+          stagedRename ? previousPath : null,
+        ),
+      );
     }
 
     if (y !== " ") {
-      unstaged.push(makeFileItem(pathname, status));
+      unstaged.push(
+        makeFileItem(
+          pathname,
+          unmerged ? "unmerged" : mapStatusCode(y),
+          unstagedRename ? previousPath : null,
+        ),
+      );
     }
   }
 
@@ -408,6 +434,7 @@ function isMissingGitObjectError(error: unknown) {
     error.stderr.includes("exists on disk, but not in") ||
     error.stderr.includes("neither on disk nor in the index") ||
     error.stderr.includes("invalid object name") ||
+    error.stderr.toLowerCase().includes("not a valid object name") ||
     error.stderr.includes("bad revision") ||
     error.stderr.includes("not in the index")
   );
@@ -417,16 +444,24 @@ async function readGitObject(
   repoPath: string,
   spec: string,
   label: string,
-): Promise<{ name: string; contents: string } | null> {
+): Promise<FileContent | null> {
   try {
+    const sizeOutput = await runGit(repoPath, ["cat-file", "-s", spec]);
+    const byteLength = z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .parse(sizeOutput.toString("utf8").trim());
+
+    if (byteLength > MAX_BUFFER) {
+      return { kind: "too-large", name: label, byteLength };
+    }
+
     const output = await runGit(repoPath, ["show", "--no-ext-diff", "--no-textconv", spec], {
       allowFailure: true,
     });
 
-    return {
-      name: label,
-      contents: decodeUtf8(output, label),
-    };
+    return readFileContent(output, label);
   } catch (error) {
     if (isMissingGitObjectError(error)) {
       return null;
@@ -436,22 +471,27 @@ async function readGitObject(
   }
 }
 
-async function readWorktreeFile(repoPath: string, relPath: string, label: string) {
+async function readWorktreeFile(
+  repoPath: string,
+  relPath: string,
+  label: string,
+): Promise<FileContent | null> {
   const fullPath = path.join(repoPath, relPath);
 
   try {
     const stats = await fs.stat(fullPath);
     if (!stats.isFile()) return null;
+
+    if (stats.size > MAX_BUFFER) {
+      return { kind: "too-large", name: label, byteLength: stats.size };
+    }
   } catch (cause) {
     if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return null;
     throw cause;
   }
 
   const contents = await fs.readFile(fullPath);
-  return {
-    name: label,
-    contents: decodeUtf8(contents, label),
-  };
+  return readFileContent(contents, label);
 }
 
 async function hasHeadCommit(repoPath: string) {
@@ -527,6 +567,39 @@ async function discardFileForBucket(repoPath: string, relPath: string, bucket: B
     return;
   }
 
+  const staged = (await getGitSnapshot(repoPath)).staged.find((file) => file.path === relPath);
+
+  if (staged?.status === "renamed" && staged.previousPath) {
+    const source = path.join(repoPath, staged.previousPath);
+    const existing = await fs.lstat(source).catch((cause: unknown) => {
+      if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return null;
+
+      throw cause;
+    });
+
+    if (existing) {
+      throw new DesktopAdapterError(
+        desktopFailure(
+          "discardFile",
+          "conflict",
+          "The original path contains another file. Move it before discarding this rename.",
+        ),
+      );
+    }
+
+    await runGitWrite(repoPath, [
+      "--literal-pathspecs",
+      "restore",
+      "--source=HEAD",
+      "--staged",
+      "--worktree",
+      "--",
+      staged.previousPath,
+      relPath,
+    ]);
+    return;
+  }
+
   if (await hasHeadCommit(repoPath)) {
     if (await existsInHead(repoPath, relPath)) {
       await runGitWrite(repoPath, [
@@ -572,7 +645,7 @@ async function readCommitParent(repoPath: string, commitId: string) {
 export async function getGitSnapshot(repoPath: string): Promise<GitSnapshot> {
   const [repoRoot, statusOutput] = await Promise.all([
     resolveRepoRoot(repoPath),
-    runGit(repoPath, ["status", "--porcelain=v1", "-z", "-b", "-uall"]),
+    runGit(repoPath, ["status", "--porcelain=v1", "--renames", "-z", "-b", "-uall"]),
   ]);
   const parsed = parseStatusOutput(statusOutput);
 
@@ -951,12 +1024,14 @@ export async function getFileVersions(
   repoPath: string,
   relPath: string,
   bucket: Bucket,
+  previousPath: string | null,
 ): Promise<FileVersions> {
   const normalizedPath = normalizeGitPath(relPath);
+  const previousLookupPath = normalizeGitPath(previousPath ?? relPath);
 
   if (bucket === "unstaged") {
     const [oldFile, newFile] = await Promise.all([
-      readGitObject(repoPath, `:${normalizedPath}`, normalizedPath),
+      readGitObject(repoPath, `:${previousLookupPath}`, previousLookupPath),
       readWorktreeFile(repoPath, normalizedPath, normalizedPath),
     ]);
 
@@ -965,7 +1040,7 @@ export async function getFileVersions(
 
   if (bucket === "staged") {
     const [oldFile, newFile] = await Promise.all([
-      readGitObject(repoPath, `HEAD:${normalizedPath}`, normalizedPath),
+      readGitObject(repoPath, `HEAD:${previousLookupPath}`, previousLookupPath),
       readGitObject(repoPath, `:${normalizedPath}`, normalizedPath),
     ]);
 
@@ -1017,11 +1092,80 @@ export async function getBranchFileVersions(
 }
 
 export async function stageFile(repoPath: string, relPath: string) {
-  await runGitWrite(repoPath, ["add", "--", normalizeGitPath(relPath)]);
+  await runGitWrite(repoPath, ["--literal-pathspecs", "add", "--", normalizeGitPath(relPath)]);
 }
 
 export async function unstageFile(repoPath: string, relPath: string) {
-  await runGitWrite(repoPath, ["reset", "--", normalizeGitPath(relPath)]);
+  await unstageFiles(repoPath, [relPath]);
+}
+
+export async function stageFiles(repoPath: string, relPaths: readonly string[]) {
+  const paths = parseIndexPaths(relPaths, "stageFiles");
+
+  await writeIndexPaths(repoPath, "add", paths);
+}
+
+export async function unstageFiles(repoPath: string, relPaths: readonly string[]) {
+  const selectedPaths = parseIndexPaths(relPaths, "unstageFiles");
+  if (!selectedPaths.length) return;
+
+  const snapshot = await getGitSnapshot(repoPath);
+  const stagedByPath = new Map(snapshot.staged.map((file) => [file.path, file]));
+  const paths = new Set<string>();
+
+  for (const normalizedPath of selectedPaths) {
+    const file = stagedByPath.get(normalizedPath);
+
+    paths.add(normalizedPath);
+
+    if (file?.status === "renamed" && file.previousPath) {
+      paths.add(file.previousPath);
+    }
+  }
+
+  await writeIndexPaths(repoPath, "reset", [...paths]);
+}
+
+const indexPathsSchema = z.array(
+  z
+    .string()
+    .min(1)
+    .refine((value) => !value.includes("\0")),
+);
+
+function parseIndexPaths(input: unknown, operation: "stageFiles" | "unstageFiles"): string[] {
+  const parsed = indexPathsSchema.safeParse(input);
+
+  if (!parsed.success) {
+    throw new DesktopAdapterError(
+      desktopFailure(operation, "invalid-input", "Select valid repository file paths."),
+    );
+  }
+
+  return parsed.data.map(normalizeGitPath);
+}
+
+async function writeIndexPaths(
+  repoPath: string,
+  operation: "add" | "reset",
+  paths: readonly string[],
+) {
+  if (!paths.length) return;
+
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), "warden-index-paths-"));
+
+  try {
+    const pathList = path.join(temporary, "paths");
+    await fs.writeFile(pathList, paths.join("\0") + "\0");
+    await runGitWrite(repoPath, [
+      "--literal-pathspecs",
+      operation,
+      `--pathspec-from-file=${pathList}`,
+      "--pathspec-file-nul",
+    ]);
+  } finally {
+    await fs.rm(temporary, { recursive: true, force: true });
+  }
 }
 
 export { updateIndexFileContents, updateWorktreeFileContents } from "./fileEdits";
