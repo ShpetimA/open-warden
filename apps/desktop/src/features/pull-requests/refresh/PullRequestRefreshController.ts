@@ -3,12 +3,14 @@ import type { PullRequestLocatorInput } from "@/platform/desktop";
 
 export type PullRequestRefreshState = Readonly<{
   busy: boolean;
+  revisionPending: boolean;
   failure: DesktopFailure | null;
   retryAt: number;
   paused: boolean;
 }>;
 export const IDLE_REFRESH: PullRequestRefreshState = {
   busy: false,
+  revisionPending: false,
   failure: null,
   retryAt: 0,
   paused: false,
@@ -36,7 +38,22 @@ export function automaticRefreshDelay(
   );
 }
 
+export type PullRequestRefreshResource =
+  | "checks"
+  | "reviewers"
+  | "files"
+  | "activity"
+  | "viewed"
+  | "extras"
+  | "comparison"
+  | "comparison-files"
+  | "commits"
+  | "commit-groups"
+  | `commit-files:${string}`;
+
 type Entry = {
+  resources: Map<PullRequestRefreshResource, number>;
+  pendingRevisions: Set<object>;
   locator: PullRequestLocatorInput;
   subscribers: number;
   listeners: Set<() => void>;
@@ -50,10 +67,14 @@ export function pullRequestRefreshKey(locator: PullRequestLocatorInput) {
   return `${locator.repoPath}\0${locator.pullRequestNumber}`;
 }
 
-type RefreshRuntime = {
+export type RefreshRuntime = {
   now(): number;
   schedule(work: () => void | Promise<void>, delay: number): () => void;
-  refresh(locator: PullRequestLocatorInput, manual: boolean): Promise<DesktopFailure[]>;
+  refresh(
+    locator: PullRequestLocatorInput,
+    manual: boolean,
+    resources: readonly PullRequestRefreshResource[],
+  ): Promise<DesktopFailure[]>;
 };
 
 export class PullRequestRefreshController {
@@ -71,6 +92,8 @@ export class PullRequestRefreshController {
     if (!entry) {
       entry = {
         locator,
+        resources: new Map(),
+        pendingRevisions: new Set(),
         subscribers: 0,
         listeners: new Set(),
         state: IDLE_REFRESH,
@@ -95,11 +118,30 @@ export class PullRequestRefreshController {
     };
   }
 
-  retain(locator: PullRequestLocatorInput) {
+  retain(locator: PullRequestLocatorInput, resources: readonly PullRequestRefreshResource[] = []) {
+    if (this.disposed) return () => {};
     const entry = this.entry(locator);
+    for (const resource of resources)
+      entry.resources.set(resource, (entry.resources.get(resource) ?? 0) + 1);
     entry.subscribers += 1;
-    if (!entry.cancel && !entry.running && !entry.state.paused) this.schedule(entry, POLL_MS);
+    if (!entry.cancel && !entry.running && !entry.state.paused)
+      this.schedule(
+        entry,
+        Math.max(
+          POLL_MS,
+          entry.automaticAfter - this.runtime.now(),
+          entry.state.retryAt - this.runtime.now(),
+        ),
+      );
+    let released = false;
     return () => {
+      if (released) return;
+      released = true;
+      for (const resource of resources) {
+        const remaining = (entry.resources.get(resource) ?? 1) - 1;
+        if (remaining) entry.resources.set(resource, remaining);
+        else entry.resources.delete(resource);
+      }
       entry.subscribers -= 1;
       if (!entry.subscribers) {
         entry.cancel?.();
@@ -109,8 +151,25 @@ export class PullRequestRefreshController {
     };
   }
 
+  setRevisionPending(locator: PullRequestLocatorInput, owner: object, pending: boolean) {
+    if (this.disposed) return;
+    const entry = pending ? this.entry(locator) : this.entries.get(pullRequestRefreshKey(locator));
+    if (!entry) return;
+    if (pending) entry.pendingRevisions.add(owner);
+    else entry.pendingRevisions.delete(owner);
+    const revisionPending = entry.pendingRevisions.size > 0;
+    if (entry.state.revisionPending !== revisionPending)
+      this.update(entry, { ...entry.state, revisionPending });
+    this.prune(entry);
+  }
+
   private prune(entry: Entry) {
-    if (!entry.subscribers && !entry.listeners.size && !entry.running)
+    if (
+      !entry.subscribers &&
+      !entry.listeners.size &&
+      !entry.running &&
+      !entry.pendingRevisions.size
+    )
       this.entries.delete(pullRequestRefreshKey(entry.locator));
   }
 
@@ -146,7 +205,7 @@ export class PullRequestRefreshController {
     entry.running = (async () => {
       let failures: DesktopFailure[];
       try {
-        failures = await this.runtime.refresh(locator, manual);
+        failures = await this.runtime.refresh(locator, manual, [...entry.resources.keys()]);
       } catch (cause) {
         failures = [failureFromUnknown(cause, "refreshPullRequest")];
       }
@@ -156,6 +215,7 @@ export class PullRequestRefreshController {
       entry.automaticAfter = failures.length && delay !== null ? this.runtime.now() + delay : 0;
       this.update(entry, {
         busy: false,
+        revisionPending: entry.pendingRevisions.size > 0,
         failure: failures[0] ?? null,
         retryAt,
         paused: delay === null,

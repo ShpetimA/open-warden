@@ -74,6 +74,7 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
     pullRequestNumber: 114,
     baseRef: "main",
     headRef: "validation",
+    baseSha: "base123",
     compareBaseRef: "base123",
     compareHeadRef: "head123",
     localBranch: "validation",
@@ -321,6 +322,9 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
     });
     await Promise.all(navigation);
     await expect(page.getByRole("heading", { name: "Preparing your walkthrough" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Refresh pull request", exact: true }),
+    ).toHaveCount(1);
     await expect(page.getByRole("status")).toContainText("Agent working");
     await page.screenshot({ path: "/tmp/ow-guidance-started.png", animations: "disabled" });
     const activity = await service.activity(locator);

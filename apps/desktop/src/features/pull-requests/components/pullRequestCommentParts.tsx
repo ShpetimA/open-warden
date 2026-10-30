@@ -95,8 +95,14 @@ export function authorLabel(login: string | null, displayName: string | null) {
   return login ?? "Unknown author";
 }
 
-export function CommentBody({ body }: { body: string }) {
-  return <ExpandableMarkdown>{body}</ExpandableMarkdown>;
+export function CommentBody({
+  body,
+  defaultExpanded = false,
+}: {
+  body: string;
+  defaultExpanded?: boolean;
+}) {
+  return <ExpandableMarkdown defaultExpanded={defaultExpanded}>{body}</ExpandableMarkdown>;
 }
 
 export function Avatar({ login, avatarUrl }: { login: string | null; avatarUrl: string | null }) {

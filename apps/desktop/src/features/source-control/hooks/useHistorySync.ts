@@ -21,7 +21,6 @@ export function useHistorySync() {
   const historySelectedCommitIds = useAppSelector(
     (state) => state.sourceControl.historySelectedCommitIds,
   );
-  const activePath = useAppSelector((state) => state.sourceControl.activePath);
 
   const { currentData: historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
@@ -60,9 +59,5 @@ export function useHistorySync() {
       dispatch(setActivePath(""));
       return;
     }
-    const existing = visibleFiles.find((file) => file.path === activePath);
-    if (!existing) {
-      dispatch(setActivePath(visibleFiles[0].path));
-    }
-  }, [activePath, dispatch, historyCommitId, visibleFiles]);
+  }, [dispatch, historyCommitId, visibleFiles]);
 }

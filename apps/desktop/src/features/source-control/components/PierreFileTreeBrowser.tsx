@@ -24,6 +24,7 @@ import { TreeRowHover } from "./TreeRowHover";
 import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
 import {
   requestPierreFileTreeFocus,
+  getPierreFileTreeVisibleFiles,
   getPierreFileTreeVisiblePaths,
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
@@ -316,9 +317,9 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       return;
     }
 
-    if (model.getFocusedPath() === selectedPath) {
-      return;
-    }
+    const focusedPath = model.getFocusedPath();
+    if (focusedPath === selectedPath) return;
+    if (focusedPath && focusedPath !== previousSelectedPath.current) return;
 
     model.focusPath(selectedPath);
   }, [model, selectedPath]);
@@ -393,9 +394,17 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
           if (initialExpansion === "closed") {
             expandPierreFileTreeParents(model, currentSelectedPath);
           }
+        }
+        const selectionChanged = currentSelectedPath !== previousPath;
+        if (
+          selectionChanged &&
+          (!focusedPath || focusedPath === previousPath || focusedPath === currentSelectedPath) &&
+          currentSelectedPath &&
+          filePathSetRef.current.has(currentSelectedPath)
+        ) {
           model.focusPath(currentSelectedPath);
         } else {
-          model.focusNearestPath(focusedPath);
+          model.focusNearestPath(focusedPath ?? currentSelectedPath);
         }
         syncPierreSelectedPaths(
           model,
@@ -448,9 +457,13 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   useEffect(() => {
     if (!selectFirstFile || (selectedPath && filePathSetRef.current?.has(selectedPath))) return;
-    const firstPath = replacementPath.current ?? preparedInputRef.current.paths[0];
+    const firstPath =
+      replacementPath.current ??
+      getPierreFileTreeVisibleFiles(navRegion).find(
+        (file) => !file.path.endsWith("/") && file.path !== inlineEditor?.path,
+      )?.path;
     if (firstPath) onActivatePathRef.current(firstPath);
-  }, [files, model, selectFirstFile, selectedPath]);
+  }, [files, inlineEditor?.path, model, navRegion, selectFirstFile, selectedPath]);
 
   useEffect(() => {
     return () => {

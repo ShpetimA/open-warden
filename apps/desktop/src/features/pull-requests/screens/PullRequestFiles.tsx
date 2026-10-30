@@ -1,3 +1,5 @@
+import { PullRequestRevisionNotice } from "../refresh/PullRequestRevisionNotice";
+import { useRetainPullRequestCommitRefresh } from "../refresh/PullRequestRefreshProvider";
 import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { FileCode2, LoaderCircle, Square, SquareCheckBig } from "lucide-react";
@@ -23,7 +25,6 @@ import {
 } from "@/features/hosted-repos/api";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
 import { PullRequestCommitFileGroups } from "@/features/pull-requests/components/PullRequestCommitFileGroups";
-import { useGetCommitFileGroupsQuery } from "@/features/pull-requests/commitFileGroupsApi";
 import {
   PullRequestChangesSidebar,
   type PullRequestChangesView,
@@ -36,7 +37,6 @@ import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
 import {
-  useGetBranchCommitsQuery,
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
 } from "@/features/source-control/api";
@@ -142,36 +142,25 @@ function PullRequestChanges({
       : skipToken;
 
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
-    selectFromResult: ({ data }) => ({
+    selectFromResult: ({ currentData: data }) => ({
       conversation: data ?? null,
       reviewThreads: data?.reviewThreads ?? [],
     }),
   });
-  const comparison = usePullRequestComparison(filesQueryArg, conversation?.detail.headSha);
-  const commitsQuery = useGetBranchCommitsQuery(
-    reviewingCommit && activeRepo && comparison.refs
-      ? {
-          repoPath: activeRepo,
-          baseRef: comparison.refs.compareBaseRef,
-          headRef: comparison.refs.compareHeadRef,
-        }
-      : skipToken,
-  );
-  const groupsQuery = useGetCommitFileGroupsQuery(
-    groupedByCommit && activeRepo && comparison.refs
-      ? {
-          repoPath: activeRepo,
-          baseRef: comparison.refs.compareBaseRef,
-          headRef: comparison.refs.compareHeadRef,
-        }
-      : skipToken,
-  );
-  const commits = commitsQuery.currentData ?? [];
+  const comparison = usePullRequestComparison(filesQueryArg, {
+    commits: reviewingCommit,
+    groups: groupedByCommit,
+  });
+  const commits = comparison.commits ?? [];
   const selectedCommit = reviewingCommit
     ? (commits.find((commit) => commit.commitId === selectedCommitId) ?? commits[0] ?? null)
     : null;
-  const selectedGroup = groupsQuery.currentData?.find(
+  const selectedGroup = comparison.groups?.find(
     (group) => group.commit.commitId === selectedCommit?.commitId,
+  );
+  useRetainPullRequestCommitRefresh(
+    filesQueryArg === skipToken ? null : filesQueryArg,
+    reviewingCommit && !groupedByCommit ? selectedCommit?.commitId : undefined,
   );
   const compareBaseRef = selectedCommit
     ? `${selectedCommit.commitId}^`
@@ -182,9 +171,9 @@ function PullRequestChanges({
       ? { repoPath: activeRepo, baseRef: compareBaseRef, headRef: compareHeadRef }
       : skipToken,
   );
-  const commitsError = errorMessageFrom(commitsQuery.error, "");
+  const commitsError = comparison.error;
   const commitsLoading =
-    reviewingCommit && !commitsError && (!comparison.refs || !commitsQuery.currentData);
+    reviewingCommit && !commitsError && (!comparison.refs || !comparison.commits);
   const comparisonFiles = groupedByCommit
     ? selectedGroup?.files
     : reviewingCommit
@@ -194,10 +183,7 @@ function PullRequestChanges({
   const filesError =
     hostedRepoError ||
     comparison.error ||
-    (reviewingCommit
-      ? commitsError ||
-        errorMessageFrom(groupedByCommit ? groupsQuery.error : commitFilesQuery.error, "")
-      : "");
+    (reviewingCommit ? commitsError || errorMessageFrom(commitFilesQuery.error, "") : "");
   const filesLoading =
     resolvingHostedRepo ||
     (reviewingCommit
@@ -212,25 +198,13 @@ function PullRequestChanges({
       comparison.retry();
       return;
     }
-    if (commitsError) {
-      void commitsQuery.refetch();
-      return;
-    }
-    if (groupedByCommit) {
-      void groupsQuery.refetch();
-      return;
-    }
     if (selectedCommit) {
       void commitFilesQuery.refetch();
       return;
     }
     comparison.retry();
   }
-  const filesFailure =
-    hostedRepoFailure ??
-    comparison.failure ??
-    commitsQuery.error ??
-    (groupedByCommit ? groupsQuery.error : commitFilesQuery.error);
+  const filesFailure = hostedRepoFailure ?? comparison.failure ?? commitFilesQuery.error;
   const viewedState = usePullRequestViewedFiles({
     repoPath: activeRepo ?? "",
     pullRequestNumber: parsedPullRequestNumber,
@@ -240,6 +214,7 @@ function PullRequestChanges({
   return (
     <>
       <PullRequestPreviewActiveFileSync files={files} />
+      <PullRequestRevisionNotice stale={comparison.stale} hasContent={Boolean(comparison.refs)} />
       <PullRequestChangesSidebar
         view={view}
         onViewChange={setView}
@@ -252,7 +227,7 @@ function PullRequestChanges({
         filesPane={
           groupedByCommit ? (
             <PullRequestCommitFileGroups
-              groups={groupsQuery.currentData ?? []}
+              groups={comparison.groups ?? []}
               selectedCommit={selectedCommit}
               loading={filesLoading}
               error={filesError}
@@ -297,8 +272,8 @@ function PullRequestChanges({
             filesLoading={filesLoading}
             files={files}
             canComment={!comparison.stale}
-            conversation={conversation}
-            reviewThreads={!reviewingCommit ? reviewThreads : []}
+            conversation={comparison.conversation ?? conversation}
+            reviewThreads={!reviewingCommit && !comparison.stale ? reviewThreads : []}
             viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
           />
         </div>

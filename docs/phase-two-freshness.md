@@ -58,7 +58,7 @@ No React memoization was added.
 
 The inbox and PR review views expose a compact refresh action. One demand-owned controller per
 repository/PR coordinates conversation, checks, reviewers, file statistics, activity, viewed
-state, extras and prepared comparison refs already used by that PR. It deduplicates overlapping
+state, extras and prepared comparison refs demanded by mounted views of that PR. It deduplicates overlapping
 requests and limits auxiliary reads to batches of three. A changed head/base revision refreshes
 prepared refs. Initial query loading remains with RTK Query.
 
@@ -73,6 +73,10 @@ not-found failures pause automatic retries. Provider retry deadlines apply to ma
 and independently mounted query readers, too. Explicit retry can recover a transient/permanent
 failure once any provider deadline has passed. Unmounting the last view cancels its timer.
 Already-started IPC reads may finish; the IPC transport does not provide request cancellation.
+
+The follow-up in [pr-refresh-completion.md](pr-refresh-completion.md) completes explicit mounted
+demand, base-only handoff, commit-group coherence, cross-reader provider deadlines and local
+review/Overview integration. It preserves the compact actions and shared owner described here.
 
 The ownership/lifetime, local-versus-remote refresh and error policy were informed by read-only
 inspection of T3 Code's `apps/server/src/vcs/VcsStatusBroadcaster.ts`. Open Warden keeps its own

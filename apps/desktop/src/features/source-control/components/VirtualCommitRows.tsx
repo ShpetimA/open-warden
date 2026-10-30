@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { VIRTUAL_NAVIGATION_EVENT, virtualNavigationSchema } from "@/lib/keyboard-navigation";
 import type { HistoryCommit } from "../types";
+import { COMMIT_ROW_HEIGHT } from "@/components/ui/commit-row";
 
 export function VirtualCommitRows({
   commits,
@@ -20,7 +21,7 @@ export function VirtualCommitRows({
   const virtualizer = useVirtualizer({
     count: commits.length,
     getScrollElement: () => scrollElement,
-    estimateSize: () => 46,
+    estimateSize: () => COMMIT_ROW_HEIGHT,
     getItemKey: (index) => commits[index]?.commitId ?? index,
     overscan: 8,
   });
@@ -65,7 +66,6 @@ export function VirtualCommitRows({
         return (
           <div
             key={commit.commitId}
-            ref={virtualizer.measureElement}
             data-index={row.index}
             className="absolute left-0 top-0 w-full"
             style={{ transform: `translateY(${row.start}px)` }}

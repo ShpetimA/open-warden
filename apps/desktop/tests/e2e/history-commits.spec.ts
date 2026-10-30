@@ -988,3 +988,163 @@ test("a combined-files read failure offers retry instead of saying there are no 
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByRole("treeitem", { name: "combined.ts", exact: true })).toBeVisible();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`keeps J/K in the commit list when each commit has different files in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 1000 });
+    await page.addInitScript(() => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      bridge.getCommitFiles = async (_repo, commitId) => ({
+        ok: true,
+        value: [
+          { path: `src/${commitId}.ts`, previousPath: null, status: "modified" },
+          { path: "src/shared.ts", previousPath: null, status: "modified" },
+        ],
+      });
+    });
+    await page.goto("/#/history");
+    const pane = page.getByRole("complementary", { name: "History commits", exact: true });
+    const newest = pane.getByRole("button", { name: /Update invoice state URLs/ });
+    const middle = pane.getByRole("button", { name: /Store signup steps/ });
+    const oldest = pane.getByRole("button", { name: /Type mock bodies/ });
+    const tree = page.locator("file-tree-container");
+    await newest.click();
+    await expect(tree.getByRole("treeitem", { name: "newest123.ts", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await page.keyboard.press("j");
+    await expect(middle).toHaveAttribute("aria-pressed", "true");
+    await expect(tree.getByRole("treeitem", { name: "middle123.ts", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(middle).toBeFocused();
+    await page.keyboard.press("j");
+    await expect(oldest).toHaveAttribute("aria-pressed", "true");
+    await expect(tree.getByRole("treeitem", { name: "oldest123.ts", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(oldest).toBeFocused();
+    await page.keyboard.press("k");
+    await expect(middle).toHaveAttribute("aria-pressed", "true");
+    await expect(tree.locator('[data-item-type="file"][aria-selected="true"]')).toHaveCount(1);
+    await expect(middle).toBeFocused();
+    await page.keyboard.press("k");
+    await expect(newest).toHaveAttribute("aria-pressed", "true");
+    await expect(newest).toBeFocused();
+    await page.keyboard.press("j");
+    await expect(middle).toHaveAttribute("aria-pressed", "true");
+    await expect(middle).toBeFocused();
+    await page.keyboard.press("l");
+    await expect(tree.locator('[data-item-focused="true"]')).toBeFocused();
+    await page.keyboard.press("h");
+    await expect(middle).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath(`history-focus-${theme}.png`) });
+  });
+}
+
+test("History selects its first file from prepared display order instead of provider order", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const bridge = window.desktopBridge;
+    if (!bridge) throw new Error("Missing desktop bridge");
+    bridge.getCommitFiles = async () => ({
+      ok: true,
+      value: [
+        { path: "src/z-last.ts", previousPath: null, status: "modified" },
+        { path: "src/a-first.ts", previousPath: null, status: "modified" },
+      ],
+    });
+  });
+  await page.goto("/#/history");
+  const selected = page.locator(
+    'file-tree-container [data-item-type="file"][aria-selected="true"]',
+  );
+  await expect(selected).toHaveAttribute("aria-label", "a-first.ts");
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`keeps commit rows and the list viewport fixed while selecting and virtualizing in ${theme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.addInitScript((graph) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      bridge.getCommitHistory = async () => ({ ok: true, value: graph.commits });
+    }, graph);
+    await page.goto("/#/history");
+    const pane = page.getByRole("complementary", { name: "History commits", exact: true });
+    const list = pane.locator('[data-nav-region="history-commits"]');
+    const rows = pane.locator('[data-slot="commit-row"]');
+    await expect(rows.first()).toBeVisible();
+    const heights = await rows.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().height),
+    );
+    expect(heights.length).toBeGreaterThan(0);
+    expect(heights.every((height) => height === 46)).toBe(true);
+    const bounds = await list.boundingBox();
+    if (!bounds) throw new Error("Missing commit viewport");
+    await rows.first().getByRole("checkbox").click();
+    await expect(
+      pane.getByText("Select one more commit to combine", { exact: true }),
+    ).toBeVisible();
+    const selectedBounds = await list.boundingBox();
+    expect(selectedBounds).toEqual(bounds);
+    await pane.getByRole("button", { name: "Clear", exact: true }).click();
+    await list.evaluate((element) => {
+      element.scrollTop = 46 * 400;
+    });
+    await expect
+      .poll(() => rows.first().locator("[data-nav-index]").getAttribute("data-nav-index"))
+      .not.toBe("0");
+    expect(await rows.count()).toBeLessThan(60);
+    expect((await rows.first().boundingBox())?.height).toBe(46);
+    const readingCommit = await list
+      .locator('[data-nav-index="400"]')
+      .getAttribute("data-item-path");
+    if (!readingCommit) throw new Error("No visible reading commit");
+    const readingRow = list.locator(`[data-item-path="${readingCommit}"]`);
+    const readingBounds = await readingRow.boundingBox();
+    if (!readingBounds) throw new Error("No reading position");
+    await page.evaluate(() => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      const read = bridge.getCommitHistory;
+      bridge.getCommitHistory = async (...input) => {
+        const result = await read(...input);
+        const first = result.ok ? result.value[0] : undefined;
+        if (!result.ok || !first) return result;
+        return {
+          ok: true,
+          value: [
+            {
+              ...first,
+              commitId: "fresh-new-commit",
+              shortId: "fresh-new",
+              summary: "Newly fetched commit",
+            },
+            ...result.value,
+          ],
+        };
+      };
+    });
+    await page.getByRole("button", { name: "Refresh repository status", exact: true }).click();
+    await expect(pane.getByText("1006", { exact: true })).toBeVisible();
+    await expect
+      .poll(async () => Math.abs(((await readingRow.boundingBox())?.y ?? 99999) - readingBounds.y))
+      .toBeLessThan(1);
+    await pane
+      .getByRole("textbox", { name: "Filter commits", exact: true })
+      .fill("Oldest original");
+    await expect(rows).toHaveCount(1);
+    expect((await rows.first().boundingBox())?.height).toBe(46);
+  });
+}

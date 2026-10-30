@@ -186,11 +186,11 @@ export function StatusChip({
   const content = (
     <>
       <Icon className={cn("size-3.5 shrink-0", toneText[summary.tone])} />
-      {compact ? null : <span>{summary.label}</span>}
+      {compact ? null : <span className="truncate">{summary.label}</span>}
     </>
   );
   const className =
-    "text-muted-foreground hover:text-foreground inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs transition-colors";
+    "text-muted-foreground hover:text-foreground inline-flex h-6 min-w-0 max-w-full items-center gap-1.5 rounded-md px-1.5 text-xs transition-colors";
   return (
     <Tooltip>
       <TooltipTrigger asChild>

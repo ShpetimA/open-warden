@@ -1,4 +1,7 @@
-import { skipToken } from "@reduxjs/toolkit/query";
+import {
+  useRetainPullRequestRefresh,
+  usePullRequestRefresh,
+} from "../refresh/PullRequestRefreshProvider";
 import { Copy, ExternalLink, FileCode2, GitBranch, MoreHorizontal, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +35,8 @@ import type { PullRequestSummary } from "@/platform/desktop";
 
 import { pullRequestStateView, summaryChecksStatus, summaryReviewStatus } from "./listStatus";
 
+const PREVIEW_REFRESH_RESOURCES = ["checks", "files"] as const;
+
 function PreviewStatus({
   repoPath,
   pullRequest,
@@ -40,15 +45,20 @@ function PreviewStatus({
   pullRequest: PullRequestSummary;
 }) {
   const locator = { repoPath, pullRequestNumber: pullRequest.number };
+  useRetainPullRequestRefresh(locator, PREVIEW_REFRESH_RESOURCES);
+  const refresh = usePullRequestRefresh(locator);
+  const { detail } = useGetPullRequestConversationQuery(locator, {
+    selectFromResult: ({ currentData }) => ({ detail: currentData?.detail }),
+  });
   // The listing leaves checks and sizes out on Bitbucket; the preview asks for them per PR.
-  const {
-    checks,
-    checksError,
-    checksFetching,
-    refetch: retryChecks,
-  } = useGetPullRequestChecksQuery(pullRequest.checksState === null ? locator : skipToken, {
+  const { checks, checksError, checksFetching } = useGetPullRequestChecksQuery(locator, {
     selectFromResult: ({ currentData, error, isFetching }) => ({
-      checks: currentData?.complete ? currentData.checks : undefined,
+      checks:
+        currentData?.complete &&
+        currentData.headSha === detail?.headSha &&
+        currentData.baseSha === detail?.baseSha
+          ? currentData.checks
+          : undefined,
       checksError:
         error ??
         (currentData && !currentData.complete
@@ -61,29 +71,33 @@ function PreviewStatus({
       checksFetching: isFetching,
     }),
   });
-  const {
-    files,
-    filesError,
-    filesFetching,
-    refetch: retryFiles,
-  } = useGetPullRequestFilesQuery(pullRequest.additions === null ? locator : skipToken, {
+  const { files, filesError, filesFetching } = useGetPullRequestFilesQuery(locator, {
     selectFromResult: ({ currentData, error, isFetching }) => ({
-      files: currentData,
+      files:
+        currentData?.headSha === detail?.headSha && currentData?.baseSha === detail?.baseSha
+          ? currentData?.files
+          : undefined,
       filesError: error,
       filesFetching: isFetching,
     }),
   });
   const review = summaryReviewStatus(pullRequest);
-  const checksSummary = summaryChecksStatus(pullRequest) ?? summarizeChecks(checks ?? null);
+  const checksSummary = checks
+    ? summarizeChecks(checks)
+    : detail
+      ? null
+      : summaryChecksStatus(pullRequest);
   const additions =
-    pullRequest.additions ?? files?.reduce((sum, file) => sum + file.additions, 0) ?? null;
+    files?.reduce((sum, file) => sum + file.additions, 0) ??
+    (detail ? null : pullRequest.additions);
   const deletions =
-    pullRequest.deletions ?? files?.reduce((sum, file) => sum + file.deletions, 0) ?? null;
-  const changedFiles = pullRequest.changedFiles ?? files?.length ?? null;
+    files?.reduce((sum, file) => sum + file.deletions, 0) ??
+    (detail ? null : pullRequest.deletions);
+  const changedFiles = files?.length ?? (detail ? null : pullRequest.changedFiles);
 
   return (
     <div className="-mx-1.5 mt-3 flex flex-wrap items-center gap-x-1 gap-y-1">
-      {checksError ? (
+      {detail && checksError ? (
         <ErrorNotice
           title="Couldn’t load checks"
           error={checksError}
@@ -91,12 +105,12 @@ function PreviewStatus({
           recovery={{
             label: "Retry",
             onAction: () => {
-              void retryChecks();
+              void refresh.refresh();
             },
           }}
         />
       ) : null}
-      {filesError ? (
+      {detail && filesError ? (
         <ErrorNotice
           title="Couldn’t load file statistics"
           error={filesError}
@@ -104,7 +118,7 @@ function PreviewStatus({
           recovery={{
             label: "Retry",
             onAction: () => {
-              void retryFiles();
+              void refresh.refresh();
             },
           }}
         />
@@ -127,7 +141,8 @@ function PreviewStatus({
 }
 
 function PreviewDescription({ repoPath, number }: { repoPath: string; number: number }) {
-  const { body, loading, error, isFetching, refetch } = useGetPullRequestConversationQuery(
+  const refresh = usePullRequestRefresh({ repoPath, pullRequestNumber: number });
+  const { body, loading, error, isFetching } = useGetPullRequestConversationQuery(
     { repoPath, pullRequestNumber: number },
     {
       selectFromResult: ({ currentData, isFetching, error }) => ({
@@ -141,7 +156,7 @@ function PreviewDescription({ repoPath, number }: { repoPath: string; number: nu
   const recovery = {
     label: "Retry",
     onAction: () => {
-      void refetch();
+      void refresh.refresh();
     },
   };
 

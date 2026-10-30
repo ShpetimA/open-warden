@@ -42,11 +42,14 @@ export function PullRequestRefreshControl({
       size="icon-xs"
       variant="ghost"
       aria-label={label}
+      aria-busy={busy}
+      aria-disabled={busy || retryAt > now}
       title={reason}
       aria-description={reason}
-      disabled={busy || retryAt > now}
+      disabled={retryAt > now}
       onClick={() => {
-        onRefreshList?.();
+        if (busy) return;
+        if (!locator) onRefreshList?.();
         void refresh.refresh();
       }}
     >

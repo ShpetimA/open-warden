@@ -776,3 +776,81 @@ test("saving and Trash cannot race to recreate a removed file", async ({ page })
     .toEqual(["src/invoice.ts"]);
   expect(await page.evaluate(() => "src/invoice.ts" in window.editorTest.files)).toBe(false);
 });
+
+test("a structural refresh preserves keyboard focus on a folder instead of the selected file", async ({
+  page,
+}) => {
+  await page.goto("/#/changes/files");
+  await quickOpen(page, "invoice.ts");
+  await page.keyboard.press("Meta+Shift+e");
+  const tree = page.locator("file-tree-container");
+  await expect(tree.locator('[data-item-focused="true"]')).toBeFocused();
+  await page.keyboard.press("h");
+  const folder = tree.locator('[data-item-path="src/"]');
+  await expect(folder).toBeFocused();
+  await page.evaluate(() => {
+    window.editorTest.files["src/added-during-refresh.ts"] = "new file\n";
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect(
+    tree.getByRole("treeitem", { name: "added-during-refresh.ts", exact: true }),
+  ).toBeVisible();
+  await expect(folder).toHaveAttribute("data-item-focused", "true");
+  await expect(folder).toBeFocused();
+  await expect(tree.locator('[data-item-path="src/invoice.ts"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
+test("Trash completion preserves a newer file selection and editor focus", async ({ page }) => {
+  await page.goto("/#/changes/files");
+  await quickOpen(page, "validation.ts");
+  await page.keyboard.press("Meta+Shift+e");
+  await expect(page.locator('file-tree-container [data-item-focused="true"]')).toBeFocused();
+  await page.evaluate(() => {
+    window.editorTest.holdTrash = true;
+  });
+  await page.keyboard.press("d");
+  await expect.poll(() => page.evaluate(() => window.editorTest.trashRequests)).toBe(1);
+  const tree = page.locator("file-tree-container");
+  const invoice = tree.locator('[data-item-path="src/invoice.ts"]');
+  await invoice.click();
+  const editor = page.locator('diffs-container [role="textbox"]');
+  await editor.click();
+  await expect(editor).toBeFocused();
+  await page.evaluate(() => window.editorTest.release());
+  await expect(tree.locator('[data-item-path="src/validation.ts"]')).toHaveCount(0);
+  await expect(invoice).toHaveAttribute("aria-selected", "true");
+  await expect(editor).toBeFocused();
+});
+
+test("Trash completion reads current expansion and preserves a newer folder focus", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.editorTest.files["zzz-hidden/first.ts"] = "hidden candidate\n";
+    window.editorTest.files["zzz-visible/last.ts"] = "visible candidate\n";
+  });
+  await page.goto("/#/changes/files");
+  await quickOpen(page, "validation.ts");
+  const tree = page.locator("file-tree-container");
+  const collapsed = tree.locator('[data-item-path="zzz-hidden/"]');
+  await collapsed.click();
+  await tree.locator('[data-item-path="zzz-visible/"]').click();
+  await tree.locator('[data-item-path="src/validation.ts"]').click();
+  await page.evaluate(() => {
+    window.editorTest.holdTrash = true;
+  });
+  await page.keyboard.press("d");
+  await expect.poll(() => page.evaluate(() => window.editorTest.trashRequests)).toBe(1);
+  await collapsed.click();
+  await expect(collapsed).toHaveAttribute("aria-expanded", "false");
+  await page.evaluate(() => window.editorTest.release());
+  await expect(tree.locator('[data-item-path="zzz-visible/last.ts"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(collapsed).toHaveAttribute("aria-expanded", "false");
+  await expect(collapsed).toBeFocused();
+});

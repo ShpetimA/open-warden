@@ -1,3 +1,4 @@
+import { PullRequestRevisionNotice } from "../refresh/PullRequestRevisionNotice";
 import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect } from "react";
@@ -19,10 +20,7 @@ import {
   setPullRequestFilesViewMode,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
-import {
-  useGetBranchFilesQuery,
-  useGetBranchFileVersionsQuery,
-} from "@/features/source-control/api";
+import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
@@ -44,6 +42,7 @@ type PullRequestDiffPaneProps = {
   reviewBaseRef: string;
   reviewHeadRef: string;
   readyForDiff: boolean;
+  stale: boolean;
   branchFiles: FileItem[];
   conversation: PullRequestConversation | null;
   focusedLineNumber: number | null;
@@ -59,6 +58,7 @@ function PullRequestDiffPane({
   reviewBaseRef,
   reviewHeadRef,
   readyForDiff,
+  stale,
   branchFiles,
   conversation,
   focusedLineNumber,
@@ -82,7 +82,7 @@ function PullRequestDiffPane({
     compareBaseRef: reviewBaseRef,
     compareHeadRef: reviewHeadRef,
     files: branchFiles,
-    reviewThreads: conversation?.reviewThreads ?? [],
+    reviewThreads: stale ? [] : (conversation?.reviewThreads ?? []),
   });
   const annotationItems = previewPath
     ? buildPullRequestAnchorAnnotations({
@@ -107,7 +107,7 @@ function PullRequestDiffPane({
       : skipToken,
   );
 
-  const reviewVersions = branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data;
+  const reviewVersions = branchFileVersionsQuery.currentData;
   const oldFile = reviewVersions?.oldFile ?? null;
   const newFile = reviewVersions?.newFile ?? null;
   const loadingPatch = !reviewVersions && branchFileVersionsQuery.isLoading;
@@ -144,7 +144,7 @@ function PullRequestDiffPane({
               newFile={newFile}
               activePath={previewPath ?? ""}
               commentContext={{ kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }}
-              canComment
+              canComment={!stale}
               includeCurrentFileComments={false}
               lspDiagnostics={lspDiagnostics}
               fileViewerRevision={reviewHeadRef}
@@ -194,6 +194,7 @@ export function PullRequestReviewFilesScreen() {
   const fileViewerTarget = useAppSelector((state) => state.sourceControl.fileViewerTarget);
 
   const {
+    comparison,
     activeRepo,
     resolvedReview,
     preparingCompareRefs,
@@ -208,25 +209,11 @@ export function PullRequestReviewFilesScreen() {
     resolvedReview && activeRepo && currentCompareBaseRef && currentCompareHeadRef,
   );
 
-  const {
-    branchFiles,
-    hasBranchFilesData,
-    isLoadingBranchFiles,
-    branchFilesError,
-    refetch: retryComparedFiles,
-  } = useGetBranchFilesQuery(
-    readyForDiff
-      ? { repoPath: activeRepo, baseRef: currentCompareBaseRef, headRef: currentCompareHeadRef }
-      : skipToken,
-    {
-      selectFromResult: ({ currentData, isFetching, error }) => ({
-        branchFiles: currentData ?? EMPTY_BRANCH_FILES,
-        hasBranchFilesData: Boolean(currentData),
-        isLoadingBranchFiles: isFetching && !currentData,
-        branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
-      }),
-    },
-  );
+  const branchFiles = comparison.files ?? EMPTY_BRANCH_FILES;
+  const hasBranchFilesData = comparison.files !== undefined;
+  const isLoadingBranchFiles = comparison.loading;
+  const branchFilesError = comparison.error;
+  const retryComparedFiles = comparison.retry;
 
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(
     resolvedReview
@@ -236,7 +223,7 @@ export function PullRequestReviewFilesScreen() {
         }
       : skipToken,
     {
-      selectFromResult: ({ data }) => ({
+      selectFromResult: ({ currentData: data }) => ({
         conversation: data ?? null,
         reviewThreads: data?.reviewThreads ?? [],
       }),
@@ -282,46 +269,53 @@ export function PullRequestReviewFilesScreen() {
   }
 
   return (
-    <ResizableSidebarLayout
-      panelId="primary"
-      sidebarDefaultSize={24}
-      sidebarMinSize={16}
-      sidebarMaxSize={40}
-      sidebar={
-        <PullRequestFilesSidebar
-          activeRepo={activeRepo}
-          review={resolvedReview}
-          readyForDiff={readyForDiff}
-          branchFiles={branchFiles}
-          hasBranchFilesData={hasBranchFilesData}
-          isLoadingBranchFiles={preparingCompareRefs || isLoadingBranchFiles}
-          filesError={compareRefsError || branchFilesError}
-          onRetry={() => {
-            void (compareRefsError ? retryCompareRefs() : retryComparedFiles());
-          }}
-          reviewThreads={reviewThreads}
+    <div className="relative flex h-full min-h-0 flex-col">
+      <PullRequestRevisionNotice stale={comparison.stale} hasContent={Boolean(comparison.refs)} />
+      <div className="min-h-0 flex-1">
+        <ResizableSidebarLayout
+          panelId="primary"
+          sidebarDefaultSize={24}
+          sidebarMinSize={16}
+          sidebarMaxSize={40}
+          sidebar={
+            <PullRequestFilesSidebar
+              activeRepo={activeRepo}
+              review={resolvedReview}
+              readyForDiff={readyForDiff}
+              branchFiles={branchFiles}
+              hasBranchFilesData={hasBranchFilesData}
+              isLoadingBranchFiles={preparingCompareRefs || isLoadingBranchFiles}
+              filesError={compareRefsError || branchFilesError}
+              filesFailure={comparison.failure}
+              onRetry={() => {
+                void (compareRefsError ? retryCompareRefs() : retryComparedFiles());
+              }}
+              reviewThreads={comparison.stale ? [] : reviewThreads}
+            />
+          }
+          content={
+            showingPullRequestFileViewer ? (
+              <GeneralFileViewer />
+            ) : (
+              <PullRequestDiffPane
+                activeRepo={activeRepo}
+                reviewRepoPath={resolvedReview.repoPath}
+                reviewProviderId={resolvedReview.providerId}
+                pullRequestNumber={resolvedReview.pullRequestNumber}
+                reviewBaseRef={currentCompareBaseRef}
+                reviewHeadRef={currentCompareHeadRef}
+                readyForDiff={readyForDiff}
+                stale={comparison.stale}
+                branchFiles={branchFiles}
+                conversation={comparison.conversation ?? conversation}
+                focusedLineNumber={focusedLineNumber}
+                focusedLineIndex={focusedLineIndex}
+                focusedLineKey={focusedLineKey}
+              />
+            )
+          }
         />
-      }
-      content={
-        showingPullRequestFileViewer ? (
-          <GeneralFileViewer />
-        ) : (
-          <PullRequestDiffPane
-            activeRepo={activeRepo}
-            reviewRepoPath={resolvedReview.repoPath}
-            reviewProviderId={resolvedReview.providerId}
-            pullRequestNumber={resolvedReview.pullRequestNumber}
-            reviewBaseRef={currentCompareBaseRef}
-            reviewHeadRef={currentCompareHeadRef}
-            readyForDiff={readyForDiff}
-            branchFiles={branchFiles}
-            conversation={conversation}
-            focusedLineNumber={focusedLineNumber}
-            focusedLineIndex={focusedLineIndex}
-            focusedLineKey={focusedLineKey}
-          />
-        )
-      }
-    />
+      </div>
+    </div>
   );
 }

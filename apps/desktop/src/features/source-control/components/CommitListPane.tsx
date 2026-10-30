@@ -2,10 +2,11 @@ import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { Fragment, useState, type ReactNode } from "react";
 
 import { Input } from "@/components/ui/input";
-import { ListLoadingState } from "@/components/ui/list-loading-state";
+import { COMMIT_ROW_HEIGHT } from "@/components/ui/commit-row";
 import type { HistoryCommit } from "@/features/source-control/types";
 import { TreeRowHover } from "./TreeRowHover";
 import { VirtualCommitRows } from "./VirtualCommitRows";
+import { useCommitListScrollAnchor } from "./useCommitListScrollAnchor";
 
 type CommitListPaneProps = Readonly<{
   title: string;
@@ -49,10 +50,16 @@ export function CommitListPane({
   renderHoverContent,
 }: CommitListPaneProps) {
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
+  useCommitListScrollAnchor({
+    commits,
+    scroller: scrollElement,
+    filter,
+    initialCommitId: virtualize ? commits[initialIndex]?.commitId : undefined,
+  });
   return (
     <div
       data-slot="commit-list-pane"
-      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
       <div className="border-border flex shrink-0 flex-col gap-1 border-b px-2 py-2">
         <div className="text-muted-foreground flex items-center justify-between text-[11px]">
@@ -74,22 +81,39 @@ export function CommitListPane({
         />
       </div>
       {error && totalCount > 0 ? (
-        <ErrorNotice
-          lastUpdated={lastUpdated}
-          title="Couldn’t refresh commits"
-          error={error}
-          busy={loading}
-          recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
-        />
+        <div className="absolute inset-x-2 bottom-2 z-20 max-h-[50%] overflow-y-auto rounded-md border bg-surface-elevated shadow-md">
+          <ErrorNotice
+            lastUpdated={lastUpdated}
+            title="Couldn’t refresh commits"
+            error={error}
+            busy={loading}
+            recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
+          />
+        </div>
       ) : null}
-      {notice}
+      <div className="absolute inset-x-2 bottom-2 z-10 overflow-hidden rounded-md border bg-surface-toolbar shadow-md empty:hidden">
+        {notice}
+      </div>
       <div
         ref={setScrollElement}
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         data-nav-region={navRegion}
       >
         {loading && !error && totalCount === 0 ? (
-          <ListLoadingState label="Loading commits…" />
+          <div role="status" aria-label="Loading commits…">
+            <span className="sr-only">Loading commits…</span>
+            {Array.from({ length: 8 }, (_, index) => (
+              <div
+                key={index}
+                aria-hidden="true"
+                style={{ height: COMMIT_ROW_HEIGHT }}
+                className="flex flex-col justify-center gap-2 px-3 motion-safe:animate-pulse"
+              >
+                <span className="bg-border h-2.5 w-3/4 rounded-sm" />
+                <span className="bg-border h-2 w-1/2 rounded-sm" />
+              </div>
+            ))}
+          </div>
         ) : error && totalCount === 0 ? (
           <ErrorState
             title="Couldn’t load commits"

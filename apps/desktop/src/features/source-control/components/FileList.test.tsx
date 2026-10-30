@@ -74,3 +74,20 @@ it("supports controlled selection without a Redux provider", () => {
   );
   expect(container.querySelector("file-tree-container")).toBeInTheDocument();
 });
+
+it("initial selection skips empty directories and files hidden by collapsed parents", () => {
+  const activated: string[] = [];
+  render(
+    <FileList
+      files={[{ path: "closed/hidden.ts" }, { path: "empty/" }, { path: "visible.ts" }]}
+      mode="tree"
+      initialExpansion="closed"
+      selectFirstFile
+      selection=""
+      navRegion="visible-first-selection-test"
+      autoFocus={false}
+      onActivatePath={(path) => activated.push(path)}
+    />,
+  );
+  expect(activated).toEqual(["visible.ts"]);
+});

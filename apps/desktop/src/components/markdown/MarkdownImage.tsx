@@ -24,42 +24,100 @@ function documentImages(trigger: HTMLElement) {
   return { images, index: Math.max(0, index) };
 }
 
-export function MarkdownImage({ src, alt, ...props }: ComponentProps<"img">) {
-  const [gallery, setGallery] = useState<{ images: LightboxImage[]; index: number } | null>(null);
-  const [failed, setFailed] = useState(false);
-  const source = resolveImageSource(typeof src === "string" ? src : undefined);
+function imageDimension(value: string | number | undefined) {
+  const dimension = Number(value);
+  return Number.isFinite(dimension) && dimension > 0 ? dimension : undefined;
+}
 
-  if (failed) {
-    return (
-      <a
-        href={typeof src === "string" ? src : undefined}
-        target="_blank"
-        rel="noreferrer"
-        className="border-border/70 bg-surface-1 text-muted-foreground hover:text-foreground my-2 inline-flex max-w-full items-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs"
-      >
-        <ImageOff className="size-4 shrink-0" />
-        <span className="truncate">{alt || "Image could not be loaded"}</span>
-      </a>
-    );
-  }
+export function MarkdownImage(props: ComponentProps<"img">) {
+  const source = resolveImageSource(typeof props.src === "string" ? props.src : undefined);
+  return (
+    <MarkdownImagePreview
+      key={source}
+      {...props}
+      src={source}
+      originalSource={typeof props.src === "string" ? props.src : undefined}
+    />
+  );
+}
+
+function MarkdownImagePreview({
+  src,
+  originalSource,
+  alt,
+  width,
+  height,
+  onLoad,
+  onError,
+  ...props
+}: ComponentProps<"img"> & { originalSource?: string }) {
+  const [gallery, setGallery] = useState<{ images: LightboxImage[]; index: number } | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+  const knownWidth = imageDimension(width);
+  const knownHeight = imageDimension(height);
+  const dimensionsKnown = knownWidth !== undefined && knownHeight !== undefined;
 
   return (
     <>
-      <button
-        type="button"
-        className="my-2 inline-block max-w-full cursor-zoom-in rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        onClick={(event) => setGallery(documentImages(event.currentTarget))}
+      <span
+        data-slot="markdown-image-frame"
+        aria-busy={state === "loading"}
+        className="border-border/60 bg-surface-1 relative my-2 inline-block w-full max-w-full overflow-hidden rounded-lg border align-middle"
+        style={{
+          width: dimensionsKnown ? `min(100%, ${knownWidth}px)` : undefined,
+          aspectRatio: dimensionsKnown ? `${knownWidth} / ${knownHeight}` : "16 / 9",
+          maxHeight: 480,
+        }}
       >
-        <img
-          {...props}
-          data-markdown-image
-          src={source}
-          alt={alt}
-          loading="lazy"
-          className="border-border/60 max-h-[480px] max-w-full rounded-lg border object-contain"
-          onError={() => setFailed(true)}
-        />
-      </button>
+        {state === "failed" ? (
+          <a
+            href={originalSource}
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground hover:text-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 p-3 text-xs focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <ImageOff className="size-5 shrink-0" />
+            <span className="max-w-full truncate">{alt || "Image could not be loaded"}</span>
+            <span>Open original image</span>
+          </a>
+        ) : (
+          <button
+            type="button"
+            aria-label={`Open image: ${alt || "Attached image"}`}
+            className="absolute inset-0 cursor-zoom-in focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus-visible:outline-none"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setGallery(documentImages(event.currentTarget));
+            }}
+          >
+            {state === "loading" ? (
+              <span
+                aria-hidden="true"
+                className="bg-muted absolute inset-0 motion-safe:animate-pulse"
+              />
+            ) : null}
+            <img
+              {...props}
+              width={width}
+              height={height}
+              data-markdown-image
+              src={src}
+              alt={alt}
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-contain"
+              onLoad={(event) => {
+                setState("ready");
+                onLoad?.(event);
+              }}
+              onError={(event) => {
+                setState("failed");
+                onError?.(event);
+              }}
+            />
+          </button>
+        )}
+      </span>
       <ImageLightbox
         images={gallery?.images ?? []}
         index={gallery?.index ?? null}

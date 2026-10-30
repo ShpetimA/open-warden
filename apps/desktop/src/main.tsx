@@ -1,4 +1,5 @@
 import { PullRequestRefreshProvider } from "./features/pull-requests/refresh/PullRequestRefreshProvider";
+import { refreshPullRequest } from "./features/pull-requests/refresh/refreshPullRequest";
 import { RepositoryFreshnessBootstrap } from "./features/source-control/RepositoryFreshnessBootstrap";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
@@ -32,7 +33,7 @@ createRoot(document.getElementById("root")!).render(
         <AppSettingsBootstrap>
           <WorkspaceSessionBootstrap>
             <RepositoryFreshnessBootstrap />
-            <PullRequestRefreshProvider>
+            <PullRequestRefreshProvider refresh={refreshPullRequest}>
               <App />
             </PullRequestRefreshProvider>
           </WorkspaceSessionBootstrap>

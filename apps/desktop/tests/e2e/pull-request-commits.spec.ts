@@ -125,6 +125,7 @@ test.beforeEach(async ({ page }) => {
           pullRequestNumber: 114,
           baseRef: "main",
           headRef: "validation",
+          baseSha: "base123",
           compareBaseRef: "base123",
           compareHeadRef: "head123",
           localBranch: "validation",
@@ -858,6 +859,11 @@ async function configureInbox(page: Page, body: string, failDescriptionOnce = fa
         },
       });
       let reads = 0;
+      bridge.getPullRequestChecks = async () => ({
+        ok: true,
+        value: { headSha: detail.headSha, checks: [], complete: true, mergeability: "unknown" },
+      });
+      bridge.getPullRequestFiles = async () => ({ ok: true, value: [] });
       bridge.getPullRequestConversation = async () => {
         reads += 1;
         if (failDescriptionOnce && reads === 1) {
@@ -1083,7 +1089,6 @@ for (const theme of ["light", "dark"] as const) {
         let files = 0;
         let reviews = 0;
         let checks = 0;
-        let conversations = 0;
         bridge.getPullRequestActivity = async () => ({
           ok: true,
           value: { items: [], truncated: false },
@@ -1121,10 +1126,10 @@ for (const theme of ["light", "dark"] as const) {
             mergeability: "unknown",
           },
         });
-        bridge.getPullRequestConversation = async () =>
-          ++conversations === 2
-            ? failure("getPullRequestConversation")
-            : { ok: true, value: { detail, issueComments: [], reviewThreads: [] } };
+        bridge.getPullRequestConversation = async () => ({
+          ok: true,
+          value: { detail, issueComments: [], reviewThreads: [] },
+        });
       },
       { detail },
     );
@@ -1139,15 +1144,31 @@ for (const theme of ["light", "dark"] as const) {
       path: testInfo.outputPath(`pr-incomplete-${theme}.png`),
       animations: "disabled",
     });
+    await readNotice("Couldn’t load file statistics")
+      .getByRole("button", { name: "Retry", exact: true })
+      .click();
     for (const title of [
       "Couldn’t load file statistics",
       "Couldn’t load review status",
       "Couldn’t load checks",
     ]) {
-      await readNotice(title).getByRole("button", { name: "Retry", exact: true }).click();
       await expect(readNotice(title)).toHaveCount(0);
     }
     await expect(page.getByRole("button", { name: /1 files/ })).toBeVisible();
+    await page.evaluate(() => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      const read = bridge.getPullRequestConversation;
+      let fail = true;
+      bridge.getPullRequestConversation = async (input) => {
+        if (!fail) return read(input);
+        fail = false;
+        return {
+          ok: false,
+          error: { operation: "getPullRequestConversation", code: "network", message: "Offline" },
+        };
+      };
+    });
     await page.getByRole("button", { name: "Refresh pull request", exact: true }).click();
     await expect(readNotice("Couldn’t refresh this pull request")).toBeVisible();
     await expect(page.getByRole("heading", { name: detail.title, exact: true })).toBeVisible();
@@ -1205,6 +1226,7 @@ for (const theme of ["light", "dark"] as const) {
               pullRequestNumber: 114,
               baseRef: "main",
               headRef: "validation",
+              baseSha: "base123",
               compareBaseRef: "base123",
               compareHeadRef: state.head,
               localBranch: "validation",
@@ -1316,3 +1338,730 @@ test("honors a cached provider rate limit before sending a manual refresh", asyn
     ),
   ).toBe(1);
 });
+
+declare global {
+  interface Window {
+    prRevisionRefreshTest: {
+      base: string;
+      head: string;
+      holdFiles: boolean;
+      holdGroups: boolean;
+      heldReads: number;
+      release(): void;
+    };
+  }
+}
+
+for (const [providerId, theme] of [
+  ["bitbucket", "light"],
+  ["github", "dark"],
+] as const) {
+  test(`retains a coherent PR revision through base-only and grouped force-push refresh for ${providerId} in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+    await page.addInitScript(
+      ({ detail, commits, providerId }) => {
+        const bridge = window.desktopBridge;
+        if (!bridge) throw new Error("Missing desktop bridge");
+        const resolveRepo = bridge.resolveHostedRepo;
+        bridge.resolveHostedRepo = async (repo) => {
+          const result = await resolveRepo(repo);
+          return result.ok && result.value
+            ? { ok: true, value: { ...result.value, providerId } }
+            : result;
+        };
+        const latest = commits[0];
+        if (!latest) throw new Error("Missing initial commit");
+        const waiters: Array<() => void> = [];
+        const state = {
+          base: "base123",
+          head: "head123",
+          holdFiles: false,
+          holdGroups: false,
+          heldReads: 0,
+          release() {
+            state.holdFiles = false;
+            state.holdGroups = false;
+            for (const resolve of waiters.splice(0)) resolve();
+          },
+        };
+        window.prRevisionRefreshTest = state;
+        bridge.getPullRequestConversation = async () => ({
+          ok: true,
+          value: {
+            detail: { ...detail, providerId, baseSha: state.base, headSha: state.head },
+            issueComments: [],
+            reviewThreads: [],
+          },
+        });
+        bridge.preparePullRequestCompareRefs = async () => ({
+          ok: true,
+          value: {
+            providerId,
+            owner: "team",
+            repo: "invoice",
+            pullRequestNumber: 114,
+            baseRef: "main",
+            headRef: "validation",
+            baseSha: state.base,
+            compareBaseRef: `merge-${state.base}`,
+            compareHeadRef: state.head,
+            localBranch: "validation",
+          },
+        });
+        const readFiles = bridge.getBranchFiles;
+        bridge.getBranchCommits = async () => ({
+          ok: true,
+          value:
+            state.head === "head123"
+              ? commits
+              : [
+                  {
+                    ...latest,
+                    commitId: state.head,
+                    shortId: state.head,
+                    summary: "Force-pushed invoice changes",
+                  },
+                ],
+        });
+        bridge.getBranchFiles = async (repo, base, head) => {
+          if (
+            (state.holdFiles && base === "merge-base456") ||
+            (state.holdGroups && base === "head456^")
+          ) {
+            state.heldReads += 1;
+            await new Promise<void>((resolve) => waiters.push(resolve));
+          }
+          if (head === "head456")
+            return {
+              ok: true,
+              value: [
+                { path: "src/renamed.ts", previousPath: "src/invoice.ts", status: "renamed" },
+              ],
+            };
+          return readFiles(repo, base, head);
+        };
+      },
+      { detail, commits, providerId },
+    );
+    await page.goto(`/#/pull-requests/${providerId}/team/invoice/114/files`);
+    const pane = page.getByRole("complementary", { name: "Changed files", exact: true });
+    const tree = pane.locator("file-tree-container");
+    const selected = tree.locator('[data-item-type="file"][aria-selected="true"]');
+    await expect(selected).toHaveAttribute("aria-label", "invoice.ts");
+    await tree.evaluate((element) => element.setAttribute("data-retained-revision", "yes"));
+    await page.evaluate(() => {
+      window.prRevisionRefreshTest.base = "base456";
+      window.prRevisionRefreshTest.holdFiles = true;
+    });
+    const refresh = page.getByRole("button", { name: "Refresh pull request", exact: true });
+    await expect(refresh).toHaveCount(1);
+    await refresh.click();
+    await expect
+      .poll(() => page.evaluate(() => window.prRevisionRefreshTest.heldReads))
+      .toBeGreaterThan(0);
+    await expect(refresh).toHaveAttribute("aria-busy", "true");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Showing the previous PR revision" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("export const revision = 'merge-base123';", { exact: false }),
+    ).toBeVisible();
+    await expect(tree).toHaveAttribute("data-retained-revision", "yes");
+    await expect(
+      page.getByRole("button", { name: "Review pull request", exact: true }),
+    ).toBeDisabled();
+    await page.screenshot({ path: testInfo.outputPath(`base-refresh-${theme}.png`) });
+    await page.evaluate(() => window.prRevisionRefreshTest.release());
+    await expect(
+      page.getByText("export const revision = 'merge-base456';", { exact: false }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status").filter({ hasText: "Showing the previous PR revision" }),
+    ).toHaveCount(0);
+    await expect(selected).toHaveAttribute("aria-label", "invoice.ts");
+    await expect(tree).toHaveAttribute("data-retained-revision", "yes");
+    await expect(refresh).toHaveAttribute("aria-busy", "false");
+    await pane.getByRole("button", { name: "Group review files: Review groups" }).click();
+    await page.getByRole("menuitemradio", { name: "Commits", exact: true }).click();
+    await expect(pane.getByRole("treeitem", { name: "invoice.ts", exact: true })).toHaveCount(2);
+    await tree.evaluate((element) => element.setAttribute("data-retained-revision", "grouped"));
+    await page.evaluate(() => {
+      window.prRevisionRefreshTest.head = "head456";
+      window.prRevisionRefreshTest.holdGroups = true;
+      window.prRevisionRefreshTest.heldReads = 0;
+    });
+    await refresh.click();
+    await expect
+      .poll(() => page.evaluate(() => window.prRevisionRefreshTest.heldReads))
+      .toBeGreaterThan(0);
+    await expect(pane.getByRole("treeitem", { name: "invoice.ts", exact: true })).toHaveCount(2);
+    await expect(pane.getByRole("treeitem", { name: /Force-pushed invoice changes/ })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole("status").filter({ hasText: "Showing the previous PR revision" }),
+    ).toBeVisible();
+    await expect(tree).toHaveAttribute("data-retained-revision", "grouped");
+    await page.evaluate(() => window.prRevisionRefreshTest.release());
+    await expect(pane.getByRole("treeitem", { name: "renamed.ts", exact: true })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(
+      page.getByText("export const revision = 'head456';", { exact: false }),
+    ).toBeVisible();
+    await expect(tree).toHaveAttribute("data-retained-revision", "grouped");
+    await expect(
+      page.getByRole("status").filter({ hasText: "Showing the previous PR revision" }),
+    ).toHaveCount(0);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`local review uses the shared refresh action and retains its tree on failure in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+    await page.addInitScript(
+      ({ detail }) => {
+        const bridge = window.desktopBridge;
+        if (!bridge || !detail.author) throw new Error("Missing review fixture");
+        const author = detail.author;
+        bridge.resolveActivePullRequestForBranch = async () => ({
+          ok: true,
+          value: {
+            ...detail,
+            author,
+            headOwner: "team",
+            headRepo: "invoice",
+            reviewers: [],
+            reviewDecision: null,
+            checksState: null,
+            commentCount: 0,
+            additions: null,
+            deletions: null,
+            changedFiles: null,
+          },
+        });
+      },
+      { detail },
+    );
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/local-files");
+    const refresh = page.getByRole("button", { name: "Refresh pull request", exact: true });
+    await expect(refresh).toHaveCount(1);
+    const tree = page.locator("file-tree-container");
+    await expect(tree).toBeVisible();
+    const selected = tree.locator('[data-item-type="file"][aria-selected="true"]');
+    await expect(selected).toHaveAttribute("aria-label", "invoice.ts");
+    await tree.evaluate((element) => element.setAttribute("data-local-refresh", "retained"));
+    const viewportBeforeRefresh = await tree.boundingBox();
+    await page.evaluate(() => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      const prepare = bridge.preparePullRequestCompareRefs;
+      let fail = true;
+      bridge.preparePullRequestCompareRefs = async (input) => {
+        if (!fail) return prepare(input);
+        fail = false;
+        return {
+          ok: false,
+          error: {
+            operation: "preparePullRequestCompareRefs",
+            code: "network",
+            message: "Offline",
+          },
+        };
+      };
+    });
+    await refresh.focus();
+    await page.keyboard.press("Enter");
+    const notice = page
+      .getByRole("status")
+      .filter({ hasText: "Couldn’t refresh this pull request" });
+    await expect(notice).toBeVisible();
+    await expect(tree).toHaveAttribute("data-local-refresh", "retained");
+    expect(await tree.boundingBox()).toEqual(viewportBeforeRefresh);
+    await expect(selected).toHaveAttribute("aria-label", "invoice.ts");
+    await expect(refresh).toBeFocused();
+    await page.screenshot({ path: testInfo.outputPath(`local-review-refresh-${theme}.png`) });
+    await notice.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(tree).toHaveAttribute("data-local-refresh", "retained");
+    await expect(selected).toHaveAttribute("aria-label", "invoice.ts");
+  });
+}
+
+for (const view of ["files", "commits"] as const) {
+  test(`the shared refresh action recovers a failed ${view} read without a head change`, async ({
+    page,
+  }) => {
+    await page.addInitScript((view) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      const readFiles = bridge.getBranchFiles;
+      let fail = true;
+      bridge.getBranchFiles = async (...input) => {
+        const target = view === "files" ? input[1] === "base123" : input[1] === "head123^";
+        if (!fail || !target) return readFiles(...input);
+        fail = false;
+        return {
+          ok: false,
+          error: { operation: "getBranchFiles", code: "unavailable", message: "Git read failed" },
+        };
+      };
+    }, view);
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    if (view === "commits") await page.getByRole("tab", { name: "Commits", exact: true }).click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Couldn’t load changed files" }),
+    ).toContainText("Git read failed");
+    await page.getByRole("button", { name: "Refresh pull request", exact: true }).click();
+    await expect(page.getByRole("treeitem", { name: "invoice.ts", exact: true })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+}
+
+test("background revision refresh preserves the open review draft and editor focus while submission pauses", async ({
+  page,
+}) => {
+  await page.addInitScript(
+    ({ detail }) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      let head = detail.headSha;
+      let release: (() => void) | undefined;
+      const readFiles = bridge.getBranchFiles;
+      bridge.getPullRequestConversation = async () => ({
+        ok: true,
+        value: { detail: { ...detail, headSha: head }, issueComments: [], reviewThreads: [] },
+      });
+      const prepare = bridge.preparePullRequestCompareRefs;
+      bridge.preparePullRequestCompareRefs = async (input) => {
+        const result = await prepare(input);
+        return result.ok ? { ok: true, value: { ...result.value, compareHeadRef: head } } : result;
+      };
+      bridge.getBranchFiles = async (repo, base, revision) => {
+        if (revision === "head456")
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        return readFiles(repo, base, revision);
+      };
+      Object.assign(window, {
+        reviewRefreshTest: {
+          changeHead() {
+            head = "head456";
+            window.dispatchEvent(new Event("focus"));
+          },
+          held() {
+            return release !== undefined;
+          },
+          release() {
+            if (!release) throw new Error("New files are not pending");
+            release();
+          },
+        },
+      });
+    },
+    { detail },
+  );
+  await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+  await expect(page.getByRole("treeitem", { name: "invoice.ts", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Review pull request", exact: true }).click();
+  const editor = page.getByRole("textbox", { name: "Review message" });
+  await editor.fill("Keep this review draft while the branch changes.");
+  const confirm = page.getByRole("button", { name: "Confirm submit review", exact: true });
+  await expect(confirm).toBeEnabled();
+  await page.evaluate(() => window.reviewRefreshTest.changeHead());
+  await expect.poll(() => page.evaluate(() => window.reviewRefreshTest.held())).toBe(true);
+  await expect(confirm).toBeDisabled();
+  await expect(editor).toHaveValue("Keep this review draft while the branch changes.");
+  await expect(editor).toBeFocused();
+  await page.evaluate(() => window.reviewRefreshTest.release());
+  await expect(confirm).toBeEnabled();
+  await expect(editor).toHaveValue("Keep this review draft while the branch changes.");
+  await expect(editor).toBeFocused();
+});
+
+declare global {
+  interface Window {
+    reviewRefreshTest: { changeHead(): void; held(): boolean; release(): void };
+  }
+}
+
+async function configureLayoutStability(page: Page, body: string, delayInitialActivity = false) {
+  await page.addInitScript(
+    ({ detail, body, delayInitialActivity }) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      const activityWaiters: Array<() => void> = [];
+      const metadataWaiters: Array<() => void> = [];
+      const comparisonWaiters: Array<() => void> = [];
+      const state = {
+        phase: 0,
+        holdActivity: delayInitialActivity,
+        holdMetadata: delayInitialActivity,
+        pendingActivity: false,
+        holdComparison: delayInitialActivity,
+        pendingComparison: false,
+        releaseComparison() {
+          state.holdComparison = false;
+          for (const resolve of comparisonWaiters.splice(0)) resolve();
+        },
+        releaseActivity() {
+          state.holdActivity = false;
+          for (const resolve of activityWaiters.splice(0)) resolve();
+        },
+        releaseMetadata() {
+          state.holdMetadata = false;
+          for (const resolve of metadataWaiters.splice(0)) resolve();
+        },
+        beginRefresh() {
+          state.phase += 1;
+          state.holdActivity = true;
+          state.pendingActivity = false;
+        },
+      };
+      window.layoutStability = state;
+      const prepare = bridge.preparePullRequestCompareRefs;
+      bridge.preparePullRequestCompareRefs = async (input) => {
+        if (state.holdComparison) {
+          state.pendingComparison = true;
+          await new Promise<void>((resolve) => comparisonWaiters.push(resolve));
+        }
+        return prepare(input);
+      };
+      bridge.getPullRequestConversation = async () => ({
+        ok: true,
+        value: {
+          detail: { ...detail, body: state.phase ? `Updated description.\n\n${body}` : body },
+          issueComments: [],
+          reviewThreads: [],
+        },
+      });
+      bridge.getPullRequestReviewOverview = async () => ({
+        ok: true,
+        value: { reviewers: [], viewerLogin: "alice", canManageReviewers: false },
+      });
+      bridge.getPullRequestChecks = async () => {
+        if (state.holdMetadata) await new Promise<void>((resolve) => metadataWaiters.push(resolve));
+        return {
+          ok: true,
+          value: {
+            headSha: detail.headSha,
+            complete: true,
+            mergeability: "mergeable",
+            checks: [{ id: "build", name: "Build", state: "passed", description: null, url: null }],
+          },
+        };
+      };
+      bridge.getPullRequestFiles = async () => {
+        if (state.holdMetadata) await new Promise<void>((resolve) => metadataWaiters.push(resolve));
+        return {
+          ok: true,
+          value: [
+            {
+              path: "src/invoice.ts",
+              previousPath: null,
+              status: "modified",
+              additions: 1234,
+              deletions: 456,
+            },
+          ],
+        };
+      };
+      bridge.getPullRequestActivity = async () => {
+        if (state.holdActivity) {
+          state.pendingActivity = true;
+          await new Promise<void>((resolve) => activityWaiters.push(resolve));
+        }
+        const actor = { login: "alice", displayName: "Alice", avatarUrl: null };
+        return {
+          ok: true,
+          value: {
+            truncated: false,
+            items: [
+              ...Array.from({ length: state.phase }, (_, index) => ({
+                id: `remote-${index}`,
+                kind: "event" as const,
+                event: index % 2 ? ("edited" as const) : ("renamed" as const),
+                detail: `Remote change ${index}`,
+                body: null,
+                actor,
+                occurredAt: `2026-10-26T00:00:${30 + index}Z`,
+                url: null,
+              })),
+              ...Array.from({ length: 30 }, (_, index) => ({
+                id: `push-${index}`,
+                kind: "commit" as const,
+                commitSha: `sha-${index}`,
+                message: `Invoice change ${index}`,
+                actor: index % 2 ? { ...actor, login: "bob", displayName: "Bob" } : actor,
+                occurredAt: `2026-10-26T00:${String(index + 1).padStart(2, "0")}:00Z`,
+                url: null,
+              })),
+            ],
+          },
+        };
+      };
+    },
+    { detail, body, delayInitialActivity },
+  );
+}
+
+for (const theme of ["light", "dark"] as const) {
+  for (const outcome of ["loaded", "failed", "portrait"] as const) {
+    test(`reserves the image frame through delayed ${outcome} media in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+      await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+      let releaseImage: (() => void) | undefined;
+      const held = new Promise<void>((resolve) => {
+        releaseImage = resolve;
+      });
+      await page.route("https://layout.test/attachment.svg", async (route) => {
+        await held;
+        if (outcome === "failed") {
+          await route.abort("failed");
+          return;
+        }
+        await route.fulfill({
+          status: outcome === "loaded" ? 200 : 404,
+          contentType: "image/svg+xml",
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200"><rect width="1600" height="1200" fill="#334155"/></svg>',
+        });
+      });
+      await configureLayoutStability(
+        page,
+        outcome === "portrait"
+          ? '<img src="https://layout.test/attachment.svg" width="180" height="300" alt="Invoice screenshot" />\n\nText below the attachment.'
+          : "![Invoice screenshot](https://layout.test/attachment.svg)\n\nText below the attachment.",
+      );
+      await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
+      const frame = page.locator('[data-slot="markdown-image-frame"]');
+      await expect(frame).toHaveAttribute("aria-busy", "true");
+      await expect(page.getByRole("button", { name: "Show less", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Read more", exact: true })).toHaveCount(0);
+      const imageBounds = await frame.boundingBox();
+      const composer = page.locator('[data-timeline-anchor="composer"]');
+      const composerBounds = await composer.boundingBox();
+      if (!imageBounds || !composerBounds || !releaseImage)
+        throw new Error("Preview was not reserved");
+      expect(imageBounds.height).toBeGreaterThan(150);
+      if (outcome === "portrait") {
+        expect(imageBounds.width).toBe(180);
+        expect(imageBounds.height).toBe(300);
+      }
+      await page.screenshot({ path: testInfo.outputPath(`image-pending-${theme}.png`) });
+      releaseImage();
+      await expect(frame).toHaveAttribute("aria-busy", "false");
+      if (outcome !== "failed")
+        await expect(frame.locator("img")).toHaveJSProperty("naturalWidth", 1600);
+      else await expect(frame.getByRole("link", { name: /Open original image/ })).toBeVisible();
+      const completed = await frame.boundingBox();
+      const completedComposer = await composer.boundingBox();
+      if (!completed || !completedComposer) throw new Error("Preview disappeared");
+      expect(Math.abs(completed.height - imageBounds.height)).toBeLessThan(1);
+      expect(Math.abs(completedComposer.y - composerBounds.y)).toBeLessThan(1);
+      if (outcome === "loaded") {
+        await page.evaluate(() => window.layoutStability.beginRefresh());
+        await page.getByRole("button", { name: "Refresh pull request", exact: true }).click();
+        await expect
+          .poll(() => page.evaluate(() => window.layoutStability.pendingActivity))
+          .toBe(true);
+        await page.evaluate(() => window.layoutStability.releaseActivity());
+        await expect(page.getByText("Updated description.", { exact: false })).toHaveCount(1);
+        await expect(page.getByRole("button", { name: "Show less", exact: true })).toBeVisible();
+      }
+      await page.screenshot({ path: testInfo.outputPath(`image-${outcome}-${theme}.png`) });
+    });
+  }
+
+  test(`shows description immediately, adds the composer last and preserves the reader during refresh in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+    await configureLayoutStability(page, "Read the original description.", true);
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
+    await expect(page.getByText("Read the original description.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Loading conversation…" })).toHaveCount(
+      0,
+    );
+    await expect(page.locator('[data-slot="pr-timeline"]')).toBeVisible();
+    await expect(page.getByText("Invoice change 0", { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByPlaceholder("Add a comment… Markdown and @mentions supported"),
+    ).toHaveCount(0);
+    const grid = page.locator('[data-slot="pr-status-row"]');
+    const header = grid.locator("..");
+    const before = await header.boundingBox();
+    await page.evaluate(() => window.layoutStability.releaseMetadata());
+    await expect(grid.getByText("Checks passed", { exact: true })).toBeVisible();
+    await expect(grid.getByRole("button", { name: /1 files/ })).toBeVisible();
+    const after = await header.boundingBox();
+    if (!before || !after) throw new Error("Missing PR header");
+    expect(Math.abs(after.height - before.height)).toBeLessThan(1);
+    const gaps = await grid.evaluate((element) => {
+      const children = Array.from(element.children).map((child) => child.getBoundingClientRect());
+      return children.slice(1, -1).map((child, index) => child.left - children[index].right);
+    });
+    expect(gaps.every((gap) => gap < 12)).toBe(true);
+    await expect(page.locator('[data-timeline-anchor="composer"]')).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`description-first-${theme}.png`) });
+    await page.evaluate(() => window.layoutStability.releaseActivity());
+    await expect
+      .poll(() => page.evaluate(() => window.layoutStability.pendingComparison))
+      .toBe(true);
+    await expect(page.getByText("Read the original description.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByPlaceholder("Add a comment… Markdown and @mentions supported"),
+    ).toHaveCount(0);
+    await page.evaluate(() => window.layoutStability.releaseComparison());
+    const timeline = page.locator('[data-slot="pr-timeline"]');
+    await expect(timeline).toBeVisible();
+    await expect(page.getByText("Invoice change 0", { exact: true })).toBeVisible();
+    await expect(
+      page.getByPlaceholder("Add a comment… Markdown and @mentions supported"),
+    ).toHaveCount(1);
+    const scroller = page.locator("[data-workspace-scroll]");
+    await scroller.evaluate(async (element) => {
+      element.scrollTop = 900;
+      await new Promise(requestAnimationFrame);
+    });
+    const anchor = await scroller.evaluate((element) => {
+      const top = element.getBoundingClientRect().top;
+      const row = Array.from(element.querySelectorAll<HTMLElement>("[data-timeline-anchor]")).find(
+        (item) => item.getBoundingClientRect().bottom > top,
+      );
+      if (!row) throw new Error("No reading anchor");
+      return { id: row.dataset.timelineAnchor, top: row.getBoundingClientRect().top };
+    });
+    const row = page.locator(`[data-timeline-anchor="${anchor.id}"]`);
+    await page.evaluate(() => window.layoutStability.beginRefresh());
+    await page.getByRole("button", { name: "Refresh pull request", exact: true }).click();
+    await expect.poll(() => page.evaluate(() => window.layoutStability.pendingActivity)).toBe(true);
+    await expect(page.getByText("Updated description.", { exact: false })).toHaveCount(0);
+    await page.evaluate(() => window.layoutStability.releaseActivity());
+    await expect(page.getByText(/renamed this: Remote change 0/)).toHaveCount(1);
+    await expect
+      .poll(async () => Math.abs(((await row.boundingBox())?.y ?? 99999) - anchor.top))
+      .toBeLessThan(1);
+    const editor = page.getByPlaceholder("Add a comment… Markdown and @mentions supported");
+    await editor.fill("Keep this draft and focus while activity arrives.");
+    const editorTop = await editor.evaluate((element) => element.getBoundingClientRect().top);
+    await page.evaluate(() => {
+      window.layoutStability.beginRefresh();
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect.poll(() => page.evaluate(() => window.layoutStability.pendingActivity)).toBe(true);
+    await page.evaluate(() => window.layoutStability.releaseActivity());
+    await expect(page.getByText(/edited the description/)).toHaveCount(1);
+    await expect(editor).toHaveValue("Keep this draft and focus while activity arrives.");
+    await expect(editor).toBeFocused();
+    expect(
+      Math.abs(
+        (await editor.evaluate((element) => element.getBoundingClientRect().top)) - editorTop,
+      ),
+    ).toBeLessThan(1);
+    await page.screenshot({ path: testInfo.outputPath(`timeline-stable-${theme}.png`) });
+  });
+}
+
+declare global {
+  interface Window {
+    layoutStability: {
+      pendingActivity: boolean;
+      pendingComparison: boolean;
+      releaseComparison(): void;
+      releaseActivity(): void;
+      releaseMetadata(): void;
+      beginRefresh(): void;
+    };
+  }
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`opens linked images in the lightbox without downloading for pointer and keyboard in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450"><rect width="800" height="450" fill="#334155"/><text x="400" y="230" text-anchor="middle" fill="white" font-size="28">Invoice screenshot</text></svg>';
+    let originalRequests = 0;
+    const popups: Page[] = [];
+    const downloads: string[] = [];
+    page.on("popup", (popup) => popups.push(popup));
+    page.on("download", (download) => downloads.push(download.suggestedFilename()));
+    await page.route("https://layout.test/*.svg", async (route) => {
+      await route.fulfill({ contentType: "image/svg+xml", body: svg });
+    });
+    await page.route("https://layout.test/original.png", async (route) => {
+      originalRequests += 1;
+      await route.fulfill({
+        headers: { "content-disposition": 'attachment; filename="invoice.png"' },
+        contentType: "image/png",
+        body: "Unexpected download",
+      });
+    });
+    await page.addInitScript(() => {
+      window.linkedImageActivations = [];
+      window.addEventListener(
+        "click",
+        (event) => {
+          if (
+            !(event.target instanceof Element) ||
+            !event.target.closest('[data-slot="markdown-image-frame"] button')
+          )
+            return;
+          requestAnimationFrame(() => window.linkedImageActivations.push(event.defaultPrevented));
+        },
+        true,
+      );
+    });
+    await configureLayoutStability(
+      page,
+      "[![Invoice screenshot](https://layout.test/preview.svg)](https://layout.test/original.png)\n\n![Second screenshot](https://layout.test/second.svg)",
+    );
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
+    await expect(page.getByRole("button", { name: "Show less", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Read more", exact: true })).toHaveCount(0);
+    const thumbnail = page.getByRole("button", {
+      name: "Open image: Invoice screenshot",
+      exact: true,
+    });
+    await expect(thumbnail.locator("img")).toHaveJSProperty("naturalWidth", 800);
+    await thumbnail.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("1 / 2");
+    await dialog.getByRole("button", { name: "Next image", exact: true }).click();
+    await expect(dialog).toContainText("2 / 2");
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await thumbnail.focus();
+    await page.keyboard.press("Enter");
+    await expect(dialog).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.linkedImageActivations))
+      .toEqual([true, true]);
+    expect(originalRequests).toBe(0);
+    expect(popups).toHaveLength(0);
+    expect(downloads).toHaveLength(0);
+    await expect(dialog.locator("img")).toHaveJSProperty("naturalWidth", 800);
+    await page.screenshot({ path: testInfo.outputPath(`linked-image-lightbox-${theme}.png`) });
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  });
+}
+
+declare global {
+  interface Window {
+    linkedImageActivations: boolean[];
+  }
+}

@@ -1,7 +1,7 @@
 import { preparedFileAfterRemoval } from "../components/pierreFileTreeProjection";
 import { openFileViewer } from "../sourceControlSlice";
 import { fileTrashStarted, fileTrashFinished } from "../fileEditorSlice";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "react-redux";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { toast } from "sonner";
@@ -24,28 +24,22 @@ export function useRepositoryTrash(repoPath: string, disabled: boolean) {
   const dispatch = useAppDispatch();
   const store = useStore<RootState>();
   const running = useRef(false);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
 
   async function trash(entry: { path: string; kind: "file" | "directory" }) {
     if (!repoPath || disabled || running.current) return;
     const path = entry.path.replace(/\/$/, "");
-    const selection = store.getState().sourceControl.repoTreeActivePath;
+    const before = store.getState();
+    const workspaceId = before.workspaces.activeWorkspaceId;
+    const selection = before.sourceControl.repoTreeActivePath;
     const contains = (file: string) => file === path || file.startsWith(`${path}/`);
-    const visible = getPierreFileTreeVisibleFiles("repo-files");
-    const active = visible.find((file) => (file.realPath ?? file.path) === selection);
-    const nextPath =
-      active && contains(selection)
-        ? preparedFileAfterRemoval(
-            visible.map((file) => file.path),
-            active.path,
-            new Set(
-              visible
-                .filter((file) => !file.path.endsWith("/") && !contains(file.realPath ?? file.path))
-                .map((file) => file.path),
-            ),
-          )
-        : null;
-    const next = visible.find((file) => file.path === nextPath);
     const documents = () =>
       Object.values(store.getState().fileEditor.documents).filter(
         (document) =>
@@ -94,24 +88,48 @@ export function useRepositoryTrash(repoPath: string, disabled: boolean) {
         );
         return;
       }
-      const current = store.getState().sourceControl;
+      const current = store.getState();
+      const sameWorkspace =
+        mounted.current &&
+        current.workspaces.activeWorkspaceId === workspaceId &&
+        current.sourceControl.activeRepo === repoPath;
+      const restoreTreeFocus = sameWorkspace && isPierreFileTreeFocused("repo-files");
       const replaceSelection =
-        current.activeRepo === repoPath &&
-        current.repoTreeActivePath === selection &&
+        sameWorkspace &&
+        current.sourceControl.repoTreeActivePath === selection &&
         contains(selection);
+      const visible = getPierreFileTreeVisibleFiles("repo-files");
+      const active = visible.find((file) => (file.realPath ?? file.path) === selection);
+      const nextPath =
+        active && contains(selection)
+          ? preparedFileAfterRemoval(
+              visible.map((file) => file.path),
+              active.path,
+              new Set(
+                visible
+                  .filter(
+                    (file) => !file.path.endsWith("/") && !contains(file.realPath ?? file.path),
+                  )
+                  .map((file) => file.path),
+              ),
+            )
+          : null;
+      const next = visible.find((file) => file.path === nextPath);
+      const focused = getPierreFileTreeFocusedEntry("repo-files");
+      const retainedFocus = focused && !contains(focused.path) ? focused.treePath : undefined;
       dispatch(repositoryEntryTrashed({ repoPath, path }));
       if (replaceSelection && next)
         dispatch(openFileViewer({ repoPath, relPath: next.realPath ?? next.path }));
-      if (store.getState().sourceControl.activeRepo === repoPath)
+      if (restoreTreeFocus)
         requestPierreFileTreeFocus(
           "repo-files",
-          replaceSelection ? (next?.realPath ?? next?.path) : undefined,
+          retainedFocus ?? (replaceSelection ? (next?.realPath ?? next?.path) : undefined),
         );
       toast.success(`Moved ${path.split("/").at(-1)} to Trash`);
     } finally {
       dispatch(fileTrashFinished({ repoPath, path }));
       running.current = false;
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
 

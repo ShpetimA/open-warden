@@ -17,10 +17,9 @@ import {
   useGetCommitFilesQuery,
   useGetCommitHistoryQuery,
 } from "@/features/source-control/api";
-import { selectHistoryFile } from "@/features/source-control/actions";
 import { selectHistoryFilePath } from "../fileSelection";
 import { FileList } from "@/features/source-control/components/FileList";
-import { setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
+import { setActivePath, setHistoryNavTarget } from "@/features/source-control/sourceControlSlice";
 import { getHistoryComparison } from "@/features/source-control/historySelection";
 import type { FileItem } from "@/features/source-control/types";
 
@@ -125,14 +124,14 @@ export function HistoryFilesPane() {
           </Empty>
         ) : (
           <FileList
+            selectFirstFile
             autoFocus={false}
             files={files}
             mode={fileBrowserMode}
             selection={selectHistoryFilePath}
             navRegion="history-files"
             onActivatePath={(path) => {
-              dispatch(setHistoryNavTarget("files"));
-              void dispatch(selectHistoryFile(path));
+              dispatch(setActivePath(path));
             }}
             getCommentCount={(file) =>
               countCommentsForPathInRepoContext(

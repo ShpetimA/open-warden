@@ -120,6 +120,7 @@ async function setup() {
       pullRequestNumber: 114,
       baseRef: "main",
       headRef: "feature",
+      baseSha: "base123",
       compareBaseRef: "base123",
       compareHeadRef: "head123",
       localBranch: "feature",

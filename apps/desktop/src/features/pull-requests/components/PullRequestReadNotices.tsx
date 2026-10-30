@@ -1,3 +1,7 @@
+import {
+  usePullRequestRefresh,
+  useRetainPullRequestRefresh,
+} from "../refresh/PullRequestRefreshProvider";
 import { ErrorNotice } from "@/components/ui/error-state";
 import {
   useGetPullRequestActivityQuery,
@@ -8,7 +12,11 @@ import {
 import { desktopFailure } from "@/platform/desktop/failure";
 import type { PullRequestLocatorInput } from "@/platform/desktop";
 
+const REFRESH_RESOURCES = ["reviewers", "checks", "files", "activity"] as const;
+
 export function PullRequestReadNotices({ locator }: { locator: PullRequestLocatorInput }) {
+  useRetainPullRequestRefresh(locator, REFRESH_RESOURCES);
+  const refresh = usePullRequestRefresh(locator);
   const reviews = useGetPullRequestReviewOverviewQuery(locator, { selectFromResult: noticeFields });
   const checks = useGetPullRequestChecksQuery(locator, {
     selectFromResult: (result) => ({
@@ -46,7 +54,7 @@ export function PullRequestReadNotices({ locator }: { locator: PullRequestLocato
             recovery={{
               label: "Retry",
               onAction: () => {
-                void query.refetch();
+                void refresh.refresh();
               },
             }}
           />

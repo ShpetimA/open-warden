@@ -6,11 +6,9 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
   clearDiffSelection,
-  setActiveBucket,
   setSelectedFiles,
   setSelectionAnchor,
 } from "@/features/source-control/sourceControlSlice";
-import { findExistingBucket } from "@/features/source-control/utils";
 
 export function useChangesSync() {
   const dispatch = useAppDispatch();
@@ -68,15 +66,13 @@ export function useChangesSync() {
     if (activeBucketHasPath) return;
 
     const current = store.getState().sourceControl;
-    if (current.activePath !== activePath || current.activeBucket !== activeBucket) return;
-    const existingBucket = findExistingBucket(snapshot, activePath);
-    if (!existingBucket) {
-      dispatch(clearDiffSelection());
+    if (
+      current.activeRepo !== activeRepo ||
+      current.activePath !== activePath ||
+      current.activeBucket !== activeBucket
+    )
       return;
-    }
-    if (existingBucket !== activeBucket) {
-      dispatch(setActiveBucket(existingBucket));
-    }
+    dispatch(clearDiffSelection());
   }, [
     activeRepo,
     activeBucket,

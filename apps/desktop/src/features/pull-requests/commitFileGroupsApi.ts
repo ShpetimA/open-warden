@@ -5,7 +5,7 @@ import type { CommitFileGroup } from "./commitFileGroups";
 
 const MAX_CONCURRENT_GIT_READS = 4;
 
-const commitFileGroupsApi = gitApi.injectEndpoints({
+export const commitFileGroupsApi = gitApi.injectEndpoints({
   endpoints: (builder) => ({
     getCommitFileGroups: builder.query<
       CommitFileGroup[],

@@ -10,6 +10,7 @@ import { setupListeners } from "@reduxjs/toolkit/query";
 import { commentsClipboardReducer } from "@/features/comments/commentsClipboardSlice";
 import { desktopUpdateReducer } from "@/features/desktop-update/desktopUpdateSlice";
 import { hostedReposApi } from "@/features/hosted-repos/api";
+import { hostedReadDeadlinesReducer } from "@/features/hosted-repos/readDeadlinesSlice";
 import { lspReducer } from "@/features/lsp/lspSlice";
 import { commentsReducer } from "@/features/comments/commentsSlice";
 import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice";
@@ -39,6 +40,7 @@ const combinedReducer = combineReducers({
   commentsClipboard: commentsClipboardReducer,
   [gitApi.reducerPath]: gitApi.reducer,
   [hostedReposApi.reducerPath]: hostedReposApi.reducer,
+  hostedReadDeadlines: hostedReadDeadlinesReducer,
 });
 
 export function rootReducer(

@@ -1,3 +1,7 @@
+import {
+  usePullRequestRefresh,
+  useRetainPullRequestRefresh,
+} from "@/features/pull-requests/refresh/PullRequestRefreshProvider";
 import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import { ActionError } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
@@ -38,6 +42,8 @@ import type { ComposerChoice } from "./CommandComposerChoiceStep";
 import type { PullRequestComposerAction } from "./commandComposerModel";
 import { actions } from "./commandComposerModel";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
+
+const REVIEW_REFRESH_RESOURCES = ["comparison"] as const;
 
 export function PullRequestCommandComposer({
   action: initialAction,
@@ -118,10 +124,17 @@ export function PullRequestCommandComposer({
       }),
     },
   );
+  const refresh = usePullRequestRefresh(
+    selectedPullRequest ? { repoPath, pullRequestNumber: selectedPullRequest.number } : null,
+  );
   const compareArgs =
     action === "submit-review" && selectedPullRequest
       ? { repoPath, pullRequestNumber: selectedPullRequest.number }
       : skipToken;
+  useRetainPullRequestRefresh(
+    compareArgs === skipToken ? null : compareArgs,
+    REVIEW_REFRESH_RESOURCES,
+  );
   const { compareRefs, loadingCompareRefs } = usePreparePullRequestCompareRefsQuery(compareArgs, {
     selectFromResult: ({ currentData, isFetching }) => ({
       compareRefs: currentData,
@@ -149,6 +162,12 @@ export function PullRequestCommandComposer({
         headRef: compareRefs.compareHeadRef,
       })
     : [];
+  const reviewRevisionMatches = Boolean(
+    compareRefs &&
+    selectedConversation &&
+    compareRefs.compareHeadRef.startsWith(selectedConversation.detail.headSha) &&
+    compareRefs.baseSha.startsWith(selectedConversation.detail.baseSha),
+  );
   const actionInfo = actions.find((item) => item.id === action);
   const actionLabel = actionInfo?.label ?? "Choose action";
   const pullRequestsOnPage = pullRequestPage?.pullRequests ?? [];
@@ -238,10 +257,14 @@ export function PullRequestCommandComposer({
     action &&
     selectedPullRequest &&
     !busy &&
+    (!refresh.revisionPending ||
+      !["submit-review", "approve-pr", "request-changes", "merge-pr"].includes(action)) &&
     (action !== "open-pr-worktree" || hostedRepo) &&
     (action !== "comment-pr" || message.trim()) &&
     (action !== "submit-review" ||
-      (Boolean(selectedConversation?.detail.headSha) &&
+      (reviewRevisionMatches &&
+        !loadingCompareRefs &&
+        Boolean(selectedConversation?.detail.headSha) &&
         (reviewDecision !== "comment" || Boolean(message.trim() || pendingDrafts.length)) &&
         (reviewDecision !== "request-changes" || Boolean(message.trim())) &&
         selectedConversation?.detail.state === "open" &&
@@ -317,6 +340,12 @@ export function PullRequestCommandComposer({
   }
 
   async function run(target = selectedPullRequest, requestedAction = action) {
+    if (
+      refresh.revisionPending &&
+      requestedAction &&
+      ["submit-review", "approve-pr", "request-changes", "merge-pr"].includes(requestedAction)
+    )
+      return;
     if (
       !target ||
       !requestedAction ||
@@ -747,6 +776,24 @@ export function PullRequestCommandComposer({
                     ? " Bitbucket posts comments and the decision separately."
                     : ""}
                 </p>
+                {!loadingCompareRefs && !reviewRevisionMatches ? (
+                  <div
+                    role="status"
+                    className="text-muted-foreground flex items-center justify-between gap-2 text-xs"
+                  >
+                    Refresh the pull request before submitting this review.
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      aria-disabled={refresh.busy}
+                      onClick={() => {
+                        if (!refresh.busy) void refresh.refresh();
+                      }}
+                    >
+                      Refresh
+                    </Button>
+                  </div>
+                ) : null}
               </>
             ) : (
               <p className="change-composer-help text-muted-foreground text-xs">

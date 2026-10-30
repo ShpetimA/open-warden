@@ -60,7 +60,7 @@ export function PullRequestChangesSidebar({
       onValueChange={(value) => {
         if (value === "files" || value === "commits") onViewChange(value);
       }}
-      className="h-full min-h-0"
+      className="relative h-full min-h-0"
     >
       <div className="border-border bg-surface-toolbar flex h-9 shrink-0 items-center border-b px-2">
         <TabsList aria-label="Pull request changes" className="p-0">

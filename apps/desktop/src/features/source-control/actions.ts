@@ -554,10 +554,10 @@ const runRepoAction =
       bucket: before.sourceControl.activeBucket,
       path: before.sourceControl.activePath,
     };
-    const next = getPierreFileAfterRemoval("changes-files", selection, removed);
     dispatch(setRunningAction(action));
     try {
       await dispatch(thunk);
+      const next = getPierreFileAfterRemoval("changes-files", selection, removed);
       const current = getState();
       if (
         next &&

@@ -197,7 +197,13 @@ const timeline: TimelineEntry[] = [
   },
 ];
 
-function OverviewPreview({ pullRequest }: { pullRequest: PullRequestOverviewView }) {
+function OverviewPreview({
+  pullRequest,
+  composerReady = true,
+}: {
+  pullRequest: PullRequestOverviewView;
+  composerReady?: boolean;
+}) {
   const [checksOpen, setChecksOpen] = useState(false);
   return (
     <TooltipProvider>
@@ -248,12 +254,13 @@ function OverviewPreview({ pullRequest }: { pullRequest: PullRequestOverviewView
           }
         >
           <PullRequestTimeline
+            composerReady={composerReady}
             description={{
               author: pullRequest.author,
               createdAt: pullRequest.createdAt,
               body: pullRequest.body,
             }}
-            entries={timeline}
+            entries={composerReady ? timeline : []}
             viewer={shpetim}
             onOpenCommit={() => {}}
             onSubmitComment={async () => true}
@@ -275,6 +282,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Open: Story = {};
+export const DescriptionFirst: Story = { args: { composerReady: false } };
 
 export const ChangesRequestedWithConflicts: Story = {
   args: {

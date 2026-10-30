@@ -1,3 +1,4 @@
+import { usePullRequestComparison } from "../hooks/usePullRequestComparison";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect, type ComponentType } from "react";
 import { GitPullRequest } from "lucide-react";
@@ -11,7 +12,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import {
-  usePreparePullRequestCompareRefsQuery,
   useResolveActivePullRequestForBranchQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
@@ -21,7 +21,6 @@ import {
   setCurrentPullRequestReview,
 } from "@/features/pull-requests/pullRequestsSlice";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import {
   clearReviewSelection,
   setReviewBaseRef,
@@ -71,6 +70,8 @@ function reviewSessionMatchesPullRequest(
     review.title === nextReview.title &&
     review.baseRef === nextReview.baseRef &&
     review.headRef === nextReview.headRef &&
+    review.compareBaseRef === nextReview.compareBaseRef &&
+    review.compareHeadRef === nextReview.compareHeadRef &&
     review.repoPath === nextReview.repoPath &&
     review.worktreePath === nextReview.worktreePath
   );
@@ -109,8 +110,8 @@ export function usePullRequestReviewSession() {
     { repoPath: activeRepo, branch: activeBranch },
     {
       skip: !activeRepo || !activeBranch,
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        activePullRequest: data ?? null,
+      selectFromResult: ({ currentData, error, isLoading, isFetching }) => ({
+        activePullRequest: currentData ?? null,
         loadingActivePullRequest: isLoading,
         fetchingActivePullRequest: isFetching,
         hasActivePullRequestError: Boolean(error),
@@ -118,26 +119,15 @@ export function usePullRequestReviewSession() {
     },
   );
 
-  const {
-    compareRefs,
-    preparingCompareRefs,
-    compareRefsError,
-    refetch: retryCompareRefs,
-  } = usePreparePullRequestCompareRefsQuery(
+  const locator =
     activeRepo && activePullRequest
-      ? {
-          repoPath: activeRepo,
-          pullRequestNumber: activePullRequest.number,
-        }
-      : skipToken,
-    {
-      selectFromResult: ({ currentData, isFetching, error }) => ({
-        compareRefs: currentData ?? null,
-        preparingCompareRefs: isFetching && !currentData,
-        compareRefsError: currentData ? "" : errorMessageFrom(error, ""),
-      }),
-    },
-  );
+      ? { repoPath: activeRepo, pullRequestNumber: activePullRequest.number }
+      : null;
+  const comparison = usePullRequestComparison(locator ?? skipToken);
+  const compareRefs = comparison.refs;
+  const preparingCompareRefs = comparison.loading;
+  const compareRefsError = comparison.error;
+  const retryCompareRefs = comparison.retry;
 
   const samePullRequestAsCurrentReview =
     currentReview !== null &&
@@ -235,6 +225,7 @@ export function usePullRequestReviewSession() {
   ]);
 
   return {
+    comparison,
     activeRepo,
     resolvedReview,
     preparingCompareRefs,

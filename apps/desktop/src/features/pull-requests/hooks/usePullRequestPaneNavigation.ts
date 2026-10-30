@@ -11,8 +11,7 @@ import {
   useVerticalNavigationHotkeys,
 } from "@/features/source-control/hooks/keyboardNavigation";
 import {
-  movePierreFileTreeFocusFile,
-  movePierreFileTreeFocusByFile,
+  movePierreFileTreeFileForKey,
   scrollPierreFileTreeRealPathIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import { isTypingTarget } from "@/features/source-control/utils";
@@ -64,10 +63,7 @@ export function usePullRequestPaneNavigation({
     event.preventDefault();
 
     if (target.current === "files") {
-      const move = /^[jk]$/i.test(event.key)
-        ? movePierreFileTreeFocusByFile
-        : movePierreFileTreeFocusFile;
-      const file = move("pull-request-files", forward);
+      const file = movePierreFileTreeFileForKey("pull-request-files", event.key, forward);
       if (file) dispatch(setPullRequestPreviewActiveFilePath(file.realPath ?? file.path));
       return;
     }

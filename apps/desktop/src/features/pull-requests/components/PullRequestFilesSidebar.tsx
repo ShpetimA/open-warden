@@ -21,6 +21,7 @@ type PullRequestFilesSidebarProps = {
   hasBranchFilesData: boolean;
   isLoadingBranchFiles: boolean;
   filesError: string;
+  filesFailure?: unknown;
   onRetry?: () => void;
   reviewThreads?: PullRequestReviewThread[];
 };
@@ -33,6 +34,7 @@ export function PullRequestFilesSidebar({
   hasBranchFilesData,
   isLoadingBranchFiles,
   filesError,
+  filesFailure,
   onRetry,
   reviewThreads = [],
 }: PullRequestFilesSidebarProps) {
@@ -83,10 +85,10 @@ export function PullRequestFilesSidebar({
         <div className="min-h-0 flex-1 overflow-hidden">
           {isLoadingBranchFiles && !hasBranchFilesData ? (
             <ListLoadingState label="Loading changed files…" />
-          ) : filesError ? (
+          ) : filesError && !hasBranchFilesData ? (
             <ErrorState
               title="Couldn’t load review files"
-              error={undefined}
+              error={filesFailure}
               message={filesError}
               busy={isLoadingBranchFiles}
               recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
@@ -100,6 +102,10 @@ export function PullRequestFilesSidebar({
               activeRepo={activeRepo}
               reviewBaseRef={review.compareBaseRef}
               reviewHeadRef={review.compareHeadRef}
+              isLoading={isLoadingBranchFiles}
+              error={filesFailure ?? (filesError || undefined)}
+              hasData={hasBranchFilesData}
+              onRetry={onRetry}
               paneClassName="border-0 bg-transparent"
               headerClassName="hidden"
               bodyClassName="space-y-0.5 p-0.5"

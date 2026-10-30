@@ -1,5 +1,10 @@
 import { runHostedRead } from "./readPolicy";
-import { queryResult, type DesktopFailure } from "@/platform/desktop/failure";
+import {
+  queryResult,
+  readDesktopFailure,
+  failureFromUnknown,
+  type DesktopFailure,
+} from "@/platform/desktop/failure";
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
 import type {
@@ -71,6 +76,12 @@ import {
   submitPullRequestDecision,
 } from "./services/hostedRepos";
 
+export type PullRequestFilesRead = Readonly<{
+  files: PullRequestChangedFile[];
+  headSha: string;
+  baseSha: string;
+}>;
+
 export const hostedReposApi = createApi({
   reducerPath: "hostedReposApi",
   baseQuery: fakeBaseQuery<DesktopFailure>(),
@@ -117,7 +128,7 @@ export const hostedReposApi = createApi({
     }),
     listPullRequests: builder.query<PullRequestPage, ListPullRequestsInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => listPullRequests(input));
+        return runHostedRead(api, () => listPullRequests(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
     }),
@@ -126,7 +137,7 @@ export const hostedReposApi = createApi({
       ResolveActivePullRequestForBranchInput
     >({
       async queryFn(input, api) {
-        return runHostedRead(api, () => resolveActivePullRequestForBranch(input));
+        return runHostedRead(api, () => resolveActivePullRequestForBranch(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, branch }) => [
         { type: "PullRequests", id: `${repoPath}:active:${branch}` },
@@ -134,7 +145,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestConversation: builder.query<PullRequestConversation, PullRequestLocatorInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestConversation(input));
+        return runHostedRead(api, () => getPullRequestConversation(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -143,7 +154,7 @@ export const hostedReposApi = createApi({
     getPullRequestReviewOverview: builder.query<PullRequestReviewOverview, PullRequestLocatorInput>(
       {
         async queryFn(input, api) {
-          return runHostedRead(api, () => getPullRequestReviewOverview(input));
+          return runHostedRead(api, () => getPullRequestReviewOverview(input), input.repoPath);
         },
         providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
           { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
@@ -155,7 +166,9 @@ export const hostedReposApi = createApi({
         return queryResult(await setPullRequestReviewer(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
         { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     submitPullRequestReview: builder.mutation<
@@ -166,8 +179,11 @@ export const hostedReposApi = createApi({
         return queryResult(await submitPullRequestReview(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
         { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
+        { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     runPullRequestLifecycle: builder.mutation<
@@ -188,7 +204,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestActivity: builder.query<PullRequestActivity, PullRequestLocatorInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestActivity(input));
+        return runHostedRead(api, () => getPullRequestActivity(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
@@ -196,7 +212,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestViewedFiles: builder.query<PullRequestViewedFiles, PullRequestLocatorInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestViewedFiles(input));
+        return runHostedRead(api, () => getPullRequestViewedFiles(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
@@ -210,9 +226,28 @@ export const hostedReposApi = createApi({
         { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
-    getPullRequestChecks: builder.query<PullRequestChecksResult, PullRequestLocatorInput>({
-      async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestChecks(input));
+    getPullRequestChecks: builder.query<
+      PullRequestChecksResult & { baseSha: string },
+      PullRequestLocatorInput
+    >({
+      async queryFn(
+        input,
+        api,
+      ): Promise<
+        { data: PullRequestChecksResult & { baseSha: string } } | { error: DesktopFailure }
+      > {
+        const conversation = await api.dispatch(
+          hostedReposApi.endpoints.getPullRequestConversation.initiate(input, { subscribe: false }),
+        );
+        if (conversation.error || !conversation.data)
+          return {
+            error:
+              readDesktopFailure(conversation.error) ??
+              failureFromUnknown(conversation.error, "getPullRequestChecks"),
+          };
+        const result = await runHostedRead(api, () => getPullRequestChecks(input), input.repoPath);
+        if ("error" in result) return result;
+        return { data: { ...result.data, baseSha: conversation.data.detail.baseSha } };
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -220,7 +255,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestExtras: builder.query<PullRequestExtras, PullRequestLocatorInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestExtras(input));
+        return runHostedRead(api, () => getPullRequestExtras(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
@@ -261,9 +296,29 @@ export const hostedReposApi = createApi({
         { type: "PullRequestConversation", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
-    getPullRequestFiles: builder.query<PullRequestChangedFile[], PullRequestLocatorInput>({
-      async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestFiles(input));
+    getPullRequestFiles: builder.query<PullRequestFilesRead, PullRequestLocatorInput>({
+      async queryFn(
+        input,
+        api,
+      ): Promise<{ data: PullRequestFilesRead } | { error: DesktopFailure }> {
+        const conversation = await api.dispatch(
+          hostedReposApi.endpoints.getPullRequestConversation.initiate(input, { subscribe: false }),
+        );
+        if (conversation.error || !conversation.data)
+          return {
+            error:
+              readDesktopFailure(conversation.error) ??
+              failureFromUnknown(conversation.error, "getPullRequestFiles"),
+          };
+        const result = await runHostedRead(api, () => getPullRequestFiles(input), input.repoPath);
+        if ("error" in result) return result;
+        return {
+          data: {
+            files: result.data,
+            headSha: conversation.data.detail.headSha,
+            baseSha: conversation.data.detail.baseSha,
+          },
+        };
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestFiles", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -271,7 +326,7 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestPatch: builder.query<string, PullRequestLocatorInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => getPullRequestPatch(input));
+        return runHostedRead(api, () => getPullRequestPatch(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestPatch", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -279,7 +334,7 @@ export const hostedReposApi = createApi({
     }),
     preparePullRequestCompareRefs: builder.query<PullRequestCompareRefs, PullRequestLocatorInput>({
       async queryFn(input, api) {
-        return runHostedRead(api, () => preparePullRequestCompareRefs(input));
+        return runHostedRead(api, () => preparePullRequestCompareRefs(input), input.repoPath);
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestCompareRefs", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -290,7 +345,9 @@ export const hostedReposApi = createApi({
         return queryResult(await addPullRequestComment(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     createPullRequest: builder.mutation<PullRequestSummary, CreatePullRequestInput>({
@@ -304,6 +361,7 @@ export const hostedReposApi = createApi({
         return queryResult(await submitPullRequestDecision(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
         { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
         { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
@@ -328,7 +386,9 @@ export const hostedReposApi = createApi({
         return queryResult(await replyToPullRequestThread(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     submitPullRequestReviewComments: builder.mutation<
@@ -339,7 +399,9 @@ export const hostedReposApi = createApi({
         return queryResult(await submitPullRequestReviewComments(input));
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
+        { type: "PullRequests", id: repoPath },
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     setPullRequestThreadResolved: builder.mutation<
@@ -351,6 +413,7 @@ export const hostedReposApi = createApi({
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
+        { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
   }),

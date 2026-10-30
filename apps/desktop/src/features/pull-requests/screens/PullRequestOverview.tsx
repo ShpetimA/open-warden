@@ -1,4 +1,5 @@
 import { PullRequestRefreshControl } from "../refresh/PullRequestRefreshControl";
+import { PullRequestRevisionNotice } from "../refresh/PullRequestRevisionNotice";
 import { usePullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { PullRequestReadNotices } from "../components/PullRequestReadNotices";
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
@@ -15,12 +16,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { openPullRequestReview } from "@/features/hosted-repos/actions";
 import {
   useAddPullRequestCommentMutation,
-  useGetPullRequestActivityQuery,
   useGetPullRequestConversationQuery,
-  useGetPullRequestFilesQuery,
   useLazyPreparePullRequestCompareRefsQuery,
   useListProviderConnectionsQuery,
-  usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
   useSetPullRequestReviewerMutation,
 } from "@/features/hosted-repos/api";
@@ -28,6 +26,7 @@ import { copyToClipboard } from "@/features/pull-requests/components/pullRequest
 import { PullRequestOverviewAnchorCard } from "@/features/pull-requests/components/PullRequestOverviewAnchorCard";
 import { PullRequestProviderExtras } from "@/features/pull-requests/components/PullRequestProviderExtras";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
+import { usePullRequestTimelineSnapshot } from "../overview/usePullRequestTimelineSnapshot";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
 import { CommentReactions } from "@/features/pull-requests/overview/CommentReactions";
@@ -259,7 +258,7 @@ function PullRequestOverviewMergeStatus({
 }) {
   const pullRequest = usePullRequestOverviewView(locator, repository);
   const { conversation } = useGetPullRequestConversationQuery(locator, {
-    selectFromResult: ({ data }) => ({ conversation: data ?? null }),
+    selectFromResult: ({ currentData }) => ({ conversation: currentData ?? null }),
   });
   const mentions = usePullRequestMentionCandidates(conversation);
   const [setReviewer] = useSetPullRequestReviewerMutation();
@@ -340,7 +339,7 @@ function PendingDraftsSection({
         <div className="flex items-center gap-1">
           <Button
             size="sm"
-            disabled={pendingActions.isSubmittingReviewComments}
+            disabled={pendingActions.isSubmittingReviewComments || pendingActions.publishingPaused}
             onClick={() => void pendingActions.publishAllPendingDrafts()}
           >
             <MessageSquarePlus /> Publish all
@@ -368,6 +367,7 @@ function PendingDraftsSection({
           anchor={anchor}
           onOpenFile={() => openAnchorInFiles(anchor)}
           onPublishPending={() => void pendingActions.publishAnchorPendingDrafts(anchor)}
+          publishingPaused={pendingActions.publishingPaused}
           onCopyPending={() => void pendingActions.copyAnchorPendingDrafts(anchor)}
           onClearPending={() => pendingActions.clearAnchorPendingDrafts(anchor)}
           commentMentions={mentions}
@@ -386,18 +386,10 @@ function PullRequestOverviewConversation({
   route: RouteContext;
   onLifecycle: (request: LifecycleRequest) => void;
 }) {
-  const { conversation } = useGetPullRequestConversationQuery(locator, {
-    selectFromResult: ({ data }) => ({ conversation: data ?? null }),
-  });
-  const { files } = useGetPullRequestFilesQuery(locator, {
-    selectFromResult: ({ data }) => ({ files: data }),
-  });
-  const { activity } = useGetPullRequestActivityQuery(locator, {
-    selectFromResult: ({ data }) => ({ activity: data }),
-  });
-  const { compareRefs } = usePreparePullRequestCompareRefsQuery(locator, {
-    selectFromResult: ({ data }) => ({ compareRefs: data ?? null }),
-  });
+  const { snapshot, comparison, description } = usePullRequestTimelineSnapshot(locator);
+  const conversation = snapshot?.conversation ?? null;
+  const activity = snapshot?.activity;
+  const compareRefs = snapshot?.refs;
   const { viewer } = useListProviderConnectionsQuery(undefined, {
     selectFromResult: ({ data }) => ({
       viewer: data?.find((connection) => connection.providerId === route.providerId) ?? null,
@@ -413,16 +405,16 @@ function PullRequestOverviewConversation({
     repoPath: locator.repoPath,
     compareBaseRef,
     compareHeadRef,
-    files: files ?? [],
+    files: snapshot?.files ?? [],
     reviewThreads: conversation?.reviewThreads ?? [],
   });
 
-  if (!conversation) return null;
-  const { detail } = conversation;
+  if (!description) return null;
+  const detail = description;
   const github = detail.providerId === "github";
 
   const entries: TimelineEntry[] = [
-    ...conversation.issueComments.map(
+    ...(conversation?.issueComments ?? []).map(
       (comment): TimelineEntry => ({
         kind: "comment",
         id: comment.id,
@@ -475,6 +467,7 @@ function PullRequestOverviewConversation({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
+      <PullRequestRevisionNotice stale={comparison.stale} hasContent={Boolean(compareRefs)} />
       {pendingAnchors.length > 0 ? (
         <PendingDraftsSection
           locator={locator}
@@ -486,6 +479,7 @@ function PullRequestOverviewConversation({
         />
       ) : null}
       <PullRequestTimeline
+        composerReady={snapshot !== null}
         description={{
           author: toPersonView(detail.author) ?? unknownActor,
           createdAt: detail.createdAt,
@@ -551,12 +545,8 @@ export const PullRequestOverview = () => {
     activeRepo && route && routeMatchesActiveRepo
       ? { repoPath: activeRepo, pullRequestNumber }
       : skipToken;
-  const {
-    detail,
-    loadingDetail,
-    detailError,
-    refetch: retryDetail,
-  } = useGetPullRequestConversationQuery(queryArg, {
+  const refresh = usePullRequestRefresh(queryArg === skipToken ? null : queryArg);
+  const { detail, loadingDetail, detailError } = useGetPullRequestConversationQuery(queryArg, {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       detail: currentData?.detail ?? null,
       loadingDetail: isFetching && !currentData,
@@ -574,7 +564,7 @@ export const PullRequestOverview = () => {
         recovery={{
           label: "Retry",
           onAction: () => {
-            void (hostedRepoError ? retryHostedRepo() : retryDetail());
+            void (hostedRepoError ? retryHostedRepo() : refresh.refresh());
           },
         }}
       />
@@ -591,7 +581,7 @@ export const PullRequestOverview = () => {
   return (
     <TooltipProvider>
       <PullRequestOverviewLayout
-        header={
+        notices={
           <>
             {hostedRepoError || detailError ? (
               <ErrorNotice
@@ -600,21 +590,23 @@ export const PullRequestOverview = () => {
                 recovery={{
                   label: "Retry",
                   onAction: () => {
-                    void (hostedRepoError ? retryHostedRepo() : retryDetail());
+                    void (hostedRepoError ? retryHostedRepo() : refresh.refresh());
                   },
                 }}
               />
             ) : null}
             <PullRequestReadNotices locator={queryArg} />
-            <PullRequestOverviewHeaderBar
-              locator={queryArg}
-              route={route}
-              repository={repository}
-              detail={detail}
-              onOpenChecks={openChecks}
-              onLifecycle={setLifecycleRequest}
-            />
           </>
+        }
+        header={
+          <PullRequestOverviewHeaderBar
+            locator={queryArg}
+            route={route}
+            repository={repository}
+            detail={detail}
+            onOpenChecks={openChecks}
+            onLifecycle={setLifecycleRequest}
+          />
         }
         aside={
           <>
@@ -632,6 +624,7 @@ export const PullRequestOverview = () => {
         }
       >
         <PullRequestOverviewConversation
+          key={`${queryArg.repoPath}:${queryArg.pullRequestNumber}`}
           locator={queryArg}
           route={route}
           onLifecycle={setLifecycleRequest}

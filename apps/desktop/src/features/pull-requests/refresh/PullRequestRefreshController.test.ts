@@ -150,3 +150,67 @@ test("focus and reconnect respect transient backoff while an explicit retry can 
   release();
   controller.dispose();
 });
+
+test("refresh demand is the union of mounted views and releases idempotently", async () => {
+  const time = clock();
+  const reads: string[][] = [];
+  const controller = new PullRequestRefreshController({
+    ...time,
+    async refresh(_locator, _manual, resources) {
+      reads.push([...resources]);
+      return [];
+    },
+  });
+  const releaseOverview = controller.retain(locator, ["checks", "files"]);
+  const releaseFiles = controller.retain(locator, ["comparison", "files"]);
+  await controller.request(locator);
+  expect(reads).toEqual([["checks", "files", "comparison"]]);
+  releaseOverview();
+  releaseOverview();
+  await controller.request(locator);
+  expect(reads.at(-1)).toEqual(["files", "comparison"]);
+  releaseFiles();
+  expect(time.pending()).toBe(0);
+  controller.dispose();
+  controller.retain(locator, ["checks"])();
+  expect(time.pending()).toBe(0);
+});
+
+test("closing a PR during a refresh and disposing the owner schedules no further work", async () => {
+  const time = clock();
+  let finish: ((failures: DesktopFailure[]) => void) | undefined;
+  const controller = new PullRequestRefreshController({
+    ...time,
+    refresh: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  const release = controller.retain(locator, ["comparison"]);
+  const pending = controller.request(locator);
+  release();
+  controller.dispose();
+  if (!finish) throw new Error("Refresh did not start");
+  finish([]);
+  await pending;
+  expect(time.pending()).toBe(0);
+});
+
+test("revision guards belong to their views and survive the refresh request completing", async () => {
+  const time = clock();
+  const controller = new PullRequestRefreshController({ ...time, refresh: async () => [] });
+  const ownerA = {};
+  const ownerB = {};
+  controller.setRevisionPending(locator, ownerA, true);
+  expect(controller.state(locator).revisionPending).toBe(true);
+  const release = controller.retain(locator);
+  controller.setRevisionPending(locator, ownerB, true);
+  await controller.request(locator);
+  expect(controller.state(locator).revisionPending).toBe(true);
+  controller.setRevisionPending(locator, ownerA, false);
+  expect(controller.state(locator).revisionPending).toBe(true);
+  controller.setRevisionPending(locator, ownerB, false);
+  expect(controller.state(locator).revisionPending).toBe(false);
+  release();
+  controller.dispose();
+});

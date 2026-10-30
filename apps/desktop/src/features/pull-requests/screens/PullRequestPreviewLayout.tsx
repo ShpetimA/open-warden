@@ -5,6 +5,7 @@ import { useResolveHostedRepoQuery } from "@/features/hosted-repos/api";
 import { Outlet, useLocation, useParams } from "react-router";
 import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
 import type { GitProviderId } from "@/platform/desktop";
+import { WorkspaceNotices } from "@/components/layout/WorkspaceNotices";
 
 export type PreviewTab = "overview" | "files";
 
@@ -47,8 +48,12 @@ export function PullRequestPreviewLayout() {
       : null;
   useRetainPullRequestRefresh(locator);
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col">
-      {!pathname.endsWith("/overview") ? <PullRequestRefreshNotice locator={locator} /> : null}
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col">
+      {!pathname.endsWith("/overview") ? (
+        <WorkspaceNotices>
+          <PullRequestRefreshNotice locator={locator} />
+        </WorkspaceNotices>
+      ) : null}
       <div className="min-h-0 flex-1">
         <Outlet />
       </div>

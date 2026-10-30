@@ -1,3 +1,6 @@
+import { PullRequestRevisionNotice } from "@/features/pull-requests/refresh/PullRequestRevisionNotice";
+import { WorkspaceNotices } from "@/components/layout/WorkspaceNotices";
+import { usePullRequestRefresh } from "@/features/pull-requests/refresh/PullRequestRefreshProvider";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -72,6 +75,7 @@ export function GuidanceScreen() {
 
 function GuidanceController({ locator }: { locator: GuidanceLocator }) {
   const navigate = useNavigate();
+  const refresh = usePullRequestRefresh(locator);
   const { data: activity = null } = useGetGuidanceActivityQuery(locator, {
     pollingInterval: 1000,
     refetchOnFocus: true,
@@ -86,7 +90,6 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
     detail,
     loading: loadingHead,
     error: headError,
-    refetch: retryHead,
   } = useGetPullRequestConversationQuery(locator, {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       detail: currentData?.detail,
@@ -95,10 +98,7 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
     }),
   });
   const stale = !!guide && (!detail || detail.headSha !== guide.headSha);
-  const comparison = usePullRequestComparison(
-    guide && !stale ? locator : skipToken,
-    guide?.headSha,
-  );
+  const comparison = usePullRequestComparison(guide && !stale ? locator : skipToken);
   const [progress, { isLoading: changing }] = useSetGuidanceProgressMutation();
   const [message] = useAddGuidanceMessageMutation();
   const [clearMessages] = useClearGuidanceMessagesMutation();
@@ -114,7 +114,7 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
   if (isLoading || loadingHead) return <ListLoadingState label="Loading walkthrough…" />;
   function retryRead() {
     if (loadError) void retryGuide();
-    if (headError) void retryHead();
+    if (headError) void refresh.refresh();
   }
   const readFailure = loadError ?? headError;
   if (readFailure && (!guide || !detail))
@@ -159,14 +159,17 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
       </div>
     );
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       {readFailure ? (
-        <ErrorNotice
-          title="Couldn’t refresh this walkthrough"
-          error={readFailure}
-          recovery={{ label: "Retry", onAction: retryRead }}
-        />
+        <WorkspaceNotices>
+          <ErrorNotice
+            title="Couldn’t refresh this walkthrough"
+            error={readFailure}
+            recovery={{ label: "Retry", onAction: retryRead }}
+          />
+        </WorkspaceNotices>
       ) : null}
+      <PullRequestRevisionNotice stale={comparison.stale} hasContent={Boolean(comparison.refs)} />
       <div className="min-h-0 flex-1">
         <GuidanceView
           guide={guide}
@@ -241,15 +244,13 @@ function GuidanceDiff({
         }
       : skipToken,
   );
-  const { conversation } = useGetPullRequestConversationQuery(locator, {
-    selectFromResult: ({ currentData }) => ({ conversation: currentData ?? null }),
-  });
+  const conversation = comparison.conversation ?? null;
   const { anchorsByFile } = usePullRequestReviewAnchors({
     repoPath: locator.repoPath,
     compareBaseRef: refs?.compareBaseRef ?? "",
     compareHeadRef: refs?.compareHeadRef ?? "",
     files: files ?? [],
-    reviewThreads: conversation?.reviewThreads ?? [],
+    reviewThreads: comparison.stale ? [] : (conversation?.reviewThreads ?? []),
   });
   const mentions = usePullRequestMentionCandidates(conversation);
   if (comparisonError || error)
@@ -315,7 +316,7 @@ function GuidanceDiff({
           baseRef: refs.compareBaseRef,
           headRef: refs.compareHeadRef,
         }}
-        canComment
+        canComment={!comparison.stale}
         includeCurrentFileComments={false}
         fileViewerRevision={refs.compareHeadRef}
         lspJumpContextKind="pull-request"

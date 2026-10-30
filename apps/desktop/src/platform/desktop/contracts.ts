@@ -420,6 +420,7 @@ export type PullRequestChangedFile = {
 export type PullRequestOpenMode = "branch" | "worktree";
 
 export type PullRequestCompareRefs = {
+  baseSha: string;
   providerId: GitProviderId;
   owner: string;
   repo: string;

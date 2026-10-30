@@ -125,7 +125,10 @@ export function PullRequestOverviewHeader({
           </div>
         </div>
 
-        <div className="-mx-1.5 flex flex-wrap items-center gap-x-1 gap-y-1">
+        <div
+          data-slot="pr-status-row"
+          className="-mx-1.5 flex min-h-6 flex-wrap items-center gap-x-1 gap-y-1"
+        >
           <StatusChip summary={reviews} />
           {checks ? <StatusChip summary={checks} onClick={onOpenChecks} /> : null}
           <StatusChip summary={merge} />

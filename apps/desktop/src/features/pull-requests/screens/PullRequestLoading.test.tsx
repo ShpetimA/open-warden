@@ -36,6 +36,7 @@ const refs: PullRequestCompareRefs = {
   pullRequestNumber: 114,
   baseRef: "main",
   headRef: "feature/invoice",
+  baseSha: "base",
   compareBaseRef: "base",
   compareHeadRef: "head",
   localBranch: "feature/invoice",
@@ -87,6 +88,28 @@ function setup(prepareRefs: () => Promise<PullRequestCompareRefs>) {
     ...desktopHandlers({
       resolveHostedRepo: () => hostedRepo.promise,
       preparePullRequestCompareRefs: prepareRefs,
+      getPullRequestConversation: async () => ({
+        detail: {
+          id: "114",
+          providerId: "bitbucket",
+          number: 114,
+          title: "Invoice",
+          body: "",
+          state: "open",
+          isDraft: false,
+          author: null,
+          url: "https://bitbucket.org/team/invoice/pull-requests/114",
+          baseRef: "main",
+          headRef: "feature/invoice",
+          baseSha: "base",
+          headSha: "head",
+          createdAt: "2026-10-30",
+          updatedAt: "2026-10-30",
+          labels: [],
+        },
+        issueComments: [],
+        reviewThreads: [],
+      }),
       getBranchFiles: () => {
         requests.push("files");
         return files.promise;

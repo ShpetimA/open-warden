@@ -300,6 +300,7 @@ export async function ensurePreparedBranchCheckout(
 }
 
 function createPullRequestCompareRefs(input: {
+  baseSha: string;
   hostedRepo: HostedRepoRef;
   pullRequestNumber: number;
   baseRef: string;
@@ -309,6 +310,7 @@ function createPullRequestCompareRefs(input: {
   localBranch: string;
 }): PullRequestCompareRefs {
   return {
+    baseSha: input.baseSha,
     providerId: input.hostedRepo.providerId,
     owner: input.hostedRepo.owner,
     repo: input.hostedRepo.repo,
@@ -611,6 +613,7 @@ export async function preparePullRequestCompareRefs(
     const compareHeadRef = await resolveRevision(sourceRepoPath, headRefShort);
     const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, compareHeadRef);
     return createPullRequestCompareRefs({
+      baseSha: await resolveRevision(sourceRepoPath, baseRefShort),
       hostedRepo,
       pullRequestNumber: pullRequest.number,
       baseRef: pullRequest.base.ref,
@@ -667,6 +670,7 @@ export async function preparePullRequestCompareRefs(
     const compareHeadRef = await resolveRevision(sourceRepoPath, headRefShort);
     const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, compareHeadRef);
     return createPullRequestCompareRefs({
+      baseSha: await resolveRevision(sourceRepoPath, baseRefShort),
       hostedRepo,
       pullRequestNumber,
       baseRef,

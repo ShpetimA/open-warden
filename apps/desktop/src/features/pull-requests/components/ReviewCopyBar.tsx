@@ -40,7 +40,7 @@ function ReviewCommentsCopyToolbar({
   const conversationQueryArg =
     repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
   const { reviewThreads } = useGetPullRequestConversationQuery(conversationQueryArg, {
-    selectFromResult: ({ data }) => ({
+    selectFromResult: ({ currentData: data }) => ({
       reviewThreads: data?.reviewThreads ?? [],
     }),
   });
@@ -51,12 +51,14 @@ function ReviewCommentsCopyToolbar({
     : 0;
   const filePublishedPayload = activePath
     ? buildPullRequestReviewCommentsPayload({
-        reviewThreads,
+        reviewThreads: pendingActions.publishingPaused ? [] : reviewThreads,
         path: activePath,
         previousPath: activePreviousPath,
       })
     : "";
-  const allPublishedPayload = buildPullRequestReviewCommentsPayload({ reviewThreads });
+  const allPublishedPayload = buildPullRequestReviewCommentsPayload({
+    reviewThreads: pendingActions.publishingPaused ? [] : reviewThreads,
+  });
   const filePayload = joinReviewCommentPayloads(filePublishedPayload, filePendingPayload);
   const allPayload = joinReviewCommentPayloads(
     allPublishedPayload,
@@ -125,7 +127,9 @@ function ReviewCommentsCopyToolbar({
               <Button
                 size="xs"
                 disabled={
-                  totalPendingCommentCount === 0 || pendingActions.isSubmittingReviewComments
+                  totalPendingCommentCount === 0 ||
+                  pendingActions.isSubmittingReviewComments ||
+                  pendingActions.publishingPaused
                 }
                 onClick={() => {
                   void pendingActions.publishAllPendingDrafts();

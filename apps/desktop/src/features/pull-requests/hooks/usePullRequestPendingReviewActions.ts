@@ -1,3 +1,4 @@
+import { usePullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -18,6 +19,10 @@ export function usePullRequestPendingReviewActions(args: {
   compareHeadRef: string;
 }) {
   const dispatch = useAppDispatch();
+  const refresh = usePullRequestRefresh({
+    repoPath: args.repoPath,
+    pullRequestNumber: args.pullRequestNumber,
+  });
   const comments = useAppSelector((state) => state.comments);
   const pendingDrafts = getPendingReviewCommentsForContext(comments, args.repoPath, {
     kind: "review",
@@ -54,7 +59,12 @@ export function usePullRequestPendingReviewActions(args: {
   }
 
   async function publishPendingDrafts(source: typeof pendingDrafts) {
-    if (!args.repoPath || args.pullRequestNumber <= 0 || source.length === 0) {
+    if (
+      refresh.revisionPending ||
+      !args.repoPath ||
+      args.pullRequestNumber <= 0 ||
+      source.length === 0
+    ) {
       return;
     }
 
@@ -84,6 +94,7 @@ export function usePullRequestPendingReviewActions(args: {
     pendingDraftCount,
     allPendingPayload,
     isSubmittingReviewComments,
+    publishingPaused: refresh.revisionPending,
     getPendingDraftsForFile(path: string) {
       return pendingDrafts.filter((draft) => draft.filePath === path);
     },

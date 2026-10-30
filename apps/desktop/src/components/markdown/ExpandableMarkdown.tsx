@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useLayoutEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Markdown } from "./Markdown";
@@ -6,17 +6,18 @@ import { Markdown } from "./Markdown";
 export function ExpandableMarkdown({
   children,
   previewHeight = 160,
+  defaultExpanded = false,
 }: {
   children: string;
   previewHeight?: number;
+  defaultExpanded?: boolean;
 }) {
   const id = useId();
   const content = useRef<HTMLDivElement>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [overflows, setOverflows] = useState(false);
 
-  useEffect(() => {
-    setExpanded(false);
+  useLayoutEffect(() => {
     const element = content.current;
     if (!element) return;
     const measure = () => setOverflows(element.scrollHeight > previewHeight + 1);

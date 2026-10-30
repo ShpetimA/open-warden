@@ -1,3 +1,4 @@
+import { useRetainPullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -6,6 +7,8 @@ import {
   useGetPullRequestViewedFilesQuery,
   useSetPullRequestFileViewedMutation,
 } from "@/features/hosted-repos/api";
+
+const REFRESH_RESOURCES = ["viewed"] as const;
 
 export function usePullRequestViewedFiles({
   repoPath,
@@ -19,6 +22,7 @@ export function usePullRequestViewedFiles({
   const [deviceViewedPaths, setDeviceViewedPaths] = useState<string[]>([]);
   const [setViewed, { isLoading: changingViewed }] = useSetPullRequestFileViewedMutation();
   const queryArg = repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
+  useRetainPullRequestRefresh(queryArg === skipToken ? null : queryArg, REFRESH_RESOURCES);
   const { viewedFiles } = useGetPullRequestViewedFilesQuery(queryArg, {
     selectFromResult: ({ data }) => ({ viewedFiles: data }),
   });

@@ -11,6 +11,7 @@ declare global {
       unstageCalls: string[];
       holdSnapshots: boolean;
       holdFiles: boolean;
+      holdStages: boolean;
       failSnapshot: boolean;
       failStageAt: number;
       published: boolean;
@@ -41,12 +42,14 @@ test.beforeEach(async ({ page }) => {
       unstageCalls: [] as string[],
       holdSnapshots: false,
       holdFiles: false,
+      holdStages: false,
       failSnapshot: false,
       failStageAt: 0,
       published: false,
       release() {
         control.holdSnapshots = false;
         control.holdFiles = false;
+        control.holdStages = false;
         for (const release of waiters.splice(0)) release();
       },
     };
@@ -100,6 +103,7 @@ test.beforeEach(async ({ page }) => {
       }),
       stageFile: async (_repo, path) => {
         control.stageCalls.push(path);
+        if (control.holdStages) await new Promise<void>((resolve) => waiters.push(resolve));
         await new Promise((resolve) => setTimeout(resolve, 35));
         if (control.failStageAt === control.stageCalls.length)
           throw new Error("Couldn’t stage this file");
@@ -366,4 +370,29 @@ test("staging advances in rendered order only after success and skips a collapse
     "aria-expanded",
     "false",
   );
+});
+
+test("staging completion uses current expansion and preserves a newer folder focus", async ({
+  page,
+}) => {
+  await page.goto("/#/changes");
+  const tree = page.locator("file-tree-container");
+  const selected = tree.locator('[data-item-path="Changes/src/group-a/file-05.ts"]');
+  await selected.click();
+  await page.evaluate(() => {
+    window.changesRefreshTest.holdStages = true;
+  });
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await expect.poll(() => page.evaluate(() => window.changesRefreshTest.stageCalls.length)).toBe(1);
+  const collapsed = tree.locator('[data-item-path="Changes/src/group-b/"]');
+  await collapsed.click();
+  await expect(collapsed).toHaveAttribute("aria-expanded", "false");
+  await expect(collapsed).toBeFocused();
+  await page.evaluate(() => window.changesRefreshTest.release());
+  await expect(tree.locator('[data-item-path="Changes/src/group-c/file-00.ts"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(collapsed).toHaveAttribute("aria-expanded", "false");
+  await expect(collapsed).toBeFocused();
 });

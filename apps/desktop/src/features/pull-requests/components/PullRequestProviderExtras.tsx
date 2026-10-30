@@ -1,3 +1,7 @@
+import {
+  useRetainPullRequestRefresh,
+  usePullRequestRefresh,
+} from "../refresh/PullRequestRefreshProvider";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Check, RotateCcw, XCircle } from "lucide-react";
@@ -25,16 +29,21 @@ import {
 import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import type { PullRequestDetail } from "@/platform/desktop";
 
-export function PullRequestProviderExtras({
-  repoPath,
-  detail,
-}: {
-  repoPath: string;
-  detail: PullRequestDetail;
-}) {
+const REFRESH_RESOURCES = ["extras"] as const;
+
+type ProviderExtrasProps = { repoPath: string; detail: PullRequestDetail };
+
+export function PullRequestProviderExtras(props: ProviderExtrasProps) {
+  if (props.detail.providerId !== "github") return null;
+  return <GitHubPullRequestExtras {...props} />;
+}
+
+function GitHubPullRequestExtras({ repoPath, detail }: ProviderExtrasProps) {
   const dispatch = useAppDispatch();
   const input = { repoPath, pullRequestNumber: detail.number };
-  const { data, error, isLoading, isFetching, refetch } = useGetPullRequestExtrasQuery(input, {
+  useRetainPullRequestRefresh(input, REFRESH_RESOURCES);
+  const refresh = usePullRequestRefresh(input);
+  const { data, error, isLoading, isFetching } = useGetPullRequestExtrasQuery(input, {
     selectFromResult: ({ currentData, error, isLoading, isFetching }) => ({
       data: currentData,
       error,
@@ -57,8 +66,6 @@ export function PullRequestProviderExtras({
   const [confirmAction, setConfirmAction] = useState<"rerun" | "cancel">("rerun");
   const availableLabels = data?.availableLabels ?? [];
   const selectedRun = data?.workflowRuns.find((run) => run.id === confirmRunId);
-
-  if (detail.providerId !== "github") return null;
 
   async function saveLabels() {
     try {
@@ -124,9 +131,6 @@ export function PullRequestProviderExtras({
         <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
           GitHub extras
         </h2>
-        <Button variant="ghost" size="sm" disabled={isFetching} onClick={() => void refetch()}>
-          Refresh
-        </Button>
       </div>
       {isLoading ? (
         <p className="text-muted-foreground mt-3 text-xs">Loading provider details…</p>
@@ -141,7 +145,7 @@ export function PullRequestProviderExtras({
             recovery={{
               label: "Retry",
               onAction: () => {
-                void refetch();
+                void refresh.refresh();
               },
             }}
           />
@@ -153,7 +157,7 @@ export function PullRequestProviderExtras({
             recovery={{
               label: "Retry",
               onAction: () => {
-                void refetch();
+                void refresh.refresh();
               },
             }}
           />

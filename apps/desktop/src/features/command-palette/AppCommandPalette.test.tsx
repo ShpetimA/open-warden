@@ -825,8 +825,8 @@ describe("AppCommandPalette", () => {
         id: "draft-1",
         repoPath: "/tmp/repo",
         contextKind: "review",
-        baseRef: "origin/main",
-        headRef: "composer",
+        baseRef: "reviewed-base",
+        headRef: "reviewed-sha",
         filePath: "src/app.ts",
         text: "Please adjust this",
         startLine: 12,
@@ -847,12 +847,23 @@ describe("AppCommandPalette", () => {
       },
     ];
     mocks.usePreparePullRequestCompareRefsQuery.mockReturnValue({
-      compareRefs: { compareBaseRef: "origin/main", compareHeadRef: "composer" },
+      compareRefs: {
+        compareBaseRef: "reviewed-base",
+        compareHeadRef: "reviewed-sha",
+        baseSha: "reviewed-base",
+      },
       loadingCompareRefs: false,
     });
     mocks.useGetPullRequestConversationQuery.mockReturnValue({
       currentConversation: null,
-      selectedConversation: { detail: { headSha: "reviewed-sha", state: "open", isDraft: false } },
+      selectedConversation: {
+        detail: {
+          headSha: "reviewed-sha",
+          baseSha: "reviewed-base",
+          state: "open",
+          isDraft: false,
+        },
+      },
     });
     mocks.submitReview.mockReturnValue({
       unwrap: () => Promise.resolve({ submittedDraftIds: ["draft-1"], failedMessage: null }),

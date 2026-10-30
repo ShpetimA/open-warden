@@ -1,3 +1,4 @@
+import { useRetainPullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import {
@@ -14,6 +15,8 @@ import type {
 } from "@/platform/desktop";
 
 import type { PersonView, PullRequestOverviewView, ReviewerView } from "./types";
+
+const REFRESH_RESOURCES = ["checks", "reviewers", "files"] as const;
 
 export type PullRequestLocator = { repoPath: string; pullRequestNumber: number };
 
@@ -60,22 +63,26 @@ export function usePullRequestOverviewView(
   locator: PullRequestLocator | typeof skipToken,
   repository: string,
 ): PullRequestOverviewView | null {
+  useRetainPullRequestRefresh(locator === skipToken ? null : locator, REFRESH_RESOURCES);
   const { conversation } = useGetPullRequestConversationQuery(locator, {
-    selectFromResult: ({ data }) => ({ conversation: data }),
+    selectFromResult: ({ currentData: data }) => ({ conversation: data }),
   });
   const { files } = useGetPullRequestFilesQuery(locator, {
-    selectFromResult: ({ data }) => ({ files: data }),
+    selectFromResult: ({ currentData: data }) => ({ files: data }),
   });
   const { reviewers } = useGetPullRequestReviewOverviewQuery(locator, {
-    selectFromResult: ({ data }) => ({ reviewers: data?.reviewers }),
+    selectFromResult: ({ currentData: data }) => ({ reviewers: data?.reviewers }),
   });
   const { checks } = useGetPullRequestChecksQuery(locator, {
-    selectFromResult: ({ data }) => ({ checks: data }),
+    selectFromResult: ({ currentData: data }) => ({ checks: data }),
   });
 
   if (!conversation) return null;
   const { detail } = conversation;
-  const currentChecks = checks?.headSha === detail.headSha && checks.complete ? checks : null;
+  const currentChecks =
+    checks?.headSha === detail.headSha && checks.baseSha === detail.baseSha && checks.complete
+      ? checks
+      : null;
   const threadComments = conversation.reviewThreads.reduce(
     (count, thread) => count + thread.comments.length,
     0,
@@ -98,7 +105,10 @@ export function usePullRequestOverviewView(
     mergeability: currentChecks?.mergeability ?? "unknown",
     commentCount: conversation.issueComments.length + threadComments,
     unresolvedThreadCount: conversation.reviewThreads.filter((thread) => !thread.isResolved).length,
-    fileStats: diffTotals(files),
+    fileStats:
+      files?.headSha === detail.headSha && files.baseSha === detail.baseSha
+        ? diffTotals(files.files)
+        : null,
     labels: detail.labels.map((label) => label.name),
   };
 }

@@ -1,3 +1,4 @@
+import { usePullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { ClipboardCheck } from "lucide-react";
 
@@ -49,6 +50,7 @@ export function PullRequestReviewControl({
 }) {
   const openComposer = useCommandComposerLauncher();
   const locator = repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
+  const refresh = usePullRequestRefresh(locator === skipToken ? null : locator);
   const { detail, loadingDetail } = useGetPullRequestConversationQuery(locator, {
     selectFromResult: ({ currentData, isFetching }) => ({
       detail: currentData?.detail,
@@ -64,6 +66,8 @@ export function PullRequestReviewControl({
   });
   let disabledReason: string | undefined;
   if (!detail || !hostedRepo) disabledReason = "Load the pull request before reviewing it";
+  else if (refresh.revisionPending)
+    disabledReason = "Wait for the current PR revision to finish loading";
   else if (detail.state !== "open") disabledReason = "Only open pull requests can be reviewed";
   else if (detail.isDraft) disabledReason = "Mark this pull request ready for review first";
   else if (detail.providerId !== "github" && detail.providerId !== "bitbucket")

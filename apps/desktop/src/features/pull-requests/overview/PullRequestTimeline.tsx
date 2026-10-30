@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { buildTimeline } from "./timeline";
+import { useTimelineScrollAnchor } from "./useTimelineScrollAnchor";
 import type { PersonView, TimelineEntry, TimelineEventKind, TimelineItem } from "./types";
 
 const COLLAPSED_BOT_BODY_LENGTH = 280;
@@ -65,6 +66,7 @@ export function TimelineComment({
   onQuote,
   onEdit,
   children,
+  defaultExpanded = false,
 }: {
   author: PersonView;
   createdAt: string;
@@ -76,9 +78,12 @@ export function TimelineComment({
   onQuote?: (body: string) => void;
   onEdit?: () => void;
   children?: ReactNode;
+  defaultExpanded?: boolean;
 }) {
   const bot = isBot(author);
-  const [expanded, setExpanded] = useState(!bot || body.length <= COLLAPSED_BOT_BODY_LENGTH);
+  const [expanded, setExpanded] = useState(
+    defaultExpanded || !bot || body.length <= COLLAPSED_BOT_BODY_LENGTH,
+  );
   return (
     <div className="relative flex gap-3">
       <UserAvatar
@@ -137,7 +142,7 @@ export function TimelineComment({
           </DropdownMenu>
         </header>
         <div className={cn("relative px-4 py-3", !expanded && "max-h-28 overflow-hidden")}>
-          <CommentBody body={body} />
+          <CommentBody body={body} defaultExpanded={defaultExpanded} />
           {!expanded ? (
             <div className="from-surface-0 via-surface-0/90 absolute inset-x-0 bottom-0 flex h-16 items-end justify-center bg-gradient-to-t to-transparent pb-2">
               <Button variant="outline" size="xs" onClick={() => setExpanded(true)}>
@@ -409,6 +414,7 @@ export function PullRequestTimeline({
   onOpenCommit,
   onSubmitComment,
   onEditDescription,
+  composerReady = true,
 }: {
   description: { author: PersonView; createdAt: string; body: string };
   entries: TimelineEntry[];
@@ -417,37 +423,47 @@ export function PullRequestTimeline({
   onOpenCommit?: (sha: string) => void;
   onSubmitComment: (body: string) => Promise<boolean>;
   onEditDescription?: () => void;
+  composerReady?: boolean;
 }) {
   const composerRef = useRef<ComposerHandle>(null);
+  const rootRef = useTimelineScrollAnchor(entries);
   const items = buildTimeline(entries);
   const quote = (body: string) => composerRef.current?.quote(body);
   return (
-    <div className="relative flex min-w-0 flex-col gap-4">
+    <div ref={rootRef} data-slot="pr-timeline" className="relative flex min-w-0 flex-col gap-4">
       <div aria-hidden="true" className="bg-border absolute top-4 bottom-4 left-[13px] w-px" />
-      <TimelineComment
-        author={description.author}
-        createdAt={description.createdAt}
-        body={description.body.trim() || "_No description provided._"}
-        isPullRequestAuthor
-        badge={<span className="text-muted-foreground">opened this pull request</span>}
-        onQuote={quote}
-        onEdit={onEditDescription}
-      />
-      {items.map((item) => (
-        <TimelineRow
-          key={item.id}
-          item={item}
-          pullRequestAuthor={description.author.login}
-          onQuote={quote}
-          onOpenCommit={onOpenCommit}
+      <div data-timeline-anchor="description">
+        <TimelineComment
+          author={description.author}
+          createdAt={description.createdAt}
+          body={description.body.trim() || "_No description provided._"}
+          isPullRequestAuthor
+          defaultExpanded
+          badge={<span className="text-muted-foreground">opened this pull request</span>}
+          onQuote={composerReady ? quote : undefined}
+          onEdit={onEditDescription}
         />
+      </div>
+      {items.map((item) => (
+        <div key={item.id} data-timeline-anchor={item.id}>
+          <TimelineRow
+            item={item}
+            pullRequestAuthor={description.author.login}
+            onQuote={quote}
+            onOpenCommit={onOpenCommit}
+          />
+        </div>
       ))}
-      <PullRequestCommentComposer
-        ref={composerRef}
-        viewer={viewer}
-        mentions={mentions}
-        onSubmit={onSubmitComment}
-      />
+      {composerReady ? (
+        <div data-timeline-anchor="composer">
+          <PullRequestCommentComposer
+            ref={composerRef}
+            viewer={viewer}
+            mentions={mentions}
+            onSubmit={onSubmitComment}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
