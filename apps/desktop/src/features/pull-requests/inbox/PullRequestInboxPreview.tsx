@@ -3,6 +3,7 @@ import { Copy, ExternalLink, FileCode2, GitBranch, MoreHorizontal, Zap } from "l
 
 import { Button } from "@/components/ui/button";
 import { Markdown } from "@/components/markdown/Markdown";
+import { desktopFailure } from "@/platform/desktop/failure";
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { DiffStat } from "@/components/ui/diff-stat";
 import {
@@ -40,14 +41,38 @@ function PreviewStatus({
 }) {
   const locator = { repoPath, pullRequestNumber: pullRequest.number };
   // The listing leaves checks and sizes out on Bitbucket; the preview asks for them per PR.
-  const { checks } = useGetPullRequestChecksQuery(
-    pullRequest.checksState === null ? locator : skipToken,
-    { selectFromResult: ({ currentData }) => ({ checks: currentData?.checks }) },
-  );
-  const { files } = useGetPullRequestFilesQuery(
-    pullRequest.additions === null ? locator : skipToken,
-    { selectFromResult: ({ currentData }) => ({ files: currentData }) },
-  );
+  const {
+    checks,
+    checksError,
+    checksFetching,
+    refetch: retryChecks,
+  } = useGetPullRequestChecksQuery(pullRequest.checksState === null ? locator : skipToken, {
+    selectFromResult: ({ currentData, error, isFetching }) => ({
+      checks: currentData?.complete ? currentData.checks : undefined,
+      checksError:
+        error ??
+        (currentData && !currentData.complete
+          ? desktopFailure(
+              "getPullRequestChecks",
+              "unavailable",
+              "Only some checks could be loaded. Refresh or open the pull request in your provider to verify all checks.",
+            )
+          : undefined),
+      checksFetching: isFetching,
+    }),
+  });
+  const {
+    files,
+    filesError,
+    filesFetching,
+    refetch: retryFiles,
+  } = useGetPullRequestFilesQuery(pullRequest.additions === null ? locator : skipToken, {
+    selectFromResult: ({ currentData, error, isFetching }) => ({
+      files: currentData,
+      filesError: error,
+      filesFetching: isFetching,
+    }),
+  });
   const review = summaryReviewStatus(pullRequest);
   const checksSummary = summaryChecksStatus(pullRequest) ?? summarizeChecks(checks ?? null);
   const additions =
@@ -58,6 +83,32 @@ function PreviewStatus({
 
   return (
     <div className="-mx-1.5 mt-3 flex flex-wrap items-center gap-x-1 gap-y-1">
+      {checksError ? (
+        <ErrorNotice
+          title="Couldn’t load checks"
+          error={checksError}
+          busy={checksFetching}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryChecks();
+            },
+          }}
+        />
+      ) : null}
+      {filesError ? (
+        <ErrorNotice
+          title="Couldn’t load file statistics"
+          error={filesError}
+          busy={filesFetching}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryFiles();
+            },
+          }}
+        />
+      ) : null}
       {review ? <StatusChip summary={review} /> : null}
       {checksSummary ? <StatusChip summary={checksSummary} /> : null}
       {pullRequest.commentCount !== null ? (

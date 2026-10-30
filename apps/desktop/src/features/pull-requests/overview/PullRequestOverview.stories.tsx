@@ -90,9 +90,7 @@ const pullRequest: PullRequestOverviewView = {
   mergeability: "mergeable",
   commentCount: 3,
   unresolvedThreadCount: 1,
-  changedFiles: 13,
-  additions: 5533,
-  deletions: 23,
+  fileStats: { changedFiles: 13, additions: 5533, deletions: 23 },
   labels: [],
 };
 
@@ -234,13 +232,17 @@ function OverviewPreview({ pullRequest }: { pullRequest: PullRequestOverviewView
               onMerge={() => {}}
               onAutoMerge={() => {}}
               reviewers={
-                <PullRequestReviewerList
-                  reviewers={pullRequest.reviewers}
-                  candidates={[{ id: "shpetim_alimi", label: "Shpetim Alimi" }]}
-                  onAdd={async () => true}
-                  onRerequest={() => {}}
-                  onRemove={() => {}}
-                />
+                pullRequest.reviewers === null ? (
+                  <p className="text-muted-foreground text-xs">Review status is unavailable.</p>
+                ) : (
+                  <PullRequestReviewerList
+                    reviewers={pullRequest.reviewers}
+                    candidates={[{ id: "shpetim_alimi", label: "Shpetim Alimi" }]}
+                    onAdd={async () => true}
+                    onRerequest={() => {}}
+                    onRemove={() => {}}
+                  />
+                )
               }
             />
           }
@@ -290,4 +292,16 @@ export const ChangesRequestedWithConflicts: Story = {
 
 export const Merged: Story = {
   args: { pullRequest: { ...pullRequest, state: "merged" } },
+};
+
+export const StatusUnavailable: Story = {
+  args: {
+    pullRequest: {
+      ...pullRequest,
+      reviewers: null,
+      checks: null,
+      fileStats: null,
+      mergeability: "unknown",
+    },
+  },
 };

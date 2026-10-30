@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import {
   Combobox,
   ComboboxContent,
@@ -20,6 +20,13 @@ export function BranchCombobox({
   onChange: (branch: string) => void;
 }) {
   const id = useId();
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLocaleLowerCase();
+  const filtered =
+    search === value
+      ? options
+      : options.filter((branch) => branch.toLocaleLowerCase().includes(query));
+
   return (
     <div className="min-w-0">
       <label
@@ -30,6 +37,8 @@ export function BranchCombobox({
       </label>
       <Combobox
         items={options}
+        filteredItems={filtered}
+        onInputValueChange={setSearch}
         value={value || null}
         autoHighlight
         onValueChange={(branch) => {

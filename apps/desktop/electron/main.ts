@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { flushAtomicJsonWrites } from "./atomicJsonStore";
 import { captureDesktopOperation } from "../src/platform/desktop/failure";
 import { classifyDesktopFailure } from "./desktop-failure";
 import path from "node:path";
@@ -12,6 +14,8 @@ import {
 } from "./guidance/runtime";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
+  WORKSPACE_FLUSH_REQUEST_CHANNEL,
+  WORKSPACE_FLUSH_REPLY_CHANNEL,
   GUIDANCE_NAVIGATE_CHANNEL,
   APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
@@ -31,6 +35,8 @@ let mainWindow: BrowserWindow | null = null;
 let disposeAppSettingsWatcher: (() => void) | null = null;
 let quitCleanupStarted = false;
 let quitCleanupFinished = false;
+let closeApproved = false;
+let closePending: Promise<boolean> | null = null;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
@@ -65,6 +71,28 @@ function resolveRendererHtmlPath() {
   return path.resolve(__dirname, "../../dist/index.html");
 }
 
+function flushWorkspaceBeforeClose(window: BrowserWindow): Promise<boolean> {
+  if (window.isDestroyed() || window.webContents.isLoadingMainFrame()) return Promise.resolve(true);
+  if (closePending) return closePending;
+  closePending = new Promise<boolean>((resolve) => {
+    const requestId = randomUUID();
+    const finish = (saved: boolean) => {
+      clearTimeout(timer);
+      ipcMain.removeListener(WORKSPACE_FLUSH_REPLY_CHANNEL, receive);
+      resolve(saved);
+    };
+    const receive = (event: Electron.IpcMainEvent, id: unknown, saved: unknown) => {
+      if (event.sender === window.webContents && id === requestId) finish(saved === true);
+    };
+    const timer = setTimeout(() => finish(false), 10_000);
+    ipcMain.on(WORKSPACE_FLUSH_REPLY_CHANNEL, receive);
+    window.webContents.send(WORKSPACE_FLUSH_REQUEST_CHANNEL, requestId);
+  }).finally(() => {
+    closePending = null;
+  });
+  return closePending;
+}
+
 function createMainWindow() {
   const window = new BrowserWindow({
     width: 1440,
@@ -84,6 +112,17 @@ function createMainWindow() {
   });
 
   mainWindow = window;
+  closeApproved = false;
+  window.on("close", (event) => {
+    if (closeApproved) return;
+    event.preventDefault();
+    void flushWorkspaceBeforeClose(window).then(async (saved) => {
+      if (!saved || window.isDestroyed()) return;
+      await flushAtomicJsonWrites();
+      closeApproved = true;
+      window.close();
+    });
+  });
 
   window.once("ready-to-show", () => {
     window.show();
@@ -232,18 +271,26 @@ app.on("before-quit", (event) => {
   }
 
   quitCleanupStarted = true;
-  updateManager.dispose();
-  disposeAppSettingsWatcher?.();
-  disposeAppSettingsWatcher = null;
   void (async () => {
     try {
+      if (mainWindow && !(await flushWorkspaceBeforeClose(mainWindow))) {
+        quitCleanupStarted = false;
+        return;
+      }
+      await flushAtomicJsonWrites();
+      closeApproved = true;
+      updateManager.dispose();
+      disposeAppSettingsWatcher?.();
+      disposeAppSettingsWatcher = null;
       await disposeGuidanceConnection();
       await disposeDesktopApi();
     } catch (error) {
       console.error("Failed to dispose desktop services", error);
     } finally {
-      quitCleanupFinished = true;
-      app.quit();
+      if (closeApproved || !mainWindow) {
+        quitCleanupFinished = true;
+        app.quit();
+      }
     }
   })();
 });

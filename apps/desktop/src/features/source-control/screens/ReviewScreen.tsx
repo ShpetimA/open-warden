@@ -1,4 +1,4 @@
-import { ErrorState } from "@/components/ui/error-state";
+import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { ArrowRightLeft, GitCompare } from "lucide-react";
 import { useEffect } from "react";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/empty";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
+  useGetCommitDetailsQuery,
   useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
@@ -94,7 +95,7 @@ function ReviewDiffPane({
       : skipToken,
   );
 
-  const reviewVersions = branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data;
+  const reviewVersions = branchFileVersionsQuery.currentData;
   const oldFile = reviewVersions?.oldFile ?? null;
   const newFile = reviewVersions?.newFile ?? null;
   const loadingPatch = !reviewVersions && branchFileVersionsQuery.isFetching;
@@ -137,6 +138,20 @@ function ReviewDiffPane({
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
           <div className="flex h-full min-h-0 min-w-0 flex-col">
+            {branchFileVersionsQuery.error ? (
+              <ErrorNotice
+                title="Couldn’t refresh this comparison"
+                error={branchFileVersionsQuery.error}
+                busy={branchFileVersionsQuery.isFetching}
+                lastUpdated={branchFileVersionsQuery.fulfilledTimeStamp}
+                recovery={{
+                  label: "Retry",
+                  onAction: () => {
+                    void branchFileVersionsQuery.refetch();
+                  },
+                }}
+              />
+            ) : null}
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}
@@ -181,7 +196,28 @@ export function ReviewScreen() {
       branchesError: currentData ? "" : errorMessageFrom(error, ""),
     }),
   });
-  const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
+  const baseRevision = useGetCommitDetailsQuery(
+    activeRepo && reviewBaseRef ? { repoPath: activeRepo, commitId: reviewBaseRef } : skipToken,
+    {
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        id: currentData?.commitId ?? "",
+        error,
+        isFetching,
+      }),
+    },
+  );
+  const headRevision = useGetCommitDetailsQuery(
+    activeRepo && reviewHeadRef ? { repoPath: activeRepo, commitId: reviewHeadRef } : skipToken,
+    {
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        id: currentData?.commitId ?? "",
+        error,
+        isFetching,
+      }),
+    },
+  );
+  const readyForDiff = Boolean(activeRepo && baseRevision.id && headRevision.id);
+  const revisionError = baseRevision.error ?? headRevision.error;
 
   const {
     branchFiles,
@@ -191,7 +227,7 @@ export function ReviewScreen() {
     refetch: retryComparedFiles,
   } = useGetBranchFilesQuery(
     readyForDiff
-      ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+      ? { repoPath: activeRepo, baseRef: baseRevision.id, headRef: headRevision.id }
       : skipToken,
     {
       selectFromResult: ({ currentData, isFetching, error }) => ({
@@ -307,14 +343,22 @@ export function ReviewScreen() {
               title="BRANCH REVIEW"
               subtitle={undefined}
               branchFiles={branchFiles}
-              isLoading={loadingBranches || loadingBranchFiles}
-              error={branchesError || branchFilesError}
+              isLoading={
+                loadingBranches ||
+                loadingBranchFiles ||
+                baseRevision.isFetching ||
+                headRevision.isFetching
+              }
+              error={branchesError || branchFilesError || errorMessageFrom(revisionError, "")}
               onRetry={() => {
-                void (branchesError ? retryBranches() : retryComparedFiles());
+                if (revisionError) {
+                  void baseRevision.refetch();
+                  void headRevision.refetch();
+                } else void (branchesError ? retryBranches() : retryComparedFiles());
               }}
               activeRepo={activeRepo}
-              reviewBaseRef={reviewBaseRef}
-              reviewHeadRef={reviewHeadRef}
+              reviewBaseRef={baseRevision.id}
+              reviewHeadRef={headRevision.id}
               paneClassName="border-0 bg-transparent"
               headerClassName="hidden"
               bodyClassName="space-y-0.5 p-0.5"
@@ -353,8 +397,8 @@ export function ReviewScreen() {
       content={
         <ReviewDiffPane
           activeRepo={activeRepo}
-          reviewBaseRef={reviewBaseRef}
-          reviewHeadRef={reviewHeadRef}
+          reviewBaseRef={baseRevision.id}
+          reviewHeadRef={headRevision.id}
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
         />

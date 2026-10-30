@@ -267,7 +267,11 @@ export function DiffWorkspace({
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  data.onAction(operation, { fileDiff: data.fileDiff, hunkIndex: data.hunkIndex });
+                  data.onAction(operation, {
+                    fileDiff: data.fileDiff,
+                    hunkIndex: data.hunkIndex,
+                    source: data.source,
+                  });
                 }}
               >
                 <Icon className="h-3 w-3" />

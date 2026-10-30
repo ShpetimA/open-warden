@@ -79,9 +79,12 @@ async function setup() {
   const dependencies = {
     store,
     loadWorkspaceSession: async () => ({
-      openRepos: [locator.repoPath],
-      activeRepo: locator.repoPath,
-      recentRepos: [],
+      ok: true as const,
+      value: {
+        openRepos: [locator.repoPath],
+        activeRepo: locator.repoPath,
+        recentRepos: [],
+      },
     }),
     resolveHostedRepo: async () => ({
       providerId: "github" as const,

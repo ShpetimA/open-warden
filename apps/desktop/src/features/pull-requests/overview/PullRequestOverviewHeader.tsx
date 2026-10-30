@@ -141,9 +141,15 @@ export function PullRequestOverviewHeader({
                 className="text-muted-foreground hover:text-foreground inline-flex h-6 items-center gap-1.5 rounded-md px-1.5 text-xs"
               >
                 <FileCode2 className="size-3.5" />
-                {pullRequest.changedFiles} files
-                <DiffStat kind="addition" value={pullRequest.additions} />
-                <DiffStat kind="deletion" value={pullRequest.deletions} />
+                {pullRequest.fileStats ? (
+                  <>
+                    {pullRequest.fileStats.changedFiles} files
+                    <DiffStat kind="addition" value={pullRequest.fileStats.additions} />
+                    <DiffStat kind="deletion" value={pullRequest.fileStats.deletions} />
+                  </>
+                ) : (
+                  "Files"
+                )}
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">Open changed files</TooltipContent>

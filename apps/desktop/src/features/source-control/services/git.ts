@@ -1,3 +1,4 @@
+import type { DiffEditExpectation, FileEditExpectation } from "@/platform/desktop/fileEdits";
 import { desktop } from "@/platform/desktop";
 
 import type { Bucket } from "../types";
@@ -74,16 +75,22 @@ export async function unstageFile(repoPath: string, relPath: string) {
   return desktop.unstageFile(repoPath, relPath);
 }
 
-export async function updateIndexFileContents(repoPath: string, relPath: string, contents: string) {
-  return desktop.updateIndexFileContents(repoPath, relPath, contents);
+export async function updateIndexFileContents(
+  repoPath: string,
+  relPath: string,
+  contents: string,
+  expected: DiffEditExpectation,
+) {
+  return desktop.updateIndexFileContents(repoPath, relPath, contents, expected);
 }
 
 export async function updateWorktreeFileContents(
   repoPath: string,
   relPath: string,
   contents: string,
+  expected: FileEditExpectation,
 ) {
-  return desktop.updateWorktreeFileContents(repoPath, relPath, contents);
+  return desktop.updateWorktreeFileContents(repoPath, relPath, contents, expected);
 }
 
 export async function discardFile(repoPath: string, relPath: string, bucket: Bucket) {

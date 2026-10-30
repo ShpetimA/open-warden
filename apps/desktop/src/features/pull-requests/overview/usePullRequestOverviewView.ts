@@ -41,13 +41,14 @@ function overviewState(detail: PullRequestDetail): PullRequestOverviewView["stat
 }
 
 function diffTotals(files: PullRequestChangedFile[] | undefined) {
+  if (!files) return null;
   let additions = 0;
   let deletions = 0;
-  for (const file of files ?? []) {
+  for (const file of files) {
     additions += file.additions;
     deletions += file.deletions;
   }
-  return { changedFiles: files?.length ?? 0, additions, deletions };
+  return { changedFiles: files.length, additions, deletions };
 }
 
 /**
@@ -76,7 +77,7 @@ export function usePullRequestOverviewView(
 
   if (!conversation) return null;
   const { detail } = conversation;
-  const currentChecks = checks?.headSha === detail.headSha ? checks : null;
+  const currentChecks = checks?.headSha === detail.headSha && checks.complete ? checks : null;
   const threadComments = conversation.reviewThreads.reduce(
     (count, thread) => count + thread.comments.length,
     0,
@@ -93,13 +94,13 @@ export function usePullRequestOverviewView(
     author: toPersonView(detail.author) ?? unknownPerson,
     createdAt: detail.createdAt,
     updatedAt: detail.updatedAt,
-    reviewers: (reviewers ?? []).map(toReviewerView),
+    reviewers: reviewers ? reviewers.map(toReviewerView) : null,
     requiredApprovals: null,
     checks: currentChecks?.checks ?? null,
     mergeability: currentChecks?.mergeability ?? "unknown",
     commentCount: conversation.issueComments.length + threadComments,
     unresolvedThreadCount: conversation.reviewThreads.filter((thread) => !thread.isResolved).length,
-    ...diffTotals(files),
+    fileStats: diffTotals(files),
     labels: detail.labels.map((label) => label.name),
   };
 }

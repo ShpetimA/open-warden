@@ -31,9 +31,16 @@ export const toneText: Record<StatusTone, string> = {
 export type StatusSummary = { tone: StatusTone; icon: LucideIcon; label: string; detail: string };
 
 export function summarizeReviews(
-  reviewers: ReviewerView[],
+  reviewers: ReviewerView[] | null,
   requiredApprovals: number | null,
 ): StatusSummary {
+  if (reviewers === null)
+    return {
+      tone: "neutral",
+      icon: CircleDashed,
+      label: "Review status unavailable",
+      detail: "Review status has not been loaded",
+    };
   const approved = reviewers.filter((reviewer) => reviewer.state === "approved").length;
   const changes = reviewers.filter((reviewer) => reviewer.state === "changes-requested").length;
   const waiting = reviewers.filter((reviewer) => reviewer.state === "requested").length;

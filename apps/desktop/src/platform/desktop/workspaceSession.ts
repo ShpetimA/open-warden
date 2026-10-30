@@ -1,8 +1,17 @@
 import { z } from "zod";
+import { commentDraftSchema } from "./commentDrafts";
 import { workspaceTabsSchema } from "./workspaceTabs";
 import type { WorkspaceSession } from "./contracts";
 
 export const MAX_RECENT_REPOS = 12;
+
+export const storedWorkspaceSessionSchema = z.object({
+  openRepos: z.array(z.string()),
+  activeRepo: z.string(),
+  recentRepos: z.array(z.string()),
+  workspaceTabs: workspaceTabsSchema.optional(),
+  comments: z.array(commentDraftSchema).optional(),
+});
 
 function normalizeRepoPath(repoPath: unknown): string | null {
   if (typeof repoPath !== "string") return null;
@@ -63,6 +72,7 @@ export function createWorkspaceSession(input?: unknown): WorkspaceSession {
       activeRepo: z.unknown().optional(),
       recentRepos: z.unknown().optional(),
       workspaceTabs: workspaceTabsSchema.optional(),
+      comments: z.array(commentDraftSchema).optional(),
     })
     .safeParse(input ?? {});
   const session = parsed.success ? parsed.data : undefined;
@@ -79,6 +89,7 @@ export function createWorkspaceSession(input?: unknown): WorkspaceSession {
     activeRepo,
     recentRepos,
     ...(session?.workspaceTabs ? { workspaceTabs: session.workspaceTabs } : {}),
+    ...(session?.comments ? { comments: session.comments } : {}),
   };
 }
 

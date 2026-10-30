@@ -1,3 +1,4 @@
+import { createGitHubCollectionReader } from "./githubCollections";
 import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
   GitProviderId,
@@ -146,8 +147,13 @@ type GitHubPullRequestByHeadGraphResponse = {
   errors?: Array<{ message: string }>;
 };
 
-export async function githubRequest<T>(pathname: string, token: string) {
+export async function githubRequest<T>(
+  pathname: string,
+  token: string,
+  options: { readonly signal?: AbortSignal } = {},
+) {
   const response = await fetch(`https://api.github.com${pathname}`, {
+    signal: options.signal,
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
@@ -241,8 +247,10 @@ export async function githubGraphqlRequest<T>(
   token: string,
   query: string,
   variables: Record<string, unknown>,
+  options: { readonly signal?: AbortSignal } = {},
 ) {
   const response = await fetch("https://api.github.com/graphql", {
+    signal: options.signal,
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -762,16 +770,22 @@ export async function fetchGitHubPullRequestPatch(
   );
 }
 
+function collectionReader(token: string) {
+  return createGitHubCollectionReader({
+    rest: (path, options) => githubRequest<unknown>(path, token, options),
+    graphql: (query, variables, options) =>
+      githubGraphqlRequest<unknown>(token, query, variables, options),
+  });
+}
+
 export async function fetchGitHubPullRequestFiles(
   hostedRepo: HostedRepoRef,
   token: string,
   pullRequestNumber: number,
 ) {
-  const files = await githubJsonRequest<GitHubPullRequestFileResponse[]>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(pullRequestNumber)}/files?per_page=100`,
-    token,
+  const files = await collectionReader(token).files(
+    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${pullRequestNumber}`,
   );
-
   return files.map(toPullRequestChangedFile);
 }
 
@@ -780,11 +794,9 @@ export async function fetchGitHubIssueComments(
   token: string,
   pullRequestNumber: number,
 ) {
-  const comments = await githubJsonRequest<GitHubIssueCommentResponse[]>(
-    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/issues/${String(pullRequestNumber)}/comments?per_page=100`,
-    token,
+  const comments = await collectionReader(token).issueComments(
+    `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/issues/${pullRequestNumber}`,
   );
-
   return comments
     .map(toPullRequestIssueComment)
     .toSorted((left, right) => left.createdAt.localeCompare(right.createdAt));
@@ -795,57 +807,14 @@ export async function fetchGitHubReviewThreads(
   token: string,
   pullRequestNumber: number,
 ) {
-  const query = `
-    query($owner: String!, $repo: String!, $number: Int!) {
-      repository(owner: $owner, name: $repo) {
-        pullRequest(number: $number) {
-          reviewThreads(first: 100) {
-            nodes {
-              id
-              isResolved
-              isOutdated
-              path
-              line
-              startLine
-              diffSide
-              resolvedBy {
-                login
-                avatarUrl
-              }
-              comments(first: 30) {
-                nodes {
-                  id
-                  databaseId
-                  body
-                  createdAt
-                  updatedAt
-                  path
-                  line
-                  startLine
-                  url
-                  author {
-                    login
-                    avatarUrl
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  `;
-
-  const payload = await githubGraphqlRequest<GitHubReviewThreadGraphResponse>(token, query, {
-    owner: hostedRepo.owner,
-    repo: hostedRepo.repo,
-    number: pullRequestNumber,
-  });
-
-  const nodes = payload.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
-  return nodes.map(toPullRequestReviewThread).toSorted((left, right) => {
-    const leftCreatedAt = left.comments[0]?.createdAt ?? "";
-    const rightCreatedAt = right.comments[0]?.createdAt ?? "";
-    return leftCreatedAt.localeCompare(rightCreatedAt);
-  });
+  const threads = await collectionReader(token).threads(
+    hostedRepo.owner,
+    hostedRepo.repo,
+    pullRequestNumber,
+  );
+  return threads
+    .map(toPullRequestReviewThread)
+    .toSorted((left, right) =>
+      (left.comments[0]?.createdAt ?? "").localeCompare(right.comments[0]?.createdAt ?? ""),
+    );
 }

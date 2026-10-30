@@ -1,4 +1,7 @@
-import { failureFromUnknown } from "@/platform/desktop/failure";
+import type { WorkspaceSession } from "@/platform/desktop/contracts";
+import type { DesktopResult } from "@/platform/desktop/failure";
+import type { DiffEditExpectation } from "@/platform/desktop/fileEdits";
+import { desktopSuccess, failureFromUnknown } from "@/platform/desktop/failure";
 import { serializeWorkspaceTabs } from "@/features/workspaces/workspaceState";
 import type { AppThunk, RootState } from "@/app/store";
 import { toast } from "sonner";
@@ -10,7 +13,7 @@ import {
   createWorkspaceSession,
   normalizeRepoPaths,
 } from "@/platform/desktop/workspaceSession";
-import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
+import { restoreComments } from "@/features/comments/commentsSlice";
 import {
   repoWorkspaceUpserted,
   workspacesHydrated,
@@ -127,16 +130,40 @@ const resetRepoScopedState = (): AppThunk => (dispatch) => {
   dispatch(clearCurrentPullRequestReview());
 };
 
-let sessionWrite: Promise<unknown> = Promise.resolve();
 export async function persistWorkspaceSession(getState: () => RootState) {
   const state = getState();
   const session = {
     ...buildWorkspaceSession(state.sourceControl),
     workspaceTabs: serializeWorkspaceTabs(state),
+    comments: state.comments,
   };
-  const write = sessionWrite.then(() => desktop.saveWorkspaceSession(session));
-  sessionWrite = write.catch(() => undefined);
-  return await write;
+  return saveSession(session, getState);
+}
+
+async function saveSession(
+  session: WorkspaceSession,
+  getState: () => RootState,
+): Promise<DesktopResult<WorkspaceSession>> {
+  let result: DesktopResult<WorkspaceSession>;
+  try {
+    result = await desktop.saveWorkspaceSession(session);
+  } catch (cause) {
+    result = { ok: false, error: failureFromUnknown(cause, "saveWorkspaceSession") };
+  }
+
+  if (result.ok) toast.dismiss("workspace-save");
+  else
+    toast.error(result.error.message, {
+      id: "workspace-save",
+      duration: Infinity,
+      action: {
+        label: "Retry",
+        onClick: () => {
+          void persistWorkspaceSession(getState);
+        },
+      },
+    });
+  return result;
 }
 
 async function resolveRepoPath(repoPath: string): Promise<string | null> {
@@ -157,47 +184,52 @@ async function restoreRepoPaths(repoPaths: string[]): Promise<string[]> {
   return normalizeRepoPaths(resolvedPaths);
 }
 
-export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dispatch) => {
-  try {
-    const loaded = await desktop.loadWorkspaceSession();
-    if (!loaded.ok) {
-      dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
-      toast.error(loaded.error.message, { id: "workspace-restore" });
-      return;
+export const restoreWorkspaceSession =
+  (): AppThunk<Promise<DesktopResult<void>>> => async (dispatch, getState) => {
+    try {
+      const loaded = await desktop.loadWorkspaceSession();
+      if (!loaded.ok) {
+        return loaded;
+      }
+      const storedSession = loaded.value;
+      const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
+      const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
+      const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
+      const workspaceSession = createWorkspaceSession({
+        openRepos: restoredOpenRepos,
+        activeRepo: restoredActiveRepo ?? undefined,
+        recentRepos: restoredRecentRepos,
+        workspaceTabs: storedSession.workspaceTabs,
+        comments: storedSession.comments,
+      });
+
+      dispatch(restoreComments(storedSession.comments ?? []));
+      if (storedSession.recoveryNotice)
+        toast.warning(storedSession.recoveryNotice, {
+          id: "workspace-recovery",
+          duration: Infinity,
+        });
+      dispatch(hydrateWorkspaceSessionState(workspaceSession));
+      dispatch(
+        workspacesHydrated({
+          openRepos: workspaceSession.openRepos,
+          activeRepo: workspaceSession.activeRepo,
+        }),
+      );
+
+      if (workspaceSession.workspaceTabs)
+        dispatch(workspaceSessionRestored(workspaceSession.workspaceTabs));
+
+      if (!workspaceSession.activeRepo) {
+        dispatch(resetRepoScopedState());
+      }
+
+      await saveSession(workspaceSession, getState);
+      return desktopSuccess(undefined);
+    } catch (cause) {
+      return { ok: false, error: failureFromUnknown(cause, "restoreWorkspaceSession") };
     }
-    const storedSession = loaded.value;
-    const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
-    const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
-    const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
-    const workspaceSession = createWorkspaceSession({
-      openRepos: restoredOpenRepos,
-      activeRepo: restoredActiveRepo ?? undefined,
-      recentRepos: restoredRecentRepos,
-      workspaceTabs: storedSession.workspaceTabs,
-    });
-
-    dispatch(hydrateWorkspaceSessionState(workspaceSession));
-    dispatch(
-      workspacesHydrated({
-        openRepos: workspaceSession.openRepos,
-        activeRepo: workspaceSession.activeRepo,
-      }),
-    );
-
-    if (workspaceSession.workspaceTabs)
-      dispatch(workspaceSessionRestored(workspaceSession.workspaceTabs));
-
-    if (!workspaceSession.activeRepo) {
-      dispatch(resetRepoScopedState());
-    }
-
-    await desktop.saveWorkspaceSession(workspaceSession);
-  } catch (error) {
-    dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
-    const message = failureFromUnknown(error, "repositoryAction").message;
-    toast.error(`Failed to restore workspace session: ${message}`);
-  }
-};
+  };
 
 export const openRepo =
   (
@@ -270,7 +302,6 @@ export const closeRepo =
     const closingActiveRepo = repo === activeRepo;
     dispatch(projectRemoved({ repoPath: repo }));
     dispatch(removeRepo(repo));
-    dispatch(removeCommentsForRepo(repo));
 
     await persistWorkspaceSession(getState);
 
@@ -581,7 +612,12 @@ export const unstageFileAction =
   };
 
 export const applyHunkToIndexAction =
-  (input: { filePath: string; contents: string; operation: DiffHunkOperation }): AppThunk =>
+  (input: {
+    filePath: string;
+    contents: string;
+    operation: DiffHunkOperation;
+    expected: DiffEditExpectation;
+  }): AppThunk =>
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     if (!activeRepo) return;
@@ -594,6 +630,7 @@ export const applyHunkToIndexAction =
               repoPath: activeRepo,
               relPath: input.filePath,
               contents: input.contents,
+              expected: input.expected,
             }),
           );
           await result.unwrap();
@@ -611,6 +648,7 @@ export const applyHunkToIndexAction =
               repoPath: activeRepo,
               relPath: input.filePath,
               contents: input.contents,
+              expected: input.expected,
             }),
           );
           await result.unwrap();

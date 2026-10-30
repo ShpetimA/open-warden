@@ -1,42 +1,40 @@
-import { promises as fs } from "node:fs";
 import path from "node:path";
-
 import { app } from "electron";
 
 import type { WorkspaceSession } from "../src/platform/desktop/contracts";
-import { createWorkspaceSession } from "../src/platform/desktop/workspaceSession";
+import {
+  createWorkspaceSession,
+  storedWorkspaceSessionSchema,
+} from "../src/platform/desktop/workspaceSession";
+import { desktopSuccess, type DesktopResult } from "../src/platform/desktop/failure";
+import { createAtomicJsonStore } from "./atomicJsonStore";
 
-const WORKSPACE_SESSION_FILE_NAME = "workspace-session.json";
-
-function resolveWorkspaceSessionPath() {
-  return path.join(app.getPath("userData"), WORKSPACE_SESSION_FILE_NAME);
+function sessionStore() {
+  return createAtomicJsonStore({
+    file: path.join(app.getPath("userData"), "workspace-session.json"),
+    schema: storedWorkspaceSessionSchema,
+    empty: createWorkspaceSession,
+    operation: "workspaceSession",
+  });
 }
 
-function isMissingFileError(error: unknown): boolean {
-  return (
-    error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT"
-  );
+export async function loadWorkspaceSession(): Promise<DesktopResult<WorkspaceSession>> {
+  const result = await sessionStore().read();
+  if (!result.ok) return result;
+  return desktopSuccess({
+    ...createWorkspaceSession(result.value.data),
+    ...(result.value.recovered
+      ? {
+          recoveryNotice:
+            "Workspace drafts were recovered from the last valid backup. The damaged file has been kept.",
+        }
+      : {}),
+  });
 }
 
-export async function loadWorkspaceSession(): Promise<WorkspaceSession> {
-  try {
-    const rawSession = await fs.readFile(resolveWorkspaceSessionPath(), "utf8");
-    return createWorkspaceSession(JSON.parse(rawSession));
-  } catch (error) {
-    if (isMissingFileError(error) || error instanceof SyntaxError) {
-      return createWorkspaceSession();
-    }
-
-    throw error;
-  }
-}
-
-export async function saveWorkspaceSession(session: WorkspaceSession): Promise<WorkspaceSession> {
-  const normalizedSession = createWorkspaceSession(session);
-  const sessionPath = resolveWorkspaceSessionPath();
-
-  await fs.mkdir(path.dirname(sessionPath), { recursive: true });
-  await fs.writeFile(sessionPath, JSON.stringify(normalizedSession, null, 2), "utf8");
-
-  return normalizedSession;
+export async function saveWorkspaceSession(
+  session: WorkspaceSession,
+): Promise<DesktopResult<WorkspaceSession>> {
+  const parsed = storedWorkspaceSessionSchema.safeParse(session);
+  return sessionStore().write(parsed.success ? createWorkspaceSession(parsed.data) : session);
 }

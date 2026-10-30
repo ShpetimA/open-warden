@@ -8,6 +8,8 @@ import {
 } from "../src/platform/desktop/createDesktopApi";
 import type { DesktopBridge } from "../src/platform/desktop/contracts";
 import {
+  WORKSPACE_FLUSH_REQUEST_CHANNEL,
+  WORKSPACE_FLUSH_REPLY_CHANNEL,
   GUIDANCE_NAVIGATE_CHANNEL,
   APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
@@ -23,7 +25,23 @@ const desktopApi = createDesktopApiFromInvoker((method, ...args) =>
   readDesktopReply(() => ipcRenderer.invoke(DESKTOP_INVOKE_CHANNEL, method, ...args), method),
 );
 
+let workspaceFlushListener: (() => Promise<boolean>) | null = null;
+ipcRenderer.on(WORKSPACE_FLUSH_REQUEST_CHANNEL, (_event, requestId: unknown) => {
+  if (typeof requestId !== "string" || requestId.length > 100) return;
+  const saved = workspaceFlushListener ? workspaceFlushListener() : Promise.resolve(true);
+  void saved.then(
+    (ok) => ipcRenderer.send(WORKSPACE_FLUSH_REPLY_CHANNEL, requestId, ok === true),
+    () => ipcRenderer.send(WORKSPACE_FLUSH_REPLY_CHANNEL, requestId, false),
+  );
+});
+
 const desktopBridge: DesktopBridge = {
+  onWorkspaceFlushRequested(listener) {
+    workspaceFlushListener = listener;
+    return () => {
+      if (workspaceFlushListener === listener) workspaceFlushListener = null;
+    };
+  },
   onGuidanceNavigate(listener) {
     const receive = (_event: Electron.IpcRendererEvent, value: unknown) => {
       const parsed = guidanceNavigateSchema.safeParse(value);

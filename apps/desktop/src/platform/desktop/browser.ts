@@ -248,10 +248,10 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
       );
     },
     async loadWorkspaceSession() {
-      return readStoredWorkspaceSession();
+      return desktopSuccess(readStoredWorkspaceSession());
     },
     async saveWorkspaceSession(session: WorkspaceSession) {
-      return writeStoredWorkspaceSession(session);
+      return desktopSuccess(writeStoredWorkspaceSession(session));
     },
     async loadAppSettings() {
       return readStoredAppSettings();
@@ -364,10 +364,10 @@ const unavailableDesktopApiCore = createDesktopApiWithDefaults({
   overrides: {
     ...browserGuidance,
     async loadWorkspaceSession() {
-      return createWorkspaceSession();
+      return desktopSuccess(createWorkspaceSession());
     },
     async saveWorkspaceSession(session: WorkspaceSession) {
-      return createWorkspaceSession(session);
+      return desktopSuccess(createWorkspaceSession(session));
     },
     async loadAppSettings() {
       return createAppSettings();

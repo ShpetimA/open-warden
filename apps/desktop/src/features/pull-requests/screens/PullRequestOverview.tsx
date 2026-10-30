@@ -1,4 +1,5 @@
-import { ErrorState } from "@/components/ui/error-state";
+import { PullRequestReadNotices } from "../components/PullRequestReadNotices";
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { Copy, MessageSquarePlus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -299,13 +300,17 @@ function PullRequestOverviewMergeStatus({
       onMarkReady={github ? () => onLifecycle({ action: "ready" }) : undefined}
       reviewers={
         <div onFocus={mentions.onActivate} onPointerEnter={mentions.onActivate}>
-          <PullRequestReviewerList
-            reviewers={pullRequest.reviewers}
-            candidates={mentions.candidates}
-            onAdd={open ? (login) => changeReviewer(login, true) : undefined}
-            onRerequest={open ? (reviewer) => void changeReviewer(reviewer.id, true) : undefined}
-            onRemove={open ? (reviewer) => void changeReviewer(reviewer.id, false) : undefined}
-          />
+          {pullRequest.reviewers === null ? (
+            <p className="text-xs text-muted-foreground">Review status has not been loaded.</p>
+          ) : (
+            <PullRequestReviewerList
+              reviewers={pullRequest.reviewers ?? []}
+              candidates={mentions.candidates}
+              onAdd={open ? (login) => changeReviewer(login, true) : undefined}
+              onRerequest={open ? (reviewer) => void changeReviewer(reviewer.id, true) : undefined}
+              onRemove={open ? (reviewer) => void changeReviewer(reviewer.id, false) : undefined}
+            />
+          )}
         </div>
       }
     />
@@ -542,7 +547,7 @@ export const PullRequestOverview = () => {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       hostedRepo: currentData ?? null,
       loadingHostedRepo: isFetching && !currentData,
-      hostedRepoError: currentData ? undefined : error,
+      hostedRepoError: error,
     }),
   });
   const routeMatchesActiveRepo = Boolean(
@@ -565,7 +570,7 @@ export const PullRequestOverview = () => {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       detail: currentData?.detail ?? null,
       loadingDetail: isFetching && !currentData,
-      detailError: currentData ? undefined : error,
+      detailError: error,
     }),
     pollingInterval: 10000,
     refetchOnFocus: true,
@@ -573,7 +578,7 @@ export const PullRequestOverview = () => {
   });
 
   if (loadingHostedRepo || loadingDetail) return <ListLoadingState label="Loading pull request…" />;
-  if (hostedRepoError || detailError) {
+  if ((hostedRepoError && !hostedRepo) || (detailError && !detail)) {
     return (
       <ErrorState
         title="Couldn’t load this pull request"
@@ -600,14 +605,29 @@ export const PullRequestOverview = () => {
     <TooltipProvider>
       <PullRequestOverviewLayout
         header={
-          <PullRequestOverviewHeaderBar
-            locator={queryArg}
-            route={route}
-            repository={repository}
-            detail={detail}
-            onOpenChecks={openChecks}
-            onLifecycle={setLifecycleRequest}
-          />
+          <>
+            {hostedRepoError || detailError ? (
+              <ErrorNotice
+                title="Couldn’t refresh this pull request"
+                error={hostedRepoError || detailError}
+                recovery={{
+                  label: "Retry",
+                  onAction: () => {
+                    void (hostedRepoError ? retryHostedRepo() : retryDetail());
+                  },
+                }}
+              />
+            ) : null}
+            <PullRequestReadNotices locator={queryArg} />
+            <PullRequestOverviewHeaderBar
+              locator={queryArg}
+              route={route}
+              repository={repository}
+              detail={detail}
+              onOpenChecks={openChecks}
+              onLifecycle={setLifecycleRequest}
+            />
+          </>
         }
         aside={
           <>

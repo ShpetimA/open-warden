@@ -39,15 +39,13 @@ export type PullRequestOverviewView = {
   author: PersonView;
   createdAt: string;
   updatedAt: string;
-  reviewers: ReviewerView[];
+  reviewers: ReviewerView[] | null;
   requiredApprovals: number | null;
   checks: CheckView[] | null;
   mergeability: MergeabilityView;
   commentCount: number;
   unresolvedThreadCount: number;
-  changedFiles: number;
-  additions: number;
-  deletions: number;
+  fileStats: { changedFiles: number; additions: number; deletions: number } | null;
   labels: string[];
 };
 

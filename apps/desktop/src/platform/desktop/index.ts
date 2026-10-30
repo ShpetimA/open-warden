@@ -36,6 +36,8 @@ function resolveDesktopApi(): DesktopBridge {
 const desktopApi = createDesktopApiForwarder(() => resolveDesktopApi());
 
 export const desktop: DesktopBridge = {
+  onWorkspaceFlushRequested: (listener) =>
+    resolveDesktopApi().onWorkspaceFlushRequested?.(listener) ?? (() => {}),
   onGuidanceNavigate: (listener) => resolveDesktopApi().onGuidanceNavigate(listener),
   ...desktopApi,
   getUpdateState: () => resolveDesktopApi().getUpdateState(),

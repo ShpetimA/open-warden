@@ -1,3 +1,4 @@
+import type { DesktopResult } from "../../src/platform/desktop/failure";
 import type {
   HostedRepoRef,
   PullRequestChangedFile,
@@ -25,7 +26,7 @@ import { GuidanceStore } from "./store";
 
 export interface GuidanceDependencies {
   store: GuidanceStore;
-  loadWorkspaceSession(): Promise<WorkspaceSession>;
+  loadWorkspaceSession(): Promise<DesktopResult<WorkspaceSession>>;
   resolveHostedRepo(repoPath: string): Promise<HostedRepoRef | null>;
   getPullRequestConversation(locator: GuidanceLocator): Promise<PullRequestConversation>;
   getPullRequestFiles(locator: GuidanceLocator): Promise<PullRequestChangedFile[]>;
@@ -119,7 +120,9 @@ export class GuidanceService {
     if (!locator.success)
       return guidanceFailure("invalid-input", "Provide a repository path and positive PR number.");
     try {
-      const session = await this.dependencies.loadWorkspaceSession();
+      const loaded = await this.dependencies.loadWorkspaceSession();
+      if (!loaded.ok) return guidanceFailure("storage", loaded.error.message);
+      const session = loaded.value;
       if (!session.openRepos.includes(locator.data.repoPath))
         return guidanceFailure("not-open", "Open this repository in Open Warden first.");
       return { ok: true, value: locator.data };
@@ -130,7 +133,9 @@ export class GuidanceService {
 
   async listWorkspaces() {
     try {
-      const session = await this.dependencies.loadWorkspaceSession();
+      const loaded = await this.dependencies.loadWorkspaceSession();
+      if (!loaded.ok) return guidanceFailure("storage", loaded.error.message);
+      const session = loaded.value;
       return {
         ok: true as const,
         value: {
@@ -394,7 +399,9 @@ export class GuidanceService {
 
   async inbox() {
     try {
-      const session = await this.dependencies.loadWorkspaceSession();
+      const loaded = await this.dependencies.loadWorkspaceSession();
+      if (!loaded.ok) return guidanceFailure("storage", loaded.error.message);
+      const session = loaded.value;
       const documents = await this.dependencies.store.list();
       if (!documents.ok) return documents;
       return {

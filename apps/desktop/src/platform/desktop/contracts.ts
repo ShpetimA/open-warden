@@ -1,3 +1,4 @@
+import type { DiffEditExpectation, FileEditExpectation } from "./fileEdits";
 import type {
   GuidanceActivity,
   GuidanceConnection,
@@ -510,6 +511,8 @@ export type PreparedPullRequestWorkspace = {
 };
 
 export type WorkspaceSession = {
+  comments?: import("./commentDrafts").CommentDraft[];
+  recoveryNotice?: string;
   workspaceTabs?: import("./workspaceTabs").PersistedWorkspaceTabs;
   openRepos: string[];
   activeRepo: string;
@@ -610,11 +613,16 @@ export type DesktopHandlers = {
   stopGuidanceConnection(): Promise<GuidanceConnection>;
   getGitStashPatch(repoPath: string, oid: string): Promise<GitResult<string>>;
   getGitRepositoryState(repoPath: string): Promise<GitResult<GitRepositoryState>>;
-  runGitCommand(repoPath: string, command: GitCommand): Promise<GitResult<string>>;
+  runGitCommand(
+    repoPath: string,
+    command: GitCommand,
+  ): Promise<import("./failure").DesktopResult<string>>;
   browseDirectory(path: string): Promise<DirectoryListing>;
   selectFolder(): Promise<string | null>;
-  loadWorkspaceSession(): Promise<WorkspaceSession>;
-  saveWorkspaceSession(session: WorkspaceSession): Promise<WorkspaceSession>;
+  loadWorkspaceSession(): Promise<import("./failure").DesktopResult<WorkspaceSession>>;
+  saveWorkspaceSession(
+    session: WorkspaceSession,
+  ): Promise<import("./failure").DesktopResult<WorkspaceSession>>;
   loadAppSettings(): Promise<AppSettings>;
   saveAppSettings(settings: AppSettings): Promise<AppSettings>;
   getAppSettingsPath(): Promise<string>;
@@ -662,7 +670,7 @@ export type DesktopHandlers = {
   preparePullRequestFromUrl(url: string): Promise<PreparedPullRequestWorkspace>;
   preparePullRequestWorkspace(
     input: PreparePullRequestWorkspaceInput,
-  ): Promise<PreparedPullRequestWorkspace>;
+  ): Promise<import("./failure").DesktopResult<PreparedPullRequestWorkspace>>;
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
   createRepositoryEntry(
     input: RepositoryEntryPathInput,
@@ -692,16 +700,36 @@ export type DesktopHandlers = {
     relPath: string,
     previousPath?: string,
   ): Promise<FileVersions>;
-  stageFile(repoPath: string, relPath: string): Promise<void>;
-  unstageFile(repoPath: string, relPath: string): Promise<void>;
-  updateIndexFileContents(repoPath: string, relPath: string, contents: string): Promise<void>;
-  updateWorktreeFileContents(repoPath: string, relPath: string, contents: string): Promise<void>;
-  stageAll(repoPath: string): Promise<void>;
-  unstageAll(repoPath: string): Promise<void>;
-  discardFile(repoPath: string, relPath: string, bucket: Bucket): Promise<void>;
-  discardFiles(repoPath: string, files: DiscardFileInput[]): Promise<void>;
-  discardAll(repoPath: string): Promise<void>;
-  commitStaged(repoPath: string, message: string): Promise<string>;
+  stageFile(repoPath: string, relPath: string): Promise<import("./failure").DesktopResult<void>>;
+  unstageFile(repoPath: string, relPath: string): Promise<import("./failure").DesktopResult<void>>;
+  updateIndexFileContents(
+    repoPath: string,
+    relPath: string,
+    contents: string,
+    expected: DiffEditExpectation,
+  ): Promise<import("./failure").DesktopResult<void>>;
+  updateWorktreeFileContents(
+    repoPath: string,
+    relPath: string,
+    contents: string,
+    expected: FileEditExpectation,
+  ): Promise<import("./failure").DesktopResult<void>>;
+  stageAll(repoPath: string): Promise<import("./failure").DesktopResult<void>>;
+  unstageAll(repoPath: string): Promise<import("./failure").DesktopResult<void>>;
+  discardFile(
+    repoPath: string,
+    relPath: string,
+    bucket: Bucket,
+  ): Promise<import("./failure").DesktopResult<void>>;
+  discardFiles(
+    repoPath: string,
+    files: DiscardFileInput[],
+  ): Promise<import("./failure").DesktopResult<void>>;
+  discardAll(repoPath: string): Promise<import("./failure").DesktopResult<void>>;
+  commitStaged(
+    repoPath: string,
+    message: string,
+  ): Promise<import("./failure").DesktopResult<string>>;
   getRepoFile(input: GetRepoFileInput): Promise<DiffFile | null>;
   getGitBlame(repoPath: string, relPath: string, revision?: string | null): Promise<GitBlameResult>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
@@ -777,6 +805,7 @@ export type DesktopGuidanceEventsApi = {
 
 export type DesktopSettingsApi = {
   onAppSettingsChanged(listener: (settings: AppSettings) => void): () => void;
+  onWorkspaceFlushRequested?(listener: () => Promise<boolean>): () => void;
 };
 
 export type DesktopBridge = DesktopApi &

@@ -1,3 +1,5 @@
+import { coordinateRepositoryWrite } from "./repositoryWrites";
+import { desktopSuccess } from "../src/platform/desktop/failure";
 import { shell } from "electron";
 import {
   getPullRequestGuidance,
@@ -136,12 +138,21 @@ export const desktopApi: DesktopHandlers = {
   submitPullRequestReviewComments,
   setPullRequestThreadResolved,
   preparePullRequestCompareRefs,
-  preparePullRequestWorkspace,
+  preparePullRequestWorkspace: (input) =>
+    coordinateRepositoryWrite(input.repoPath, "preparePullRequestWorkspace", async () =>
+      desktopSuccess(await preparePullRequestWorkspace(input)),
+    ),
   preparePullRequestFromUrl,
   getGitSnapshot,
   getRepoFiles,
-  createRepositoryEntry,
-  trashRepositoryEntry: (input) => trashRepositoryEntry(input, (path) => shell.trashItem(path)),
+  createRepositoryEntry: (input) =>
+    coordinateRepositoryWrite(input.repoPath, "createRepositoryEntry", () =>
+      createRepositoryEntry(input),
+    ),
+  trashRepositoryEntry: (input) =>
+    coordinateRepositoryWrite(input.repoPath, "trashRepositoryEntry", () =>
+      trashRepositoryEntry(input, (path) => shell.trashItem(path)),
+    ),
   getCommitHistory,
   getHistoryGraph,
   getCommitDetails,
@@ -152,16 +163,40 @@ export const desktopApi: DesktopHandlers = {
   getCommitFileVersions,
   getFileVersions,
   getBranchFileVersions,
-  stageFile,
-  unstageFile,
+  stageFile: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "stageFile", async () =>
+      desktopSuccess(await stageFile(repoPath, ...args)),
+    ),
+  unstageFile: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "unstageFile", async () =>
+      desktopSuccess(await unstageFile(repoPath, ...args)),
+    ),
   updateIndexFileContents,
   updateWorktreeFileContents,
-  stageAll,
-  unstageAll,
-  discardFile,
-  discardFiles,
-  discardAll,
-  commitStaged,
+  stageAll: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "stageAll", async () =>
+      desktopSuccess(await stageAll(repoPath, ...args)),
+    ),
+  unstageAll: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "unstageAll", async () =>
+      desktopSuccess(await unstageAll(repoPath, ...args)),
+    ),
+  discardFile: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "discardFile", async () =>
+      desktopSuccess(await discardFile(repoPath, ...args)),
+    ),
+  discardFiles: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "discardFiles", async () =>
+      desktopSuccess(await discardFiles(repoPath, ...args)),
+    ),
+  discardAll: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "discardAll", async () =>
+      desktopSuccess(await discardAll(repoPath, ...args)),
+    ),
+  commitStaged: (repoPath, ...args) =>
+    coordinateRepositoryWrite(repoPath, "commitStaged", async () =>
+      desktopSuccess(await commitStaged(repoPath, ...args)),
+    ),
   getRepoFile,
   getGitBlame,
   syncLspDocument: (input) => lspSessionManager.syncDocument(input),

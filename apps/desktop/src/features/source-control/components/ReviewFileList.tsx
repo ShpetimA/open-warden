@@ -140,6 +140,7 @@ export function ReviewFileList({
           mode={fileView}
           selection={selectReviewFilePath}
           selectFirstFile
+          autoFocus={false}
           navRegion={navRegion}
           onActivatePath={(path) => {
             dispatch(setReviewActivePath(path));

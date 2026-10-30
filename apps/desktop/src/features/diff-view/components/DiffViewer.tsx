@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import {
   forwardRef,
   useCallback,
@@ -217,13 +218,14 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     setExpandUnchanged((prev) => !prev);
   }, []);
 
-  const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
-    activePath,
-    oldFile,
-    newFile,
-    cacheSalt: diffThemeCacheSalt,
-    allowLargeDiff: forceShowLargeDiff,
-  });
+  const { currentFileDiff, diffRenderGate, isParsingDiff, parseError, retryParsing } =
+    useParsedDiff({
+      activePath,
+      oldFile,
+      newFile,
+      cacheSalt: diffThemeCacheSalt,
+      allowLargeDiff: forceShowLargeDiff,
+    });
 
   useDiffLineFocus({
     containerRef: viewportRef,
@@ -262,6 +264,10 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
 
   const hunkActionAnnotations = useMemo<DiffLineAnnotation<DiffAnnotationItem>[]>(() => {
     if (!currentFileDiff || hunkOperations.length === 0 || !onHunkAction) return [];
+    const source = {
+      oldContents: oldFile?.contents ?? null,
+      newContents: newFile?.contents ?? null,
+    };
 
     return currentFileDiff.hunks.map((hunk, hunkIndex) => {
       let additionOffset = 0;
@@ -284,6 +290,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
           firstChangedLine > hunkStartLine ? firstChangedLine - 1 : firstChangedLine;
         const metadata: DiffHunkActionAnnotation = {
           type: "hunk-action",
+          source,
           operations: hunkOperations,
           fileDiff: currentFileDiff,
           hunkIndex,
@@ -295,6 +302,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
 
       const metadata: DiffHunkActionAnnotation = {
         type: "hunk-action",
+        source,
         operations: hunkOperations,
         fileDiff: currentFileDiff,
         hunkIndex,
@@ -302,7 +310,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
       };
       return { side: "additions", lineNumber: hunk.additionStart, metadata };
     });
-  }, [currentFileDiff, hunkOperations, onHunkAction]);
+  }, [currentFileDiff, hunkOperations, onHunkAction, oldFile, newFile]);
 
   const mergedLineAnnotations = useMemo(
     () => [...hunkActionAnnotations, ...lineAnnotations],
@@ -360,6 +368,12 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
         renderUnrenderableDiffWarning()
       ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
         renderLargeDiffWarning()
+      ) : parseError ? (
+        <ErrorState
+          title="Couldn’t render this diff"
+          error={parseError}
+          recovery={{ label: "Retry", onAction: retryParsing }}
+        />
       ) : isParsingDiff ? (
         <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
       ) : (

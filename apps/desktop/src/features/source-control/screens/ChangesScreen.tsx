@@ -1,4 +1,4 @@
-import { ErrorState } from "@/components/ui/error-state";
+import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -83,7 +83,7 @@ function ChangesDiffPane() {
       refetchOnReconnect: true,
     },
   );
-  const fileVersions = workingFileVersions.currentData ?? workingFileVersions.data;
+  const fileVersions = workingFileVersions.currentData;
   const loadingPatch = !fileVersions && workingFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
@@ -118,7 +118,7 @@ function ChangesDiffPane() {
         : [];
 
   function handleHunkAction(operation: DiffHunkOperation, payload: DiffHunkActionPayload) {
-    if (!previewPath) {
+    if (!previewPath || payload.fileDiff.name !== previewPath) {
       return;
     }
 
@@ -133,6 +133,11 @@ function ChangesDiffPane() {
         filePath: previewPath,
         contents,
         operation,
+        expected: {
+          kind: "diff",
+          bucket: operation === "unstage" ? "staged" : "unstaged",
+          ...payload.source,
+        },
       }),
     );
   }
@@ -165,6 +170,20 @@ function ChangesDiffPane() {
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
             <div className="flex h-full min-h-0 min-w-0 flex-col">
+              {workingFileVersions.error ? (
+                <ErrorNotice
+                  title="Couldn’t refresh this diff"
+                  error={workingFileVersions.error}
+                  busy={workingFileVersions.isFetching}
+                  lastUpdated={workingFileVersions.fulfilledTimeStamp}
+                  recovery={{
+                    label: "Retry",
+                    onAction: () => {
+                      void workingFileVersions.refetch();
+                    },
+                  }}
+                />
+              ) : null}
               <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
               <DiffWorkspace
                 oldFile={oldFile}

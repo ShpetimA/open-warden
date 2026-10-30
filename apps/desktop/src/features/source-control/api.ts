@@ -1,3 +1,4 @@
+import type { DiffEditExpectation, FileEditExpectation } from "@/platform/desktop/fileEdits";
 import type { RepositoryEntryPathInput, RepositoryEntry } from "@/platform/desktop/contracts";
 import { historyGraphSchema } from "@/platform/desktop/history";
 import { buildHistoryGraph, type HistoryGraphViewData } from "./historyGraph";
@@ -61,9 +62,24 @@ type BranchFileVersionsArgs = {
 type StageFileArgs = { repoPath: string; relPath: string };
 type UnstageFileArgs = { repoPath: string; relPath: string };
 type IndexFilesArgs = { repoPath: string; relPaths: readonly string[] };
-type UpdateIndexFileContentsArgs = { repoPath: string; relPath: string; contents: string };
-type UpdateWorktreeFileContentsArgs = { repoPath: string; relPath: string; contents: string };
-type SaveWorkingFileArgs = UpdateWorktreeFileContentsArgs & { expectedContents: string };
+type UpdateIndexFileContentsArgs = {
+  repoPath: string;
+  relPath: string;
+  contents: string;
+  expected: DiffEditExpectation;
+};
+type UpdateWorktreeFileContentsArgs = {
+  repoPath: string;
+  relPath: string;
+  contents: string;
+  expected: FileEditExpectation;
+};
+type SaveWorkingFileArgs = {
+  repoPath: string;
+  relPath: string;
+  contents: string;
+  expectedContents: string;
+};
 type DiscardFileArgs = { repoPath: string; relPath: string; bucket: Bucket };
 type DiscardFilesArgs = { repoPath: string; files: Array<{ relPath: string; bucket: Bucket }> };
 type CommitStagedArgs = { repoPath: string; message: string };
@@ -187,6 +203,8 @@ export const gitApi = createApi({
       async queryFn({ repoPath, commitId }) {
         return queryResult(await getCommitDetails(repoPath, commitId));
       },
+      providesTags: (_result, _error, { repoPath, commitId }) =>
+        /^[a-f0-9]{40,64}$/.test(commitId) ? [] : [{ type: "HistoryCommits", id: repoPath }],
     }),
     getBranches: builder.query<string[], string>({
       async queryFn(repoPath) {
@@ -299,9 +317,9 @@ export const gitApi = createApi({
       ],
     }),
     updateIndexFileContents: builder.mutation<void, UpdateIndexFileContentsArgs>({
-      async queryFn({ repoPath, relPath, contents }) {
+      async queryFn({ repoPath, relPath, contents, expected }) {
         return queryResult(
-          await updateIndexFileContents(repoPath, relPath, contents),
+          await updateIndexFileContents(repoPath, relPath, contents, expected),
           () => undefined,
         );
       },
@@ -312,19 +330,11 @@ export const gitApi = createApi({
     }),
     saveWorkingFile: builder.mutation<void, SaveWorkingFileArgs>({
       async queryFn({ repoPath, relPath, contents, expectedContents }) {
-        const current = await getRepoFile(repoPath, relPath);
-        if (!current.ok) return { error: current.error };
-        if (!current.value || current.value.contents !== expectedContents) {
-          return {
-            error: desktopFailure(
-              "saveWorkingFile",
-              "conflict",
-              "This file changed on disk. Reload it before saving to keep those changes.",
-            ),
-          };
-        }
         return queryResult(
-          await updateWorktreeFileContents(repoPath, relPath, contents),
+          await updateWorktreeFileContents(repoPath, relPath, contents, {
+            kind: "worktree",
+            contents: expectedContents,
+          }),
           () => undefined,
         );
       },
@@ -335,15 +345,16 @@ export const gitApi = createApi({
       ],
     }),
     updateWorktreeFileContents: builder.mutation<void, UpdateWorktreeFileContentsArgs>({
-      async queryFn({ repoPath, relPath, contents }) {
+      async queryFn({ repoPath, relPath, contents, expected }) {
         return queryResult(
-          await updateWorktreeFileContents(repoPath, relPath, contents),
+          await updateWorktreeFileContents(repoPath, relPath, contents, expected),
           () => undefined,
         );
       },
       invalidatesTags: (_result, _error, { repoPath, relPath }) => [
         { type: "Snapshot", id: repoPath },
         { type: "FileVersions", id: `${repoPath}:${relPath}` },
+        { type: "FileVersions", id: `file:${repoPath}:worktree:${relPath}` },
       ],
     }),
     discardFile: builder.mutation<void, DiscardFileArgs>({

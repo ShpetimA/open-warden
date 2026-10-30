@@ -1061,3 +1061,103 @@ test("V and J/K follow rendered review groups, folders and flat order after filt
   await page.keyboard.press("v"); // all visible files are now viewed
   await expect(selected).toHaveAttribute("aria-label", /^a\.test/);
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`keeps PR content visible through incomplete status reads and failed refresh in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1280 : 1600, height: 900 });
+    await page.addInitScript(
+      ({ detail }) => {
+        const bridge = window.desktopBridge!;
+        const failure = (operation: string) => ({
+          ok: false as const,
+          error: {
+            operation,
+            code: "network" as const,
+            message: "Couldn’t reach the provider. Retry this read.",
+          },
+        });
+        let files = 0;
+        let reviews = 0;
+        let checks = 0;
+        let conversations = 0;
+        bridge.getPullRequestActivity = async () => ({
+          ok: true,
+          value: { items: [], truncated: false },
+        });
+        bridge.getPullRequestFiles = async () =>
+          ++files === 1
+            ? failure("getPullRequestFiles")
+            : {
+                ok: true,
+                value: [
+                  {
+                    path: "src/invoice.ts",
+                    previousPath: null,
+                    status: "modified",
+                    additions: 3,
+                    deletions: 1,
+                  },
+                ],
+              };
+        bridge.getPullRequestReviewOverview = async () =>
+          ++reviews === 1
+            ? failure("getPullRequestReviewOverview")
+            : {
+                ok: true,
+                value: { reviewers: [], viewerLogin: "alice", canManageReviewers: false },
+              };
+        bridge.getPullRequestChecks = async () => ({
+          ok: true,
+          value: {
+            headSha: detail.headSha,
+            checks: [
+              { id: "partial-check", name: "Build", state: "passed", description: null, url: null },
+            ],
+            complete: ++checks !== 1,
+            mergeability: "unknown",
+          },
+        });
+        bridge.getPullRequestConversation = async () =>
+          ++conversations === 2
+            ? failure("getPullRequestConversation")
+            : { ok: true, value: { detail, issueComments: [], reviewThreads: [] } };
+      },
+      { detail },
+    );
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
+    const readNotice = (title: string) => page.getByRole("status").filter({ hasText: title });
+    await expect(readNotice("Couldn’t load file statistics")).toBeVisible();
+    await expect(readNotice("Couldn’t load review status")).toBeVisible();
+    await expect(readNotice("Only some checks could be loaded")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Files", exact: true }).last()).toBeVisible();
+    await expect(page.getByText("0 files", { exact: true })).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`pr-incomplete-${theme}.png`),
+      animations: "disabled",
+    });
+    for (const title of [
+      "Couldn’t load file statistics",
+      "Couldn’t load review status",
+      "Couldn’t load checks",
+    ]) {
+      await readNotice(title).getByRole("button", { name: "Retry", exact: true }).click();
+      await expect(readNotice(title)).toHaveCount(0);
+    }
+    await expect(page.getByRole("button", { name: /1 files/ })).toBeVisible();
+    await page.getByRole("button", { name: "Refresh pull request", exact: true }).click();
+    await expect(readNotice("Couldn’t refresh this pull request")).toBeVisible();
+    await expect(page.getByRole("heading", { name: detail.title, exact: true })).toBeVisible();
+    await expect(page.getByText(detail.body, { exact: true })).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`pr-retained-error-${theme}.png`),
+      animations: "disabled",
+    });
+    await readNotice("Couldn’t refresh this pull request")
+      .getByRole("button", { name: "Retry", exact: true })
+      .click();
+    await expect(readNotice("Couldn’t refresh this pull request")).toHaveCount(0);
+  });
+}

@@ -157,9 +157,15 @@ test.beforeEach(async ({ page }) => {
         oldFile: { name: "src/invoice.ts", contents: "export const total = 0;" },
         newFile: { name: "src/invoice.ts", contents: "export const total = 1;" },
       }),
-      updateWorktreeFileContents: async (_repo, path, contents) => {
+      updateWorktreeFileContents: async (_repo, path, contents, expected) => {
         if (control.holdSave) await new Promise<void>((resolve) => waiters.push(resolve));
         if (control.failSave) throw new Error("Disk is read only");
+        if (expected.kind !== "worktree" || window.editorTest.files[path] !== expected.contents)
+          throw {
+            code: "conflict",
+            operation: "saveWorkingFile",
+            message: "This file changed on disk. Reload before saving.",
+          };
         window.editorTest.files[path] = contents;
         control.writes.push({ path, contents });
       },
@@ -203,8 +209,16 @@ test.beforeEach(async ({ page }) => {
               ok: false,
               error: {
                 operation: method,
-                code: method === "updateWorktreeFileContents" ? "permission" : "unavailable",
-                message: cause instanceof Error ? cause.message : "Test failed",
+                code:
+                  cause && typeof cause === "object" && "code" in cause
+                    ? String(cause.code)
+                    : method === "updateWorktreeFileContents"
+                      ? "permission"
+                      : "unavailable",
+                message:
+                  cause && typeof cause === "object" && "message" in cause
+                    ? String(cause.message)
+                    : "Test failed",
               },
             };
           }

@@ -8,3 +8,6 @@ export const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 export const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
 
 export const GUIDANCE_NAVIGATE_CHANNEL = "desktop:guidance-navigate";
+
+export const WORKSPACE_FLUSH_REQUEST_CHANNEL = "desktop:workspace-flush-request";
+export const WORKSPACE_FLUSH_REPLY_CHANNEL = "desktop:workspace-flush-reply";

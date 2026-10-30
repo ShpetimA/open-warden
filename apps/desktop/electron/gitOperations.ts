@@ -1,3 +1,6 @@
+import { coordinateRepositoryWrite } from "./repositoryWrites";
+import { classifyDesktopFailure } from "./desktop-failure";
+import type { DesktopResult } from "../src/platform/desktop/failure";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
@@ -14,7 +17,6 @@ const repoSchema = z
   .string()
   .min(1)
   .refine((value) => !value.includes("\0"));
-const running = new Set<string>();
 
 function run(repoPath: string, args: string[]): Promise<GitResult<string>> {
   return new Promise((resolve) => {
@@ -376,40 +378,49 @@ async function execute(repo: string, command: GitCommand): Promise<GitResult<str
 export async function runGitCommand(
   repoInput: string,
   commandInput: GitCommand,
-): Promise<GitResult<string>> {
+): Promise<DesktopResult<string>> {
   const repo = repoSchema.safeParse(repoInput);
   const command = gitCommandSchema.safeParse(commandInput);
   if (!repo.success || !command.success)
-    return { ok: false, error: { code: "invalid-input", message: "Invalid Git operation." } };
-  const root = await run(repo.data, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-  if (!root.ok) return root;
-  if (running.has(root.value))
     return {
       ok: false,
-      error: { code: "busy", message: "Another Git operation is running for this repository." },
+      error: {
+        operation: "runGitCommand",
+        code: "invalid-input",
+        message: "Invalid Git operation.",
+      },
     };
-  running.add(root.value);
-  try {
-    const operation = await readOperation(repo.data);
-    if (!operation.ok) return operation;
-    if (
-      command.data.kind === "continue" ||
-      command.data.kind === "abort" ||
-      command.data.kind === "skip"
-    ) {
-      if (operation.value !== command.data.operation)
-        return failure("The Git operation changed. Refresh before continuing.");
-    } else if (operation.value && command.data.kind !== "fetch") {
-      return failure("Finish or abort the current " + operation.value + " first.");
-    }
-    return await execute(repo.data, command.data);
-  } finally {
-    running.delete(root.value);
-  }
+  const result = await coordinateRepositoryWrite(repo.data, "runGitCommand", async () => {
+    const outcome = await (async () => {
+      const operation = await readOperation(repo.data);
+      if (!operation.ok) return operation;
+      if (
+        command.data.kind === "continue" ||
+        command.data.kind === "abort" ||
+        command.data.kind === "skip"
+      ) {
+        if (operation.value !== command.data.operation)
+          return failure("The Git operation changed. Refresh before continuing.");
+      } else if (operation.value && command.data.kind !== "fetch") {
+        return failure("Finish or abort the current " + operation.value + " first.");
+      }
+      return await execute(repo.data, command.data);
+    })();
+    return outcome.ok
+      ? outcome
+      : {
+          ok: false,
+          error: {
+            ...classifyDesktopFailure(outcome.error, "runGitCommand"),
+            ...(outcome.error.code === "invalid-input" ? { message: outcome.error.message } : {}),
+          },
+        };
+  });
+  return result;
 }
 
 function failure(message: string): GitResult<never> {
-  return { ok: false, error: { code: "git-failed", message } };
+  return { ok: false, error: { code: "invalid-input", message } };
 }
 
 export async function getGitStashPatch(
