@@ -1,4 +1,7 @@
 import { repositoryWriteEvents } from "./repositoryChangeDefinitions";
+import { setupRepository } from "./repositorySetup";
+import { getRepositoryConfiguration, configureRepository } from "./repositoryManagement";
+import { getProviderConnection } from "./providerConnections";
 import { coordinateRepositoryWrite } from "./repositoryWrites";
 import { desktopSuccess } from "../src/platform/desktop/failure";
 import { shell } from "electron";
@@ -91,6 +94,10 @@ let setRepositorySubscriptions: DesktopHandlers["setRepositorySubscriptions"] = 
   desktopSuccess(undefined);
 
 export const desktopApi: DesktopHandlers = {
+  setupRepository: (input) => setupRepository(input, getProviderConnection),
+  getRepositoryConfiguration,
+  configureRepository,
+
   setRepositorySubscriptions: (paths) => setRepositorySubscriptions(paths),
   getGuidanceActivity,
   clearGuidanceMessages,
@@ -102,7 +109,7 @@ export const desktopApi: DesktopHandlers = {
   stopGuidanceConnection,
   getGitStashPatch,
   getGitRepositoryState,
-  runGitCommand,
+  runGitCommand: (repoPath, command) => runGitCommand(repoPath, command, getProviderConnection),
   selectFolder,
   browseDirectory,
   loadWorkspaceSession,

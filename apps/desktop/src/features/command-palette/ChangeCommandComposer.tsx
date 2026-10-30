@@ -155,7 +155,11 @@ export function ChangeCommandComposer({
     ) ?? [];
   const removableWorktrees = repository?.worktrees.filter((item) => item.path !== repoPath) ?? [];
   const hasStashes = Boolean(repository?.stashes.length);
+
   const availability: Record<ComposerAction, boolean> = {
+    "clone-repository": true,
+    "init-repository": true,
+    "manage-remotes": Boolean(repoPath),
     "open-repository": true,
     "open-pr": Boolean(repoPath && hostedRepo),
     "open-pr-worktree": Boolean(repoPath && hostedRepo),
@@ -214,6 +218,9 @@ export function ChangeCommandComposer({
     "remove-worktree": Boolean(removableWorktrees.length && !repository?.operation),
   };
   const details: Record<ComposerAction, string> = {
+    "clone-repository": "Download a Git repository into a new folder",
+    "init-repository": "Start Git tracking in a local folder",
+    "manage-remotes": "Add, edit or remove remotes and choose an upstream",
     "open-repository": "Recent repository or folder path",
     "open-pr": "Find a pull request and open its review",
     "open-pr-worktree": "Check out a PR in a separate worktree",

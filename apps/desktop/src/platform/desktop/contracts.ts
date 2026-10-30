@@ -10,6 +10,12 @@ import type {
   GuidanceResult,
 } from "./guidance";
 import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
+import type { DesktopResult } from "./failure";
+import type {
+  RepositoryConfiguration,
+  RepositoryConfigurationCommand,
+  RepositorySetupInput,
+} from "./repositoryManagement";
 
 export type Bucket = "unstaged" | "staged" | "untracked";
 
@@ -604,6 +610,15 @@ export type LspLocation = {
 };
 
 export type DesktopHandlers = {
+  setupRepository(input: RepositorySetupInput): Promise<DesktopResult<string>>;
+
+  getRepositoryConfiguration(repoPath: string): Promise<DesktopResult<RepositoryConfiguration>>;
+
+  configureRepository(
+    repoPath: string,
+    input: RepositoryConfigurationCommand,
+  ): Promise<DesktopResult<void>>;
+
   setRepositorySubscriptions(paths: string[]): Promise<import("./failure").DesktopResult<void>>;
   getGuidanceActivity(input: GuidanceLocator): Promise<GuidanceResult<GuidanceActivity | null>>;
   clearGuidanceMessages(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument>>;

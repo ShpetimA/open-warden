@@ -25,6 +25,11 @@ import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOpera
 
 export const actions = [
   { id: "open-repository", label: "Open repository", group: "Workspace", icon: FolderOpen },
+  { id: "clone-repository", label: "Clone repository", group: "Workspace", icon: FolderOpen },
+  { id: "init-repository", label: "Initialize repository", group: "Workspace", icon: Plus },
+
+  { id: "manage-remotes", label: "Remotes & upstream", group: "Remote", icon: GitBranch },
+
   { id: "open-pr", label: "Open pull request", group: "Pull requests", icon: GitPullRequest },
   {
     id: "open-pr-worktree",
@@ -138,6 +143,9 @@ export function scopeFromId(id: string): ComposerScope | null {
 
 export const specialActions = new Set<ComposerAction>([
   "open-repository",
+  "clone-repository",
+  "init-repository",
+  "manage-remotes",
   "blame-file",
   "open-pr",
   "open-pr-worktree",
@@ -244,6 +252,9 @@ export function commandFor(
   repository: GitRepositoryState,
 ): GitCommand | null {
   switch (action) {
+    case "clone-repository":
+    case "init-repository":
+    case "manage-remotes":
     case "open-repository":
     case "open-pr":
     case "open-pr-worktree":

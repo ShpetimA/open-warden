@@ -1,4 +1,5 @@
 import { gitCommandWriteEvent } from "./repositoryChangeDefinitions";
+import { gitAuthenticationEnvironment, type ProviderCredentials } from "./gitAuthentication";
 import { coordinateRepositoryWrite } from "./repositoryWrites";
 import { classifyDesktopFailure } from "./desktop-failure";
 import type { DesktopResult } from "../src/platform/desktop/failure";
@@ -19,7 +20,11 @@ const repoSchema = z
   .min(1)
   .refine((value) => !value.includes("\0"));
 
-function run(repoPath: string, args: string[]): Promise<GitResult<string>> {
+function run(
+  repoPath: string,
+  args: string[],
+  environment: NodeJS.ProcessEnv = {},
+): Promise<GitResult<string>> {
   return new Promise((resolve) => {
     execFile(
       "git",
@@ -34,6 +39,7 @@ function run(repoPath: string, args: string[]): Promise<GitResult<string>> {
           GIT_TERMINAL_PROMPT: "0",
           GIT_EDITOR: "true",
           GIT_SEQUENCE_EDITOR: "true",
+          ...environment,
         },
       },
       (error, stdout, stderr) => {
@@ -170,7 +176,21 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
   };
 }
 
-async function execute(repo: string, command: GitCommand): Promise<GitResult<string>> {
+async function execute(
+  repo: string,
+  command: GitCommand,
+  credentials: ProviderCredentials,
+): Promise<GitResult<string>> {
+  async function remoteRun(args: string[], remote: string, push = false) {
+    if (remote === ".") return run(repo, args);
+
+    const url = await run(repo, ["remote", "get-url", ...(push ? ["--push"] : []), remote]);
+
+    if (!url.ok) return url;
+
+    return run(repo, args, await gitAuthenticationEnvironment(url.value.trim(), credentials));
+  }
+
   switch (command.kind) {
     case "merge":
     case "rebase":
@@ -289,33 +309,50 @@ async function execute(repo: string, command: GitCommand): Promise<GitResult<str
               branch: command.branch.slice(command.branch.indexOf("/") + 1),
             }
           : { kind: "switch", branch: command.branch },
+        credentials,
       );
       if (!switched.ok)
         return failure(switched.error.message + "\nYour saved work remains in Stashes.");
       return switched;
     }
     case "fetch":
-      return run(repo, ["fetch", "--prune", command.remote]);
-    case "pull":
-      return run(repo, ["pull", "--ff-only"]);
+      return remoteRun(["fetch", "--prune", command.remote], command.remote);
+    case "pull": {
+      const branch = await run(repo, ["symbolic-ref", "--short", "HEAD"]);
+
+      if (!branch.ok) return branch;
+
+      const remote = await run(repo, ["config", "--get", `branch.${branch.value}.remote`]);
+
+      if (!remote.ok) return remote;
+
+      return remoteRun(["pull", "--ff-only"], remote.value);
+    }
     case "push": {
       const branch = await run(repo, ["symbolic-ref", "--short", "HEAD"]);
+
       if (!branch.ok) return branch;
+
       const remote = await run(repo, ["config", "--get", `branch.${branch.value}.remote`]);
+
       if (!remote.ok) return remote;
+
       const merge = await run(repo, ["config", "--get", `branch.${branch.value}.merge`]);
+
       if (!merge.ok) return merge;
-      return run(repo, ["push", remote.value, `HEAD:${merge.value}`]);
+
+      return remoteRun(["push", remote.value, `HEAD:${merge.value}`], remote.value, true);
     }
     case "publish": {
       const branch = await run(repo, ["symbolic-ref", "--short", "HEAD"]);
+
       if (!branch.ok) return branch;
-      return run(repo, [
-        "push",
-        "--set-upstream",
+
+      return remoteRun(
+        ["push", "--set-upstream", command.remote, `HEAD:refs/heads/${branch.value}`],
         command.remote,
-        `HEAD:refs/heads/${branch.value}`,
-      ]);
+        true,
+      );
     }
     case "switch":
       return run(repo, ["switch", "--", command.branch]);
@@ -379,6 +416,7 @@ async function execute(repo: string, command: GitCommand): Promise<GitResult<str
 export async function runGitCommand(
   repoInput: string,
   commandInput: GitCommand,
+  credentials: ProviderCredentials = async () => null,
 ): Promise<DesktopResult<string>> {
   const repo = repoSchema.safeParse(repoInput);
   const command = gitCommandSchema.safeParse(commandInput);
@@ -408,7 +446,7 @@ export async function runGitCommand(
         } else if (operation.value && command.data.kind !== "fetch") {
           return failure("Finish or abort the current " + operation.value + " first.");
         }
-        return await execute(repo.data, command.data);
+        return await execute(repo.data, command.data, credentials);
       })();
       return outcome.ok
         ? outcome

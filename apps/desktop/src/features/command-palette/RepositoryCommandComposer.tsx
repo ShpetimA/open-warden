@@ -22,9 +22,11 @@ import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 export function RepositoryCommandComposer({
   onBack,
   onClose,
+  onSetup,
 }: {
   onBack: () => void;
   onClose: () => void;
+  onSetup: (mode: "clone" | "init") => void;
 }) {
   const dispatch = useAppDispatch();
   const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
@@ -275,9 +277,22 @@ export function RepositoryCommandComposer({
                 message={result.message}
               />
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => void chooseFolder()} disabled={busy}>
-              <FolderOpen className="size-4" /> Choose folder…
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void chooseFolder()}
+                disabled={busy}
+              >
+                <FolderOpen className="size-4" /> Choose folder…
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => onSetup("clone")}>
+                Clone repository…
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => onSetup("init")}>
+                Initialize repository…
+              </Button>
+            </div>
           </>
         ) : (
           <div className="change-composer-execution" role="status">

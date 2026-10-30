@@ -1,12 +1,63 @@
 import { hasRepositoryEventBridge } from "./repositoryFreshness";
-import { queryResult } from "@/platform/desktop/failure";
+import { desktopFailure, queryResult } from "@/platform/desktop/failure";
 import { desktop } from "@/platform/desktop";
 import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOperations";
+import {
+  repositoryConfigurationSchema,
+  type RepositoryConfiguration,
+  type RepositoryConfigurationCommand,
+} from "@/platform/desktop/repositoryManagement";
 import { gitApi } from "./api";
 import { hostedReposApi } from "@/features/hosted-repos/api";
 
 export const gitOperationsApi = gitApi.injectEndpoints({
   endpoints: (builder) => ({
+    getRepositoryConfiguration: builder.query<RepositoryConfiguration, string>({
+      async queryFn(repoPath) {
+        const result = await desktop.getRepositoryConfiguration(repoPath);
+
+        if (!result.ok) return { error: result.error };
+
+        const parsed = repositoryConfigurationSchema.safeParse(result.value);
+
+        return parsed.success
+          ? { data: parsed.data }
+          : {
+              error: desktopFailure(
+                "getRepositoryConfiguration",
+                "unavailable",
+                "The repository configuration could not be read. Refresh to try again.",
+              ),
+            };
+      },
+      providesTags: (_data, _error, repoPath) => [{ type: "RepositoryState", id: repoPath }],
+    }),
+    configureRepository: builder.mutation<
+      void,
+      { repoPath: string; command: RepositoryConfigurationCommand }
+    >({
+      async queryFn({ repoPath, command }, { dispatch }) {
+        const result = await desktop.configureRepository(repoPath, command);
+
+        if (!hasRepositoryEventBridge()) {
+          dispatch(
+            gitApi.util.invalidateTags([
+              { type: "RepositoryState", id: repoPath },
+              { type: "Branches", id: repoPath },
+            ]),
+          );
+
+          dispatch(
+            hostedReposApi.util.invalidateTags([
+              { type: "HostedRepo", id: repoPath },
+              { type: "PullRequests", id: repoPath },
+            ]),
+          );
+        }
+
+        return queryResult(result);
+      },
+    }),
     getGitStashPatch: builder.query<string, { repoPath: string; oid: string }>({
       async queryFn({ repoPath, oid }) {
         return queryResult(await desktop.getGitStashPatch(repoPath, oid));
@@ -41,5 +92,11 @@ export const gitOperationsApi = gitApi.injectEndpoints({
     }),
   }),
 });
-export const { useGetGitStashPatchQuery, useGetGitRepositoryStateQuery, useRunGitCommandMutation } =
-  gitOperationsApi;
+
+export const {
+  useGetRepositoryConfigurationQuery,
+  useConfigureRepositoryMutation,
+  useGetGitStashPatchQuery,
+  useGetGitRepositoryStateQuery,
+  useRunGitCommandMutation,
+} = gitOperationsApi;

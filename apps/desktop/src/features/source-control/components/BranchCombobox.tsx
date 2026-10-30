@@ -1,4 +1,5 @@
-import { useId, useState } from "react";
+import { useId, useState, type RefObject } from "react";
+
 import {
   Combobox,
   ComboboxContent,
@@ -13,14 +14,19 @@ export function BranchCombobox({
   value,
   options,
   onChange,
+  portalContainer,
+  onOpenChange,
 }: {
   label: string;
   value: string;
   options: readonly string[];
   onChange: (branch: string) => void;
+  portalContainer?: RefObject<HTMLDivElement | null>;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const id = useId();
   const [search, setSearch] = useState("");
+
   const query = search.trim().toLocaleLowerCase();
   const filtered =
     search === value
@@ -41,6 +47,7 @@ export function BranchCombobox({
         onInputValueChange={setSearch}
         value={value || null}
         autoHighlight
+        onOpenChange={onOpenChange}
         onValueChange={(branch) => {
           if (branch) onChange(branch);
         }}
@@ -51,7 +58,10 @@ export function BranchCombobox({
           placeholder="Search branches…"
           className="h-7 w-full [&_input]:min-w-0 [&_input]:px-2 [&_input]:text-xs"
         />
-        <ComboboxContent className="min-w-72 max-w-[min(36rem,calc(100vw-24px))]">
+        <ComboboxContent
+          container={portalContainer}
+          className="min-w-72 max-w-[min(36rem,calc(100vw-24px))]"
+        >
           <ComboboxEmpty className="text-xs">No branches found.</ComboboxEmpty>
           <ComboboxList>
             {(branch: string) => (

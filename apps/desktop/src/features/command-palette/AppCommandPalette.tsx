@@ -8,6 +8,8 @@ import type { ComposerAction } from "./commandComposerModel";
 import { specialActions } from "./commandComposerModel";
 import { isPullRequestAction } from "./commandComposerModel";
 import { RepositoryCommandComposer } from "./RepositoryCommandComposer";
+import { RepositorySetupForm } from "@/features/repository-setup/RepositorySetupForm";
+import { RepositoryRemotes } from "@/features/source-control/components/RepositoryRemotes";
 import { CreatePullRequestComposer } from "./CreatePullRequestComposer";
 import { PullRequestCommandComposer } from "./PullRequestCommandComposer";
 import { BlameCommandComposer } from "./BlameCommandComposer";
@@ -35,8 +37,11 @@ export function AppCommandPalette({
         : null,
   );
   const [prefillPullRequest, setPrefillPullRequest] = useState(true);
+  const [locked, setLocked] = useState(false);
 
   useLayoutEffect(() => {
+    if (!open) setLocked(false);
+
     setPrefillPullRequest(true);
     setSpecialAction(
       initialAction && specialActions.has(initialAction)
@@ -51,7 +56,8 @@ export function AppCommandPalette({
     "Mod+K",
     (event) => {
       event.preventDefault();
-      onOpenChange(!open);
+
+      if (!locked) onOpenChange(!open);
     },
     {
       ignoreInputs: false,
@@ -60,8 +66,20 @@ export function AppCommandPalette({
     },
   );
 
+  const defaultAction = initialAction && !specialActions.has(initialAction) ? initialAction : null;
+  let commandAction = defaultAction;
+
+  if (specialAction && specialAction !== "pull-requests" && !specialActions.has(specialAction)) {
+    commandAction = specialAction;
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!locked) onOpenChange(value);
+      }}
+    >
       <DialogContent
         className="command-composer-dialog top-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] translate-y-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[680px]"
         showCloseButton={false}
@@ -77,10 +95,28 @@ export function AppCommandPalette({
         </DialogDescription>
         {open ? (
           <CommandComposerLayoutHost>
-            {specialAction === "open-repository" ? (
+            {specialAction === "clone-repository" || specialAction === "init-repository" ? (
+              <RepositorySetupForm
+                key={specialAction}
+                mode={specialAction === "clone-repository" ? "clone" : "init"}
+                onBack={() => setSpecialAction("open-repository")}
+                onClose={() => onOpenChange(false)}
+                onBusyChange={setLocked}
+              />
+            ) : specialAction === "manage-remotes" ? (
+              <RepositoryRemotes
+                onBusyChange={setLocked}
+                onClose={() => onOpenChange(false)}
+                onBack={() => setSpecialAction(null)}
+                onFetch={() => setSpecialAction("fetch")}
+              />
+            ) : specialAction === "open-repository" ? (
               <RepositoryCommandComposer
                 onBack={() => setSpecialAction(null)}
                 onClose={() => onOpenChange(false)}
+                onSetup={(mode) =>
+                  setSpecialAction(mode === "clone" ? "clone-repository" : "init-repository")
+                }
               />
             ) : specialAction === "blame-file" ? (
               <BlameCommandComposer
@@ -117,13 +153,7 @@ export function AppCommandPalette({
               />
             ) : (
               <ChangeCommandComposer
-                initialAction={
-                  specialAction
-                    ? null
-                    : initialAction && !specialActions.has(initialAction)
-                      ? initialAction
-                      : null
-                }
+                initialAction={commandAction}
                 onClose={() => onOpenChange(false)}
                 onOpenSpecial={setSpecialAction}
               />

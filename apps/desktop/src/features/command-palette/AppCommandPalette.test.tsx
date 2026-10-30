@@ -250,7 +250,7 @@ describe("AppCommandPalette", () => {
     expect(actionChoice(/^Fetch/)).toBeEnabled();
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button"),
-    ).toHaveLength(17);
+    ).toHaveLength(20);
     expect(screen.getByText("Available now")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Stage changes")).not.toBeInTheDocument();
