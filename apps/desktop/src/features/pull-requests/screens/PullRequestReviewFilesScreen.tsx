@@ -240,9 +240,6 @@ export function PullRequestReviewFilesScreen() {
         conversation: data ?? null,
         reviewThreads: data?.reviewThreads ?? [],
       }),
-      pollingInterval: 10000,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
     },
   );
 

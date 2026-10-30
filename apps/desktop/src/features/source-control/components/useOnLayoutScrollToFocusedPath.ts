@@ -97,6 +97,12 @@ function useOnLayoutScrollToFocusedPath<TFile extends PierreFileTreeBrowserFile>
         return;
       }
 
+      const focusedPath = model.getFocusedPath();
+      if (focusedPath && focusedPath !== selectedPath) {
+        didApplyInitialScrollRef.current = true;
+        return;
+      }
+
       didApplyInitialScrollRef.current = true;
       const initialRowIndex = findExpandedInitialRowIndex(
         filesRef.current,

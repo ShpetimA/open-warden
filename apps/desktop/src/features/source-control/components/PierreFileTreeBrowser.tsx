@@ -1,3 +1,4 @@
+import { createPreparedTreeProjection, preparedFileAfterRemoval } from "./pierreFileTreeProjection";
 import { preparePierreTreeInput } from "./preparePierreTreeInput";
 import { InlinePierreTreeRow, type PierreTreeInlineEditor } from "./InlinePierreTreeRow";
 import { expandPierreFileTreeParents } from "./pierreFileTree";
@@ -22,6 +23,7 @@ import { TreeRowHover } from "./TreeRowHover";
 
 import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
 import {
+  requestPierreFileTreeFocus,
   getPierreFileTreeVisiblePaths,
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
@@ -193,6 +195,8 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   const onRangeSelectPathRef = useRef(onRangeSelectPath);
   const filesRef = useRef(files);
   const selectedPathRef = useRef(selectedPath);
+  const previousSelectedPath = useRef(selectedPath);
+  const replacementPath = useRef<string | null>(null);
   const selectedPathsRef = useRef(selectedPaths);
   const initialFilePathsRef = useRef<readonly string[] | null>(null);
   const initialSelectedPathsRef = useRef<readonly string[] | null>(null);
@@ -341,7 +345,22 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     filePathSetRef.current = new Set(nextPaths);
 
     if (pathsChanged || preparedInlineAnchorRef.current !== inlineEditor?.anchorPath) {
+      replacementPath.current = null;
       const focusedPath = model.getFocusedPath();
+      const previousPath = previousSelectedPath.current;
+      const hadFocus = Boolean(model.getFileTreeContainer()?.shadowRoot?.activeElement);
+      const replacement =
+        previousPath && !filePathSetRef.current.has(previousPath)
+          ? preparedFileAfterRemoval(
+              createPreparedTreeProjection(
+                preparedInputRef.current.paths,
+                model,
+                flattenEmptyDirectories,
+              ).getVisiblePaths(),
+              previousPath,
+              new Set(nextPaths.filter((path) => !path.endsWith("/"))),
+            )
+          : null;
       const collapsedDirectoryPaths = collectCollapsedDirectoryPaths(
         filesRef.current,
         model,
@@ -388,6 +407,14 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       } finally {
         syncingSelectionRef.current = false;
       }
+      if (
+        replacement &&
+        (!selectedPathRef.current || !filePathSetRef.current.has(selectedPathRef.current))
+      ) {
+        replacementPath.current = replacement;
+        onActivatePathRef.current(replacement);
+        if (hadFocus) requestPierreFileTreeFocus(navRegion, replacement);
+      }
     }
     filesRef.current = files;
     preparedInlineAnchorRef.current = inlineEditor?.anchorPath;
@@ -398,6 +425,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     initialExpansion,
     inlineEditor,
     model,
+    navRegion,
     sort,
   ]);
 
@@ -420,7 +448,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   useEffect(() => {
     if (!selectFirstFile || (selectedPath && filePathSetRef.current?.has(selectedPath))) return;
-    const firstPath = preparedInputRef.current.paths[0];
+    const firstPath = replacementPath.current ?? preparedInputRef.current.paths[0];
     if (firstPath) onActivatePathRef.current(firstPath);
   }, [files, model, selectFirstFile, selectedPath]);
 
@@ -429,6 +457,10 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       unregisterPierreFileTreeNav(navRegion, model);
     };
   }, [model, navRegion]);
+
+  useEffect(() => {
+    previousSelectedPath.current = selectedPath;
+  }, [selectedPath]);
 
   const activatePath = (path: string) => {
     if (!filePathSetRef.current?.has(path)) {

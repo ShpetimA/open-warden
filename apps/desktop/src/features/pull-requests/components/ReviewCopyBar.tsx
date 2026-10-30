@@ -43,9 +43,6 @@ function ReviewCommentsCopyToolbar({
     selectFromResult: ({ data }) => ({
       reviewThreads: data?.reviewThreads ?? [],
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
   });
 
   const filePendingPayload = activePath ? pendingActions.getPendingPayloadForFile(activePath) : "";

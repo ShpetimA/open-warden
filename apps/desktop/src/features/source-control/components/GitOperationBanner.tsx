@@ -1,3 +1,4 @@
+import { hasRepositoryEventBridge } from "@/features/source-control/repositoryFreshness";
 import { ActionError } from "@/components/ui/error-state";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
@@ -11,7 +12,7 @@ export function GitOperationBanner() {
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
   const { operation, conflictCount } = useGetGitRepositoryStateQuery(repoPath, {
     skip: !repoPath,
-    pollingInterval: 15000,
+    pollingInterval: hasRepositoryEventBridge() ? 0 : 15000,
     selectFromResult: ({ currentData }) => ({
       operation: currentData?.operation ?? null,
       conflictCount: currentData?.conflicts.length ?? 0,

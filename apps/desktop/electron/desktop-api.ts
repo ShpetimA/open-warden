@@ -1,3 +1,4 @@
+import { repositoryWriteEvents } from "./repositoryChangeDefinitions";
 import { coordinateRepositoryWrite } from "./repositoryWrites";
 import { desktopSuccess } from "../src/platform/desktop/failure";
 import { shell } from "electron";
@@ -86,7 +87,11 @@ let lspSessionManager = new LspSessionManager({
   loadAppSettings,
 });
 
+let setRepositorySubscriptions: DesktopHandlers["setRepositorySubscriptions"] = async () =>
+  desktopSuccess(undefined);
+
 export const desktopApi: DesktopHandlers = {
+  setRepositorySubscriptions: (paths) => setRepositorySubscriptions(paths),
   getGuidanceActivity,
   clearGuidanceMessages,
   getPullRequestGuidance,
@@ -139,18 +144,20 @@ export const desktopApi: DesktopHandlers = {
   setPullRequestThreadResolved,
   preparePullRequestCompareRefs,
   preparePullRequestWorkspace: (input) =>
-    coordinateRepositoryWrite(input.repoPath, "preparePullRequestWorkspace", async () =>
-      desktopSuccess(await preparePullRequestWorkspace(input)),
+    coordinateRepositoryWrite(
+      input.repoPath,
+      repositoryWriteEvents.preparePullRequestWorkspace,
+      async () => desktopSuccess(await preparePullRequestWorkspace(input)),
     ),
   preparePullRequestFromUrl,
   getGitSnapshot,
   getRepoFiles,
   createRepositoryEntry: (input) =>
-    coordinateRepositoryWrite(input.repoPath, "createRepositoryEntry", () =>
+    coordinateRepositoryWrite(input.repoPath, repositoryWriteEvents.createRepositoryEntry, () =>
       createRepositoryEntry(input),
     ),
   trashRepositoryEntry: (input) =>
-    coordinateRepositoryWrite(input.repoPath, "trashRepositoryEntry", () =>
+    coordinateRepositoryWrite(input.repoPath, repositoryWriteEvents.trashRepositoryEntry, () =>
       trashRepositoryEntry(input, (path) => shell.trashItem(path)),
     ),
   getCommitHistory,
@@ -164,37 +171,37 @@ export const desktopApi: DesktopHandlers = {
   getFileVersions,
   getBranchFileVersions,
   stageFile: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "stageFile", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.stageFile, async () =>
       desktopSuccess(await stageFile(repoPath, ...args)),
     ),
   unstageFile: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "unstageFile", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.unstageFile, async () =>
       desktopSuccess(await unstageFile(repoPath, ...args)),
     ),
   updateIndexFileContents,
   updateWorktreeFileContents,
   stageAll: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "stageAll", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.stageAll, async () =>
       desktopSuccess(await stageAll(repoPath, ...args)),
     ),
   unstageAll: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "unstageAll", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.unstageAll, async () =>
       desktopSuccess(await unstageAll(repoPath, ...args)),
     ),
   discardFile: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "discardFile", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.discardFile, async () =>
       desktopSuccess(await discardFile(repoPath, ...args)),
     ),
   discardFiles: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "discardFiles", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.discardFiles, async () =>
       desktopSuccess(await discardFiles(repoPath, ...args)),
     ),
   discardAll: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "discardAll", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.discardAll, async () =>
       desktopSuccess(await discardAll(repoPath, ...args)),
     ),
   commitStaged: (repoPath, ...args) =>
-    coordinateRepositoryWrite(repoPath, "commitStaged", async () =>
+    coordinateRepositoryWrite(repoPath, repositoryWriteEvents.commitStaged, async () =>
       desktopSuccess(await commitStaged(repoPath, ...args)),
     ),
   getRepoFile,
@@ -206,7 +213,11 @@ export const desktopApi: DesktopHandlers = {
   getLspReferences: (input) => lspSessionManager.getReferences(input),
 };
 
-export function configureDesktopApi(options: { onDiagnostics(event: LspDiagnosticsEvent): void }) {
+export function configureDesktopApi(options: {
+  onDiagnostics(event: LspDiagnosticsEvent): void;
+  setRepositorySubscriptions: DesktopHandlers["setRepositorySubscriptions"];
+}) {
+  setRepositorySubscriptions = options.setRepositorySubscriptions;
   void lspSessionManager.dispose();
   lspSessionManager = new LspSessionManager({
     onDiagnostics: options.onDiagnostics,

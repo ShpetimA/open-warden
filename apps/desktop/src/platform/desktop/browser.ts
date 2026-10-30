@@ -239,6 +239,9 @@ const browserGuidance = {
 const browserDesktopApiCore = createDesktopApiWithDefaults({
   fallback: (method) => async () => unsupportedAsync(browserUnsupportedFeature(method)),
   overrides: {
+    async setRepositorySubscriptions() {
+      return desktopSuccess(undefined);
+    },
     ...browserGuidance,
     async selectFolder() {
       throw desktopFailure(
@@ -292,6 +295,9 @@ const browserDesktopApiCore = createDesktopApiWithDefaults({
 });
 
 export const browserDesktopApi: DesktopBridge = {
+  onRepositoryChanged() {
+    return () => {};
+  },
   onGuidanceNavigate() {
     return () => {};
   },
@@ -362,6 +368,9 @@ async function unavailableAsync<T>(): Promise<T> {
 const unavailableDesktopApiCore = createDesktopApiWithDefaults({
   fallback: () => async () => unavailableAsync(),
   overrides: {
+    async setRepositorySubscriptions() {
+      return desktopSuccess(undefined);
+    },
     ...browserGuidance,
     async loadWorkspaceSession() {
       return desktopSuccess(createWorkspaceSession());
@@ -420,6 +429,9 @@ export const unavailableDesktopApi: DesktopBridge = {
     return () => {};
   },
   onLspDiagnostics() {
+    return () => {};
+  },
+  onRepositoryChanged() {
     return () => {};
   },
   onGuidanceNavigate() {

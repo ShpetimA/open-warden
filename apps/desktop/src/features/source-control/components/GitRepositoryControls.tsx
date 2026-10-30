@@ -1,3 +1,4 @@
+import { hasRepositoryEventBridge } from "@/features/source-control/repositoryFreshness";
 import { ArrowDown, ArrowUp, ChevronDown, GitBranch, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ export function GitRepositoryControls({ repoPath }: { repoPath: string }) {
   const openComposer = useCommandComposerLauncher();
   const { state } = useGetGitRepositoryStateQuery(repoPath, {
     selectFromResult: ({ currentData }) => ({ state: currentData }),
-    pollingInterval: 15000,
+    pollingInterval: hasRepositoryEventBridge() ? 0 : 15000,
     refetchOnFocus: true,
   });
   const [, { busy }] = useRunGitCommandMutation({

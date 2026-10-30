@@ -1,3 +1,4 @@
+import { PullRequestRefreshControl } from "../refresh/PullRequestRefreshControl";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { readDesktopFailure } from "@/platform/desktop/failure";
@@ -516,6 +517,18 @@ export function PullRequestsScreen() {
           </div>
           {activeProviderConnection ? (
             <div className="flex items-center gap-1.5">
+              <PullRequestRefreshControl
+                locator={
+                  selectedPullRequestNumber
+                    ? { repoPath: activeRepo, pullRequestNumber: selectedPullRequestNumber }
+                    : null
+                }
+                onRefreshList={() => {
+                  void refetchPullRequests();
+                }}
+                listBusy={fetchingPullRequests}
+                listRetryAt={readDesktopFailure(pullRequestsError)?.retryAt}
+              />
               <UserAvatar
                 login={activeProviderConnection.login}
                 name={activeProviderConnection.displayName}

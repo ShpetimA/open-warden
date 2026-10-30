@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { BookOpen, Settings2 } from "lucide-react";
 import { useAppSelector } from "@/app/hooks";
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
@@ -79,19 +80,19 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
     data: guide,
     isLoading,
     error: loadError,
+    refetch: retryGuide,
   } = useGetPullRequestGuidanceQuery(locator, { pollingInterval: 1000, refetchOnFocus: true });
   const {
     detail,
     loading: loadingHead,
     error: headError,
+    refetch: retryHead,
   } = useGetPullRequestConversationQuery(locator, {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       detail: currentData?.detail,
       loading: isFetching && !currentData,
       error,
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
   });
   const stale = !!guide && (!detail || detail.headSha !== guide.headSha);
   const comparison = usePullRequestComparison(
@@ -111,11 +112,18 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
     }
   }
   if (isLoading || loadingHead) return <ListLoadingState label="Loading walkthrough…" />;
-  if (loadError || headError)
+  function retryRead() {
+    if (loadError) void retryGuide();
+    if (headError) void retryHead();
+  }
+  const readFailure = loadError ?? headError;
+  if (readFailure && (!guide || !detail))
     return (
-      <div role="alert" className="text-destructive p-6 text-sm">
-        {errorMessageFrom(loadError ?? headError, "The walkthrough could not be loaded.")}
-      </div>
+      <ErrorState
+        title="Couldn’t load this walkthrough"
+        error={readFailure}
+        recovery={{ label: "Retry", onAction: retryRead }}
+      />
     );
   if (!guide)
     return (
@@ -151,44 +159,55 @@ function GuidanceController({ locator }: { locator: GuidanceLocator }) {
       </div>
     );
   return (
-    <GuidanceView
-      guide={guide}
-      activity={activity}
-      stale={stale}
-      busy={changing}
-      error={error}
-      onSelectStep={(id) => {
-        void change(id);
-      }}
-      onReviewed={(id, reviewed) => {
-        if (!stale) void change(id, reviewed);
-      }}
-      onMessage={async (stepId, body) => {
-        try {
-          await message({ ...locator, stepId, body }).unwrap();
-          return true;
-        } catch {
-          return false;
-        }
-      }}
-      onClearMessages={async () => {
-        try {
-          await clearMessages(locator).unwrap();
-          return true;
-        } catch {
-          return false;
-        }
-      }}
-      renderDiff={(reference, step) => (
-        <GuidanceDiff
-          locator={locator}
-          headSha={guide.headSha}
-          comparison={comparison}
-          reference={reference}
-          step={step}
+    <div className="flex h-full min-h-0 flex-col">
+      {readFailure ? (
+        <ErrorNotice
+          title="Couldn’t refresh this walkthrough"
+          error={readFailure}
+          recovery={{ label: "Retry", onAction: retryRead }}
         />
-      )}
-    />
+      ) : null}
+      <div className="min-h-0 flex-1">
+        <GuidanceView
+          guide={guide}
+          activity={activity}
+          stale={stale}
+          busy={changing}
+          error={error}
+          onSelectStep={(id) => {
+            void change(id);
+          }}
+          onReviewed={(id, reviewed) => {
+            if (!stale) void change(id, reviewed);
+          }}
+          onMessage={async (stepId, body) => {
+            try {
+              await message({ ...locator, stepId, body }).unwrap();
+              return true;
+            } catch {
+              return false;
+            }
+          }}
+          onClearMessages={async () => {
+            try {
+              await clearMessages(locator).unwrap();
+              return true;
+            } catch {
+              return false;
+            }
+          }}
+          renderDiff={(reference, step) => (
+            <GuidanceDiff
+              locator={locator}
+              headSha={guide.headSha}
+              comparison={comparison}
+              reference={reference}
+              step={step}
+            />
+          )}
+        />
+      </div>
+    </div>
   );
 }
 

@@ -1,3 +1,5 @@
+import { getPierreFileAfterRemoval } from "./pierreFileTreeNavigation";
+import { repositoryChangeTags } from "./repositoryFreshness";
 import type { WorkspaceSession } from "@/platform/desktop/contracts";
 import type { DesktopResult } from "@/platform/desktop/failure";
 import type { DiffEditExpectation } from "@/platform/desktop/fileEdits";
@@ -56,21 +58,6 @@ import {
   setSelectionAnchor,
   setRunningAction,
 } from "./sourceControlSlice";
-
-function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, filePath: string) {
-  if (!snapshot) return null;
-
-  const changed: Array<{ bucket: Bucket; path: string }> = [
-    ...snapshot.unstaged.map((file) => ({ bucket: "unstaged" as const, path: file.path })),
-    ...snapshot.untracked.map((file) => ({ bucket: "untracked" as const, path: file.path })),
-  ];
-  if (changed.length === 0) return null;
-
-  const index = changed.findIndex((item) => item.path === filePath);
-  if (index < 0) return null;
-
-  return changed[index + 1] ?? null;
-}
 
 function fileSelectionKey(file: SelectedFile): string {
   return `${file.bucket}\u0000${file.path}`;
@@ -318,13 +305,14 @@ export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
 
   dispatch(
     gitApi.util.invalidateTags([
-      { type: "Snapshot", id: activeRepo },
-      { type: "RepoFiles", id: activeRepo },
+      ...repositoryChangeTags({
+        repoPath: activeRepo,
+        kinds: ["worktree", "index", "refs", "config"],
+        paths: [],
+        structure: true,
+      }),
+      { type: "CommitData", id: activeRepo },
     ]),
-  );
-  dispatch(gitApi.util.invalidateTags(["FileVersions"]));
-  dispatch(
-    gitApi.util.invalidateTags([{ type: "HistoryCommits", id: activeRepo }, "HistoryFiles"]),
   );
 };
 
@@ -553,13 +541,32 @@ function repoActionLabel(action: RunningAction): string {
 }
 
 const runRepoAction =
-  (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk<Promise<boolean>> =>
+  (
+    action: RunningAction,
+    thunk: AppThunk<Promise<void>>,
+    removed: readonly SelectedFile[] = [],
+  ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const { activeRepo, runningAction } = getState().sourceControl;
     if (!activeRepo || runningAction) return false;
+    const before = getState();
+    const selection = {
+      bucket: before.sourceControl.activeBucket,
+      path: before.sourceControl.activePath,
+    };
+    const next = getPierreFileAfterRemoval("changes-files", selection, removed);
     dispatch(setRunningAction(action));
     try {
       await dispatch(thunk);
+      const current = getState();
+      if (
+        next &&
+        current.workspaces.activeWorkspaceId === before.workspaces.activeWorkspaceId &&
+        current.sourceControl.activeRepo === activeRepo &&
+        current.sourceControl.activePath === selection.path &&
+        current.sourceControl.activeBucket === selection.bucket
+      )
+        await dispatch(selectFile(next.bucket, next.path));
       return true;
     } catch (error) {
       const message = failureFromUnknown(error, "repositoryAction").message;
@@ -573,26 +580,23 @@ const runRepoAction =
 export const stageFileAction =
   (filePath: string): AppThunk =>
   async (dispatch, getState) => {
-    const state = getState();
-    const { activeRepo, activePath } = state.sourceControl;
+    const { activeRepo } = getState().sourceControl;
     if (!activeRepo) return;
 
-    if (activePath === filePath) {
-      const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data;
-      const next = nextChangedFileAfterStage(snapshot, filePath);
-      if (next) {
-        dispatch(setActiveBucket(next.bucket));
-        dispatch(setActivePath(next.path));
-      }
-    }
-
     await dispatch(
-      runRepoAction(`file:stage:${filePath}`, async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        `file:stage:${filePath}`,
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
+          );
+          await result.unwrap();
+        },
+        [
+          { bucket: "unstaged", path: filePath },
+          { bucket: "untracked", path: filePath },
+        ],
+      ),
     );
   };
 
@@ -603,12 +607,16 @@ export const unstageFileAction =
     if (!activeRepo) return;
 
     await dispatch(
-      runRepoAction(`file:unstage:${filePath}`, async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        `file:unstage:${filePath}`,
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
+          );
+          await result.unwrap();
+        },
+        [{ bucket: "staged", path: filePath }],
+      ),
     );
   };
 
@@ -666,12 +674,19 @@ export const stageFilesAction =
 
     const paths = [...new Set(files.map((file) => file.path))];
     await dispatch(
-      runRepoAction("stage-files", async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.stageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        "stage-files",
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.stageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
+          );
+          await result.unwrap();
+        },
+        paths.flatMap((path) => [
+          { bucket: "unstaged" as const, path },
+          { bucket: "untracked" as const, path },
+        ]),
+      ),
     );
   };
 
@@ -683,12 +698,16 @@ export const unstageFilesAction =
 
     const paths = [...new Set(files.map((file) => file.path))];
     await dispatch(
-      runRepoAction("unstage-files", async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.unstageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        "unstage-files",
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.unstageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
+          );
+          await result.unwrap();
+        },
+        paths.map((path) => ({ bucket: "staged" as const, path })),
+      ),
     );
   };
 
@@ -705,16 +724,20 @@ export const discardFileAction =
     if (!target) return;
 
     await dispatch(
-      runRepoAction(`file:discard:${filePath}`, async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.discardFile.initiate({
-            repoPath: activeRepo,
-            relPath: target.relPath,
-            bucket: target.bucket,
-          }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        `file:discard:${filePath}`,
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.discardFile.initiate({
+              repoPath: activeRepo,
+              relPath: target.relPath,
+              bucket: target.bucket,
+            }),
+          );
+          await result.unwrap();
+        },
+        [{ bucket: target.bucket, path: target.relPath }],
+      ),
     );
   };
 
@@ -778,12 +801,16 @@ export const discardChangesGroupAction =
     if (payload.length === 0) return;
 
     await dispatch(
-      runRepoAction("discard-changes", async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        "discard-changes",
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
+          );
+          await result.unwrap();
+        },
+        payload.map((file) => ({ bucket: file.bucket, path: file.relPath })),
+      ),
     );
   };
 

@@ -726,6 +726,13 @@ export async function trashRepositoryEntry(
 }
 
 export async function getRepoFiles(repoPath: string): Promise<RepoFileItem[]> {
+  return (await getRepoFileListing(repoPath)).files;
+}
+
+export async function getRepoFileListing(repoPath: string): Promise<{
+  files: RepoFileItem[];
+  ignoredPaths: string[];
+}> {
   const [output, directoryOutput, ignoredOutput, deletedOutput] = await Promise.all([
     runGit(repoPath, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]),
     runGit(repoPath, ["ls-files", "-z", "--others", "--directory", "--exclude-standard"]),
@@ -791,10 +798,15 @@ export async function getRepoFiles(repoPath: string): Promise<RepoFileItem[]> {
       }
     }
   }
-  return [
-    ...files,
-    ...emptyDirectories.toSorted((left, right) => left.path.localeCompare(right.path)),
-  ];
+  return {
+    files: [
+      ...files,
+      ...emptyDirectories.toSorted((left, right) => left.path.localeCompare(right.path)),
+    ],
+    ignoredPaths: parseRepoFilesOutput(ignoredOutput).map((file) =>
+      file.path.endsWith("/") ? file.path.slice(0, -1) : file.path,
+    ),
+  };
 }
 
 export { getCommitHistory, getHistoryGraph } from "./history";

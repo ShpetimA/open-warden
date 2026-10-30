@@ -1,3 +1,4 @@
+import { hasRepositoryEventBridge } from "./repositoryFreshness";
 import { queryResult } from "@/platform/desktop/failure";
 import { desktop } from "@/platform/desktop";
 import type { GitCommand, GitRepositoryState } from "@/platform/desktop/gitOperations";
@@ -15,24 +16,26 @@ export const gitOperationsApi = gitApi.injectEndpoints({
       async queryFn(repoPath) {
         return queryResult(await desktop.getGitRepositoryState(repoPath));
       },
-      providesTags: (_data, _error, repoPath) => [{ type: "Snapshot", id: repoPath }],
+      providesTags: (_data, _error, repoPath) => [{ type: "RepositoryState", id: repoPath }],
     }),
     runGitCommand: builder.mutation<string, { repoPath: string; command: GitCommand }>({
       async queryFn({ repoPath, command }, { dispatch }) {
         try {
           return queryResult(await desktop.runGitCommand(repoPath, command));
         } finally {
-          dispatch(
-            gitApi.util.invalidateTags([
-              { type: "Snapshot", id: repoPath },
-              { type: "RepoFiles", id: repoPath },
-              { type: "Branches", id: repoPath },
-              { type: "HistoryCommits", id: repoPath },
-              "FileVersions",
-              "BranchFiles",
-            ]),
-          );
-          dispatch(hostedReposApi.util.invalidateTags(["PullRequests"]));
+          if (!hasRepositoryEventBridge()) {
+            dispatch(
+              gitApi.util.invalidateTags([
+                { type: "Snapshot", id: repoPath },
+                { type: "RepoFiles", id: repoPath },
+                { type: "Branches", id: repoPath },
+                { type: "HistoryCommits", id: repoPath },
+                "FileVersions",
+                "BranchFiles",
+              ]),
+            );
+            dispatch(hostedReposApi.util.invalidateTags(["PullRequests"]));
+          }
         }
       },
     }),

@@ -1,3 +1,4 @@
+import { repositoryChangeSchema } from "../src/platform/desktop/repositoryEvents";
 import { readDesktopReply } from "../src/platform/desktop/failure";
 import { contextBridge, ipcRenderer } from "electron";
 
@@ -8,6 +9,7 @@ import {
 } from "../src/platform/desktop/createDesktopApi";
 import type { DesktopBridge } from "../src/platform/desktop/contracts";
 import {
+  REPOSITORY_CHANGED_CHANNEL,
   WORKSPACE_FLUSH_REQUEST_CHANNEL,
   WORKSPACE_FLUSH_REPLY_CHANNEL,
   GUIDANCE_NAVIGATE_CHANNEL,
@@ -36,6 +38,16 @@ ipcRenderer.on(WORKSPACE_FLUSH_REQUEST_CHANNEL, (_event, requestId: unknown) => 
 });
 
 const desktopBridge: DesktopBridge = {
+  onRepositoryChanged(listener) {
+    const receive = (_event: Electron.IpcRendererEvent, value: unknown) => {
+      const parsed = repositoryChangeSchema.safeParse(value);
+      if (parsed.success) listener(parsed.data);
+    };
+    ipcRenderer.on(REPOSITORY_CHANGED_CHANNEL, receive);
+    return () => {
+      ipcRenderer.removeListener(REPOSITORY_CHANGED_CHANNEL, receive);
+    };
+  },
   onWorkspaceFlushRequested(listener) {
     workspaceFlushListener = listener;
     return () => {

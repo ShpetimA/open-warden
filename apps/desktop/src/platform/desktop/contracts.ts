@@ -603,6 +603,7 @@ export type LspLocation = {
 };
 
 export type DesktopHandlers = {
+  setRepositorySubscriptions(paths: string[]): Promise<import("./failure").DesktopResult<void>>;
   getGuidanceActivity(input: GuidanceLocator): Promise<GuidanceResult<GuidanceActivity | null>>;
   clearGuidanceMessages(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument>>;
   getPullRequestGuidance(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument | null>>;
@@ -808,7 +809,8 @@ export type DesktopSettingsApi = {
   onWorkspaceFlushRequested?(listener: () => Promise<boolean>): () => void;
 };
 
-export type DesktopBridge = DesktopApi &
+export type DesktopBridge = import("./repositoryEvents").RepositoryEventsApi &
+  DesktopApi &
   DesktopUpdateApi &
   DesktopLspApi &
   DesktopSettingsApi &

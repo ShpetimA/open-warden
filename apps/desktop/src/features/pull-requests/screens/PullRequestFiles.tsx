@@ -146,9 +146,6 @@ function PullRequestChanges({
       conversation: data ?? null,
       reviewThreads: data?.reviewThreads ?? [],
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
   });
   const comparison = usePullRequestComparison(filesQueryArg, conversation?.detail.headSha);
   const commitsQuery = useGetBranchCommitsQuery(
@@ -277,7 +274,7 @@ function PullRequestChanges({
               failure={filesFailure}
               onRetry={retryFiles}
               isLoading={filesLoading}
-              viewedState={!reviewingCommit ? viewedState : null}
+              viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
               keyboardNavigationEnabled={view === "files"}
               fileView={grouping === "commits" ? "review" : grouping}
               onFileViewChange={setGrouping}
@@ -299,9 +296,10 @@ function PullRequestChanges({
             onRetryFiles={retryFiles}
             filesLoading={filesLoading}
             files={files}
+            canComment={!comparison.stale}
             conversation={conversation}
             reviewThreads={!reviewingCommit ? reviewThreads : []}
-            viewedState={!reviewingCommit ? viewedState : null}
+            viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
           />
         </div>
       </PullRequestChangesSidebar>
@@ -332,6 +330,7 @@ function FilesDiffViewer({
   onRetryFiles,
   filesLoading,
   files,
+  canComment,
   conversation,
   reviewThreads,
   viewedState,
@@ -345,6 +344,7 @@ function FilesDiffViewer({
   onRetryFiles: () => void;
   filesLoading: boolean;
   files: PullRequestChangedFile[];
+  canComment: boolean;
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
   viewedState: ReturnType<typeof usePullRequestViewedFiles> | null;
@@ -419,7 +419,7 @@ function FilesDiffViewer({
   if (filesLoading && files.length === 0) {
     return <ListLoadingState label="Loading changed files…" />;
   }
-  if (filesError) {
+  if (filesError && files.length === 0) {
     return (
       <ErrorState
         title="Couldn’t load this PR comparison"
@@ -565,7 +565,7 @@ function FilesDiffViewer({
             ) : null
           }
           commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
-          canComment={Boolean(viewedState)}
+          canComment={canComment && Boolean(viewedState)}
           includeCurrentFileComments={false}
           fileViewerRevision={compareHeadRef}
           lspJumpContextKind="pull-request"

@@ -102,3 +102,25 @@ it("preserves explicit empty folders without projecting a blank child row", () =
     model.cleanUp();
   }
 });
+
+it("chooses the next remaining rendered file, or the preceding file at the boundary", async () => {
+  const { preparedFileAfterRemoval } = await import("./pierreFileTreeProjection");
+  const paths = [
+    "Commit A",
+    "Commit A/src/z.ts",
+    "Commit A/src/a.ts",
+    "Commit B",
+    "Commit B/src/z.ts",
+  ];
+  expect(
+    preparedFileAfterRemoval(
+      paths,
+      "Commit A/src/z.ts",
+      new Set(["Commit A/src/a.ts", "Commit B/src/z.ts"]),
+    ),
+  ).toBe("Commit A/src/a.ts");
+  expect(preparedFileAfterRemoval(paths, "Commit B/src/z.ts", new Set(["Commit A/src/a.ts"]))).toBe(
+    "Commit A/src/a.ts",
+  );
+  expect(preparedFileAfterRemoval(paths, "Commit A/src/z.ts", new Set())).toBeNull();
+});

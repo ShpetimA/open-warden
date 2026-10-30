@@ -3,16 +3,30 @@ import { realpath } from "node:fs/promises";
 import { promisify } from "node:util";
 
 import { desktopFailure, type DesktopResult } from "../src/platform/desktop/failure";
+import type { RepositoryWriteEvent } from "./repositoryChangeDefinitions";
 import { classifyDesktopFailure } from "./desktop-failure";
 
 const execute = promisify(execFile);
 const running = new Set<string>();
+type WriteNotice = RepositoryWriteEvent & {
+  repoPath: string;
+  commonDir: string;
+};
+const listeners = new Set<(notice: WriteNotice) => void>();
+
+export function subscribeRepositoryWrites(listener: (notice: WriteNotice) => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 export async function coordinateRepositoryWrite<T>(
   repoPath: string,
-  operation: string,
+  event: RepositoryWriteEvent,
   run: () => Promise<DesktopResult<T>>,
 ): Promise<DesktopResult<T>> {
+  const { operation, impact } = event;
   let key: string | undefined;
   try {
     const { stdout } = await execute(
@@ -42,5 +56,6 @@ export async function coordinateRepositoryWrite<T>(
     return { ok: false, error: classifyDesktopFailure(cause, operation) };
   } finally {
     running.delete(key);
+    for (const listener of listeners) listener({ repoPath, commonDir: key, operation, impact });
   }
 }

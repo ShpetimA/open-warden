@@ -1,10 +1,10 @@
 import { desktopFailure } from "@/platform/desktop/failure";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePreparePullRequestCompareRefsQuery } from "@/features/hosted-repos/api";
 import { useGetBranchFilesQuery } from "@/features/source-control/api";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { PullRequestLocatorInput } from "@/platform/desktop";
+import type { FileItem, PullRequestCompareRefs, PullRequestLocatorInput } from "@/platform/desktop";
 
 export function usePullRequestComparison(
   locator: PullRequestLocatorInput | typeof skipToken,
@@ -31,6 +31,30 @@ export function usePullRequestComparison(
       ? { repoPath: locator.repoPath, baseRef: refs.compareBaseRef, headRef: refs.compareHeadRef }
       : skipToken,
   );
+  const key = locator === skipToken ? "" : `${locator.repoPath}\0${locator.pullRequestNumber}`;
+  const [retained, setRetained] = useState<{
+    key: string;
+    refs: PullRequestCompareRefs;
+    files: FileItem[];
+  } | null>(null);
+  const currentFiles = filesQuery.currentData;
+  const ready = Boolean(refs && matchesHead && currentFiles);
+
+  if (
+    refs &&
+    matchesHead &&
+    currentFiles &&
+    (retained?.key !== key || retained.refs !== refs || retained.files !== currentFiles)
+  ) {
+    setRetained({ key, refs, files: currentFiles });
+  }
+
+  const displayed =
+    ready && refs && currentFiles
+      ? { refs, files: currentFiles }
+      : retained?.key === key
+        ? retained
+        : null;
   const comparisonError =
     errorMessageFrom(error ?? filesQuery.error, "") ||
     (refs && !matchesHead && !isFetching && refreshedHead.current === expectedHeadSha
@@ -38,12 +62,10 @@ export function usePullRequestComparison(
       : "");
 
   return {
-    refs: matchesHead ? refs : undefined,
-    files: filesQuery.currentData,
-    loading:
-      locator !== skipToken &&
-      !comparisonError &&
-      (!refs || !matchesHead || !filesQuery.currentData),
+    refs: displayed?.refs,
+    files: displayed?.files,
+    stale: !ready,
+    loading: locator !== skipToken && !comparisonError && !displayed,
     error: comparisonError,
     failure:
       error ??

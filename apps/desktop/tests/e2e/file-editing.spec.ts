@@ -624,7 +624,9 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("D trashes the focused file and closes its working editor", async ({ page }) => {
+test("D trashes the focused file and opens the next visible file in rendered order", async ({
+  page,
+}) => {
   await page.goto("/#/changes/files");
   await quickOpen(page, "validation.ts");
   await page.keyboard.press("Meta+Shift+e");
@@ -636,7 +638,11 @@ test("D trashes the focused file and closes its working editor", async ({ page }
   await expect(
     page.locator('file-tree-container [data-item-path="src/validation.ts"]'),
   ).toHaveCount(0);
-  await expect(page.getByText("Select a file from the tree.", { exact: true })).toBeVisible();
+  await expect(page.locator('file-tree-container [data-item-path="README.md"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator("diffs-container")).toContainText("# Invoice");
   await expect(page.locator('file-tree-container [data-item-focused="true"]')).toBeFocused();
   expect(await page.evaluate(() => window.editorTest.confirmations)).toEqual([]);
 });

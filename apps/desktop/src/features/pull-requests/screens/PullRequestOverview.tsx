@@ -1,3 +1,5 @@
+import { PullRequestRefreshControl } from "../refresh/PullRequestRefreshControl";
+import { usePullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { PullRequestReadNotices } from "../components/PullRequestReadNotices";
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
@@ -12,7 +14,6 @@ import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { openPullRequestReview } from "@/features/hosted-repos/actions";
 import {
-  hostedReposApi,
   useAddPullRequestCommentMutation,
   useGetPullRequestActivityQuery,
   useGetPullRequestConversationQuery,
@@ -205,19 +206,7 @@ function PullRequestOverviewHeaderBar({
     navigate("../local-files", { relative: "path" });
   }
 
-  function refresh() {
-    const id = `${locator.repoPath}:${locator.pullRequestNumber}`;
-    dispatch(
-      hostedReposApi.util.invalidateTags([
-        { type: "HostedRepo", id: locator.repoPath },
-        { type: "PullRequestConversation", id },
-        { type: "PullRequestActivity", id },
-        { type: "PullRequestChecks", id },
-        { type: "PullRequestReviewOverview", id },
-        { type: "PullRequestFiles", id },
-      ]),
-    );
-  }
+  const { refresh } = usePullRequestRefresh(locator);
 
   function handleAction(action: PullRequestHeaderAction) {
     if (action === "open-branch") void open("branch");
@@ -235,6 +224,7 @@ function PullRequestOverviewHeaderBar({
       refreshing={refreshing}
       actions={
         <PullRequestHeaderActions
+          refreshControl={<PullRequestRefreshControl locator={locator} />}
           lifecycleActions={headerLifecycleActions(detail)}
           opening={opening}
           refreshing={refreshing}
@@ -572,9 +562,6 @@ export const PullRequestOverview = () => {
       loadingDetail: isFetching && !currentData,
       detailError: error,
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
   });
 
   if (loadingHostedRepo || loadingDetail) return <ListLoadingState label="Loading pull request…" />;

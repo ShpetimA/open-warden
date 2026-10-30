@@ -1,3 +1,5 @@
+import { useStore } from "react-redux";
+import type { RootState } from "@/app/store";
 import { useEffect } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -12,6 +14,7 @@ import { findExistingBucket } from "@/features/source-control/utils";
 
 export function useChangesSync() {
   const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
@@ -64,6 +67,8 @@ export function useChangesSync() {
           : snapshot.staged.some((file) => file.path === activePath);
     if (activeBucketHasPath) return;
 
+    const current = store.getState().sourceControl;
+    if (current.activePath !== activePath || current.activeBucket !== activeBucket) return;
     const existingBucket = findExistingBucket(snapshot, activePath);
     if (!existingBucket) {
       dispatch(clearDiffSelection());
@@ -72,5 +77,14 @@ export function useChangesSync() {
     if (existingBucket !== activeBucket) {
       dispatch(setActiveBucket(existingBucket));
     }
-  }, [activeRepo, activeBucket, activePath, dispatch, selectedFiles, selectionAnchor, snapshot]);
+  }, [
+    activeRepo,
+    activeBucket,
+    activePath,
+    dispatch,
+    selectedFiles,
+    selectionAnchor,
+    snapshot,
+    store,
+  ]);
 }

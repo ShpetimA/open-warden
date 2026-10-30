@@ -336,3 +336,34 @@ test("keeps the commit composer footprint stable when published status arrives",
   await undo.locator("..").hover();
   await expect(page.getByRole("tooltip")).toContainText("Use Revert in History");
 });
+
+test("staging advances in rendered order only after success and skips a collapsed next group", async ({
+  page,
+}) => {
+  await page.goto("/#/changes");
+  const tree = page.locator("file-tree-container");
+  await expect(tree.locator('[data-item-path="Changes/src/group-a/file-05.ts"]')).toBeVisible();
+  await tree.locator('[data-item-path="Changes/src/group-b/"]').click();
+  await tree.locator('[data-item-path="Changes/src/group-a/file-05.ts"]').click();
+  await page.evaluate(() => {
+    window.changesRefreshTest.failStageAt = 1;
+  });
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await expect(page.getByText(/Failed to stage file/)).toBeVisible();
+  await expect(tree.locator('[data-item-path="Changes/src/group-a/file-05.ts"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.evaluate(() => {
+    window.changesRefreshTest.failStageAt = 0;
+  });
+  await page.keyboard.press("ControlOrMeta+Enter");
+  await expect(tree.locator('[data-item-path="Changes/src/group-c/file-00.ts"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(tree.locator('[data-item-path="Changes/src/group-b/"]')).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+});

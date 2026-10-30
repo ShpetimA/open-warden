@@ -1,3 +1,4 @@
+import { PullRequestRefreshControl } from "@/features/pull-requests/refresh/PullRequestRefreshControl";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { pullRequestRailSections } from "./WorkspaceRail";
 import { GitPullRequest, List } from "lucide-react";
@@ -96,6 +97,11 @@ export function ProjectReviewTabs() {
               </button>
             ),
           )}
+          {!pathname.endsWith("/overview") ? (
+            <PullRequestRefreshControl
+              locator={{ repoPath: active.repoPath, pullRequestNumber: active.pullRequestNumber }}
+            />
+          ) : null}
           <PullRequestReviewControl
             repoPath={active.repoPath}
             pullRequestNumber={active.pullRequestNumber}

@@ -106,9 +106,12 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
   const service = new GuidanceService({
     store: new GuidanceStore(directory),
     loadWorkspaceSession: async () => ({
-      openRepos: [locator.repoPath],
-      activeRepo: locator.repoPath,
-      recentRepos: [],
+      ok: true,
+      value: {
+        openRepos: [locator.repoPath],
+        activeRepo: locator.repoPath,
+        recentRepos: [],
+      },
     }),
     resolveHostedRepo: async () => repository,
     getPullRequestConversation: async () => ({
@@ -484,10 +487,10 @@ test("an MCP agent creates a walkthrough and exchanges persisted messages throug
     await expect(stepsPane).toBeVisible();
     await page.keyboard.press("l");
     await expect(filesPane).toBeVisible();
-    await page.keyboard.press("ControlOrMeta+s");
+    await page.keyboard.press("ControlOrMeta+b");
     await expect(stepsPane).not.toBeVisible();
     await expect(filesPane).toBeVisible();
-    await page.keyboard.press("ControlOrMeta+s");
+    await page.keyboard.press("ControlOrMeta+b");
     await expect(stepsPane).toBeVisible();
     await page.keyboard.press("ControlOrMeta+d");
     await expect(filesPane).not.toBeVisible();

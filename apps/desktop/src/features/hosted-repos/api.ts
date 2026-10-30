@@ -1,3 +1,4 @@
+import { runHostedRead } from "./readPolicy";
 import { queryResult, type DesktopFailure } from "@/platform/desktop/failure";
 import { createApi, fakeBaseQuery } from "@reduxjs/toolkit/query/react";
 
@@ -109,14 +110,14 @@ export const hostedReposApi = createApi({
       invalidatesTags: ["ProviderConnections", "PullRequests"],
     }),
     resolveHostedRepo: builder.query<HostedRepoRef | null, string>({
-      async queryFn(repoPath) {
-        return queryResult(await resolveHostedRepo(repoPath));
+      async queryFn(repoPath, api) {
+        return runHostedRead(api, () => resolveHostedRepo(repoPath));
       },
       providesTags: (_result, _error, repoPath) => [{ type: "HostedRepo", id: repoPath }],
     }),
     listPullRequests: builder.query<PullRequestPage, ListPullRequestsInput>({
-      async queryFn(input) {
-        return queryResult(await listPullRequests(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => listPullRequests(input));
       },
       providesTags: (_result, _error, { repoPath }) => [{ type: "PullRequests", id: repoPath }],
     }),
@@ -124,16 +125,16 @@ export const hostedReposApi = createApi({
       PullRequestSummary | null,
       ResolveActivePullRequestForBranchInput
     >({
-      async queryFn(input) {
-        return queryResult(await resolveActivePullRequestForBranch(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => resolveActivePullRequestForBranch(input));
       },
       providesTags: (_result, _error, { repoPath, branch }) => [
         { type: "PullRequests", id: `${repoPath}:active:${branch}` },
       ],
     }),
     getPullRequestConversation: builder.query<PullRequestConversation, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestConversation(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestConversation(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestConversation", id: `${repoPath}:${String(pullRequestNumber)}` },
@@ -141,8 +142,8 @@ export const hostedReposApi = createApi({
     }),
     getPullRequestReviewOverview: builder.query<PullRequestReviewOverview, PullRequestLocatorInput>(
       {
-        async queryFn(input) {
-          return queryResult(await getPullRequestReviewOverview(input));
+        async queryFn(input, api) {
+          return runHostedRead(api, () => getPullRequestReviewOverview(input));
         },
         providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
           { type: "PullRequestReviewOverview", id: `${repoPath}:${pullRequestNumber}` },
@@ -186,16 +187,16 @@ export const hostedReposApi = createApi({
       ],
     }),
     getPullRequestActivity: builder.query<PullRequestActivity, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestActivity(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestActivity(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
     getPullRequestViewedFiles: builder.query<PullRequestViewedFiles, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestViewedFiles(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestViewedFiles(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestViewedFiles", id: `${repoPath}:${pullRequestNumber}` },
@@ -210,16 +211,16 @@ export const hostedReposApi = createApi({
       ],
     }),
     getPullRequestChecks: builder.query<PullRequestChecksResult, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestChecks(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestChecks(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestChecks", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
     getPullRequestExtras: builder.query<PullRequestExtras, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestExtras(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestExtras(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestExtras", id: `${repoPath}:${pullRequestNumber}` },
@@ -261,24 +262,24 @@ export const hostedReposApi = createApi({
       ],
     }),
     getPullRequestFiles: builder.query<PullRequestChangedFile[], PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestFiles(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestFiles(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestFiles", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
     getPullRequestPatch: builder.query<string, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await getPullRequestPatch(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => getPullRequestPatch(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestPatch", id: `${repoPath}:${String(pullRequestNumber)}` },
       ],
     }),
     preparePullRequestCompareRefs: builder.query<PullRequestCompareRefs, PullRequestLocatorInput>({
-      async queryFn(input) {
-        return queryResult(await preparePullRequestCompareRefs(input));
+      async queryFn(input, api) {
+        return runHostedRead(api, () => preparePullRequestCompareRefs(input));
       },
       providesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequestCompareRefs", id: `${repoPath}:${String(pullRequestNumber)}` },

@@ -1,3 +1,4 @@
+import { preparedFileAfterRemoval } from "./components/pierreFileTreeProjection";
 import type { FileTree as PierreFileTreeModel, FileTreePreparedInput } from "@pierre/trees";
 import {
   expandPierreFileTreeParents,
@@ -121,6 +122,42 @@ export function getPierreFileTreeVisiblePaths(regionId: string) {
 /** Resolves rendered identities back to source paths without re-sorting the provider data. */
 export function getPierreFileTreeVisibleFiles(regionId: string) {
   return (pierreTreeNavRegistry.get(regionId) ?? []).flatMap(collectVisibleFilesForEntry);
+}
+
+function selectedFileIdentity(file: SelectedFile) {
+  return `${file.bucket}\0${file.path}`;
+}
+
+export function getPierreFileAfterRemoval(
+  regionId: string,
+  active: SelectedFile,
+  removed: readonly SelectedFile[],
+) {
+  const files = getPierreFileTreeVisibleFiles(regionId);
+  const removedKeys = new Set(removed.map(selectedFileIdentity));
+  const current = files.find(
+    (file) => file.bucket === active.bucket && (file.realPath ?? file.path) === active.path,
+  );
+  if (!current || !removedKeys.has(selectedFileIdentity(active))) return null;
+  const remaining = new Set(
+    files
+      .filter(
+        (file) =>
+          file.bucket &&
+          (active.bucket === "staged" ? file.bucket === "staged" : file.bucket !== "staged") &&
+          !removedKeys.has(
+            selectedFileIdentity({ bucket: file.bucket, path: file.realPath ?? file.path }),
+          ),
+      )
+      .map((file) => file.path),
+  );
+  const path = preparedFileAfterRemoval(
+    files.map((file) => file.path),
+    current.path,
+    remaining,
+  );
+  const next = files.find((file) => file.path === path);
+  return next?.bucket ? { bucket: next.bucket, path: next.realPath ?? next.path } : null;
 }
 
 export function getNextUnviewedPierreFile(

@@ -10,3 +10,4 @@
 - For api reference github or bitbucket ./api-ref/
 - Pierre file lists use `FileList.selection` with a Redux selector, or `SelectedPierreFileTree`, to keep active-path subscriptions below file projection, grouping, lookup maps, and Git-status construction. Controlled selection is for local UI state.
 - Pierre keyboard navigation uses `movePierreFileTreeFileForKey` and the renderer's prepared projection. Do not derive another navigation order from provider arrays or mounted DOM rows. Preserve bucket/commit identity and the renderer's flattening and expansion rules.
+- For file-tree rendering, grouping, selection, mutation navigation, or performance work, read `.agents/skills/open-warden-file-trees/SKILL.md`. Native repository freshness belongs to the shared event owner; panes must not introduce their own watchers.

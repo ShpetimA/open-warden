@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ChevronDown,
   Copy,
@@ -32,12 +33,14 @@ const destructiveActions = new Set<LifecycleAction>(["close", "revert"]);
 
 /** One primary "Open" split button plus one overflow menu: every other action lives in it. */
 export function PullRequestHeaderActions({
+  refreshControl,
   lifecycleActions,
   opening,
   refreshing,
   onAction,
   onLifecycle,
 }: {
+  refreshControl?: ReactNode;
   lifecycleActions: LifecycleAction[];
   opening: "branch" | "worktree" | null;
   refreshing: boolean;
@@ -46,16 +49,18 @@ export function PullRequestHeaderActions({
 }) {
   return (
     <div className="flex shrink-0 items-center gap-1">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Refresh pull request"
-        title="Refresh"
-        disabled={refreshing}
-        onClick={() => onAction("refresh")}
-      >
-        <RefreshCw className={refreshing ? "animate-spin" : undefined} />
-      </Button>
+      {refreshControl ?? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Refresh pull request"
+          title="Refresh"
+          disabled={refreshing}
+          onClick={() => onAction("refresh")}
+        >
+          <RefreshCw className={refreshing ? "animate-spin" : undefined} />
+        </Button>
+      )}
       <div className="flex items-center">
         <Button
           size="sm"

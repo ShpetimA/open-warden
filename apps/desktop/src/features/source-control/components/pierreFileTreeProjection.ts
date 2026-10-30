@@ -76,3 +76,21 @@ export function createPreparedTreeProjection(
     },
   };
 }
+
+export function preparedFileAfterRemoval(
+  visiblePaths: readonly string[],
+  activePath: string,
+  remainingPaths: ReadonlySet<string>,
+) {
+  const index = visiblePaths.indexOf(activePath);
+  if (index < 0) return null;
+  for (let next = index + 1; next < visiblePaths.length; next += 1) {
+    const path = visiblePaths[next];
+    if (path && remainingPaths.has(path)) return path;
+  }
+  for (let previous = index - 1; previous >= 0; previous -= 1) {
+    const path = visiblePaths[previous];
+    if (path && remainingPaths.has(path)) return path;
+  }
+  return null;
+}

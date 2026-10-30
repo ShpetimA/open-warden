@@ -84,9 +84,6 @@ export default function PullRequestFileList({
     selectFromResult: ({ data }) => ({
       reviewThreads: data?.reviewThreads ?? EMPTY_REVIEW_THREADS,
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
   });
   const viewedCount = files.filter((file) => viewedPaths?.has(file.path)).length;
   const commentCountByPath: Record<string, number> = {};

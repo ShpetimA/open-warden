@@ -102,6 +102,11 @@ export async function watchAppSettings(options: {
     scheduleReload();
   });
 
+  watcher.on("error", (error) => {
+    watcher.close();
+    if (!disposed) options.onError?.(error);
+  });
+
   return () => {
     disposed = true;
     if (reloadTimer !== null) {

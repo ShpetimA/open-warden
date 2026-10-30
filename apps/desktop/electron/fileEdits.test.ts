@@ -8,6 +8,7 @@ import type { DiffEditExpectation } from "../src/platform/desktop/fileEdits";
 import { getFileVersions } from "./git";
 import { updateIndexFileContents, updateWorktreeFileContents } from "./fileEdits";
 import { runGitCommand } from "./gitOperations";
+import { repositoryWriteEvents } from "./repositoryChangeDefinitions";
 import { coordinateRepositoryWrite } from "./repositoryWrites";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -159,7 +160,7 @@ test("native commands and file edits share one operation guard, which is release
   const ready = new Promise<void>((resolve) => {
     started = resolve;
   });
-  const pending = coordinateRepositoryWrite(repo, "test-operation", async () => {
+  const pending = coordinateRepositoryWrite(repo, repositoryWriteEvents.stageFile, async () => {
     started();
     await new Promise<void>((resolve) => {
       release = resolve;
@@ -269,7 +270,7 @@ test("linked worktrees share the same native operation guard", async () => {
   const ready = new Promise<void>((resolve) => {
     started = resolve;
   });
-  const pending = coordinateRepositoryWrite(repo, "held-write", async () => {
+  const pending = coordinateRepositoryWrite(repo, repositoryWriteEvents.stageFile, async () => {
     started();
     await new Promise<void>((resolve) => {
       release = resolve;

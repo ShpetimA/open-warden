@@ -1071,6 +1071,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.addInitScript(
       ({ detail }) => {
         const bridge = window.desktopBridge!;
+        // oxlint-disable-next-line unicorn/consistent-function-scoping -- Serialized into the browser; cannot capture module helpers.
         const failure = (operation: string) => ({
           ok: false as const,
           error: {
@@ -1161,3 +1162,157 @@ for (const theme of ["light", "dark"] as const) {
     await expect(readNotice("Couldn’t refresh this pull request")).toHaveCount(0);
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`refreshes the current PR revision and retains the file tree after a failed refresh in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+    await page.addInitScript(
+      ({ detail }) => {
+        const bridge = window.desktopBridge!;
+        const state = { head: detail.headSha, fail: false, conversations: 0, refs: 0 };
+        Object.assign(window, { refreshReads: state });
+        bridge.getPullRequestConversation = async () => {
+          state.conversations += 1;
+          return state.fail
+            ? {
+                ok: false,
+                error: {
+                  operation: "getPullRequestConversation",
+                  code: "network",
+                  message: "The provider is offline.",
+                },
+              }
+            : {
+                ok: true,
+                value: {
+                  detail: { ...detail, headSha: state.head },
+                  issueComments: [],
+                  reviewThreads: [],
+                },
+              };
+        };
+        bridge.preparePullRequestCompareRefs = async () => {
+          state.refs += 1;
+          return {
+            ok: true,
+            value: {
+              providerId: "bitbucket",
+              owner: "team",
+              repo: "invoice",
+              pullRequestNumber: 114,
+              baseRef: "main",
+              headRef: "validation",
+              compareBaseRef: "base123",
+              compareHeadRef: state.head,
+              localBranch: "validation",
+            },
+          };
+        };
+      },
+      { detail },
+    );
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    const tree = page
+      .getByRole("complementary", { name: "Changed files", exact: true })
+      .getByRole("tree");
+    const selected = tree.locator('[aria-selected="true"]');
+    await expect(selected).toHaveAttribute("aria-label", /^invoice/);
+    const selectedLabel = await selected.getAttribute("aria-label");
+    await tree.evaluate((element) => element.setAttribute("data-retained-tree", "yes"));
+    const refresh = page.getByRole("button", { name: "Refresh pull request", exact: true });
+    await page.evaluate(() => {
+      (window as unknown as { refreshReads: { fail: boolean } }).refreshReads.fail = true;
+    });
+    await refresh.click();
+    const notice = page
+      .getByRole("status")
+      .filter({ hasText: "Couldn’t refresh this pull request" });
+    await expect(notice).toBeVisible();
+    await expect(tree).toHaveAttribute("data-retained-tree", "yes");
+    await expect(selected).toHaveAttribute("aria-label", selectedLabel!);
+    await expect(
+      page.getByText("export const revision = 'head123';", { exact: false }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`pr-refresh-${theme}.png`),
+      animations: "disabled",
+    });
+    await page.evaluate(() => {
+      const reads = (window as unknown as { refreshReads: { fail: boolean; head: string } })
+        .refreshReads;
+      reads.fail = false;
+      reads.head = "head456";
+    });
+    await notice.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(
+      page.getByText("export const revision = 'head456';", { exact: false }),
+    ).toBeVisible();
+    await expect(selected).toHaveAttribute("aria-label", selectedLabel!);
+    await expect(tree).toHaveAttribute("data-retained-tree", "yes");
+  });
+}
+
+test("refreshes the inbox and its selected description from the visible refresh action", async ({
+  page,
+}) => {
+  await configureInbox(page, "The initial description.");
+  await page.goto("/#/pull-requests");
+  const preview = page.getByRole("complementary", { name: "Pull request preview", exact: true });
+  await expect(preview.getByText("The initial description.")).toBeVisible();
+  await page.evaluate(
+    ({ detail }) => {
+      window.desktopBridge!.getPullRequestConversation = async () => ({
+        ok: true,
+        value: {
+          detail: { ...detail, body: "Updated remotely." },
+          issueComments: [],
+          reviewThreads: [],
+        },
+      });
+    },
+    { detail },
+  );
+  await page.getByRole("button", { name: "Refresh pull requests", exact: true }).click();
+  await expect(preview.getByText("Updated remotely.")).toBeVisible();
+});
+
+test("honors a cached provider rate limit before sending a manual refresh", async ({ page }) => {
+  await page.addInitScript(() => {
+    let requests = 0;
+    Object.assign(window, { rateLimitReads: () => requests });
+    window.desktopBridge!.getPullRequestConversation = async () => {
+      requests += 1;
+      return {
+        ok: false,
+        error: {
+          operation: "getPullRequestConversation",
+          code: "rate-limit",
+          message: "Wait for the provider.",
+          retryAt: Date.now() + 120000,
+        },
+      };
+    };
+  });
+  await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+  const refresh = page.getByRole("button", { name: "Refresh pull request", exact: true });
+  await expect(refresh).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { rateLimitReads: () => number }).rateLimitReads()),
+    )
+    .toBe(1);
+  await refresh.click();
+  await expect(refresh).toBeDisabled();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Wait for the provider." }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() =>
+      (window as unknown as { rateLimitReads: () => number }).rateLimitReads(),
+    ),
+  ).toBe(1);
+});

@@ -33,6 +33,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@m2d/react-markdown": "^1.0.0",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "@parcel/watcher": "2.6.0",
     "@pierre/diffs": "1.6.1",
     "@pierre/trees": "1.0.0-beta.3",
     "@reduxjs/toolkit": "^2.9.0",

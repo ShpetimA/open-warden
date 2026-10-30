@@ -1,3 +1,4 @@
+import { gitCommandWriteEvent } from "./repositoryChangeDefinitions";
 import { coordinateRepositoryWrite } from "./repositoryWrites";
 import { classifyDesktopFailure } from "./desktop-failure";
 import type { DesktopResult } from "../src/platform/desktop/failure";
@@ -390,32 +391,36 @@ export async function runGitCommand(
         message: "Invalid Git operation.",
       },
     };
-  const result = await coordinateRepositoryWrite(repo.data, "runGitCommand", async () => {
-    const outcome = await (async () => {
-      const operation = await readOperation(repo.data);
-      if (!operation.ok) return operation;
-      if (
-        command.data.kind === "continue" ||
-        command.data.kind === "abort" ||
-        command.data.kind === "skip"
-      ) {
-        if (operation.value !== command.data.operation)
-          return failure("The Git operation changed. Refresh before continuing.");
-      } else if (operation.value && command.data.kind !== "fetch") {
-        return failure("Finish or abort the current " + operation.value + " first.");
-      }
-      return await execute(repo.data, command.data);
-    })();
-    return outcome.ok
-      ? outcome
-      : {
-          ok: false,
-          error: {
-            ...classifyDesktopFailure(outcome.error, "runGitCommand"),
-            ...(outcome.error.code === "invalid-input" ? { message: outcome.error.message } : {}),
-          },
-        };
-  });
+  const result = await coordinateRepositoryWrite(
+    repo.data,
+    gitCommandWriteEvent(command.data.kind),
+    async () => {
+      const outcome = await (async () => {
+        const operation = await readOperation(repo.data);
+        if (!operation.ok) return operation;
+        if (
+          command.data.kind === "continue" ||
+          command.data.kind === "abort" ||
+          command.data.kind === "skip"
+        ) {
+          if (operation.value !== command.data.operation)
+            return failure("The Git operation changed. Refresh before continuing.");
+        } else if (operation.value && command.data.kind !== "fetch") {
+          return failure("Finish or abort the current " + operation.value + " first.");
+        }
+        return await execute(repo.data, command.data);
+      })();
+      return outcome.ok
+        ? outcome
+        : {
+            ok: false,
+            error: {
+              ...classifyDesktopFailure(outcome.error, "runGitCommand"),
+              ...(outcome.error.code === "invalid-input" ? { message: outcome.error.message } : {}),
+            },
+          };
+    },
+  );
   return result;
 }
 

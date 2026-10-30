@@ -1,3 +1,4 @@
+import { RepositoryEvents } from "./repositoryEvents";
 import { randomUUID } from "node:crypto";
 import { flushAtomicJsonWrites } from "./atomicJsonStore";
 import { captureDesktopOperation } from "../src/platform/desktop/failure";
@@ -14,6 +15,7 @@ import {
 } from "./guidance/runtime";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
+  REPOSITORY_CHANGED_CHANNEL,
   WORKSPACE_FLUSH_REQUEST_CHANNEL,
   WORKSPACE_FLUSH_REPLY_CHANNEL,
   GUIDANCE_NAVIGATE_CHANNEL,
@@ -53,7 +55,13 @@ if (!gotSingleInstanceLock) {
   app.quit();
 }
 
+const repositoryEvents = new RepositoryEvents((event) => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed())
+    mainWindow.webContents.send(REPOSITORY_CHANGED_CHANNEL, event);
+});
+
 configureDesktopApi({
+  setRepositorySubscriptions: (paths) => repositoryEvents.setSubscriptions(paths),
   onDiagnostics(event) {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
@@ -143,7 +151,11 @@ function createMainWindow() {
     }
   });
 
+  window.webContents.on("render-process-gone", () => {
+    void repositoryEvents.setSubscriptions([]);
+  });
   window.on("closed", () => {
+    void repositoryEvents.setSubscriptions([]);
     if (mainWindow === window) {
       mainWindow = null;
     }
@@ -249,9 +261,13 @@ app.whenReady().then(() => {
     onError(error) {
       console.error("Failed to reload app settings", error);
     },
-  }).then((dispose) => {
-    disposeAppSettingsWatcher = dispose;
-  });
+  })
+    .then((dispose) => {
+      disposeAppSettingsWatcher = dispose;
+    })
+    .catch((error) => {
+      console.error("Failed to watch app settings", error);
+    });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -279,6 +295,7 @@ app.on("before-quit", (event) => {
       }
       await flushAtomicJsonWrites();
       closeApproved = true;
+      await repositoryEvents.dispose();
       updateManager.dispose();
       disposeAppSettingsWatcher?.();
       disposeAppSettingsWatcher = null;

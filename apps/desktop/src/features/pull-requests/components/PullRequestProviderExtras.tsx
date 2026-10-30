@@ -35,7 +35,6 @@ export function PullRequestProviderExtras({
   const dispatch = useAppDispatch();
   const input = { repoPath, pullRequestNumber: detail.number };
   const { data, error, isLoading, isFetching, refetch } = useGetPullRequestExtrasQuery(input, {
-    refetchOnFocus: true,
     selectFromResult: ({ currentData, error, isLoading, isFetching }) => ({
       data: currentData,
       error,

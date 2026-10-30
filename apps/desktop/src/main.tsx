@@ -1,3 +1,5 @@
+import { PullRequestRefreshProvider } from "./features/pull-requests/refresh/PullRequestRefreshProvider";
+import { RepositoryFreshnessBootstrap } from "./features/source-control/RepositoryFreshnessBootstrap";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
 import { PacerProvider } from "@tanstack/react-pacer";
@@ -29,7 +31,10 @@ createRoot(document.getElementById("root")!).render(
       <DiffWorkerPoolProvider>
         <AppSettingsBootstrap>
           <WorkspaceSessionBootstrap>
-            <App />
+            <RepositoryFreshnessBootstrap />
+            <PullRequestRefreshProvider>
+              <App />
+            </PullRequestRefreshProvider>
           </WorkspaceSessionBootstrap>
         </AppSettingsBootstrap>
       </DiffWorkerPoolProvider>

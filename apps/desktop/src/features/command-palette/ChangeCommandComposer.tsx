@@ -1,3 +1,4 @@
+import { hasRepositoryEventBridge } from "@/features/source-control/repositoryFreshness";
 import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import { ActionError } from "@/components/ui/error-state";
 import { useEffect, useRef, useState } from "react";
@@ -77,7 +78,7 @@ export function ChangeCommandComposer({
   const existingMessage = useAppSelector((state) => state.sourceControl.commitMessage);
   const { repository } = useGetGitRepositoryStateQuery(repoPath, {
     skip: !repoPath,
-    pollingInterval: 15000,
+    pollingInterval: hasRepositoryEventBridge() ? 0 : 15000,
     refetchOnFocus: true,
     selectFromResult: ({ currentData }) => ({ repository: currentData }),
   });

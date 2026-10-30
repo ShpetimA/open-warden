@@ -70,8 +70,6 @@ export function usePullRequestOverviewView(
     selectFromResult: ({ data }) => ({ reviewers: data?.reviewers }),
   });
   const { checks } = useGetPullRequestChecksQuery(locator, {
-    pollingInterval: 60_000,
-    refetchOnFocus: true,
     selectFromResult: ({ data }) => ({ checks: data }),
   });
 
