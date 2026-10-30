@@ -852,3 +852,139 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`retains history files and diffs after failed refresh in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1280 : 1600, height: 900 });
+    await page.addInitScript(() => {
+      const bridge = window.desktopBridge!;
+      const files = bridge.getCommitFiles;
+      const versions = bridge.getCommitFileVersions;
+      let fileReads = 0;
+      let diffReads = 0;
+      bridge.getCommitFiles = async (...args) =>
+        ++fileReads === 2
+          ? {
+              ok: false,
+              error: {
+                code: "permission",
+                operation: "getCommitFiles",
+                message: "Commit files could not be refreshed.",
+              },
+            }
+          : files(...args);
+      bridge.getCommitFileVersions = async (...args) =>
+        ++diffReads === 2
+          ? {
+              ok: false,
+              error: {
+                code: "permission",
+                operation: "getCommitFileVersions",
+                message: "Commit contents could not be refreshed.",
+              },
+            }
+          : versions(...args);
+    });
+    await page.goto("/#/history");
+    const tree = page.locator("file-tree-container").last();
+    await expect(
+      page.getByText("export const revision = 'newest123';", { exact: true }),
+    ).toBeVisible();
+    await tree.evaluate((element) => {
+      element.dataset.retained = "yes";
+    });
+    await page.getByRole("button", { name: "Refresh repository status", exact: true }).click();
+    const filesNotice = page
+      .getByRole("status")
+      .filter({ hasText: "Commit files could not be refreshed." });
+    const diffNotice = page.getByRole("status").filter({ hasText: "Couldn’t refresh this diff" });
+    await expect(filesNotice).toBeVisible();
+    await expect(diffNotice).toBeVisible();
+    await expect(tree).toHaveAttribute("data-retained", "yes");
+    await expect(
+      page.getByText("export const revision = 'newest123';", { exact: true }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`history-retained-error-${theme}.png`),
+      animations: "disabled",
+    });
+    await filesNotice.getByRole("button", { name: "Retry", exact: true }).click();
+    await diffNotice.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(filesNotice).toHaveCount(0);
+    await expect(diffNotice).toHaveCount(0);
+    await expect(tree).toHaveAttribute("data-retained", "yes");
+  });
+}
+
+test("an unreadable selected commit stays selected and never shows the previous commit's diff", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const bridge = window.desktopBridge!;
+    const original = bridge.getCommitFileVersions;
+    let failed = false;
+    bridge.getCommitFileVersions = async (...args) => {
+      if (args[1] === "middle123" && !failed) {
+        failed = true;
+        return {
+          ok: false,
+          error: {
+            code: "not-found",
+            operation: "getCommitFileVersions",
+            message: "This commit content could not be read. Retry to read it again.",
+          },
+        };
+      }
+      return original(...args);
+    };
+  });
+  await page.goto("/#/history");
+  await expect(
+    page.getByText("export const revision = 'newest123';", { exact: true }),
+  ).toBeVisible();
+  const middle = page.getByRole("button", { name: /Store signup steps in the database/ });
+  await middle.click();
+  await expect(page.getByRole("alert")).toContainText("Couldn’t load this commit’s diff");
+  await expect(middle).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("export const revision = 'newest123';", { exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(
+    page.getByText("export const revision = 'middle123';", { exact: true }),
+  ).toBeVisible();
+});
+
+test("a combined-files read failure offers retry instead of saying there are no changes", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const bridge = window.desktopBridge!;
+    const original = bridge.getBranchFiles;
+    let failed = false;
+    bridge.getBranchFiles = async (...args) => {
+      if (!failed) {
+        failed = true;
+        return {
+          ok: false,
+          error: {
+            code: "permission",
+            operation: "getBranchFiles",
+            message: "Combined changes could not be read.",
+          },
+        };
+      }
+      return original(...args);
+    };
+  });
+  await page.goto("/#/history");
+  await page.getByRole("checkbox", { name: /Include Update invoice state URLs/ }).check();
+  await page.getByRole("checkbox", { name: /Include Store signup steps/ }).check();
+  await expect(page.getByRole("alert")).toContainText("Couldn’t load combined files");
+  await expect(page.getByText("No combined changes between these commits.")).toHaveCount(0);
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByRole("treeitem", { name: "combined.ts", exact: true })).toBeVisible();
+});

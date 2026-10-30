@@ -186,6 +186,7 @@ export function ReviewScreen() {
   const {
     branchList,
     loadingBranches,
+    fetchingBranches,
     branchesError,
     refetch: retryBranches,
   } = useGetBranchesQuery(activeRepo, {
@@ -193,7 +194,8 @@ export function ReviewScreen() {
     selectFromResult: ({ currentData, isFetching, error }) => ({
       branchList: currentData ?? EMPTY_BRANCHES,
       loadingBranches: isFetching && !currentData,
-      branchesError: currentData ? "" : errorMessageFrom(error, ""),
+      branchesError: error,
+      fetchingBranches: isFetching,
     }),
   });
   const baseRevision = useGetCommitDetailsQuery(
@@ -233,8 +235,8 @@ export function ReviewScreen() {
       selectFromResult: ({ currentData, isFetching, error }) => ({
         branchFiles: currentData ?? EMPTY_BRANCH_FILES,
         hasBranchFilesData: Boolean(currentData),
-        loadingBranchFiles: isFetching && !currentData,
-        branchFilesError: currentData ? "" : errorMessageFrom(error, ""),
+        loadingBranchFiles: isFetching,
+        branchFilesError: error,
       }),
     },
   );
@@ -343,13 +345,14 @@ export function ReviewScreen() {
               title="BRANCH REVIEW"
               subtitle={undefined}
               branchFiles={branchFiles}
+              hasData={hasBranchFilesData}
               isLoading={
-                loadingBranches ||
+                fetchingBranches ||
                 loadingBranchFiles ||
                 baseRevision.isFetching ||
                 headRevision.isFetching
               }
-              error={branchesError || branchFilesError || errorMessageFrom(revisionError, "")}
+              error={branchesError || branchFilesError || revisionError}
               onRetry={() => {
                 if (revisionError) {
                   void baseRevision.refetch();

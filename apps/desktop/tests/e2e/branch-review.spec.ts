@@ -191,3 +191,57 @@ for (const theme of ["light", "dark"] as const) {
     );
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`retains the branch tree through refresh errors and recovers initial failures in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1280 : 1600, height: 900 });
+    await page.addInitScript(() => {
+      const bridge = window.desktopBridge!;
+      const original = bridge.getBranchFiles;
+      let reads = 0;
+      bridge.getBranchFiles = async (...args) => {
+        reads += 1;
+        if (reads === 1 || reads === 3)
+          return {
+            ok: false,
+            error: {
+              code: "permission",
+              operation: "getBranchFiles",
+              message: "These compared files could not be read. Retry this read.",
+            },
+          };
+        return original(...args);
+      };
+    });
+    await page.goto("/#/review");
+    await expect(page.getByRole("alert")).toContainText("Couldn’t load compared files");
+    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    const tree = page.locator("file-tree-container");
+    await expect(tree).toBeVisible();
+    await tree.evaluate((element) => {
+      element.dataset.retained = "yes";
+    });
+    await page.evaluate(async () => {
+      const urls = performance.getEntriesByType("resource").map((entry) => entry.name);
+      const storeUrl = urls.find((url) => url.includes("/src/app/store.ts"));
+      const apiUrl = urls.find((url) => url.includes("/features/source-control/api.ts"));
+      if (!storeUrl || !apiUrl) throw new Error("Missing public repository query modules");
+      const { store } = await import(storeUrl);
+      const { gitApi } = await import(apiUrl);
+      store.dispatch(gitApi.util.invalidateTags(["BranchFiles"]));
+    });
+    const notice = page.getByRole("status").filter({ hasText: "Couldn’t refresh" });
+    await expect(notice).toBeVisible();
+    await expect(tree).toHaveAttribute("data-retained", "yes");
+    await page.screenshot({
+      path: testInfo.outputPath(`branch-retained-error-${theme}.png`),
+      animations: "disabled",
+    });
+    await notice.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(notice).toHaveCount(0);
+    await expect(tree).toHaveAttribute("data-retained", "yes");
+  });
+}

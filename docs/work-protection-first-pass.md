@@ -86,3 +86,28 @@ No authenticated provider writes or live account fault injection were used for t
 The broader browser run exposed an intermittent folder-navigation focus failure. Its
 assertion was retained; it also passed on a focused rerun. It needs its own navigation
 investigation if reproduced again.
+
+## Follow-up: closed drafts and retained reads
+
+The first pass was committed as `8162249`. The next slice keeps draft-bearing closed
+workspace views in the same session document. Existing repository and PR workspace IDs
+continue to scope the drafts. Empty closed views are omitted; closing a project no
+longer excludes its pending message from the next save. No second draft store or data
+format migration is introduced.
+
+Commit, amend, and undo completion replace a draft only in their originating workspace
+and only when its text still matches the message at the start of the operation. A newer
+draft or another active project's message is left intact.
+
+History single-commit and combined file lists now use the same retained-read surface as
+the other file trees. Branch review forwards structured failures instead of hiding
+them when cached results exist. Refresh failures keep the mounted tree and offer Retry;
+initial failures show recovery rather than an empty-success message. History diff reads
+use only data for their current query arguments, and comment context follows the revision
+actually displayed. A read failure does not silently select a different commit.
+
+Verification includes reducer/serialization round trips, a real Electron close-project /
+restart / reopen flow, asynchronous commit UI tests, and light/dark browser recovery
+tests that assert the tree instance is retained. Unsaved editor buffers, unsubmitted
+comment text, complete check pagination, provider request coordination, and the previously
+observed folder-focus issue remain outside this slice.

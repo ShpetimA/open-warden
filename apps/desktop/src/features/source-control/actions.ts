@@ -16,6 +16,7 @@ import {
 import { restoreComments } from "@/features/comments/commentsSlice";
 import {
   repoWorkspaceUpserted,
+  workspaceCommitDraftReplaced,
   workspacesHydrated,
   projectRemoved,
   workspaceSessionRestored,
@@ -788,6 +789,7 @@ export const discardChangesGroupAction =
 
 export const commitAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo, commitMessage } = getState().sourceControl;
+  const workspaceId = getState().workspaces.activeWorkspaceId;
   if (!activeRepo) return false;
   const trimmed = commitMessage.trim();
   if (!trimmed) return false;
@@ -798,8 +800,12 @@ export const commitAction = (): AppThunk<Promise<boolean>> => async (dispatch, g
         gitApi.endpoints.commitStaged.initiate({ repoPath: activeRepo, message: trimmed }),
       );
       const commitId = await result.unwrap();
-      innerDispatch(setLastCommitId(commitId));
-      innerDispatch(setCommitMessage(""));
+      if (getState().workspaces.activeWorkspaceId === workspaceId) {
+        innerDispatch(setLastCommitId(commitId));
+      }
+      innerDispatch(
+        workspaceCommitDraftReplaced({ workspaceId, expectedMessage: commitMessage, message: "" }),
+      );
     }),
   );
 };

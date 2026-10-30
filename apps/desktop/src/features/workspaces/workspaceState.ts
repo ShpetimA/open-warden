@@ -1,8 +1,15 @@
 import type { UnknownAction } from "@reduxjs/toolkit";
-import { sourceControlReducer } from "@/features/source-control/sourceControlSlice";
+import {
+  sourceControlReducer,
+  setCommitMessage,
+} from "@/features/source-control/sourceControlSlice";
 import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice";
 import type { PersistedWorkspaceTabs } from "@/platform/desktop/workspaceTabs";
-import { workspaceSessionRestored, workspacesReducer } from "./workspacesSlice";
+import {
+  workspaceCommitDraftReplaced,
+  workspaceSessionRestored,
+  workspacesReducer,
+} from "./workspacesSlice";
 
 type SourceState = ReturnType<typeof sourceControlReducer>;
 type ReviewState = ReturnType<typeof pullRequestsReducer>;
@@ -89,11 +96,30 @@ export function reduceWorkspaceState(
   } else if (!workspace && previousId !== nextId) {
     sourceControl = { ...sourceControl, activeRepo: "" };
   }
+
+  if (workspaceCommitDraftReplaced.match(action)) {
+    const { workspaceId, expectedMessage, message } = action.payload;
+    if (nextId === workspaceId && sourceControl.commitMessage === expectedMessage) {
+      sourceControl = sourceControlReducer(sourceControl, setCommitMessage(message));
+    }
+    const savedView = workspaceViews[workspaceId];
+    if (savedView?.source.commitMessage === expectedMessage) {
+      workspaceViews = {
+        ...workspaceViews,
+        [workspaceId]: {
+          ...savedView,
+          source: { ...savedView.source, commitMessage: message },
+        },
+      };
+    }
+  }
+
   return { sourceControl, pullRequests, workspaces, workspaceViews };
 }
 
 export function serializeWorkspaceTabs(state: WorkspaceState): PersistedWorkspaceTabs {
   const views = { ...state.workspaceViews };
+  const openWorkspaceIds = new Set(state.workspaces.items.map((item) => item.id));
   if (state.workspaces.activeWorkspaceId)
     views[state.workspaces.activeWorkspaceId] = capture(state.sourceControl, state.pullRequests);
   return {
@@ -103,42 +129,39 @@ export function serializeWorkspaceTabs(state: WorkspaceState): PersistedWorkspac
     activeWorkspaceId: state.workspaces.activeWorkspaceId,
     locations: state.workspaces.locations,
     views: Object.fromEntries(
-      state.workspaces.items.flatMap((item) => {
-        const view = views[item.id];
-        if (!view) return [];
-        const {
-          activePath,
-          activeBucket,
-          repoTreeActivePath,
-          commitMessage,
-          historyCommitId,
-          historyFilter,
-          historySelectedCommitIds,
-          historyNavTarget,
-          reviewBaseRef,
-          reviewHeadRef,
-          reviewActivePath,
-        } = view.source;
-        return [
-          [
-            item.id,
-            {
-              activePath,
-              activeBucket,
-              repoTreeActivePath,
-              commitMessage,
-              historyCommitId,
-              historyFilter,
-              historySelectedCommitIds,
-              historyNavTarget,
-              reviewBaseRef,
-              reviewHeadRef,
-              reviewActivePath,
-              previewActiveFilePath: view.review.previewActiveFilePath,
-            },
-          ],
-        ];
-      }),
+      Object.entries(views)
+        .filter(([id, view]) => openWorkspaceIds.has(id) || view.source.commitMessage !== "")
+        .map(([id, view]) => [id, serializeView(view)]),
     ),
+  };
+}
+
+function serializeView(view: WorkspaceView): PersistedWorkspaceTabs["views"][string] {
+  const {
+    activePath,
+    activeBucket,
+    repoTreeActivePath,
+    commitMessage,
+    historyCommitId,
+    historyFilter,
+    historySelectedCommitIds,
+    historyNavTarget,
+    reviewBaseRef,
+    reviewHeadRef,
+    reviewActivePath,
+  } = view.source;
+  return {
+    activePath,
+    activeBucket,
+    repoTreeActivePath,
+    commitMessage,
+    historyCommitId,
+    historyFilter,
+    historySelectedCommitIds,
+    historyNavTarget,
+    reviewBaseRef,
+    reviewHeadRef,
+    reviewActivePath,
+    previewActiveFilePath: view.review.previewActiveFilePath,
   };
 }

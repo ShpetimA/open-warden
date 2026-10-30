@@ -1,6 +1,6 @@
 import { _electron as electron, expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -9,11 +9,12 @@ test("native close flushes pending comments and commit messages, and damaged sto
 }, testInfo) => {
   test.setTimeout(120000);
   const directory = await mkdtemp(path.join(os.tmpdir(), "warden-native-drafts-"));
-  const repo = path.join(directory, "repository");
+  const repositoryPath = path.join(directory, "repository");
   const userData = path.join(directory, "profile");
   const { mkdir } = await import("node:fs/promises");
-  await mkdir(repo);
+  await mkdir(repositoryPath);
   await mkdir(userData);
+  const repo = await realpath(repositoryPath);
   const git = (args: string[]) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
   git(["init", "-q"]);
   git(["config", "user.name", "Test"]);
@@ -98,13 +99,24 @@ test("native close flushes pending comments and commit messages, and damaged sto
       return store.getState().comments;
     }, storeUrl);
     expect(hydrated).toMatchObject([{ text: "Pending native review", headRef: head }]);
+    await page.getByRole("button", { name: "Close repository", exact: true }).click();
+    await expect(page.getByRole("textbox", { name: "Commit message", exact: true })).toHaveCount(0);
+    const closedDraft = await page.evaluate(
+      async ({ url, repoPath }) => {
+        const { store } = await import(url);
+        return store.getState().workspaceViews[repoPath]?.source.commitMessage;
+      },
+      { url: storeUrl, repoPath: repo },
+    );
+    expect(closedDraft).toBe("Pending native commit 19");
     await app.close();
     app = undefined;
     const saved = JSON.parse(await readFile(sessionFile, "utf8"));
     expect(saved.comments).toMatchObject([
       { text: "Pending native review", repoPath: repo, headRef: head },
     ]);
-    expect(JSON.stringify(saved.workspaceTabs.views)).toContain("Pending native commit 19");
+    expect(saved.workspaceTabs.items).toEqual([]);
+    expect(saved.workspaceTabs.views[repo].commitMessage).toBe("Pending native commit 19");
 
     const savedText = await readFile(sessionFile, "utf8");
     await writeFile(sessionFile, "damaged before startup");
@@ -117,6 +129,20 @@ test("native close flushes pending comments and commit messages, and damaged sto
     await expect(page.getByRole("textbox", { name: "Commit message", exact: true })).toHaveCount(0);
     await writeFile(sessionFile, savedText);
     await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "New project tab (⌘T)", exact: true }),
+    ).toBeVisible();
+    await page.evaluate(async (repoPath) => {
+      const url = performance
+        .getEntriesByType("resource")
+        .map((entry) => entry.name)
+        .find((url) => url.includes("/src/app/store.ts"));
+      if (!url) throw new Error("Missing renderer store module");
+      const { store } = await import(url);
+      store.dispatch({ type: "workspaces/repoWorkspaceUpserted", payload: { repoPath } });
+      location.hash = "/changes";
+    }, repo);
     await expect(page.getByRole("textbox", { name: "Commit message", exact: true })).toHaveValue(
       "Pending native commit 19",
     );

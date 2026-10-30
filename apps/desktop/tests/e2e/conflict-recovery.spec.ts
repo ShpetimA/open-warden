@@ -285,3 +285,83 @@ for (const scenario of [
     });
   });
 }
+
+for (const changedDuringCommit of [false, true]) {
+  test(`a completed commit ${changedDuringCommit ? "keeps a newer draft" : "clears its submitted draft"}`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const bridge = window.desktopBridge!;
+      bridge.getGitSnapshot = async () => ({
+        ok: true,
+        value: {
+          repoRoot: "/projects/conflict",
+          branch: "main",
+          staged: [{ path: "file.txt", previousPath: null, status: "modified" }],
+          unstaged: [],
+          untracked: [],
+        },
+      });
+      bridge.commitStaged = async () =>
+        new Promise((resolve) => {
+          document.addEventListener(
+            "finish-test-commit",
+            () => resolve({ ok: true, value: "completed-commit-id" }),
+            { once: true },
+          );
+        });
+    });
+    await page.goto("/#/changes");
+    const input = page.getByRole("textbox", { name: "Commit message", exact: true });
+    await input.fill("Submitted message");
+    await page.getByRole("button", { name: "Commit ⌘↵", exact: true }).click();
+    await expect(page.getByRole("button", { name: /Working…/ })).toBeVisible();
+    if (changedDuringCommit) await input.fill("New draft typed while committing");
+    await page.evaluate(() => document.dispatchEvent(new Event("finish-test-commit")));
+    await expect(input).toHaveValue(changedDuringCommit ? "New draft typed while committing" : "");
+    await expect(page.getByRole("button", { name: /Working…/ })).toHaveCount(0);
+  });
+}
+
+test("a commit completed after closing its workspace consumes the saved draft immediately", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const bridge = window.desktopBridge!;
+    bridge.getGitSnapshot = async () => ({
+      ok: true,
+      value: {
+        repoRoot: "/projects/conflict",
+        branch: "main",
+        staged: [{ path: "file.txt", previousPath: null, status: "modified" }],
+        unstaged: [],
+        untracked: [],
+      },
+    });
+    bridge.commitStaged = async () =>
+      new Promise((resolve) => {
+        document.addEventListener(
+          "finish-test-commit",
+          () => resolve({ ok: true, value: "completed-commit-id" }),
+          { once: true },
+        );
+      });
+  });
+  await page.goto("/#/changes");
+  await page
+    .getByRole("textbox", { name: "Commit message", exact: true })
+    .fill("Submitted message");
+  await page.getByRole("button", { name: "Commit ⌘↵", exact: true }).click();
+  await expect(page.getByRole("button", { name: /Working…/ })).toBeVisible();
+  await page.getByRole("button", { name: "Close conflict", exact: true }).click();
+  const savedDraft = () =>
+    page.evaluate(() => {
+      const raw = localStorage.getItem("test-session");
+      return raw
+        ? (JSON.parse(raw).workspaceTabs.views["/projects/conflict"]?.commitMessage ?? "")
+        : "";
+    });
+  await expect.poll(savedDraft).toBe("Submitted message");
+  await page.evaluate(() => document.dispatchEvent(new Event("finish-test-commit")));
+  await expect.poll(savedDraft).toBe("");
+});

@@ -6,6 +6,7 @@ import {
   workspaceActivated,
   workspaceRemoved,
   workspaceSessionRestored,
+  workspaceCommitDraftReplaced,
 } from "./workspacesSlice";
 import { setActivePath, setCommitMessage } from "@/features/source-control/sourceControlSlice";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
@@ -82,4 +83,86 @@ it("never clears the repository while switching between a project and its PR", (
     }),
   );
   expect(state.sourceControl.activeRepo).toBe("/b");
+});
+
+it("keeps a closed project's commit draft through serialization and reopening after restart", () => {
+  let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/a" }));
+  state = reduceWorkspaceState(state, setCommitMessage("Closed project draft"));
+  state = reduceWorkspaceState(state, workspaceRemoved({ id: "/a" }));
+  const saved = serializeWorkspaceTabs(state);
+  expect(saved.items).toEqual([]);
+  expect(saved.views["/a"].commitMessage).toBe("Closed project draft");
+  const restored = reduceWorkspaceState(undefined, workspaceSessionRestored(saved));
+  const reopened = reduceWorkspaceState(restored, repoWorkspaceUpserted({ repoPath: "/a" }));
+  expect(reopened.sourceControl.commitMessage).toBe("Closed project draft");
+});
+
+it("retains separate closed repo and review drafts without restoring unrelated closed views", () => {
+  let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/b" }));
+  state = reduceWorkspaceState(state, setCommitMessage("Repository draft"));
+  state = reduceWorkspaceState(state, pullRequestWorkspaceUpserted(pr));
+  const reviewId = state.workspaces.activeWorkspaceId;
+  state = reduceWorkspaceState(state, setCommitMessage("Review workspace draft"));
+  state = reduceWorkspaceState(state, repoWorkspaceUpserted({ repoPath: "/empty" }));
+  state = reduceWorkspaceState(state, workspaceRemoved({ id: "/empty" }));
+  state = reduceWorkspaceState(state, workspaceRemoved({ id: "/b" }));
+  const saved = serializeWorkspaceTabs(state);
+  expect(saved.views["/empty"]).toBeUndefined();
+  let restored = reduceWorkspaceState(undefined, workspaceSessionRestored(saved));
+  restored = reduceWorkspaceState(restored, repoWorkspaceUpserted({ repoPath: "/b" }));
+  expect(restored.sourceControl.commitMessage).toBe("Repository draft");
+  restored = reduceWorkspaceState(restored, pullRequestWorkspaceUpserted(pr));
+  expect(restored.workspaces.activeWorkspaceId).toBe(reviewId);
+  expect(restored.sourceControl.commitMessage).toBe("Review workspace draft");
+  restored = reduceWorkspaceState(restored, setCommitMessage(""));
+  restored = reduceWorkspaceState(restored, workspaceRemoved({ id: reviewId }));
+  expect(serializeWorkspaceTabs(restored).views[reviewId]).toBeUndefined();
+});
+
+it("a completed commit consumes only the original draft in its owning workspace", () => {
+  let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/a" }));
+  state = reduceWorkspaceState(state, setCommitMessage("Submitted message"));
+  state = reduceWorkspaceState(state, repoWorkspaceUpserted({ repoPath: "/b" }));
+  state = reduceWorkspaceState(state, setCommitMessage("Other repository draft"));
+  state = reduceWorkspaceState(state, workspaceRemoved({ id: "/a" }));
+  state = reduceWorkspaceState(
+    state,
+    workspaceCommitDraftReplaced({
+      workspaceId: "/a",
+      expectedMessage: "Submitted message",
+      message: "",
+    }),
+  );
+  expect(state.sourceControl.commitMessage).toBe("Other repository draft");
+  expect(serializeWorkspaceTabs(state).views["/a"]).toBeUndefined();
+  state = reduceWorkspaceState(state, repoWorkspaceUpserted({ repoPath: "/a" }));
+  expect(state.sourceControl.commitMessage).toBe("");
+});
+
+it("a newer draft survives asynchronous commit, amend, or undo completion", () => {
+  let state = reduceWorkspaceState(undefined, repoWorkspaceUpserted({ repoPath: "/a" }));
+  state = reduceWorkspaceState(state, setCommitMessage("Submitted message"));
+  state = reduceWorkspaceState(state, setCommitMessage("New work in progress"));
+  for (const message of ["", "Message from undone commit"]) {
+    state = reduceWorkspaceState(
+      state,
+      workspaceCommitDraftReplaced({
+        workspaceId: "/a",
+        expectedMessage: "Submitted message",
+        message,
+      }),
+    );
+    expect(state.sourceControl.commitMessage).toBe("New work in progress");
+  }
+  state = reduceWorkspaceState(state, repoWorkspaceUpserted({ repoPath: "/b" }));
+  state = reduceWorkspaceState(
+    state,
+    workspaceCommitDraftReplaced({
+      workspaceId: "/a",
+      expectedMessage: "Submitted message",
+      message: "",
+    }),
+  );
+  state = reduceWorkspaceState(state, repoWorkspaceUpserted({ repoPath: "/a" }));
+  expect(state.sourceControl.commitMessage).toBe("New work in progress");
 });

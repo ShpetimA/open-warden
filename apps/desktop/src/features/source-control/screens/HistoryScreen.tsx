@@ -1,4 +1,4 @@
-import { ErrorState } from "@/components/ui/error-state";
+import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useLayoutEffect } from "react";
 import { useLocation } from "react-router";
@@ -22,7 +22,6 @@ import { useHistoryKeyboardNav } from "@/features/source-control/hooks/useHistor
 import { useHistorySync } from "@/features/source-control/hooks/useHistorySync";
 import { selectHistoryPullRequestCommit } from "@/features/source-control/actions";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 
 export function HistoryScreen() {
   useHistoryKeyboardNav();
@@ -63,16 +62,16 @@ function HistoryDiffPane() {
   );
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
-  const { data: historyCommits = [] } = useGetCommitHistoryQuery(
+  const { currentData: historyCommits = [] } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
   );
   const comparison = getHistoryComparison(historyCommits, historySelectedCommitIds);
-  const { data: historyFiles = [] } = useGetCommitFilesQuery(
+  const { currentData: historyFiles = [] } = useGetCommitFilesQuery(
     activeRepo && historyCommitId && !comparison
       ? { repoPath: activeRepo, commitId: historyCommitId }
       : skipToken,
   );
-  const { data: combinedFiles = [] } = useGetBranchFilesQuery(
+  const { currentData: combinedFiles = [] } = useGetBranchFilesQuery(
     activeRepo && comparison
       ? { repoPath: activeRepo, baseRef: comparison.baseRef, headRef: comparison.headRef }
       : skipToken,
@@ -86,8 +85,9 @@ function HistoryDiffPane() {
     path: activePath,
     previousPath: selectedHistoryFile?.previousPath ?? "",
   });
+  const rangePreview = Boolean(previewSelection.baseRef && previewSelection.headRef);
   const historyFileVersions = useGetCommitFileVersionsQuery(
-    activeRepo && !comparison && previewSelection.commitId && previewSelection.path
+    activeRepo && !rangePreview && previewSelection.commitId && previewSelection.path
       ? {
           repoPath: activeRepo,
           commitId: previewSelection.commitId,
@@ -98,7 +98,7 @@ function HistoryDiffPane() {
   );
   const combinedFileVersions = useGetBranchFileVersionsQuery(
     activeRepo &&
-      comparison &&
+      rangePreview &&
       previewSelection.baseRef &&
       previewSelection.headRef &&
       previewSelection.path
@@ -111,16 +111,12 @@ function HistoryDiffPane() {
         }
       : skipToken,
   );
-  const fileVersions = comparison
-    ? (combinedFileVersions.currentData ?? combinedFileVersions.data)
-    : (historyFileVersions.currentData ?? historyFileVersions.data);
-  const loadingPatch = comparison
-    ? !fileVersions && combinedFileVersions.isFetching
-    : !fileVersions && historyFileVersions.isFetching;
+  const query = rangePreview ? combinedFileVersions : historyFileVersions;
+  const fileVersions = query.currentData;
+  const loadingPatch = !fileVersions && query.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
-  const activeFileError = comparison ? combinedFileVersions.error : historyFileVersions.error;
-  const errorMessage = fileVersions ? "" : errorMessageFrom(activeFileError, "");
+  const initialReadFailed = !fileVersions && Boolean(query.error);
   const previewPath = previewSelection.path;
   const lspText = !loadingPatch && newFile ? newFile.contents : null;
   const lspHoverDocument =
@@ -147,17 +143,17 @@ function HistoryDiffPane() {
   return (
     <section className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1">
-        {errorMessage ? (
+        {initialReadFailed ? (
           <ErrorState
             title="Couldn’t load this commit’s diff"
-            error={activeFileError}
+            error={query.error}
             recovery={{
               label: "Retry",
               onAction: () => {
-                void (comparison ? combinedFileVersions : historyFileVersions).refetch();
+                void query.refetch();
               },
             }}
-            busy={comparison ? combinedFileVersions.isFetching : historyFileVersions.isFetching}
+            busy={query.isFetching}
           />
         ) : loadingPatch ? (
           <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
@@ -171,27 +167,43 @@ function HistoryDiffPane() {
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
           <div className="flex h-full min-h-0 min-w-0 flex-col">
+            {query.error ? (
+              <ErrorNotice
+                title="Couldn’t refresh this diff"
+                error={query.error}
+                busy={query.isFetching}
+                lastUpdated={query.fulfilledTimeStamp}
+                recovery={{
+                  label: "Retry",
+                  onAction: () => {
+                    void query.refetch();
+                  },
+                }}
+              />
+            ) : null}
             <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
             <DiffWorkspace
               oldFile={oldFile}
               newFile={newFile}
               activePath={previewPath}
               commentContext={
-                comparison
+                rangePreview
                   ? {
                       kind: "history-range",
-                      baseRef: comparison.baseRef,
-                      headRef: comparison.headRef,
+                      baseRef: previewSelection.baseRef,
+                      headRef: previewSelection.headRef,
                     }
-                  : historyCommitId
-                    ? { kind: "history", commitId: historyCommitId }
+                  : previewSelection.commitId
+                    ? { kind: "history", commitId: previewSelection.commitId }
                     : { kind: "changes" }
               }
-              canComment={Boolean(historyCommitId)}
+              canComment={Boolean(fileVersions && (rangePreview || previewSelection.commitId))}
               lspDiagnostics={lspDiagnostics}
-              fileViewerRevision={comparison?.headRef ?? historyCommitId}
+              fileViewerRevision={
+                rangePreview ? previewSelection.headRef : previewSelection.commitId
+              }
               lspHoverDocument={lspHoverDocument}
-              lspJumpContextKind={comparison ? "history-range" : "history"}
+              lspJumpContextKind={rangePreview ? "history-range" : "history"}
               focusedLineNumber={focusedLineNumber}
               focusedLineIndex={focusedLineIndex}
               focusedLineKey={focusedLineKey}

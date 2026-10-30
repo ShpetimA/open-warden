@@ -44,12 +44,15 @@ export function WorkspaceSessionBootstrap({ children }: Props) {
     const disposeClose = desktop.onWorkspaceFlushRequested?.(save);
     const unsubscribe = store.subscribe(() => {
       const next = store.getState();
+      const workspaceViewsChanged = next.workspaceViews !== previous.workspaceViews;
       const changed =
+        workspaceViewsChanged ||
         next.workspaces !== previous.workspaces ||
         next.sourceControl !== previous.sourceControl ||
         next.pullRequests !== previous.pullRequests ||
         next.comments !== previous.comments;
       const draftsChanged =
+        workspaceViewsChanged ||
         next.comments !== previous.comments ||
         next.sourceControl.commitMessage !== previous.sourceControl.commitMessage;
       previous = next;

@@ -1,3 +1,4 @@
+import { workspaceCommitDraftReplaced } from "@/features/workspaces/workspacesSlice";
 import { useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 import { GitCommitHorizontal } from "lucide-react";
@@ -18,6 +19,7 @@ export function CommitBox() {
 function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
   const dispatch = useAppDispatch();
   const runningAction = useAppSelector((state) => state.sourceControl.runningAction);
+  const workspaceId = useAppSelector((state) => state.workspaces.activeWorkspaceId);
   const commitMessage = useAppSelector((state) => state.sourceControl.commitMessage);
   const { stagedCount } = useGetGitSnapshotQuery(repoPath, {
     skip: !repoPath,
@@ -55,7 +57,9 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
     });
     if ("data" in result) {
       setAmendHead(null);
-      dispatch(setCommitMessageValue(""));
+      dispatch(
+        workspaceCommitDraftReplaced({ workspaceId, expectedMessage: commitMessage, message: "" }),
+      );
     }
   };
   useHotkey("Mod+Enter", () => void submit(), {
@@ -108,7 +112,14 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
                       repoPath,
                       command: { kind: "undo", expectedHead: lastCommit.id },
                     }).then((result) => {
-                      if ("data" in result) dispatch(setCommitMessageValue(lastCommit.message));
+                      if ("data" in result)
+                        dispatch(
+                          workspaceCommitDraftReplaced({
+                            workspaceId,
+                            expectedMessage: commitMessage,
+                            message: lastCommit.message,
+                          }),
+                        );
                     });
                   }}
                 >

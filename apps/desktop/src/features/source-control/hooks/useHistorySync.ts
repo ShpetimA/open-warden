@@ -18,25 +18,22 @@ export function useHistorySync() {
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
-  const historyPinnedCommitId = useAppSelector(
-    (state) => state.sourceControl.historyPinnedCommitId,
-  );
   const historySelectedCommitIds = useAppSelector(
     (state) => state.sourceControl.historySelectedCommitIds,
   );
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
 
-  const { data: historyCommits } = useGetCommitHistoryQuery(
+  const { currentData: historyCommits } = useGetCommitHistoryQuery(
     activeRepo ? { repoPath: activeRepo } : skipToken,
   );
 
   const comparison = getHistoryComparison(historyCommits ?? [], historySelectedCommitIds);
-  const { data: historyFiles, error: historyFilesError } = useGetCommitFilesQuery(
+  const { currentData: historyFiles } = useGetCommitFilesQuery(
     activeRepo && historyCommitId && !comparison
       ? { repoPath: activeRepo, commitId: historyCommitId }
       : skipToken,
   );
-  const { data: combinedFiles } = useGetBranchFilesQuery(
+  const { currentData: combinedFiles } = useGetBranchFilesQuery(
     activeRepo && comparison
       ? { repoPath: activeRepo, baseRef: comparison.baseRef, headRef: comparison.headRef }
       : skipToken,
@@ -48,30 +45,10 @@ export function useHistorySync() {
       dispatch(clearHistorySelection());
       return;
     }
-    if (!historyCommits) return;
-    if (historyPinnedCommitId && historyPinnedCommitId === historyCommitId) return;
-    if (historyCommits.length === 0) {
-      if (historyCommitId && !historyFilesError) return;
-      dispatch(clearHistorySelection());
-      return;
-    }
-
-    const existing = historyCommits.find((commit) => commit.commitId === historyCommitId);
-    if (historyCommitId && !existing && !historyFilesError) {
-      return;
-    }
-    const nextCommit = existing ?? historyCommits[0];
-    if (nextCommit && nextCommit.commitId !== historyCommitId) {
-      dispatch(setHistoryCommitId(nextCommit.commitId));
-    }
-  }, [
-    activeRepo,
-    dispatch,
-    historyCommits,
-    historyCommitId,
-    historyPinnedCommitId,
-    historyFilesError,
-  ]);
+    if (!historyCommits || historyCommitId) return;
+    const firstCommit = historyCommits[0];
+    if (firstCommit) dispatch(setHistoryCommitId(firstCommit.commitId));
+  }, [activeRepo, dispatch, historyCommits, historyCommitId]);
 
   useEffect(() => {
     if (!historyCommitId) {

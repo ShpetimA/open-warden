@@ -1,8 +1,7 @@
-import { ErrorState } from "@/components/ui/error-state";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ListLoadingState } from "@/components/ui/list-loading-state";
+import { RetainedFileList } from "./RetainedFileList";
 import {
   areCommentCountMapsEqual,
   selectReviewCommentCountsForRepo,
@@ -64,7 +63,8 @@ type ReviewFileListProps = {
   navRegion?: string;
   emptyState?: ReactNode;
   isLoading?: boolean;
-  error?: string;
+  error?: unknown;
+  hasData?: boolean;
   onRetry?: () => void;
   paneClassName?: string;
   headerClassName?: string;
@@ -83,7 +83,8 @@ export function ReviewFileList({
   navRegion = "review-files",
   emptyState = null,
   isLoading = false,
-  error = "",
+  error,
+  hasData = true,
   onRetry,
   paneClassName,
   headerClassName,
@@ -122,33 +123,32 @@ export function ReviewFileList({
       <div className="border-border flex shrink-0 items-center border-b px-1">
         <ReviewFileViewControl value={fileView} onChange={setFileView} />
       </div>
-      {isLoading && branchFiles.length === 0 ? (
-        <ListLoadingState label="Loading changed files…" />
-      ) : error ? (
-        <ErrorState
-          title="Couldn’t load compared files"
-          error={undefined}
-          message={error}
-          busy={isLoading}
-          recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
-        />
-      ) : branchFiles.length === 0 ? (
-        emptyState
-      ) : (
-        <FileList
-          files={branchFiles}
-          mode={fileView}
-          selection={selectReviewFilePath}
-          selectFirstFile
-          autoFocus={false}
-          navRegion={navRegion}
-          onActivatePath={(path) => {
-            dispatch(setReviewActivePath(path));
-          }}
-          getCommentCount={getCommentCount}
-          getFileStatus={(file) => file.status}
-        />
-      )}
+      <RetainedFileList
+        hasData={hasData}
+        fetching={isLoading}
+        error={error}
+        loadingLabel="Loading changed files…"
+        errorTitle="Couldn’t load compared files"
+        onRetry={() => onRetry?.()}
+      >
+        {branchFiles.length === 0 ? (
+          emptyState
+        ) : (
+          <FileList
+            files={branchFiles}
+            mode={fileView}
+            selection={selectReviewFilePath}
+            selectFirstFile
+            autoFocus={false}
+            navRegion={navRegion}
+            onActivatePath={(path) => {
+              dispatch(setReviewActivePath(path));
+            }}
+            getCommentCount={getCommentCount}
+            getFileStatus={(file) => file.status}
+          />
+        )}
+      </RetainedFileList>
     </aside>
   );
 }

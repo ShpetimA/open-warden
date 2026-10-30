@@ -1,8 +1,14 @@
-import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import { createAction, createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import type { PersistedWorkspaceTabs } from "@/platform/desktop/workspaceTabs";
 import type { RootState } from "@/app/store";
 import type { GitProviderId } from "@/platform/desktop";
+
+export const workspaceCommitDraftReplaced = createAction<{
+  workspaceId: string;
+  expectedMessage: string;
+  message: string;
+}>("workspaces/commitDraftReplaced");
 
 export type RepoWorkspace = {
   id: string;
