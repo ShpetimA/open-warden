@@ -251,7 +251,9 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
               onToggle={() => setShowBlame((value) => !value)}
             />
           ) : null}
-          {target && !target.revision && metadata ? (
+          {target &&
+          !target.revision &&
+          (metadata?.kind === "binary" || metadata?.kind === "too-large") ? (
             <OpenInExternalEditor
               repoPath={target.repoPath}
               filePath={target.relPath}
@@ -264,7 +266,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
       {metadata ? (
         <FileContentNotice
           activePath={target?.relPath ?? content.name}
-          metadata={metadata}
+          notice={{ metadata }}
           oldFile={null}
           newFile={content}
           mode="file"

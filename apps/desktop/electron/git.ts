@@ -4,6 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
+import {
+  gitFileModeSchema,
+  gitObjectIdSchema,
+  type GitFileMode,
+} from "../src/platform/desktop/fileContent";
 
 import type {
   Bucket,
@@ -440,58 +445,183 @@ function isMissingGitObjectError(error: unknown) {
   );
 }
 
-async function readGitObject(
-  repoPath: string,
-  spec: string,
-  label: string,
-): Promise<FileContent | null> {
-  try {
-    const sizeOutput = await runGit(repoPath, ["cat-file", "-s", spec]);
-    const byteLength = z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .parse(sizeOutput.toString("utf8").trim());
+type FileRead = Readonly<{ file: FileContent; mode: GitFileMode } | { file: null; mode: null }>;
 
-    if (byteLength > MAX_BUFFER) {
-      return { kind: "too-large", name: label, byteLength };
+const missingFile: FileRead = { file: null, mode: null };
+const storedEntrySchema = z.strictObject({
+  mode: gitFileModeSchema,
+  objectId: gitObjectIdSchema,
+  byteLength: z.number().int().nonnegative().nullable(),
+});
+
+async function readStoredFile(
+  repoPath: string,
+  revision: string | null,
+  relPath: string,
+): Promise<FileRead> {
+  try {
+    const args =
+      revision === null
+        ? ["--literal-pathspecs", "ls-files", "--stage", "--full-name", "-z", "--", relPath]
+        : ["--literal-pathspecs", "ls-tree", "--full-tree", "-l", "-z", revision, "--", relPath];
+    const records = splitNullTerminated(await runGit(repoPath, args));
+    let entry: z.infer<typeof storedEntrySchema> | null = null;
+
+    for (const record of records) {
+      const separator = record.indexOf("\t");
+      if (separator < 0 || record.slice(separator + 1) !== relPath) continue;
+
+      const fields = record
+        .slice(0, separator)
+        .split(" ")
+        .filter((field) => field !== "");
+      if (fields[0] === "040000") return missingFile;
+      if (revision === null && fields[2] !== "0") continue;
+
+      entry = storedEntrySchema.parse({
+        mode: fields[0],
+        objectId: revision === null ? fields[1] : fields[2],
+        byteLength: revision === null || fields[3] === "-" ? null : Number(fields[3]),
+      });
+      break;
     }
 
-    const output = await runGit(repoPath, ["show", "--no-ext-diff", "--no-textconv", spec], {
-      allowFailure: true,
-    });
+    if (!entry) return missingFile;
 
-    return readFileContent(output, label);
+    if (entry.mode === "160000") {
+      return {
+        mode: entry.mode,
+        file: { kind: "submodule", name: relPath, commitId: entry.objectId },
+      };
+    }
+
+    let byteLength = entry.byteLength;
+
+    if (byteLength === null) {
+      const sizeOutput = await runGit(repoPath, ["cat-file", "-s", entry.objectId]);
+      byteLength = z.coerce.number().int().nonnegative().parse(sizeOutput.toString("utf8").trim());
+    }
+
+    if (byteLength > MAX_BUFFER) {
+      return { mode: entry.mode, file: { kind: "too-large", name: relPath, byteLength } };
+    }
+
+    const output = await runGit(repoPath, ["cat-file", "blob", entry.objectId]);
+    const file: FileContent =
+      entry.mode === "120000"
+        ? { kind: "symlink", name: relPath, target: output.toString("utf8") }
+        : readFileContent(output, relPath);
+
+    return { file, mode: entry.mode };
   } catch (error) {
     if (isMissingGitObjectError(error)) {
-      return null;
+      return missingFile;
     }
 
     throw error;
   }
 }
 
-async function readWorktreeFile(
-  repoPath: string,
-  relPath: string,
-  label: string,
-): Promise<FileContent | null> {
+async function readWorktreeFile(repoPath: string, relPath: string): Promise<FileRead> {
   const fullPath = path.join(repoPath, relPath);
 
   try {
-    const stats = await fs.stat(fullPath);
-    if (!stats.isFile()) return null;
+    const parts = relPath.split("/");
+
+    for (let index = 1; index < parts.length; index += 1) {
+      const parent = await fs.lstat(path.join(repoPath, ...parts.slice(0, index)));
+
+      if (parent.isSymbolicLink()) {
+        throw new DesktopAdapterError(
+          desktopFailure(
+            "getRepoFile",
+            "invalid-input",
+            "Open the symbolic link itself. Files below a symbolic link are not read through the repository viewer.",
+          ),
+        );
+      }
+    }
+
+    const stats = await fs.lstat(fullPath);
+
+    if (stats.isSymbolicLink()) {
+      return {
+        mode: "120000",
+        file: { kind: "symlink", name: relPath, target: await fs.readlink(fullPath) },
+      };
+    }
+
+    if (stats.isDirectory()) return readWorktreeSubmodule(repoPath, relPath);
+    if (!stats.isFile()) return missingFile;
+
+    const mode = stats.mode & 0o100 ? "100755" : "100644";
 
     if (stats.size > MAX_BUFFER) {
-      return { kind: "too-large", name: label, byteLength: stats.size };
+      return { mode, file: { kind: "too-large", name: relPath, byteLength: stats.size } };
     }
+
+    const contents = await fs.readFile(fullPath);
+
+    return { mode, file: readFileContent(contents, relPath) };
   } catch (cause) {
-    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return null;
+    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return missingFile;
     throw cause;
   }
+}
 
-  const contents = await fs.readFile(fullPath);
-  return readFileContent(contents, label);
+async function readWorktreeSubmodule(repoPath: string, relPath: string): Promise<FileRead> {
+  const stored = await readStoredFile(repoPath, null, relPath);
+  if (!stored.file || !("kind" in stored.file) || stored.file.kind !== "submodule")
+    return missingFile;
+
+  const root = path.join(repoPath, relPath);
+  const initialized = await fs.lstat(path.join(root, ".git")).then(
+    () => true,
+    (cause: unknown) => {
+      if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return false;
+      throw cause;
+    },
+  );
+
+  if (!initialized) {
+    return { mode: "160000", file: { ...stored.file, workingTree: { state: "uninitialized" } } };
+  }
+
+  const [head, statusOutput] = await Promise.all([
+    runGit(root, ["rev-parse", "--verify", "HEAD"]),
+    runGit(root, [
+      "status",
+      "--porcelain=v1",
+      "-z",
+      "--untracked-files=normal",
+      "--ignore-submodules=none",
+    ]),
+  ]);
+  const status = parseStatusOutput(statusOutput);
+
+  return {
+    mode: "160000",
+    file: {
+      kind: "submodule",
+      name: relPath,
+      commitId: gitObjectIdSchema.parse(head.toString("utf8").trim()),
+      workingTree: {
+        state: "checked-out",
+        trackedChanges: status.staged.length > 0 || status.unstaged.length > 0,
+        untrackedChanges: status.untracked.length > 0,
+      },
+    },
+  };
+}
+
+function makeFileVersions(before: FileRead, after: FileRead): FileVersions {
+  const versions: FileVersions = { oldFile: before.file, newFile: after.file };
+
+  if (before.mode && after.mode && before.mode !== after.mode) {
+    return { ...versions, modeChange: { before: before.mode, after: after.mode } };
+  }
+
+  return versions;
 }
 
 async function hasHeadCommit(repoPath: string) {
@@ -1012,12 +1142,12 @@ export async function getCommitFileVersions(
   const previousLookupPath = normalizeGitPath(previousPath ?? relPath);
   const parent = await readCommitParent(repoPath, commitId);
 
-  const [oldFile, newFile] = await Promise.all([
-    parent ? readGitObject(repoPath, `${parent}:${previousLookupPath}`, previousLookupPath) : null,
-    readGitObject(repoPath, `${commitId}:${normalizedPath}`, normalizedPath),
+  const [before, after] = await Promise.all([
+    parent ? readStoredFile(repoPath, parent, previousLookupPath) : missingFile,
+    readStoredFile(repoPath, commitId, normalizedPath),
   ]);
 
-  return { oldFile, newFile };
+  return makeFileVersions(before, after);
 }
 
 export async function getFileVersions(
@@ -1030,27 +1160,45 @@ export async function getFileVersions(
   const previousLookupPath = normalizeGitPath(previousPath ?? relPath);
 
   if (bucket === "unstaged") {
-    const [oldFile, newFile] = await Promise.all([
-      readGitObject(repoPath, `:${previousLookupPath}`, previousLookupPath),
-      readWorktreeFile(repoPath, normalizedPath, normalizedPath),
+    const [before, after] = await Promise.all([
+      readStoredFile(repoPath, null, previousLookupPath),
+      readWorktreeFile(repoPath, normalizedPath),
     ]);
 
-    return { oldFile, newFile };
+    const regularModeChanged =
+      (before.mode === "100644" && after.mode === "100755") ||
+      (before.mode === "100755" && after.mode === "100644");
+
+    if (regularModeChanged) {
+      const fileMode = await runGit(repoPath, [
+        "config",
+        "--type=bool",
+        "--get",
+        "core.filemode",
+      ]).catch((cause: unknown) => {
+        if (cause instanceof GitCommandError && cause.code === 1 && !cause.stderr)
+          return Buffer.from("true");
+        throw cause;
+      });
+
+      if (fileMode.toString("utf8").trim() === "false") {
+        return makeFileVersions(before, { ...after, mode: before.mode });
+      }
+    }
+
+    return makeFileVersions(before, after);
   }
 
   if (bucket === "staged") {
-    const [oldFile, newFile] = await Promise.all([
-      readGitObject(repoPath, `HEAD:${previousLookupPath}`, previousLookupPath),
-      readGitObject(repoPath, `:${normalizedPath}`, normalizedPath),
+    const [before, after] = await Promise.all([
+      readStoredFile(repoPath, "HEAD", previousLookupPath),
+      readStoredFile(repoPath, null, normalizedPath),
     ]);
 
-    return { oldFile, newFile };
+    return makeFileVersions(before, after);
   }
 
-  return {
-    oldFile: null,
-    newFile: await readWorktreeFile(repoPath, normalizedPath, normalizedPath),
-  };
+  return makeFileVersions(missingFile, await readWorktreeFile(repoPath, normalizedPath));
 }
 
 export async function getRepoFile({
@@ -1066,10 +1214,10 @@ export async function getRepoFile({
   const normalizedRevision = revision?.trim();
 
   if (normalizedRevision) {
-    return readGitObject(repoPath, `${normalizedRevision}:${normalizedPath}`, normalizedPath);
+    return (await readStoredFile(repoPath, normalizedRevision, normalizedPath)).file;
   }
 
-  return readWorktreeFile(repoPath, normalizedPath, normalizedPath);
+  return (await readWorktreeFile(repoPath, normalizedPath)).file;
 }
 
 export async function getBranchFileVersions(
@@ -1083,12 +1231,12 @@ export async function getBranchFileVersions(
   const previousLookupPath = normalizeGitPath(previousPath ?? relPath);
   const resolvedBaseRef = await resolveDiffBaseRef(repoPath, baseRef);
 
-  const [oldFile, newFile] = await Promise.all([
-    readGitObject(repoPath, `${resolvedBaseRef}:${previousLookupPath}`, previousLookupPath),
-    readGitObject(repoPath, `${headRef}:${normalizedPath}`, normalizedPath),
+  const [before, after] = await Promise.all([
+    readStoredFile(repoPath, resolvedBaseRef, previousLookupPath),
+    readStoredFile(repoPath, headRef, normalizedPath),
   ]);
 
-  return { oldFile, newFile };
+  return makeFileVersions(before, after);
 }
 
 export async function stageFile(repoPath: string, relPath: string) {

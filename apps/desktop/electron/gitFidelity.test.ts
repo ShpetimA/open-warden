@@ -1,5 +1,16 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readlink,
+  rm,
+  symlink,
+  truncate,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
@@ -299,5 +310,187 @@ test("rejects text writes to binary files and preserves their bytes", async () =
   expect(await getRepoFile({ repoPath: repo, relPath: originalPath, revision: "HEAD" })).toEqual({
     name: originalPath,
     contents: originalText,
+  });
+});
+
+test("reports executable permission changes independently of text changes in every comparison", async () => {
+  const repo = await repository();
+  const base = git(repo, "rev-parse", "HEAD");
+  const modeChange = { before: "100644", after: "100755" };
+
+  await chmod(path.join(repo, originalPath), 0o755);
+
+  const working = await getFileVersions(repo, originalPath, "unstaged", null);
+  expect(working.modeChange).toEqual(modeChange);
+  expect(working.oldFile).toEqual(working.newFile);
+
+  await stageFile(repo, originalPath);
+  expect((await getFileVersions(repo, originalPath, "staged", null)).modeChange).toEqual(
+    modeChange,
+  );
+  git(repo, "commit", "-m", "Make executable");
+  const head = git(repo, "rev-parse", "HEAD");
+
+  expect((await getCommitFileVersions(repo, head, originalPath)).modeChange).toEqual(modeChange);
+  expect((await getBranchFileVersions(repo, base, head, originalPath)).modeChange).toEqual(
+    modeChange,
+  );
+
+  await chmod(path.join(repo, originalPath), 0o644);
+  await writeFile(path.join(repo, originalPath), "Updated contents\n");
+  expect(await getFileVersions(repo, originalPath, "unstaged", null)).toMatchObject({
+    newFile: { contents: "Updated contents\n" },
+    modeChange: { before: "100755", after: "100644" },
+  });
+});
+
+test("respects core.filemode when the worktree executable bit is ignored", async () => {
+  const repo = await repository();
+  git(repo, "config", "core.filemode", "false");
+  await chmod(path.join(repo, originalPath), 0o755);
+  await writeFile(path.join(repo, originalPath), "Content only\n");
+
+  expect(await getFileVersions(repo, originalPath, "unstaged", null)).toEqual({
+    oldFile: { name: originalPath, contents: originalText },
+    newFile: { name: originalPath, contents: "Content only\n" },
+  });
+});
+
+test("matches Git when only group or other execute bits change", async () => {
+  const repo = await repository();
+  await chmod(path.join(repo, originalPath), 0o645);
+
+  expect((await getGitSnapshot(repo)).unstaged).toEqual([]);
+  expect(await getFileVersions(repo, originalPath, "unstaged", null)).toEqual({
+    oldFile: { name: originalPath, contents: originalText },
+    newFile: { name: originalPath, contents: originalText },
+  });
+});
+
+test("reads symbolic links themselves, including broken and external targets", async () => {
+  const repo = await repository();
+  const outside = await repository();
+  const externalPath = path.join(outside, originalPath);
+  await symlink(externalPath, path.join(repo, "external-link"));
+  await symlink("missing-target", path.join(repo, "broken-link"));
+
+  expect(await getRepoFile({ repoPath: repo, relPath: "external-link" })).toEqual({
+    kind: "symlink",
+    name: "external-link",
+    target: externalPath,
+  });
+  expect(await getRepoFile({ repoPath: repo, relPath: "broken-link" })).toEqual({
+    kind: "symlink",
+    name: "broken-link",
+    target: "missing-target",
+  });
+
+  await stageFiles(repo, ["external-link", "broken-link"]);
+  git(repo, "commit", "-m", "Add links");
+  const commitId = git(repo, "rev-parse", "HEAD");
+
+  expect(await getCommitFileVersions(repo, commitId, "broken-link")).toEqual({
+    oldFile: null,
+    newFile: { kind: "symlink", name: "broken-link", target: "missing-target" },
+  });
+
+  const result = await updateWorktreeFileContents(repo, "external-link", "Overwrite target", {
+    kind: "worktree",
+    contents: originalText,
+  });
+
+  expect(result).toMatchObject({ ok: false, error: { code: "invalid-input" } });
+  expect(await readFile(externalPath, "utf8")).toBe(originalText);
+  expect(await readlink(path.join(repo, "external-link"))).toBe(externalPath);
+});
+
+test("blocks reads through symlink parents and retains regular-file to link transitions", async () => {
+  const repo = await repository();
+  await symlink("src", path.join(repo, "linked-directory"));
+
+  await expect(
+    getRepoFile({ repoPath: repo, relPath: "linked-directory/original [name].txt" }),
+  ).rejects.toMatchObject({ failure: { code: "invalid-input" } });
+
+  await unlink(path.join(repo, originalPath));
+  await symlink("missing-file", path.join(repo, originalPath));
+  await stageFile(repo, originalPath);
+
+  expect(await getFileVersions(repo, originalPath, "staged", null)).toEqual({
+    oldFile: { name: originalPath, contents: originalText },
+    newFile: { kind: "symlink", name: originalPath, target: "missing-file" },
+    modeChange: { before: "100644", after: "120000" },
+  });
+});
+
+test("reads gitlinks without requiring their commit objects in the parent repository", async () => {
+  const repo = await repository();
+  const commitId = "a".repeat(40);
+  git(repo, "update-index", "--add", "--cacheinfo", `160000,${commitId},vendor/library`);
+
+  expect(await getFileVersions(repo, "vendor/library", "staged", null)).toEqual({
+    oldFile: null,
+    newFile: { kind: "submodule", name: "vendor/library", commitId },
+  });
+  git(repo, "commit", "-m", "Record unavailable submodule");
+  const parentCommit = git(repo, "rev-parse", "HEAD");
+
+  expect(
+    await getRepoFile({ repoPath: repo, relPath: "vendor/library", revision: parentCommit }),
+  ).toEqual({ kind: "submodule", name: "vendor/library", commitId });
+  await mkdir(path.join(repo, "vendor/library"), { recursive: true });
+  expect(await getRepoFile({ repoPath: repo, relPath: "vendor/library" })).toEqual({
+    kind: "submodule",
+    name: "vendor/library",
+    commitId,
+    workingTree: { state: "uninitialized" },
+  });
+});
+
+test("keeps submodule pointer changes separate from dirty and uninitialized working trees", async () => {
+  const repo = await repository();
+  const source = await repository();
+  git(repo, "-c", "protocol.file.allow=always", "submodule", "add", source, "vendor/library");
+  git(repo, "commit", "-m", "Add submodule");
+
+  const submodule = path.join(repo, "vendor/library");
+  const before = git(submodule, "rev-parse", "HEAD");
+  git(submodule, "config", "user.name", "Test");
+  git(submodule, "config", "user.email", "test@example.com");
+  await writeFile(path.join(submodule, originalPath), "New submodule commit\n");
+  git(submodule, "add", ".");
+  git(submodule, "commit", "-m", "Advance pointer");
+  const after = git(submodule, "rev-parse", "HEAD");
+
+  expect(await getFileVersions(repo, "vendor/library", "unstaged", null)).toEqual({
+    oldFile: { kind: "submodule", name: "vendor/library", commitId: before },
+    newFile: {
+      kind: "submodule",
+      name: "vendor/library",
+      commitId: after,
+      workingTree: { state: "checked-out", trackedChanges: false, untrackedChanges: false },
+    },
+  });
+
+  await writeFile(path.join(submodule, originalPath), "Local submodule edit\n");
+  await writeFile(path.join(submodule, "untracked.txt"), "Untracked\n");
+
+  expect(await getRepoFile({ repoPath: repo, relPath: "vendor/library" })).toMatchObject({
+    commitId: after,
+    workingTree: { state: "checked-out", trackedChanges: true, untrackedChanges: true },
+  });
+  await stageFile(repo, "vendor/library");
+  expect((await getFileVersions(repo, "vendor/library", "staged", null)).newFile).toEqual({
+    kind: "submodule",
+    name: "vendor/library",
+    commitId: after,
+  });
+
+  git(repo, "submodule", "deinit", "--force", "--", "vendor/library");
+  expect(await getRepoFile({ repoPath: repo, relPath: "vendor/library" })).toEqual({
+    kind: "submodule",
+    name: "vendor/library",
+    commitId: after,
+    workingTree: { state: "uninitialized" },
   });
 });

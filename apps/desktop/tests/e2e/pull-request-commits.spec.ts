@@ -207,6 +207,56 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`entry metadata stays read only across PR files and commits in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 900 });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    await expect(
+      page.getByRole("complementary", { name: "Changed files", exact: true }),
+    ).toBeVisible();
+
+    await page.evaluate(() => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Expected the test desktop bridge");
+
+      bridge.getBranchFileVersions = async (_repo, _base, _head, path) => {
+        if (path === "test/invoice.test.ts") {
+          return {
+            ok: true,
+            value: {
+              oldFile: { kind: "symlink", name: path, target: "settings/development.json" },
+              newFile: { kind: "symlink", name: path, target: "settings/production.json" },
+            },
+          };
+        }
+
+        return {
+          ok: true,
+          value: {
+            oldFile: { kind: "submodule", name: path, commitId: "a".repeat(40) },
+            newFile: { kind: "submodule", name: path, commitId: "b".repeat(40) },
+          },
+        };
+      };
+    });
+
+    await page.getByRole("treeitem", { name: "invoice.test.ts", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Symbolic link", exact: true })).toBeVisible();
+    await expect(page.getByText("settings/production.json", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark file viewed", exact: true })).toBeVisible();
+    await expect(page.locator("diffs-container")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`pr-symlink-${theme}.png`) });
+
+    await page.getByRole("tab", { name: "Commits" }).click();
+    await expect(page.getByRole("heading", { name: "Submodule", exact: true })).toBeVisible();
+    await expect(page.getByText("a".repeat(40), { exact: true })).toBeVisible();
+    await expect(page.getByText("b".repeat(40), { exact: true })).toBeVisible();
+    await expect(page.locator("diffs-container")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`pr-submodule-${theme}.png`) });
+  });
+
   test(`binary changes remain reviewable in PR files and commits in ${theme}`, async ({
     page,
   }, testInfo) => {

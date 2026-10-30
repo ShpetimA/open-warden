@@ -278,6 +278,7 @@ function GuidanceDiff({
   if (metadata) {
     return (
       <DiffWorkspace
+        modeChange={versions.modeChange}
         oldFile={versions.oldFile}
         newFile={versions.newFile}
         activePath={reference.path}
@@ -334,6 +335,7 @@ function GuidanceDiff({
         activePreviousPath={file.previousPath ?? undefined}
       />
       <DiffWorkspace
+        modeChange={versions.modeChange}
         oldFile={versions.oldFile}
         newFile={versions.newFile}
         activePath={reference.path}

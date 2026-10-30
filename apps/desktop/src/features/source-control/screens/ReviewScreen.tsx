@@ -153,6 +153,7 @@ function ReviewDiffPane({
               />
             ) : null}
             <DiffWorkspace
+              modeChange={reviewVersions?.modeChange}
               oldFile={oldFile}
               newFile={newFile}
               activePath={previewPath}

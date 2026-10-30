@@ -1,6 +1,6 @@
 import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { getTextFile } from "@/platform/desktop/fileContent";
+import { getDiffTextFile } from "@/platform/desktop/fileContent";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
@@ -98,7 +98,7 @@ function ChangesDiffPane() {
   const newFile = fileVersions?.newFile ?? null;
   const errorMessage = fileVersions ? "" : errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? activePath ?? "";
-  const lspText = !loadingPatch ? (getTextFile(newFile)?.contents ?? null) : null;
+  const lspText = !loadingPatch ? (getDiffTextFile(fileVersions ?? null)?.contents ?? null) : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null && !isMergeConflict
       ? { repoPath: activeRepo, relPath: previewPath }
@@ -199,6 +199,7 @@ function ChangesDiffPane() {
                 active={lspText !== null}
               />
               <DiffWorkspace
+                modeChange={fileVersions?.modeChange}
                 oldFile={oldFile}
                 newFile={newFile}
                 activePath={previewPath}

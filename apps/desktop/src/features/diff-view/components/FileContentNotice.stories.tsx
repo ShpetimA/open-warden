@@ -10,7 +10,7 @@ const meta = {
   parameters: { layout: "fullscreen" },
   args: {
     activePath: metadata.name,
-    metadata,
+    notice: { metadata },
     oldFile: { ...metadata, byteLength: 15_308 },
     newFile: metadata,
     mode: "comparison",
@@ -48,8 +48,60 @@ export const ConvertedToText: Story = {
 export const LargeFile: Story = {
   args: {
     activePath: "archive/export.zip",
-    metadata: { kind: "too-large", name: "archive/export.zip", byteLength: 52_428_800 },
+    notice: { metadata: { kind: "too-large", name: "archive/export.zip", byteLength: 52_428_800 } },
     oldFile: null,
     newFile: { kind: "too-large", name: "archive/export.zip", byteLength: 52_428_800 },
+  },
+};
+
+export const SymbolicLink: Story = {
+  args: {
+    activePath: "config/active.json",
+    notice: {
+      metadata: { kind: "symlink", name: "config/active.json", target: "../settings/staging.json" },
+    },
+    oldFile: {
+      kind: "symlink",
+      name: "config/active.json",
+      target: "../settings/development.json",
+    },
+    newFile: { kind: "symlink", name: "config/active.json", target: "../settings/staging.json" },
+  },
+};
+
+export const Submodule: Story = {
+  args: {
+    activePath: "vendor/shared-library",
+    notice: {
+      metadata: { kind: "submodule", name: "vendor/shared-library", commitId: "b".repeat(40) },
+    },
+    oldFile: { kind: "submodule", name: "vendor/shared-library", commitId: "a".repeat(40) },
+    newFile: {
+      kind: "submodule",
+      name: "vendor/shared-library",
+      commitId: "b".repeat(40),
+      workingTree: { state: "checked-out", trackedChanges: true, untrackedChanges: true },
+    },
+  },
+};
+
+export const UninitializedSubmodule: Story = {
+  args: {
+    ...Submodule.args,
+    newFile: {
+      kind: "submodule",
+      name: "vendor/shared-library",
+      commitId: "a".repeat(40),
+      workingTree: { state: "uninitialized" },
+    },
+  },
+};
+
+export const Permissions: Story = {
+  args: {
+    activePath: "scripts/deploy.sh",
+    notice: { modeChange: { before: "100644", after: "100755" } },
+    oldFile: { name: "scripts/deploy.sh", contents: "echo deploy\n" },
+    newFile: { name: "scripts/deploy.sh", contents: "echo deploy\n" },
   },
 };

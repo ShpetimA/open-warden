@@ -10,7 +10,7 @@ test("shows both rename paths and byte sizes without text editing controls", () 
   render(
     <FileContentNotice
       activePath={after.name}
-      metadata={after}
+      notice={{ metadata: after }}
       oldFile={before}
       newFile={after}
       mode="comparison"
@@ -31,7 +31,7 @@ test("keeps a missing side distinct from an empty file and identifies the size l
   render(
     <FileContentNotice
       activePath={metadata.name}
-      metadata={metadata}
+      notice={{ metadata }}
       oldFile={null}
       newFile={metadata}
       mode="comparison"

@@ -15,7 +15,10 @@ import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMe
 import type { CommentContext, PullRequestReviewAnchor } from "@/features/source-control/types";
 import type { GitProviderId } from "@/platform/desktop";
 import { getFileContentMetadata, getTextFile } from "@/platform/desktop/fileContent";
-import { FileContentNotice } from "@/features/diff-view/components/FileContentNotice";
+import {
+  FileContentNotice,
+  FileModeChangeNotice,
+} from "@/features/diff-view/components/FileContentNotice";
 
 type PullRequestOverviewAnchorCardProps = {
   providerId?: GitProviderId;
@@ -152,21 +155,26 @@ export function PullRequestOverviewAnchorCard({
         ) : metadata ? (
           <FileContentNotice
             activePath={anchor.path}
-            metadata={metadata}
+            notice={{ metadata, modeChange: fileVersions?.modeChange }}
             oldFile={oldFile}
             newFile={newFile}
             mode="comparison"
           />
         ) : oldFile || newFile ? (
-          <PullRequestAnchorSnippet
-            oldFile={getTextFile(oldFile)}
-            newFile={getTextFile(newFile)}
-            activePath={anchor.path}
-            commentContext={commentContext}
-            anchor={anchor}
-            annotationItems={annotationItems}
-            commentMentions={commentMentions}
-          />
+          <>
+            {fileVersions?.modeChange ? (
+              <FileModeChangeNotice change={fileVersions.modeChange} />
+            ) : null}
+            <PullRequestAnchorSnippet
+              oldFile={getTextFile(oldFile)}
+              newFile={getTextFile(newFile)}
+              activePath={anchor.path}
+              commentContext={commentContext}
+              anchor={anchor}
+              annotationItems={annotationItems}
+              commentMentions={commentMentions}
+            />
+          </>
         ) : (
           <div className="text-muted-foreground rounded-md border border-border/70 px-3 py-2 text-sm">
             Diff snippet unavailable.

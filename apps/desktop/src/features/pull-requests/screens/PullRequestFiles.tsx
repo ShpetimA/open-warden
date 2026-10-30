@@ -496,6 +496,7 @@ function FilesDiffViewer({
           />
         ) : null}
         <DiffWorkspace
+          modeChange={branchFileVersions?.modeChange}
           oldFile={selectedOldFile}
           newFile={selectedNewFile}
           activePath={previewFile?.path ?? selectedFile.path}

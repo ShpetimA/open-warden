@@ -160,7 +160,7 @@ function unsupportedTextEdit(operation: string): DesktopResult<never> {
     error: desktopFailure(
       operation,
       "invalid-input",
-      "Text edits cannot be applied to binary files or files that exceed the preview limit.",
+      "Text edits are unavailable for binary files, symbolic links, submodules, and files above the preview limit.",
     ),
   };
 }

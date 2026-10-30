@@ -6,9 +6,13 @@ import {
   getFileContentMetadata,
   getTextFile,
   type FileContent,
-  type FileContentMetadata,
+  type FileModeChange,
 } from "@/platform/desktop/fileContent";
-import { FileContentNotice } from "./components/FileContentNotice";
+import {
+  FileContentNotice,
+  FileModeChangeNotice,
+  type FileContentNoticeReason,
+} from "./components/FileContentNotice";
 import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { DiagnosticTokenPopover } from "@/features/diff-view/components/DiagnosticTokenPopover";
@@ -45,6 +49,7 @@ import { type DiffLineAnnotation, type FileDiffOptions } from "@pierre/diffs";
 type Props = {
   oldFile: FileContent | null;
   newFile: FileContent | null;
+  modeChange?: FileModeChange;
   activePath: string;
   commentContext: CommentContext;
   canComment: boolean;
@@ -156,26 +161,35 @@ export function DiffWorkspace(props: Props) {
   const metadata = getFileContentMetadata(props.oldFile) ?? getFileContentMetadata(props.newFile);
 
   if (metadata) {
-    return <NonTextDiffWorkspace {...props} metadata={metadata} />;
+    return <NonTextDiffWorkspace {...props} notice={{ metadata, modeChange: props.modeChange }} />;
+  }
+
+  const oldText = getTextFile(props.oldFile);
+  const newText = getTextFile(props.newFile);
+
+  if (props.modeChange && oldText && newText && oldText.contents === newText.contents) {
+    return <NonTextDiffWorkspace {...props} notice={{ modeChange: props.modeChange }} />;
   }
 
   return (
-    <TextDiffWorkspace
-      {...props}
-      oldFile={getTextFile(props.oldFile)}
-      newFile={getTextFile(props.newFile)}
-    />
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      {props.modeChange ? <FileModeChangeNotice change={props.modeChange} /> : null}
+      <TextDiffWorkspace {...props} oldFile={oldText} newFile={newText} />
+    </div>
   );
 }
 
-function NonTextDiffWorkspace({ metadata, ...props }: Props & { metadata: FileContentMetadata }) {
+function NonTextDiffWorkspace({ notice, ...props }: Props & { notice: FileContentNoticeReason }) {
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
-  const workingFile = props.commentContext.kind === "changes" && props.newFile !== null;
+  const metadata = getFileContentMetadata(props.newFile);
+  const workingFile =
+    props.commentContext.kind === "changes" &&
+    (metadata?.kind === "binary" || metadata?.kind === "too-large");
 
   return (
     <FileContentNotice
       activePath={props.activePath}
-      metadata={metadata}
+      notice={notice}
       oldFile={props.oldFile}
       newFile={props.newFile}
       mode="comparison"

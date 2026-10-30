@@ -170,7 +170,7 @@ export function MergeConflictViewer({ repoPath, relPath }: MergeConflictViewerPr
         </p>
         <FileContentNotice
           activePath={relPath}
-          metadata={metadata}
+          notice={{ metadata }}
           oldFile={null}
           newFile={repoFile ?? null}
           mode="file"
