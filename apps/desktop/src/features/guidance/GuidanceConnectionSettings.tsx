@@ -11,8 +11,10 @@ export function GuidanceConnectionSettings() {
   const [change, { isLoading: changing }] = useChangeGuidanceConnectionMutation();
   const [notice, setNotice] = useState("");
   const running = data?.status === "running";
+
   async function copy() {
     if (!data?.clientConfig) return;
+
     try {
       await navigator.clipboard.writeText(data.clientConfig);
       setNotice("Connection configuration copied.");
@@ -20,24 +22,25 @@ export function GuidanceConnectionSettings() {
       setNotice("Could not copy. Try again.");
     }
   }
+
   return (
     <section
-      className="border-border bg-surface-toolbar rounded-xl border p-5"
+      className="border-border bg-surface-toolbar rounded-md border p-4"
       aria-label="Agent connection"
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-2">
+        <div className="min-w-0 flex-1 space-y-1">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
             <Plug className="size-4" />
             Agent connection
           </h2>
-          <p className="text-muted-foreground max-w-xl text-sm">
+          <p className="text-muted-foreground max-w-xl text-xs leading-5">
             Connect T3 Code or another MCP client to build guided PR walkthroughs. Agents can read
             open repositories and save guidance and replies.
           </p>
         </div>
         <Button
-          className="h-10"
+          size="sm"
           variant={running ? "outline" : "default"}
           disabled={isLoading || changing}
           onClick={() => {
@@ -56,7 +59,7 @@ export function GuidanceConnectionSettings() {
             Listening locally at <code>{data.endpoint}</code>
           </p>
           <Button
-            className="h-10"
+            size="sm"
             variant="outline"
             onClick={() => {
               void copy();

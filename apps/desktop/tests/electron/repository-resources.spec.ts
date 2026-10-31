@@ -24,7 +24,7 @@ for (const theme of ["light", "dark"] as const) {
     const { page, git } = fixture;
 
     try {
-      await page.getByRole("button", { name: "Stashes: 1", exact: true }).click();
+      await page.getByRole("button", { name: "Repository tools", exact: true }).click();
       await page.getByRole("menuitem", { name: "Apply stash…", exact: true }).click();
       await page.getByRole("button").filter({ hasText: "Invoice validation draft" }).click();
       await expect(
@@ -36,7 +36,7 @@ for (const theme of ["light", "dark"] as const) {
       expect(git("stash", "list")).toContain("Invoice validation draft");
       expect(git("status", "--porcelain")).toBe("");
 
-      await page.getByRole("button", { name: "Tags: 1", exact: true }).click();
+      await page.getByRole("button", { name: "Repository tools", exact: true }).click();
       await page.getByRole("menuitem", { name: "Browse tags…", exact: true }).click();
       await page
         .getByRole("list", { name: "Local tags", exact: true })
@@ -44,13 +44,16 @@ for (const theme of ["light", "dark"] as const) {
         .filter({ hasText: "v1.0.0" })
         .click();
       await expect(page.getByText("History commits", { exact: true })).toBeVisible();
+      await expect(page.locator(".diff-viewport-scroll [data-line]").first()).toBeVisible();
 
-      await page.getByRole("button", { name: "Worktrees: 2", exact: true }).click();
-      await page.screenshot({ path: testInfo.outputPath(`worktrees-${theme}.png`) });
-      await page.getByRole("menuitem").filter({ hasText: "feature/preview" }).click();
+      await page.getByRole("button", { name: "Repository tools", exact: true }).click();
+      const preview = page.getByRole("menuitem").filter({ hasText: "feature/preview" });
+      await expect(preview).toBeVisible();
+      await preview.click();
       await expect(
         page.getByRole("button", { name: "Switch branch: feature/preview", exact: true }),
       ).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`worktree-open-${theme}.png`) });
       await page.getByRole("button", { name: "Repository files", exact: true }).click();
       await page
         .getByRole("treeitem", { name: "invoice.ts", exact: true })
@@ -66,7 +69,18 @@ for (const theme of ["light", "dark"] as const) {
           exact: true,
         }),
       ).toBeVisible();
+      await page
+        .getByRole("button", { name: "Lines 1–2: Alice · Add invoice calculation", exact: true })
+        .click();
+      const details = page.getByRole("dialog", { name: "Blame commit details" });
+      await expect(page.locator("diffs-container [data-selected-line]")).not.toHaveCount(0);
       await page.screenshot({ path: testInfo.outputPath(`line-authors-${theme}.png`) });
+      await details.getByRole("button", { name: "Open commit", exact: true }).click();
+      await expect(page.getByText("History commits", { exact: true })).toBeVisible();
+      await expect(page.getByRole("complementary", { name: "Line attribution" })).toHaveCount(0);
+      await expect(
+        page.locator("file-tree-container [data-item-path='invoice.ts'][aria-selected='true']"),
+      ).toBeVisible();
     } catch (error) {
       await page.screenshot({ path: testInfo.outputPath("failure.png") });
       throw error;

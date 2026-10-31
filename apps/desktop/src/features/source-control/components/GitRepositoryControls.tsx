@@ -1,5 +1,5 @@
 import { hasRepositoryEventBridge } from "@/features/source-control/repositoryFreshness";
-import { ArrowDown, ArrowUp, ChevronDown, GitBranch, RefreshCw, Settings2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, GitBranch, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ToolbarAction } from "@/components/ui/toolbar-action";
@@ -73,14 +73,6 @@ export function RepositoryControlButtons({
           </TooltipContent>
         </Tooltip>
         <div role="group" aria-label="Remote actions" className="flex shrink-0 items-center gap-1">
-          <ToolbarAction
-            label="Remotes & upstream"
-            description="Manage repository URLs and branch tracking"
-            disabledReason={busy ? "A Git operation is in progress" : undefined}
-            onClick={() => open("manage-remotes")}
-          >
-            <Settings2 />
-          </ToolbarAction>
           <ToolbarAction
             label="Fetch remote changes"
             description="Choose a remote to fetch from"

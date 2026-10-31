@@ -205,7 +205,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.screenshot({ path: testInfo.outputPath(`initialize-${theme}.png`) });
 
     await page.getByRole("button", { name: "Initialize repository", exact: true }).click();
-    await page.getByRole("button", { name: "Remotes & upstream", exact: true }).click();
+    await page.getByRole("button", { name: "Repository tools", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Remotes & upstream…", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Remotes & upstream" })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`remotes-${theme}.png`) });
 

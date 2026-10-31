@@ -5,7 +5,6 @@ import { GitPullRequest, List } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
-import { PullRequestReviewControl } from "@/features/pull-requests/components/PullRequestReviewControl";
 import { PullRequestTabHover } from "./PullRequestTabHover";
 import { closeWorkspace, selectWorkspace } from "../actions";
 import {
@@ -102,10 +101,6 @@ export function ProjectReviewTabs() {
               locator={{ repoPath: active.repoPath, pullRequestNumber: active.pullRequestNumber }}
             />
           ) : null}
-          <PullRequestReviewControl
-            repoPath={active.repoPath}
-            pullRequestNumber={active.pullRequestNumber}
-          />
         </nav>
       )}
     </div>

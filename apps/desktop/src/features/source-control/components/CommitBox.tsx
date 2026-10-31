@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { CommitComposer } from "./CommitComposer";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Undo2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useGetGitSnapshotQuery } from "../api";
 import { useGetGitRepositoryStateQuery, useRunGitCommandMutation } from "../gitOperationsApi";
@@ -83,7 +84,6 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
     <>
       <CommitComposer
         message={commitMessage}
-        stagedCount={stagedCount}
         busy={busy}
         canCommit={canCommit}
         amending={Boolean(amendHead)}
@@ -92,8 +92,9 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
         onSubmit={() => void submit()}
         options={
           <>
-            <label className="flex items-center gap-1.5">
+            <label className="text-muted-foreground flex min-h-8 items-center gap-1.5 px-1">
               <Checkbox
+                aria-label="Amend last commit"
                 aria-description={amendDescription}
                 checked={Boolean(amendHead)}
                 disabled={busy || !editableCommit}
@@ -108,7 +109,7 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
                   }
                 }}
               />
-              Amend last commit
+              Amend
             </label>
             <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
               <Tooltip>
@@ -117,6 +118,7 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
                     <Button
                       variant="ghost"
                       size="xs"
+                      aria-label="Undo commit"
                       disabled={busy || !editableCommit || Boolean(amendHead)}
                       aria-description={undoDescription}
                       onClick={() => {
@@ -136,7 +138,8 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
                         });
                       }}
                     >
-                      Undo commit
+                      <Undo2 className="size-3" />
+                      Undo
                     </Button>
                   </span>
                 </TooltipTrigger>

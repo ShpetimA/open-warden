@@ -1,6 +1,6 @@
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { Check, MessageSquare, ShieldAlert, X } from "lucide-react";
+import { Check, MessageSquare, ShieldAlert, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ActionError } from "@/components/ui/error-state";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
-import { removeCommentsByIds } from "@/features/comments/commentsSlice";
+import { removeComment, removeCommentsByIds } from "@/features/comments/commentsSlice";
 import {
   useGetPullRequestConversationQuery,
   usePreparePullRequestCompareRefsQuery,
@@ -38,7 +38,6 @@ const decisions = [
 type PanelProps = {
   title: string;
   number: number;
-  provider: string;
   decision: ReviewDraft["decision"];
   message: string;
   pendingComments: readonly CommentItem[];
@@ -49,6 +48,7 @@ type PanelProps = {
   onDecision: (decision: ReviewDraft["decision"]) => void;
   onMessage: (message: string) => void;
   onSubmit: () => void;
+  onRemoveComment: (id: string) => void;
   onClose: () => void;
   onRefresh?: () => void;
 };
@@ -135,34 +135,40 @@ export function PullRequestReviewPanelView(props: PanelProps) {
             className="min-h-28 resize-y text-sm"
           />
         </div>
-        <section aria-label="Pending inline comments" className="space-y-2">
-          <h3 className="text-xs font-medium tabular-nums">
-            {props.pendingComments.length} pending inline{" "}
-            {props.pendingComments.length === 1 ? "comment" : "comments"}
-          </h3>
-          {props.pendingComments.length ? (
+        {props.pendingComments.length > 0 ? (
+          <section aria-label="Pending inline comments" className="space-y-2">
+            <h3 className="text-xs font-medium tabular-nums">
+              {props.pendingComments.length} pending inline{" "}
+              {props.pendingComments.length === 1 ? "comment" : "comments"}
+            </h3>
             <ul className="divide-y rounded-md border">
               {props.pendingComments.map((comment) => (
                 <li key={comment.id} className="space-y-1 px-3 py-2">
-                  <p className="text-muted-foreground font-mono text-[11px] break-all">
-                    {comment.filePath}:{comment.startLine}
-                    {comment.endLine !== comment.startLine ? `–${comment.endLine}` : ""}
-                  </p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-muted-foreground font-mono text-[11px] break-all">
+                      {comment.filePath}:{comment.startLine}
+                      {comment.endLine !== comment.startLine ? `–${comment.endLine}` : ""}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`Delete pending comment on ${comment.filePath}:${comment.startLine}`}
+                      title="Delete pending comment"
+                      disabled={props.busy}
+                      onClick={() => {
+                        props.onRemoveComment(comment.id);
+                        messageInput.current?.focus();
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
                   <p className="text-xs whitespace-pre-wrap break-words">{comment.text}</p>
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              Add comments on diff lines to include them here.
-            </p>
-          )}
-          {props.provider === "bitbucket" ? (
-            <p className="text-muted-foreground text-xs">
-              Bitbucket publishes inline comments, the message, and the decision separately.
-            </p>
-          ) : null}
-        </section>
+          </section>
+        ) : null}
         {props.notice ? (
           <div
             role="status"
@@ -332,7 +338,6 @@ export function PullRequestReviewPanel({
     <PullRequestReviewPanelView
       title={pullRequest.title}
       number={pullRequest.number}
-      provider={pullRequest.providerId}
       decision={decision}
       message={message}
       pendingComments={pendingComments}
@@ -343,6 +348,11 @@ export function PullRequestReviewPanel({
       onDecision={(value) => save({ decision: value })}
       onMessage={(value) => save({ message: value })}
       onSubmit={() => void submitReview()}
+      onRemoveComment={(id) => {
+        if (!running.current && pendingComments.some((comment) => comment.id === id)) {
+          dispatch(removeComment(id));
+        }
+      }}
       onClose={() => {
         if (!running.current) onClose();
       }}

@@ -31,9 +31,9 @@ export type PullRequestHeaderAction =
 
 const destructiveActions = new Set<LifecycleAction>(["close", "revert"]);
 
-/** One primary "Open" split button plus one overflow menu: every other action lives in it. */
 export function PullRequestHeaderActions({
   refreshControl,
+  reviewControl,
   lifecycleActions,
   opening,
   refreshing,
@@ -41,6 +41,7 @@ export function PullRequestHeaderActions({
   onLifecycle,
 }: {
   refreshControl?: ReactNode;
+  reviewControl?: ReactNode;
   lifecycleActions: LifecycleAction[];
   opening: "branch" | "worktree" | null;
   refreshing: boolean;
@@ -61,6 +62,7 @@ export function PullRequestHeaderActions({
           <RefreshCw className={refreshing ? "animate-spin" : undefined} />
         </Button>
       )}
+      {reviewControl}
       <div className="flex items-center">
         <Button
           size="sm"

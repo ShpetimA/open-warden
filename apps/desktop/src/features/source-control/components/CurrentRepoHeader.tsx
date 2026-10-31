@@ -33,6 +33,7 @@ function CurrentRepositoryHeader({
             compact
             disabled={!!runningAction}
           />
+          {activeRepo ? <RepositoryResources key={activeRepo} repoPath={activeRepo} /> : null}
           <RepositoryRefreshAction
             repoPath={activeRepo}
             runningAction={runningAction}
@@ -40,12 +41,7 @@ function CurrentRepositoryHeader({
           />
         </div>
       </div>
-      {activeRepo ? (
-        <>
-          <GitRepositoryControls key={activeRepo} repoPath={activeRepo} />
-          <RepositoryResources key={`resources:${activeRepo}`} repoPath={activeRepo} />
-        </>
-      ) : null}
+      {activeRepo ? <GitRepositoryControls key={activeRepo} repoPath={activeRepo} /> : null}
     </div>
   );
 }

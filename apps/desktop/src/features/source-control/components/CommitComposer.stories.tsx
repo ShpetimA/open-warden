@@ -20,7 +20,6 @@ function Example({ stagedCount = 0, draft = "", busy = false }) {
     <div className="bg-surface-toolbar w-[min(340px,calc(100vw-32px))] border">
       <CommitComposer
         message={message}
-        stagedCount={stagedCount}
         busy={busy}
         canCommit={Boolean(stagedCount && message.trim() && !busy)}
         amending={false}
@@ -29,12 +28,12 @@ function Example({ stagedCount = 0, draft = "", busy = false }) {
         onSubmit={() => {}}
         options={
           <>
-            <label className="flex items-center gap-2">
-              <Checkbox />
-              Amend last commit
+            <label className="text-muted-foreground flex min-h-8 items-center gap-1.5 px-1">
+              <Checkbox aria-label="Amend last commit" />
+              Amend
             </label>
-            <Button variant="ghost" size="xs">
-              Undo commit
+            <Button variant="ghost" size="xs" aria-label="Undo commit">
+              Undo
             </Button>
           </>
         }

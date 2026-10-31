@@ -386,7 +386,7 @@ export function PullRequestCommentComposer({
       ) : (
         <span className="size-7 shrink-0" />
       )}
-      <div className="bg-surface-0 min-w-0 flex-1 rounded-lg border p-2">
+      <div className="min-w-0 flex-1">
         <MarkdownEditor
           value={value}
           onChange={setValue}

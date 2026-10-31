@@ -260,25 +260,58 @@ function PullRequestChanges({
           )
         }
       >
-        <div className="grid h-full min-h-0">
-          <FilesDiffViewer
-            providerId={providerId}
-            repoPath={activeRepo ?? ""}
+        <div className="flex h-full min-h-0 flex-col">
+          <PullRequestFileActions
+            repoPath={activeRepo}
             pullRequestNumber={parsedPullRequestNumber}
             compareBaseRef={compareBaseRef}
             compareHeadRef={compareHeadRef}
-            filesError={filesError}
-            onRetryFiles={retryFiles}
-            filesLoading={filesLoading}
             files={files}
-            canComment={!comparison.stale}
-            conversation={comparison.conversation ?? conversation}
-            reviewThreads={!reviewingCommit && !comparison.stale ? reviewThreads : []}
-            viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
+            showCommentActions={!reviewingCommit && !comparison.stale}
           />
+          <div className="min-h-0 flex-1">
+            <FilesDiffViewer
+              providerId={providerId}
+              repoPath={activeRepo ?? ""}
+              pullRequestNumber={parsedPullRequestNumber}
+              compareBaseRef={compareBaseRef}
+              compareHeadRef={compareHeadRef}
+              filesError={filesError}
+              onRetryFiles={retryFiles}
+              filesLoading={filesLoading}
+              files={files}
+              canComment={!comparison.stale}
+              conversation={comparison.conversation ?? conversation}
+              reviewThreads={!reviewingCommit && !comparison.stale ? reviewThreads : []}
+              viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
+            />
+          </div>
         </div>
       </PullRequestChangesSidebar>
     </>
+  );
+}
+
+function PullRequestFileActions({
+  files,
+  ...props
+}: {
+  repoPath: string;
+  pullRequestNumber: number;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  files: readonly PullRequestChangedFile[];
+  showCommentActions: boolean;
+}) {
+  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
+  const file = files.find((item) => item.path === activePath);
+
+  return (
+    <ReviewCommentsCopyToolbar
+      {...props}
+      activePath={activePath}
+      activePreviousPath={file?.previousPath ?? undefined}
+    />
   );
 }
 
@@ -485,16 +518,6 @@ function FilesDiffViewer({
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
-        {viewedState ? (
-          <ReviewCommentsCopyToolbar
-            repoPath={repoPath}
-            pullRequestNumber={pullRequestNumber}
-            compareBaseRef={compareBaseRef}
-            compareHeadRef={compareHeadRef}
-            activePath={previewFile?.path ?? selectedFile.path}
-            activePreviousPath={previewFile?.previousPath ?? selectedFile.previousPath ?? undefined}
-          />
-        ) : null}
         <DiffWorkspace
           modeChange={branchFileVersions?.modeChange}
           oldFile={selectedOldFile}

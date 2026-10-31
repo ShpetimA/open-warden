@@ -314,6 +314,7 @@ export function PullRequestInlineReviewThread({
                   value={replyDraft}
                   onChange={setReplyDraft}
                   placeholder="Reply..."
+                  label="Reply"
                   compact
                   mentions={mentions}
                 />

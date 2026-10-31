@@ -84,7 +84,7 @@ export function CommentComposer({
   if (!visible) return null;
 
   return (
-    <div className="border-border bg-surface-elevated flex w-full min-w-0 max-w-3xl flex-col rounded-md border p-2 font-sans whitespace-normal">
+    <div className="bg-surface-elevated flex w-full min-w-0 max-w-3xl flex-col rounded-md p-2 font-sans whitespace-normal">
       <MarkdownEditor
         value={draftComment}
         onChange={setDraftComment}

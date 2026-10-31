@@ -1,8 +1,10 @@
+import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { File, Virtualizer } from "@pierre/diffs/react";
 import { getDiffTheme } from "@/features/diff-view/diffRenderConfig";
-import { BLAME_LINE_HEIGHT, groupBlameLines } from "../blameGroups";
+import { BLAME_LINE_HEIGHT, groupBlameLines, type BlameGroup } from "../blameGroups";
 import { BlameAttribution } from "./BlameAttribution";
+import { makeFileCodeFocusable } from "../fileCodeAccessibility";
 
 const meta = {
   title: "Source control/File blame",
@@ -12,6 +14,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 function Example({ width = 900 }: { width?: number }) {
+  const [selectedGroup, setSelectedGroup] = useState<BlameGroup | null>(null);
   const groups = groupBlameLines(
     Array.from({ length: 160 }, (_, index) => ({
       line: index + 1,
@@ -48,6 +51,8 @@ function Example({ width = 900 }: { width?: number }) {
         <aside className="bg-surface-toolbar relative w-[clamp(136px,24cqw,240px)] shrink-0 self-stretch border-r">
           <BlameAttribution
             groups={groups}
+            selectedGroup={selectedGroup}
+            onSelectGroup={setSelectedGroup}
             renderCommitDetails={(group) => (
               <div className="space-y-2">
                 <p className="text-sm font-medium">{group.summary}</p>
@@ -59,6 +64,9 @@ function Example({ width = 900 }: { width?: number }) {
         </aside>
         <File
           file={file}
+          selectedLines={
+            selectedGroup ? { start: selectedGroup.line, end: selectedGroup.endLine } : null
+          }
           className="min-w-0 flex-1"
           metrics={{
             lineHeight: BLAME_LINE_HEIGHT,
@@ -70,6 +78,7 @@ function Example({ width = 900 }: { width?: number }) {
             theme: getDiffTheme(),
             themeType: "system",
             disableFileHeader: true,
+            onPostRender: makeFileCodeFocusable,
             unsafeCSS: `:host { --diffs-line-height: ${BLAME_LINE_HEIGHT}px; --diffs-gap-block: 0px; }`,
           }}
         />

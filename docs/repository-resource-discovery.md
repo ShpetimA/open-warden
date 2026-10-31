@@ -1,12 +1,17 @@
 # Repository resource discovery
 
-Repository headers show Stashes, Tags, and Worktrees with live counts. The menus launch
-existing command flows, so creation and deletion retain their preview and confirmation steps.
+The repository header has one compact tools menu beside Refresh. It contains Stashes, Tags,
+Worktrees with live counts, and Remotes & upstream. Branch switching and Fetch/Pull/Push stay
+visible. The menus launch existing command flows, so creation and deletion retain their preview
+and confirmation steps.
 Worktrees can also be opened directly as project tabs. The current checkout cannot be removed
 from its own menu.
 
 Repository files offer Show line authors (blame) in the file context menu. It opens the existing
 file viewer with attribution enabled; text drafts and non-text file safeguards still apply.
+Selecting attribution highlights the matching code range. Its card prefers space above or below
+the range; viewport-sized ranges use the attribution side instead of covering code. Open commit
+opens History with the same file selected.
 
 Counts come from the shared repository-state query and event owner. No pane watcher or extra
 polling loop was added. Loading and failed reads have explicit menu states and refresh recovery.

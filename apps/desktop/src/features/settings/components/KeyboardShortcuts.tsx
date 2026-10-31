@@ -22,8 +22,11 @@ const shortcuts = [
 
 export function KeyboardShortcuts() {
   return (
-    <section aria-labelledby="keyboard-shortcuts-title" className="border-border rounded-xl border">
-      <div className="border-border border-b px-5 py-4">
+    <section
+      aria-labelledby="keyboard-shortcuts-title"
+      className="border-border/70 bg-surface-toolbar rounded-md border"
+    >
+      <div className="border-border border-b px-4 py-3">
         <h2 id="keyboard-shortcuts-title" className="text-sm font-medium">
           Keyboard shortcuts
         </h2>
@@ -31,12 +34,14 @@ export function KeyboardShortcuts() {
           Review shortcuts cycle the pull-request list and open reviews in the current project.
         </p>
       </div>
-      <dl className="divide-border divide-y px-5">
+      <dl className="divide-border divide-y px-4">
         {shortcuts.map(([label, keys]) => (
-          <div key={label} className="flex items-center justify-between gap-4 py-2.5 text-xs">
+          <div key={label} className="flex items-center justify-between gap-4 py-2 text-xs">
             <dt>{label}</dt>
             <dd>
-              <kbd className="text-muted-foreground whitespace-nowrap font-mono">{keys}</kbd>
+              <kbd className="text-muted-foreground text-right whitespace-normal font-mono">
+                {keys}
+              </kbd>
             </dd>
           </div>
         ))}

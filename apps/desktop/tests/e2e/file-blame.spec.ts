@@ -112,6 +112,7 @@ test.beforeEach(async ({ page }) => {
           },
         ],
         getCommitFiles: async () => [
+          { path: "aaa.ts", status: "modified", previousPath: null },
           { path: "src/invoice.ts", status: "modified", previousPath: null },
         ],
         getCommitFileVersions: async () => ({
@@ -197,6 +198,22 @@ for (const theme of ["light", "dark"] as const) {
     await group.getByRole("button").click();
     const details = page.getByRole("dialog", { name: "Blame commit details" });
     await expect(details.getByText(/shpetim@example.com/)).toBeVisible();
+    await expect(page.locator('diffs-container [data-line="2"][data-selected-line]')).toBeVisible();
+    await expect(
+      page.locator('diffs-container [data-line="12"][data-selected-line]'),
+    ).toBeVisible();
+    await expect(page.locator('diffs-container [data-line="1"][data-selected-line]')).toHaveCount(
+      0,
+    );
+    const cardBounds = await details.boundingBox();
+    const groupBounds = await group.boundingBox();
+
+    if (!cardBounds || !groupBounds) throw new Error("Card and selected lines must be rendered");
+
+    expect(
+      cardBounds.y + cardBounds.height <= groupBounds.y ||
+        cardBounds.y >= groupBounds.y + groupBounds.height,
+    ).toBe(true);
     await expect(details.locator("details")).not.toHaveAttribute("open", "");
     await details.locator("summary").click();
     await expect(details.getByText(/The validation follows/)).toBeVisible();
@@ -209,6 +226,7 @@ for (const theme of ["light", "dark"] as const) {
     });
     await page.keyboard.press("Escape");
     await expect(group.getByRole("button")).toBeFocused();
+    await expect(page.locator("diffs-container [data-selected-line]")).toHaveCount(0);
     const scroll = page.locator(".file-viewer-scroll");
     await scroll.evaluate((element) => {
       element.scrollTop = 10000;
@@ -220,6 +238,9 @@ for (const theme of ["light", "dark"] as const) {
     await expectAligned(laterGroup, laterLine);
     expect(await gutter.locator("[data-blame-start]").count()).toBeLessThan(80);
     await page.setViewportSize({ width: 900, height: 700 });
+    const contents = page.getByRole("region", { name: "File contents", exact: true });
+    await contents.focus();
+    await expect(contents).toBeFocused();
     await page.screenshot({
       path: testInfo.outputPath(`blame-${theme}-narrow.png`),
       animations: "disabled",
@@ -230,6 +251,30 @@ for (const theme of ["light", "dark"] as const) {
     expect(await host?.evaluate((element) => element.isConnected)).toBe(true);
   });
 }
+
+test("keeps a viewport-sized blame range readable beside its code", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1100, height: 700 });
+  await openFile(page);
+  await page.getByRole("button", { name: "Blame", exact: true }).click();
+  await page.locator(".file-viewer-scroll").evaluate((element) => {
+    element.scrollTop = 1000;
+  });
+  await page.getByRole("button", { name: /^Lines 17–199:/ }).click();
+  const details = page.getByRole("dialog", { name: "Blame commit details" });
+  await expect(details.getByRole("button", { name: "Open commit", exact: true })).toBeInViewport();
+  await expect(details).toHaveAttribute("data-side", "left");
+  const card = await details.boundingBox();
+  const code = await page.locator("diffs-container").boundingBox();
+
+  if (!card || !code) throw new Error("Blame card and code must be rendered");
+
+  expect(card.x).toBeGreaterThanOrEqual(12);
+  expect(card.x + card.width).toBeLessThanOrEqual(code.x + 1);
+  await page.screenshot({
+    path: testInfo.outputPath("blame-long-range.png"),
+    animations: "disabled",
+  });
+});
 
 test("opens commit details deliberately and distinguishes working-tree lines", async ({ page }) => {
   await openFile(page);
@@ -242,6 +287,11 @@ test("opens commit details deliberately and distinguishes working-tree lines", a
   await page.getByRole("button", { name: /^Lines 2–12:/ }).click();
   await details.getByRole("button", { name: "Open commit", exact: true }).click();
   await expect(page).toHaveURL(/history\?commit=b{40}/);
+  await expect(page.getByRole("complementary", { name: "Line attribution" })).toHaveCount(0);
+  await expect(
+    page.locator('file-tree-container [data-item-path="src/invoice.ts"][aria-selected="true"]'),
+  ).toBeVisible();
+  await expect(page.locator(".diff-viewport-scroll")).toContainText("const invoice = 2;");
 });
 
 test("keeps code usable while blame loads and recovers a blame failure", async ({ page }) => {

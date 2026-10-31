@@ -2,6 +2,7 @@ import { PullRequestRefreshControl } from "../refresh/PullRequestRefreshControl"
 import { PullRequestRevisionNotice } from "../refresh/PullRequestRevisionNotice";
 import { usePullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { PullRequestReadNotices } from "../components/PullRequestReadNotices";
+import { PullRequestReviewControl } from "../components/PullRequestReviewControl";
 import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { Copy, MessageSquarePlus, Trash2 } from "lucide-react";
@@ -224,6 +225,7 @@ function PullRequestOverviewHeaderBar({
       actions={
         <PullRequestHeaderActions
           refreshControl={<PullRequestRefreshControl locator={locator} />}
+          reviewControl={<PullRequestReviewControl {...locator} />}
           lifecycleActions={headerLifecycleActions(detail)}
           opening={opening}
           refreshing={refreshing}

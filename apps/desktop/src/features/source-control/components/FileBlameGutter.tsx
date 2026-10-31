@@ -8,7 +8,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { ErrorNotice } from "@/components/ui/error-state";
 import { Spinner } from "@/components/ui/spinner";
-import { selectHistoryPullRequestCommit } from "../actions";
+import { openHistoryFileFromBlame } from "../actions";
 import { useGetCommitDetailsQuery, useGetFileBlameQuery } from "../api";
 import { groupBlameLines, type BlameGroup } from "../blameGroups";
 import { BlameAttribution } from "./BlameAttribution";
@@ -19,7 +19,15 @@ type BlameTarget = {
   revision?: string | null;
 };
 
-export function FileBlameGutter({ target }: { target: BlameTarget }) {
+export function FileBlameGutter({
+  target,
+  selectedGroup,
+  onSelectGroup,
+}: {
+  target: BlameTarget;
+  selectedGroup: BlameGroup | null;
+  onSelectGroup: (group: BlameGroup | null) => void;
+}) {
   const blameTarget = {
     repoPath: target.repoPath,
     relPath: target.relPath,
@@ -45,9 +53,9 @@ export function FileBlameGutter({ target }: { target: BlameTarget }) {
         ) : (
           <BlameAttribution
             groups={groups}
-            renderCommitDetails={(group) => (
-              <BlameCommitDetails group={group} repoPath={target.repoPath} />
-            )}
+            selectedGroup={selectedGroup}
+            onSelectGroup={onSelectGroup}
+            renderCommitDetails={(group) => <BlameCommitDetails group={group} target={target} />}
           />
         )}
       </BlameReadState>
@@ -105,7 +113,7 @@ function BlameReadState({ target, children }: { target: BlameTarget; children: R
   );
 }
 
-function BlameCommitDetails({ group, repoPath }: { group: BlameGroup; repoPath: string }) {
+function BlameCommitDetails({ group, target }: { group: BlameGroup; target: BlameTarget }) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const {
@@ -114,7 +122,7 @@ function BlameCommitDetails({ group, repoPath }: { group: BlameGroup; repoPath: 
     isFetching,
     refetch,
   } = useGetCommitDetailsQuery({
-    repoPath,
+    repoPath: target.repoPath,
     commitId: group.commitId,
   });
   const date = details?.authoredAt ?? group.authoredAt;
@@ -179,7 +187,13 @@ function BlameCommitDetails({ group, repoPath }: { group: BlameGroup; repoPath: 
           variant="secondary"
           size="xs"
           onClick={() => {
-            void dispatch(selectHistoryPullRequestCommit(group.commitId));
+            void dispatch(
+              openHistoryFileFromBlame({
+                repoPath: target.repoPath,
+                relPath: target.relPath,
+                commitId: group.commitId,
+              }),
+            );
             navigate(`/history?commit=${group.commitId}`);
           }}
         >

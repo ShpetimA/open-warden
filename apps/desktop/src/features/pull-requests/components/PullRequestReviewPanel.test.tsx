@@ -96,6 +96,22 @@ it("preserves a review draft across close, session restore, and partial submissi
   store.dispatch(
     addComment({
       type: "annotation",
+      id: "delete-note",
+      repoPath: "/repos/invoice",
+      filePath: "src/invoice.ts",
+      bucket: "unstaged",
+      startLine: 7,
+      endLine: 7,
+      side: "additions",
+      text: "Remove this draft before submission",
+      contextKind: "review",
+      baseRef: "base123",
+      headRef: "head123",
+    }),
+  );
+  store.dispatch(
+    addComment({
+      type: "annotation",
       id: "other-note",
       repoPath: "/repos/other",
       filePath: "src/invoice.ts",
@@ -122,7 +138,16 @@ it("preserves a review draft across close, session restore, and partial submissi
   );
   const view = render(panel);
 
+  await screen.findByText("2 pending inline comments");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Delete pending comment on src/invoice.ts:7" }),
+  );
   await screen.findByText("1 pending inline comment");
+  expect(store.getState().comments.map((comment) => comment.id)).toEqual([
+    "invoice-note",
+    "other-note",
+  ]);
+  expect(screen.getByLabelText(/Review message/)).toHaveFocus();
   fireEvent.click(screen.getByRole("radio", { name: "Request changes" }));
   expect(screen.getByRole("button", { name: /Submit review/ })).toBeDisabled();
   fireEvent.change(screen.getByLabelText(/Review message/), {
@@ -204,6 +229,14 @@ it.each(["github", "bitbucket"] as const)(
       </Provider>,
     );
 
+    expect(
+      screen.queryByRole("region", { name: "Pending inline comments" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Bitbucket publishes inline comments, the message, and the decision separately.",
+      ),
+    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("radio", { name: "Approve", exact: true }));
     const submit = screen.getByRole("button", { name: /Submit review/ });
     await waitFor(() => expect(submit).toBeEnabled());

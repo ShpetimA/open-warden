@@ -2342,6 +2342,20 @@ test.describe("Focused review panel", () => {
                         baseRef: detail.baseSha,
                         headRef: detail.headSha,
                       },
+                      {
+                        type: "annotation",
+                        id: "delete-note",
+                        repoPath: "/projects/invoice",
+                        filePath: "src/invoice.ts",
+                        bucket: "unstaged",
+                        startLine: 7,
+                        endLine: 7,
+                        side: "additions",
+                        text: "Remove this draft before submitting",
+                        contextKind: "review",
+                        baseRef: detail.baseSha,
+                        headRef: detail.headSha,
+                      },
                     ],
                   },
                 }
@@ -2372,11 +2386,33 @@ test.describe("Focused review panel", () => {
         { theme, detail },
       );
 
-      await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+      await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
       const review = page.getByRole("button", { name: "Review pull request", exact: true });
       await expect(review).toBeEnabled();
+      await page.screenshot({ path: testInfo.outputPath(`review-overview-${theme}.png`) });
       await review.click();
+      await expect(page.getByText("2 pending inline comments", { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Close review", exact: true }).click();
+      await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+      await expect(review).toBeEnabled();
+      await expect(
+        page
+          .getByRole("navigation", { name: "Review sections" })
+          .getByRole("button", { name: "Review pull request" }),
+      ).toHaveCount(0);
+      await page.screenshot({ path: testInfo.outputPath(`review-toolbar-${theme}.png`) });
+      await review.click();
+      await expect(page.getByText("2 pending inline comments", { exact: true })).toBeVisible();
+      await page
+        .getByRole("button", { name: "Delete pending comment on src/invoice.ts:7", exact: true })
+        .click();
       await expect(page.getByText("1 pending inline comment", { exact: true })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: /Review message/ })).toBeFocused();
+      await expect(
+        page.getByText(
+          "Bitbucket publishes inline comments, the message, and the decision separately.",
+        ),
+      ).toHaveCount(0);
       await page.getByRole("radio", { name: "Request changes", exact: true }).check();
       const submit = page.getByRole("button", { name: /Submit review/ });
       await expect(submit).toBeDisabled();
@@ -2394,6 +2430,12 @@ test.describe("Focused review panel", () => {
       );
       await submit.click();
       await expect(page.getByRole("button", { name: "Close review" })).toBeDisabled();
+      await expect(
+        page.getByRole("button", {
+          name: "Delete pending comment on src/invoice.ts:3",
+          exact: true,
+        }),
+      ).toBeDisabled();
       await message.press("Escape");
       await expect(page.getByRole("dialog")).toBeVisible();
       await expect(page.getByText("Could not reach Bitbucket. Your draft is safe.")).toBeVisible();
@@ -2407,3 +2449,61 @@ test.describe("Focused review panel", () => {
     });
   }
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`compact comment editor keeps formatting, preview, and mentions in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 900 });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+
+    await page.locator('[data-additions] [data-column-number="2"]').hover();
+    await page.locator("[data-additions] [data-utility-button]").click();
+    const editor = page.getByRole("textbox", { name: "Comment", exact: true });
+    await expect(editor).toBeVisible();
+    await editor.fill("Check zero amounts");
+    await editor.selectText();
+    await page.getByRole("button", { name: "Bold", exact: true }).click();
+    await expect(editor).toHaveValue("**Check zero amounts**");
+
+    await page.getByRole("tab", { name: "Preview", exact: true }).click();
+    await expect(
+      page.getByRole("tabpanel").filter({ hasText: "Check zero amounts" }).locator("strong"),
+    ).toHaveText("Check zero amounts");
+    await page.getByRole("tab", { name: "Write", exact: true }).click();
+    await expect(editor).toHaveValue("**Check zero amounts**");
+    await editor.fill("task");
+    await editor.selectText();
+    await page.getByRole("button", { name: "More formatting", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Task list", exact: true }).click();
+    await expect(editor).toHaveValue("- [ ] task");
+
+    await editor.fill("quote");
+    await editor.selectText();
+    await editor.press("ControlOrMeta+Shift+>");
+    await expect(editor).toHaveValue("> quote");
+    await editor.fill("bold");
+    await editor.selectText();
+    await editor.press("ControlOrMeta+b");
+    await expect(editor).toHaveValue("**bold**");
+
+    await editor.fill("@al");
+    const suggestions = page.getByRole("group", { name: "Mention suggestions" });
+    await expect(suggestions.getByRole("button", { name: /alice/ })).toBeVisible();
+    await editor.press("Enter");
+    await expect(editor).toHaveValue("@alice ");
+    await expect(suggestions).toHaveCount(0);
+    await editor.fill(
+      "Can we also test **zero amounts** before saving?\n\nThe existing validation looks good.",
+    );
+    await page.mouse.move(0, 0);
+    await page.screenshot({
+      path: testInfo.outputPath(`comment-editor-after-${theme}.png`),
+      animations: "disabled",
+    });
+
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(editor).toHaveCount(0);
+  });
+}

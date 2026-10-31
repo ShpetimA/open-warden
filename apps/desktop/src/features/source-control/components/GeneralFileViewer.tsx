@@ -18,7 +18,8 @@ import { LspSymbolPeekContainer } from "@/features/lsp/components/LspSymbolPeek"
 import { useLspTokenNavigation } from "@/features/lsp/useLspTokenNavigation";
 import { navigateBackToDiffFromFileViewer } from "@/features/source-control/actions";
 import { FileBlameGutter } from "@/features/source-control/components/FileBlameGutter";
-import { BLAME_LINE_HEIGHT } from "@/features/source-control/blameGroups";
+import { makeFileCodeFocusable } from "../fileCodeAccessibility";
+import { BLAME_LINE_HEIGHT, type BlameGroup } from "@/features/source-control/blameGroups";
 import { WorkingFileControls, WorkingFileEditor } from "./WorkingFileEditor";
 import { workingFileKey } from "../fileEditorSlice";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -109,7 +110,14 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
   });
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const [showBlame, setShowBlame] = useState(Boolean(target?.blame));
+  const [blameSelection, setBlameSelection] = useState<{
+    targetKey: string;
+    group: BlameGroup;
+  } | null>(null);
+  const blameTargetKey = `${target?.repoPath}:${target?.relPath}:${target?.revision ?? ""}`;
   const blameVisible = showBlame && !hasDraft;
+  const selectedBlameGroup =
+    blameVisible && blameSelection?.targetKey === blameTargetKey ? blameSelection.group : null;
   useEffect(() => {
     setShowBlame(Boolean(target?.blame));
   }, [target?.repoPath, target?.relPath, target?.revision, target?.blame]);
@@ -176,6 +184,14 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
     return <div className="text-muted-foreground p-4 text-sm">Select a file to view it.</div>;
   }
 
+  let highlightedLines: ComponentProps<typeof PierreFile>["selectedLines"] = null;
+
+  if (selectedLine) highlightedLines = { start: selectedLine, end: selectedLine };
+
+  if (selectedBlameGroup) {
+    highlightedLines = { start: selectedBlameGroup.line, end: selectedBlameGroup.endLine };
+  }
+
   const fileProps = file
     ? ({
         file,
@@ -188,7 +204,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
           paddingTop: 0,
           paddingBottom: 0,
         },
-        selectedLines: selectedLine ? { start: selectedLine, end: selectedLine } : null,
+        selectedLines: highlightedLines,
         options: {
           theme: getDiffTheme(),
           themeType: getDiffThemeType(resolvedTheme),
@@ -197,6 +213,7 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
           disableFileHeader: true,
           overflow: "scroll",
           onTokenClick,
+          onPostRender: blameVisible ? makeFileCodeFocusable : undefined,
         },
       } satisfies ComponentProps<typeof PierreFile>)
     : null;
@@ -248,7 +265,10 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
             <FileBlameButton
               target={target}
               shown={blameVisible}
-              onToggle={() => setShowBlame((value) => !value)}
+              onToggle={() => {
+                setBlameSelection(null);
+                setShowBlame((value) => !value);
+              }}
             />
           ) : null}
           {target &&
@@ -290,6 +310,10 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
                 <FileBlameGutter
                   key={`${target.repoPath}:${target.relPath}:${target.revision ?? ""}`}
                   target={target}
+                  selectedGroup={selectedBlameGroup}
+                  onSelectGroup={(group) =>
+                    setBlameSelection(group ? { targetKey: blameTargetKey, group } : null)
+                  }
                 />
               ) : null}
               {target && !target.revision ? (

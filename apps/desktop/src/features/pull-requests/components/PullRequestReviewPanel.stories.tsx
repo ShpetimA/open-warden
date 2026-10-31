@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
+import type { CommentItem } from "@/features/source-control/types";
 import type { ReviewDraft } from "@/platform/desktop/reviewDrafts";
 import { PullRequestReviewPanelView } from "./PullRequestReviewPanel";
 
@@ -11,19 +12,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Example({ busy = false, error = false }) {
+function Example({ busy = false, error = false, empty = false }) {
   const [decision, setDecision] = useState<ReviewDraft["decision"]>("comment");
   const [message, setMessage] = useState("The validation looks good. One small question below.");
 
-  return (
-    <div className="w-[min(620px,calc(100vw-32px))]">
-      <PullRequestReviewPanelView
-        title="Validate invoice amounts before saving"
-        number={114}
-        provider="bitbucket"
-        decision={decision}
-        message={message}
-        pendingComments={[
+  const [comments, setComments] = useState<CommentItem[]>(
+    empty
+      ? []
+      : [
           {
             type: "annotation",
             id: "note",
@@ -35,7 +31,17 @@ function Example({ busy = false, error = false }) {
             side: "additions",
             text: "Can we also test a zero amount?",
           },
-        ]}
+        ],
+  );
+
+  return (
+    <div className="w-[min(620px,calc(100vw-32px))]">
+      <PullRequestReviewPanelView
+        title="Validate invoice amounts before saving"
+        number={114}
+        decision={decision}
+        message={message}
+        pendingComments={comments}
         busy={busy}
         canSubmit={!busy}
         error={
@@ -49,6 +55,7 @@ function Example({ busy = false, error = false }) {
         }
         onDecision={setDecision}
         onMessage={setMessage}
+        onRemoveComment={(id) => setComments((items) => items.filter((item) => item.id !== id))}
         onSubmit={() => {}}
         onClose={() => {}}
       />
@@ -59,3 +66,5 @@ function Example({ busy = false, error = false }) {
 export const Draft: Story = { render: () => <Example /> };
 export const Submitting: Story = { render: () => <Example busy /> };
 export const Retry: Story = { render: () => <Example error /> };
+
+export const NoInlineComments: Story = { render: () => <Example empty /> };

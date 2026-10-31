@@ -197,13 +197,22 @@ for (const theme of ["light", "dark"] as const) {
           branches: [
             { name: "main", remote: false, worktree: "/projects/invoice" },
             { name: "feature/invoices", remote: false, worktree: "" },
+            ...Array.from({ length: 12 }, (_, index) => ({
+              name: `cleanup-backup/2026-10-29/invoice/verify-signup-company-role-and-customer-subscription-follow-up-${index}`,
+              remote: false,
+              worktree: "",
+            })),
+            { name: "origin/develop", remote: true, worktree: "" },
           ],
           tags: [],
           worktrees: [],
           operation: null,
           conflicts: [],
           lastCommit: null,
-          stashes: [],
+          stashes: Array.from({ length: 8 }, (_, index) => ({
+            oid: (index + 1).toString(16).padStart(40, "0"),
+            label: `On feature/customer-subscriptions: Saved subscription work ${index + 1}`,
+          })),
           incoming: [],
           outgoing: [],
         },
@@ -218,6 +227,17 @@ for (const theme of ["light", "dark"] as const) {
 
     const dialog = page.getByRole("dialog", { name: "Command composer" });
     const actions = dialog.getByRole("textbox", { name: "Search actions", exact: true });
+
+    await page.screenshot({ path: testInfo.outputPath(`quick-actions-root-${theme}.png`) });
+    await actions.fill("stashes");
+    await actions.press("Enter");
+
+    const stashes = dialog.getByRole("textbox", { name: "Search stashes", exact: true });
+    await expect(stashes).toBeFocused();
+    await expect(dialog.getByText("Saved stashes", { exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`quick-actions-stashes-${theme}.png`) });
+    await stashes.press("Backspace");
+    await expect(actions).toBeFocused();
 
     await actions.fill("fetch");
     await actions.press("Enter");
@@ -239,12 +259,40 @@ for (const theme of ["light", "dark"] as const) {
 
     const branches = dialog.getByRole("textbox", { name: "Search branches", exact: true });
     await expect(branches).toBeFocused();
+    const context = dialog.getByRole("navigation", { name: "Command steps" });
+    await expect(context).toHaveText("BranchesChoose branch");
+
+    const branch = dialog.getByRole("button", { name: "feature/invoices", exact: true });
+    await branch.hover();
+    await expect(context).toHaveText("BranchesChoose branch");
+    await expect(branch.locator("svg")).toHaveCount(0);
+    expect((await branch.boundingBox())?.height).toBe(40);
+
+    const longName = dialog.getByRole("button", {
+      name: "cleanup-backup/2026-10-29/invoice/verify-signup-company-role-and-customer-subscription-follow-up-0",
+      exact: true,
+    });
+    const prefix = longName.locator(".change-composer-choice-path > span").first();
+    expect(await prefix.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
+      true,
+    );
+    await expect(longName.locator(".change-composer-choice-path > span").last()).toHaveText(
+      "mer-subscription-follow-up-0",
+    );
+
+    await page.screenshot({ path: testInfo.outputPath(`quick-actions-branches-${theme}.png`) });
     await branches.fill("feature");
     await branches.press("Backspace");
     await expect(branches).toHaveValue("featur");
     await branches.fill("");
-    await page.screenshot({ path: testInfo.outputPath(`quick-actions-branches-${theme}.png`) });
     await branches.press("Backspace");
+    await expect(actions).toBeFocused();
+
+    await actions.fill("branches");
+    await actions.press("Enter");
+    await branch.click();
+    await expect(context).toContainText("feature/invoices");
+    await context.getByRole("button", { name: "Scope: Branches" }).click();
     await expect(actions).toBeFocused();
 
     await actions.fill("branches");

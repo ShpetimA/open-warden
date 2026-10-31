@@ -350,7 +350,6 @@ test("keeps the commit composer footprint stable when published status arrives",
   await expect(
     composer.getByRole("textbox", { name: "Commit message", exact: true }),
   ).toBeVisible();
-  await composer.getByText("Options", { exact: true }).click();
   const frame = page.locator('[data-slot="retained-file-list"]');
   const bounds = await frame.boundingBox();
   await page.evaluate(() => {

@@ -23,8 +23,7 @@ export function PullRequestReviewButton({
   return (
     <Button
       size="xs"
-      variant="ghost"
-      className="text-muted-foreground hover:text-foreground"
+      variant="outline"
       aria-label="Review pull request"
       aria-description={disabledReason}
       disabled={loading || Boolean(disabledReason)}
@@ -36,7 +35,7 @@ export function PullRequestReviewButton({
       ) : (
         <ClipboardCheck aria-hidden="true" />
       )}
-      Review…
+      Finish review
     </Button>
   );
 }

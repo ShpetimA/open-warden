@@ -1,8 +1,19 @@
-import { Archive, ExternalLink, FolderGit2, Plus, RefreshCw, Tag, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ExternalLink,
+  FolderGit2,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Settings2,
+  Tag,
+  Trash2,
+} from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { readDesktopFailure } from "@/platform/desktop/failure";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Spinner } from "@/components/ui/spinner";
 import {
   DropdownMenu,
@@ -28,24 +39,6 @@ type Props = {
   onOpenWorktree: (path: string) => void;
   onRetry: () => void;
 };
-
-function ResourceTrigger({ label, count }: { label: string; count: number | undefined }) {
-  const accessibleLabel = count === undefined ? label : `${label}: ${count}`;
-
-  return (
-    <DropdownMenuTrigger asChild>
-      <Button
-        variant="ghost"
-        size="xs"
-        className="h-7 min-w-0 flex-1 gap-1 px-1 text-[11px] font-normal"
-        aria-label={accessibleLabel}
-      >
-        <span>{label}</span>
-        <span className="text-muted-foreground tabular-nums">{count ?? "…"}</span>
-      </Button>
-    </DropdownMenuTrigger>
-  );
-}
 
 function ResourceReadState({
   loading,
@@ -86,144 +79,161 @@ function ResourceReadState({
 
 export function RepositoryResourcesView(props: Props) {
   const { state } = props;
-  const cachedError = state && props.error ? <ResourceReadState {...props} /> : null;
   const hasStashes = Boolean(state?.stashes.length);
   const hasTags = Boolean(state?.tags.length);
   const removableWorktrees = state?.worktrees.some((item) => item.path !== props.repoPath);
 
   return (
-    <div
-      role="group"
-      aria-label="Repository resources"
-      className="flex min-w-0 items-center gap-1 pt-1"
-      aria-busy={props.loading}
-    >
+    <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
       <DropdownMenu modal={false}>
-        <ResourceTrigger label="Stashes" count={state?.stashes.length} />
-        <DropdownMenuContent align="start" className="w-60">
-          <DropdownMenuLabel className="text-xs">Stashes</DropdownMenuLabel>
-          {cachedError}
-          {state ? (
-            <>
-              <DropdownMenuItem disabled={props.busy} onSelect={() => props.onAction("save-stash")}>
-                <Plus />
-                Save changes as stash…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              {!hasStashes ? (
-                <p className="text-muted-foreground px-2 py-2 text-xs">No saved stashes.</p>
-              ) : null}
-              <DropdownMenuItem
-                disabled={props.busy || !hasStashes}
-                onSelect={() => props.onAction("apply-stash")}
-              >
-                <Archive />
-                Apply stash…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={props.busy || !hasStashes}
-                onSelect={() => props.onAction("pop-stash")}
-              >
-                <Archive />
-                Apply and delete stash…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={props.busy || !hasStashes}
-                onSelect={() => props.onAction("drop-stash")}
-              >
-                <Trash2 />
-                Delete stash…
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <ResourceReadState {...props} />
-          )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="toolbar" size="icon-sm" aria-label="Repository tools">
+                <MoreHorizontal className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Stashes, tags, worktrees and remotes</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="end" className="w-72" aria-busy={props.loading}>
+          {!state || props.error ? <ResourceReadState {...props} /> : null}
+          <DropdownMenuLabel className="text-muted-foreground flex items-center justify-between text-[11px] font-medium">
+            Stashes
+            <span className="tabular-nums">{state?.stashes.length ?? "…"}</span>
+          </DropdownMenuLabel>
+          <div>
+            {state ? (
+              <>
+                <DropdownMenuItem
+                  disabled={props.busy}
+                  onSelect={() => props.onAction("save-stash")}
+                >
+                  <Plus />
+                  Save changes as stash…
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {!hasStashes ? (
+                  <p className="text-muted-foreground px-2 py-2 text-xs">No saved stashes.</p>
+                ) : null}
+                <DropdownMenuItem
+                  disabled={props.busy || !hasStashes}
+                  onSelect={() => props.onAction("apply-stash")}
+                >
+                  <Archive />
+                  Apply stash…
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={props.busy || !hasStashes}
+                  onSelect={() => props.onAction("pop-stash")}
+                >
+                  <Archive />
+                  Apply and delete stash…
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={props.busy || !hasStashes}
+                  onSelect={() => props.onAction("drop-stash")}
+                >
+                  <Trash2 />
+                  Delete stash…
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-muted-foreground flex items-center justify-between text-[11px] font-medium">
+            Tags
+            <span className="tabular-nums">{state?.tags.length ?? "…"}</span>
+          </DropdownMenuLabel>
+          <div>
+            {state ? (
+              <>
+                {!hasTags ? (
+                  <p className="text-muted-foreground px-2 py-2 text-xs">No local tags.</p>
+                ) : null}
+                <DropdownMenuItem
+                  disabled={props.busy || !hasTags}
+                  onSelect={() => props.onAction("view-tags")}
+                >
+                  <Tag />
+                  Browse tags…
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={props.busy}
+                  onSelect={() => props.onAction("create-tag")}
+                >
+                  <Plus />
+                  Create tag…
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={props.busy || !hasTags}
+                  onSelect={() => props.onAction("delete-tag")}
+                >
+                  <Trash2 />
+                  Delete tag…
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-muted-foreground flex items-center justify-between text-[11px] font-medium">
+            Worktrees
+            <span className="tabular-nums">{state?.worktrees.length ?? "…"}</span>
+          </DropdownMenuLabel>
+          <div>
+            {state ? (
+              <>
+                <div>
+                  {state.worktrees.map((worktree) => (
+                    <DropdownMenuItem
+                      key={worktree.path}
+                      disabled={props.busy || worktree.path === props.repoPath}
+                      onSelect={() => props.onOpenWorktree(worktree.path)}
+                      title={worktree.path}
+                    >
+                      <FolderGit2 className="shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs">
+                          {worktree.branch || worktree.commitId.slice(0, 8)}
+                          {worktree.path === props.repoPath ? " (current)" : ""}
+                        </p>
+                        <p className="text-muted-foreground truncate text-[11px]">
+                          {worktree.path}
+                        </p>
+                      </div>
+                      {worktree.path !== props.repoPath ? (
+                        <ExternalLink className="size-3" />
+                      ) : null}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  disabled={props.busy}
+                  onSelect={() => props.onAction("create-worktree")}
+                >
+                  <Plus />
+                  Create worktree…
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={props.busy || !removableWorktrees}
+                  onSelect={() => props.onAction("remove-worktree")}
+                >
+                  <Trash2 />
+                  Remove worktree…
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled={props.busy} onSelect={() => props.onAction("manage-remotes")}>
+            <Settings2 />
+            Remotes &amp; upstream…
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <DropdownMenu modal={false}>
-        <ResourceTrigger label="Tags" count={state?.tags.length} />
-        <DropdownMenuContent align="start" className="w-60">
-          <DropdownMenuLabel className="text-xs">Tags</DropdownMenuLabel>
-          {cachedError}
-          {state ? (
-            <>
-              {!hasTags ? (
-                <p className="text-muted-foreground px-2 py-2 text-xs">No local tags.</p>
-              ) : null}
-              <DropdownMenuItem
-                disabled={props.busy || !hasTags}
-                onSelect={() => props.onAction("view-tags")}
-              >
-                <Tag />
-                Browse tags…
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={props.busy} onSelect={() => props.onAction("create-tag")}>
-                <Plus />
-                Create tag…
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={props.busy || !hasTags}
-                onSelect={() => props.onAction("delete-tag")}
-              >
-                <Trash2 />
-                Delete tag…
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <ResourceReadState {...props} />
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <DropdownMenu modal={false}>
-        <ResourceTrigger label="Worktrees" count={state?.worktrees.length} />
-        <DropdownMenuContent align="start" className="w-72">
-          <DropdownMenuLabel className="text-xs">Worktrees</DropdownMenuLabel>
-          {cachedError}
-          {state ? (
-            <>
-              <div className="max-h-60 overflow-y-auto">
-                {state.worktrees.map((worktree) => (
-                  <DropdownMenuItem
-                    key={worktree.path}
-                    disabled={props.busy || worktree.path === props.repoPath}
-                    onSelect={() => props.onOpenWorktree(worktree.path)}
-                    title={worktree.path}
-                  >
-                    <FolderGit2 className="shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs">
-                        {worktree.branch || worktree.commitId.slice(0, 8)}
-                        {worktree.path === props.repoPath ? " (current)" : ""}
-                      </p>
-                      <p className="text-muted-foreground truncate text-[11px]">{worktree.path}</p>
-                    </div>
-                    {worktree.path !== props.repoPath ? <ExternalLink className="size-3" /> : null}
-                  </DropdownMenuItem>
-                ))}
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={props.busy}
-                onSelect={() => props.onAction("create-worktree")}
-              >
-                <Plus />
-                Create worktree…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={props.busy || !removableWorktrees}
-                onSelect={() => props.onAction("remove-worktree")}
-              >
-                <Trash2 />
-                Remove worktree…
-              </DropdownMenuItem>
-            </>
-          ) : (
-            <ResourceReadState {...props} />
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+    </TooltipProvider>
   );
 }
 

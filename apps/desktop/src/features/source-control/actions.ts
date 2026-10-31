@@ -435,6 +435,24 @@ export const selectHistoryFile =
     dispatch(setActivePath(relPath));
   };
 
+export const openHistoryFileFromBlame =
+  ({
+    repoPath,
+    commitId,
+    relPath,
+  }: {
+    repoPath: string;
+    commitId: string;
+    relPath: string;
+  }): AppThunk =>
+  (dispatch, getState) => {
+    if (getState().sourceControl.activeRepo !== repoPath) return;
+
+    dispatch(selectHistoryPullRequestCommit(commitId));
+    dispatch(selectHistoryFile(relPath));
+    dispatch(closeFileViewer());
+  };
+
 export const setCommitMessageValue =
   (value: string): AppThunk =>
   (dispatch) => {

@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+import { PullRequestReviewButton } from "../components/PullRequestReviewControl";
 import { PullRequestHeaderActions } from "./PullRequestHeaderActions";
 import { PullRequestMergeBox } from "./PullRequestMergeBox";
 import { PullRequestOverviewHeader } from "./PullRequestOverviewHeader";
@@ -215,6 +216,7 @@ function OverviewPreview({
               actions={
                 <div className="flex flex-wrap items-center gap-2">
                   <PullRequestHeaderActions
+                    reviewControl={<PullRequestReviewButton onReview={() => {}} />}
                     lifecycleActions={["edit", "draft", "update-branch", "close"]}
                     opening={null}
                     refreshing={false}
