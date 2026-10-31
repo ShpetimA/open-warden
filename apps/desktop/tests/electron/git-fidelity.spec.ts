@@ -1,5 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, realpath, rm, symlink, unlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type ElectronApplication } from "@playwright/test";
@@ -16,6 +26,8 @@ for (const theme of ["light", "dark"] as const) {
     const repo = await realpath(repoDirectory);
     const entry = path.join(root, "entry.cjs");
     const text = Array.from({ length: 30 }, (_, index) => `Line ${index + 1}\n`).join("");
+    const beforeImage = await readFile(new URL("../fixtures/images/before.png", import.meta.url));
+    const afterImage = await readFile(new URL("../fixtures/images/after.png", import.meta.url));
 
     function git(...args: string[]) {
       return execFileSync("git", args, {
@@ -31,6 +43,8 @@ for (const theme of ["light", "dark"] as const) {
     await writeFile(path.join(repo, "original.txt"), text);
     await writeFile(path.join(repo, "asset.bin"), Buffer.from([0, 1, 2]));
     await writeFile(path.join(repo, "removed.bin"), Buffer.from([0, 2, 3]));
+    await writeFile(path.join(repo, "image.png"), beforeImage);
+    await writeFile(path.join(repo, "image-removed.png"), beforeImage);
     await writeFile(path.join(repo, "deploy.sh"), "echo deploy\n");
     await symlink("settings/development.json", path.join(repo, "active-config"));
     await mkdir(path.join(repo, "vendor/library"), { recursive: true });
@@ -42,6 +56,10 @@ for (const theme of ["light", "dark"] as const) {
     await writeFile(path.join(repo, "asset.bin"), Buffer.from([0, 4, 5, 6]));
     await writeFile(path.join(repo, "added.bin"), Buffer.from([0, 6, 7]));
     git("rm", "removed.bin");
+    git("rm", "image-removed.png");
+    await writeFile(path.join(repo, "image.png"), afterImage);
+    await writeFile(path.join(repo, "image-added.png"), afterImage);
+    await writeFile(path.join(repo, "image-broken.png"), beforeImage.subarray(0, 33));
     await chmod(path.join(repo, "deploy.sh"), 0o755);
     await unlink(path.join(repo, "active-config"));
     await symlink("settings/staging.json", path.join(repo, "active-config"));
@@ -54,6 +72,7 @@ for (const theme of ["light", "dark"] as const) {
       text.replace("Line 2\n", "Staged content\n"),
     );
     await writeFile(path.join(repo, "asset.bin"), Buffer.from([0, 7, 8, 9, 10]));
+    await writeFile(path.join(repo, "image.png"), beforeImage);
     await chmod(path.join(repo, "deploy.sh"), 0o644);
     await unlink(path.join(repo, "active-config"));
     await symlink("settings/production.json", path.join(repo, "active-config"));
@@ -91,10 +110,41 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.locator("diffs-container")).toHaveCount(0);
       await page.screenshot({ path: testInfo.outputPath(`changes-binary-${theme}.png`) });
 
+      await page.getByRole("treeitem", { name: "image.png", exact: true }).click();
+      await expect(page.getByRole("img", { name: "Before: image.png", exact: true })).toBeVisible();
+      await expect
+        .poll(() =>
+          page
+            .getByRole("img", { name: "After: image.png", exact: true })
+            .evaluate((image: HTMLImageElement) => image.naturalWidth),
+        )
+        .toBe(640);
+      const afterPreview = page.getByRole("group", { name: "After image preview", exact: true });
+      await afterPreview.getByRole("button", { name: "Actual size", exact: true }).click();
+      await expect(
+        afterPreview.getByRole("button", { name: "Actual size", exact: true }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await page.screenshot({ path: testInfo.outputPath(`changes-image-${theme}.png`) });
+      const imageUrl = await page
+        .getByRole("img", { name: "After: image.png", exact: true })
+        .getAttribute("src");
+      if (!imageUrl) throw new Error("Expected an image Blob URL");
+
       await page.getByRole("treeitem", { name: "active-config", exact: true }).click();
       await expect(page.getByRole("heading", { name: "Symbolic link", exact: true })).toBeVisible();
       await expect(page.getByText("settings/production.json", { exact: true })).toBeVisible();
       await expect(page.locator("diffs-container")).toHaveCount(0);
+      await expect
+        .poll(() =>
+          page.evaluate(async (url) => {
+            try {
+              return (await fetch(url)).ok;
+            } catch {
+              return false;
+            }
+          }, imageUrl),
+        )
+        .toBe(false);
       await page.screenshot({ path: testInfo.outputPath(`changes-symlink-${theme}.png`) });
 
       await page.getByRole("treeitem", { name: "deploy.sh", exact: true }).click();
@@ -126,6 +176,23 @@ for (const theme of ["light", "dark"] as const) {
       await expect(page.getByText("Not present", { exact: true })).toBeVisible();
       await page.getByRole("treeitem", { name: "deploy.sh", exact: true }).click();
       await expect(page.getByText("Executable permission added", { exact: true })).toBeVisible();
+      await page.getByRole("treeitem", { name: "image.png", exact: true }).click();
+      await expect
+        .poll(() =>
+          page
+            .getByRole("img", { name: "After: image.png", exact: true })
+            .evaluate((image: HTMLImageElement) => image.naturalWidth),
+        )
+        .toBe(800);
+      await page.getByRole("treeitem", { name: "image-removed.png", exact: true }).click();
+      await expect(
+        page.getByRole("img", { name: "Before: image-removed.png", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByText("Not present", { exact: true })).toBeVisible();
+      await page.getByRole("treeitem", { name: "image-added.png", exact: true }).click();
+      await expect(
+        page.getByRole("img", { name: "After: image-added.png", exact: true }),
+      ).toBeVisible();
 
       await page.goto("http://127.0.0.1:1420/#/review");
       await page.getByRole("treeitem", { name: "asset.bin", exact: true }).click();
@@ -155,6 +222,18 @@ for (const theme of ["light", "dark"] as const) {
       await page.getByRole("treeitem", { name: "library", exact: true }).click();
       await expect(page.getByText("Not initialized", { exact: true })).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath(`file-submodule-${theme}.png`) });
+      await page.getByRole("treeitem", { name: "image.png", exact: true }).click();
+      await expect(page.getByRole("img", { name: "File: image.png", exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Blame", exact: true })).toHaveCount(0);
+      await page.screenshot({ path: testInfo.outputPath(`file-image-${theme}.png`) });
+      await page.getByRole("treeitem", { name: "image-broken.png", exact: true }).click();
+      await expect(
+        page.getByText("The image could not be decoded. It may be damaged or unsupported.", {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`file-image-error-${theme}.png`) });
     } finally {
       await app?.close();
       await rm(root, { recursive: true, force: true });

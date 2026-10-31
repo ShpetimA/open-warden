@@ -253,7 +253,9 @@ export function GeneralFileViewer(props: GeneralFileViewerProps) {
           ) : null}
           {target &&
           !target.revision &&
-          (metadata?.kind === "binary" || metadata?.kind === "too-large") ? (
+          (metadata?.kind === "binary" ||
+            metadata?.kind === "too-large" ||
+            metadata?.kind === "image") ? (
             <OpenInExternalEditor
               repoPath={target.repoPath}
               filePath={target.relPath}

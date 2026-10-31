@@ -105,3 +105,52 @@ export const Permissions: Story = {
     newFile: { name: "scripts/deploy.sh", contents: "echo deploy\n" },
   },
 };
+
+const limitedImage = {
+  kind: "image",
+  name: "assets/large.png",
+  byteLength: 8_388_609,
+  preview: { state: "unavailable", reason: "byte-limit" },
+} as const;
+
+export const ImageByteLimit: Story = {
+  args: {
+    activePath: limitedImage.name,
+    notice: { metadata: limitedImage },
+    oldFile: null,
+    newFile: limitedImage,
+    mode: "file",
+  },
+};
+
+const pixelLimitedImage = {
+  ...limitedImage,
+  byteLength: 5000,
+  preview: { state: "unavailable", reason: "pixel-limit" },
+} as const;
+
+export const ImagePixelLimit: Story = {
+  args: {
+    activePath: pixelLimitedImage.name,
+    notice: { metadata: pixelLimitedImage },
+    oldFile: null,
+    newFile: pixelLimitedImage,
+    mode: "file",
+  },
+};
+
+const invalidImage = {
+  ...limitedImage,
+  byteLength: 8,
+  preview: { state: "unavailable", reason: "invalid-image" },
+} as const;
+
+export const InvalidImage: Story = {
+  args: {
+    activePath: invalidImage.name,
+    notice: { metadata: invalidImage },
+    oldFile: null,
+    newFile: invalidImage,
+    mode: "file",
+  },
+};

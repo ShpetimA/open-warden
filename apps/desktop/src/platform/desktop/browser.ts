@@ -174,6 +174,8 @@ function browserUnsupportedFeature(method: DesktopApiMethod): string {
       return "Commit file diff loading";
     case "getFileVersions":
       return "Working tree diff loading";
+    case "getImagePreview":
+      return "Repository image previews";
     case "getBranchFileVersions":
       return "Branch file diff loading";
     case "stageFile":

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { gitObjectIdSchema } from "./gitObjectId";
+import { imageFileSchema } from "./imagePreview";
 
 export const diffFileSchema = z.strictObject({
   name: z.string(),
@@ -16,14 +18,6 @@ const symlinkFileSchema = z.strictObject({
   name: z.string(),
   target: z.string(),
 });
-
-export const gitObjectIdSchema = z
-  .string()
-  .refine(
-    (value) =>
-      (value.length === 40 || value.length === 64) &&
-      [...value].every((character) => "0123456789abcdef".includes(character)),
-  );
 
 const submoduleFileSchema = z.strictObject({
   kind: z.literal("submodule"),
@@ -45,6 +39,7 @@ export const fileContentMetadataSchema = z.union([
   binaryFileSchema,
   symlinkFileSchema,
   submoduleFileSchema,
+  imageFileSchema,
 ]);
 
 export const fileContentSchema = z.union([diffFileSchema, fileContentMetadataSchema]);

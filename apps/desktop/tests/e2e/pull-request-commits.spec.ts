@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { createAppSettings } from "../../src/platform/desktop/appSettings";
 import type {
@@ -207,6 +209,147 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`image previews recover and remain available in PR commits in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const before = await readFile(path.resolve("tests/fixtures/images/before.png"));
+    const after = await readFile(path.resolve("tests/fixtures/images/after.png"));
+    const packets = {
+      before: {
+        width: 640,
+        height: 320,
+        byteLength: before.length,
+        mimeType: "image/png" as const,
+        dataUrl: `data:image/png;base64,${before.toString("base64")}`,
+      },
+      after: {
+        width: 800,
+        height: 400,
+        byteLength: after.length,
+        mimeType: "image/png" as const,
+        dataUrl: `data:image/png;base64,${after.toString("base64")}`,
+      },
+    };
+
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 1000 });
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    await expect(
+      page.getByRole("complementary", { name: "Changed files", exact: true }),
+    ).toBeVisible();
+
+    await page.evaluate((packets) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Expected the test desktop bridge");
+
+      bridge.getBranchFileVersions = async (_repo, _base, _head, name) => ({
+        ok: true,
+        value: {
+          oldFile: {
+            kind: "image",
+            name,
+            byteLength: packets.before.byteLength,
+            preview: {
+              state: "available",
+              width: 640,
+              height: 320,
+              mimeType: "image/png",
+              source: { kind: "git", repoPath: "/projects/invoice", objectId: "a".repeat(40) },
+            },
+          },
+          newFile: {
+            kind: "image",
+            name,
+            byteLength: packets.after.byteLength,
+            preview: {
+              state: "available",
+              width: 800,
+              height: 400,
+              mimeType: "image/png",
+              source: { kind: "git", repoPath: "/projects/invoice", objectId: "b".repeat(40) },
+            },
+          },
+        },
+      });
+      bridge.getImagePreview = async (source) => {
+        if (source.kind === "git" && source.objectId === "a".repeat(40)) {
+          return {
+            ok: false,
+            error: {
+              operation: "getImagePreview",
+              code: "unavailable",
+              message: "Image read interrupted.",
+            },
+          };
+        }
+
+        const packet =
+          source.kind === "git" && source.objectId === "a".repeat(40)
+            ? packets.before
+            : packets.after;
+        return {
+          ok: true,
+          value: {
+            width: packet.width,
+            height: packet.height,
+            byteLength: packet.byteLength,
+            mimeType: packet.mimeType,
+            bytes: Uint8Array.from(atob(packet.dataUrl.split(",")[1] ?? ""), (character) =>
+              character.charCodeAt(0),
+            ),
+          },
+        };
+      };
+    }, packets);
+
+    await page.getByRole("treeitem", { name: "invoice.test.ts", exact: true }).click();
+    const beforePreview = page.getByRole("group", { name: "Before image preview", exact: true });
+    await expect(beforePreview.getByText("Image read interrupted.", { exact: true })).toBeVisible();
+    await page.evaluate((packets) => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Expected the test desktop bridge");
+
+      bridge.getImagePreview = async (source) => {
+        const packet =
+          source.kind === "git" && source.objectId === "a".repeat(40)
+            ? packets.before
+            : packets.after;
+        return {
+          ok: true,
+          value: {
+            width: packet.width,
+            height: packet.height,
+            byteLength: packet.byteLength,
+            mimeType: packet.mimeType,
+            bytes: Uint8Array.from(atob(packet.dataUrl.split(",")[1] ?? ""), (character) =>
+              character.charCodeAt(0),
+            ),
+          },
+        };
+      };
+    }, packets);
+    await beforePreview.getByRole("button", { name: "Retry", exact: true }).click();
+    await expect
+      .poll(() =>
+        beforePreview.getByRole("img").evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBe(640);
+    await expect(page.getByRole("button", { name: "Mark file viewed", exact: true })).toBeVisible();
+    await expect(page.locator("diffs-container")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`pr-images-${theme}.png`) });
+
+    await page.getByRole("tab", { name: "Commits" }).click();
+    await expect
+      .poll(() =>
+        page
+          .getByRole("group", { name: "After image preview", exact: true })
+          .getByRole("img")
+          .evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBe(800);
+    await page.screenshot({ path: testInfo.outputPath(`pr-commit-images-${theme}.png`) });
+  });
+
   test(`entry metadata stays read only across PR files and commits in ${theme}`, async ({
     page,
   }, testInfo) => {

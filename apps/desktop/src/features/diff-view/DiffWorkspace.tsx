@@ -184,7 +184,7 @@ function NonTextDiffWorkspace({ notice, ...props }: Props & { notice: FileConten
   const metadata = getFileContentMetadata(props.newFile);
   const workingFile =
     props.commentContext.kind === "changes" &&
-    (metadata?.kind === "binary" || metadata?.kind === "too-large");
+    (metadata?.kind === "binary" || metadata?.kind === "too-large" || metadata?.kind === "image");
 
   return (
     <FileContentNotice

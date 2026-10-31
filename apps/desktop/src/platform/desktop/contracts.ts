@@ -12,6 +12,7 @@ import type {
 import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
 import type { DesktopResult } from "./failure";
 import type { FileContent, FileVersions } from "./fileContent";
+import type { ImageSource, ImagePreviewData } from "./imagePreview";
 import type {
   RepositoryConfiguration,
   RepositoryConfigurationCommand,
@@ -754,6 +755,7 @@ export type DesktopHandlers = {
     message: string,
   ): Promise<import("./failure").DesktopResult<string>>;
   getRepoFile(input: GetRepoFileInput): Promise<FileContent | null>;
+  getImagePreview(source: ImageSource): Promise<DesktopResult<ImagePreviewData>>;
   getGitBlame(repoPath: string, relPath: string, revision?: string | null): Promise<GitBlameResult>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;

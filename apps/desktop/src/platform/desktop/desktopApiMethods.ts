@@ -88,6 +88,7 @@ export const DESKTOP_API_METHODS = [
   "discardAll",
   "commitStaged",
   "getRepoFile",
+  "getImagePreview",
   "getGitBlame",
   "syncLspDocument",
   "closeLspDocument",

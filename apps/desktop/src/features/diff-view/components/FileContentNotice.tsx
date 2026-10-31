@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { FileBox } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { RepositoryImagePreview } from "./ImagePreview";
 
 import {
   getFileContentMetadata,
@@ -33,6 +35,10 @@ export function FileContentNotice({
 }: Props) {
   const { metadata, modeChange } = notice;
   const messages = {
+    image: {
+      title: mode === "comparison" ? "Image changes" : "Image",
+      description: "Read-only image preview.",
+    },
     binary: {
       title: "Binary file",
       description:
@@ -83,7 +89,13 @@ export function FileContentNotice({
 
         {modeChange ? <FileModeChangeNotice change={modeChange} /> : null}
 
-        <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
+        <div
+          className={cn(
+            "grid gap-4",
+            mode === "comparison" && "sm:grid-cols-2",
+            metadata?.kind !== "image" && "max-w-3xl",
+          )}
+        >
           {mode === "comparison" ? <VersionDetails label="Before" file={oldFile} /> : null}
           <VersionDetails label={mode === "comparison" ? "After" : "File"} file={newFile} />
         </div>
@@ -106,17 +118,26 @@ function VersionDetails({ label, file }: { label: string; file: FileContent | nu
     <div className="flex min-w-0 flex-col gap-1 text-xs">
       <h3 className="font-medium">{label}</h3>
       <p className="break-all font-mono">{file.name}</p>
-      <ContentDetails file={file} />
+      <ContentDetails file={file} label={label} />
     </div>
   );
 }
 
-function ContentDetails({ file }: { file: FileContent }) {
+function ContentDetails({ file, label }: { file: FileContent; label: string }) {
   const metadata = getFileContentMetadata(file);
 
   if (!metadata) return <p className="text-muted-foreground">UTF-8 text</p>;
 
   switch (metadata.kind) {
+    case "image":
+      return (
+        <>
+          <p className="text-muted-foreground tabular-nums">
+            {metadata.byteLength.toLocaleString()} bytes
+          </p>
+          <RepositoryImagePreview image={metadata} label={label} />
+        </>
+      );
     case "binary":
     case "too-large":
       return (

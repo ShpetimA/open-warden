@@ -14,14 +14,15 @@
 
 Each side of a file read is one of:
 
-| State                               | Data                | UI                                            |
-| ----------------------------------- | ------------------- | --------------------------------------------- |
-| Missing                             | `null`              | Not present                                   |
-| UTF-8 text without NUL bytes        | Name and contents   | Text viewer or diff                           |
-| Binary or unsupported text encoding | Name and byte count | Read-only file information                    |
-| Larger than 32 MiB                  | Name and byte count | Preview-limit notice; contents are not loaded |
-| Symbolic link                       | Name and target     | Read-only before/after targets                |
-| Submodule                           | Name and commit ID  | Read-only commit pointers and checkout state  |
+| State                               | Data                                   | UI                                            |
+| ----------------------------------- | -------------------------------------- | --------------------------------------------- |
+| Missing                             | `null`                                 | Not present                                   |
+| UTF-8 text without NUL bytes        | Name and contents                      | Text viewer or diff                           |
+| Binary or unsupported text encoding | Name and byte count                    | Read-only file information                    |
+| Larger than 32 MiB                  | Name and byte count                    | Preview-limit notice; contents are not loaded |
+| Symbolic link                       | Name and target                        | Read-only before/after targets                |
+| Submodule                           | Name and commit ID                     | Read-only commit pointers and checkout state  |
+| Supported raster image              | Name, dimensions, and source reference | Lazy before/after image preview               |
 
 The renderer parses replies at the IPC boundary. Metadata never becomes fake empty text.
 
@@ -39,7 +40,8 @@ Submodule worktree reads distinguish an uninitialized checkout from a checked-ou
 
 ## Remaining limits
 
-- No inline image comparison yet.
+- Image previews support PNG, JPEG, GIF, and WebP. Each side is limited to 8 MiB, 16 megapixels, and 16,384 pixels per dimension. SVG keeps its text diff.
+- Image overlay/wipe comparison is not implemented. See [the image-preview decision](adr/0003-bounded-repository-image-previews.md) for loading and memory ownership.
 - Text classification uses UTF-8 decoding and NUL detection. Git attributes and custom encoding filters do not override it.
 - Submodule initialization, update, and conflict resolution need dedicated workflows. This slice displays their file state.
 - Unstaged external moves normally appear as a deletion and an untracked file until Git identifies a staged rename.

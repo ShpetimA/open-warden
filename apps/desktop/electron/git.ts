@@ -1,14 +1,18 @@
 import { execFile as nodeExecFile } from "node:child_process";
-import { promises as fs } from "node:fs";
+import { constants, promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
+import { gitFileModeSchema, type GitFileMode } from "../src/platform/desktop/fileContent";
+import { gitObjectIdSchema } from "../src/platform/desktop/gitObjectId";
 import {
-  gitFileModeSchema,
-  gitObjectIdSchema,
-  type GitFileMode,
-} from "../src/platform/desktop/fileContent";
+  IMAGE_PREVIEW_MAX_BYTES,
+  imageSourceSchema,
+  type ImageSource,
+  type ImagePreviewData,
+} from "../src/platform/desktop/imagePreview";
+import { readImageFile, imageDigest } from "./imageContent";
 
 import type {
   Bucket,
@@ -510,7 +514,8 @@ async function readStoredFile(
     const file: FileContent =
       entry.mode === "120000"
         ? { kind: "symlink", name: relPath, target: output.toString("utf8") }
-        : readFileContent(output, relPath);
+        : (readImageFile(output, relPath, { kind: "git", repoPath, objectId: entry.objectId }) ??
+          readFileContent(output, relPath));
 
     return { file, mode: entry.mode };
   } catch (error) {
@@ -522,27 +527,31 @@ async function readStoredFile(
   }
 }
 
+async function inspectWorktreePath(repoPath: string, relPath: string) {
+  const parts = relPath.split("/");
+
+  for (let index = 1; index < parts.length; index += 1) {
+    const parent = await fs.lstat(path.join(repoPath, ...parts.slice(0, index)));
+
+    if (parent.isSymbolicLink()) {
+      throw new DesktopAdapterError(
+        desktopFailure(
+          "getRepoFile",
+          "invalid-input",
+          "Open the symbolic link itself. Files below a symbolic link are not read through the repository viewer.",
+        ),
+      );
+    }
+  }
+
+  return fs.lstat(path.join(repoPath, relPath));
+}
+
 async function readWorktreeFile(repoPath: string, relPath: string): Promise<FileRead> {
   const fullPath = path.join(repoPath, relPath);
 
   try {
-    const parts = relPath.split("/");
-
-    for (let index = 1; index < parts.length; index += 1) {
-      const parent = await fs.lstat(path.join(repoPath, ...parts.slice(0, index)));
-
-      if (parent.isSymbolicLink()) {
-        throw new DesktopAdapterError(
-          desktopFailure(
-            "getRepoFile",
-            "invalid-input",
-            "Open the symbolic link itself. Files below a symbolic link are not read through the repository viewer.",
-          ),
-        );
-      }
-    }
-
-    const stats = await fs.lstat(fullPath);
+    const stats = await inspectWorktreePath(repoPath, relPath);
 
     if (stats.isSymbolicLink()) {
       return {
@@ -562,7 +571,11 @@ async function readWorktreeFile(repoPath: string, relPath: string): Promise<File
 
     const contents = await fs.readFile(fullPath);
 
-    return { mode, file: readFileContent(contents, relPath) };
+    const file =
+      readImageFile(contents, relPath, { kind: "worktree", repoPath, relPath }) ??
+      readFileContent(contents, relPath);
+
+    return { mode, file };
   } catch (cause) {
     if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return missingFile;
     throw cause;
@@ -622,6 +635,137 @@ function makeFileVersions(before: FileRead, after: FileRead): FileVersions {
   }
 
   return versions;
+}
+
+let imagePreviewQueue: Promise<void> = Promise.resolve();
+
+export async function getImagePreview(input: unknown): Promise<DesktopResult<ImagePreviewData>> {
+  const parsed = imageSourceSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: desktopFailure("getImagePreview", "invalid-input", "The image source is invalid."),
+    };
+  }
+
+  // Serialize preview reads so multiple conversation cards cannot load large blobs at once.
+  const pending = imagePreviewQueue.then(() => readImagePreview(parsed.data));
+  imagePreviewQueue = pending.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return pending;
+}
+
+async function readImagePreview(source: ImageSource): Promise<DesktopResult<ImagePreviewData>> {
+  const operation = "getImagePreview";
+
+  try {
+    let bytes: Buffer;
+    let name: string;
+
+    if (source.kind === "git") {
+      const size = await runGit(source.repoPath, ["cat-file", "-s", source.objectId]);
+      const byteLength = z.coerce.number().int().nonnegative().parse(size.toString("utf8").trim());
+
+      if (byteLength > IMAGE_PREVIEW_MAX_BYTES) {
+        return {
+          ok: false,
+          error: desktopFailure(
+            operation,
+            "invalid-input",
+            "This image exceeds the 8 MiB preview limit.",
+          ),
+        };
+      }
+
+      bytes = await runGit(source.repoPath, ["cat-file", "blob", source.objectId]);
+      name = source.objectId;
+    } else {
+      name = normalizeGitPath(source.relPath);
+      const stats = await inspectWorktreePath(source.repoPath, name);
+
+      if (!stats.isFile() || stats.isSymbolicLink()) {
+        return {
+          ok: false,
+          error: desktopFailure(
+            operation,
+            "conflict",
+            "This entry is no longer a regular image file. Refresh its file information.",
+          ),
+        };
+      }
+
+      const file = await fs.open(
+        path.join(source.repoPath, name),
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
+
+      try {
+        const current = await file.stat();
+
+        if (!current.isFile() || current.size > IMAGE_PREVIEW_MAX_BYTES) {
+          return {
+            ok: false,
+            error: desktopFailure(
+              operation,
+              "invalid-input",
+              "This image exceeds the 8 MiB preview limit.",
+            ),
+          };
+        }
+
+        const buffer = Buffer.alloc(current.size + 1);
+        let offset = 0;
+
+        while (offset < buffer.length) {
+          const { bytesRead } = await file.read(buffer, offset, buffer.length - offset, offset);
+          if (bytesRead === 0) break;
+          offset += bytesRead;
+        }
+
+        bytes = buffer.subarray(0, offset);
+      } finally {
+        await file.close();
+      }
+
+      if (imageDigest(bytes) !== source.digest) {
+        return {
+          ok: false,
+          error: desktopFailure(
+            operation,
+            "conflict",
+            "This image changed. Refresh its file information to load the current version.",
+          ),
+        };
+      }
+    }
+
+    const image = readImageFile(bytes, name, source);
+
+    if (!image || image.preview.state !== "available") {
+      return {
+        ok: false,
+        error: desktopFailure(
+          operation,
+          "invalid-input",
+          "This image is unsupported, damaged, or above the preview limits.",
+        ),
+      };
+    }
+
+    return desktopSuccess({
+      width: image.preview.width,
+      height: image.preview.height,
+      mimeType: image.preview.mimeType,
+      byteLength: bytes.length,
+      bytes: Uint8Array.from(bytes),
+    });
+  } catch (cause) {
+    return { ok: false, error: classifyDesktopFailure(cause, operation) };
+  }
 }
 
 async function hasHeadCommit(repoPath: string) {
