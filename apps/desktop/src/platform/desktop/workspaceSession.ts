@@ -1,3 +1,4 @@
+import { reviewDraftSchema } from "./reviewDrafts";
 import { z } from "zod";
 import { commentDraftSchema } from "./commentDrafts";
 import { workspaceTabsSchema } from "./workspaceTabs";
@@ -11,6 +12,7 @@ export const storedWorkspaceSessionSchema = z.object({
   recentRepos: z.array(z.string()),
   workspaceTabs: workspaceTabsSchema.optional(),
   comments: z.array(commentDraftSchema).optional(),
+  reviewDrafts: z.array(reviewDraftSchema).optional(),
 });
 
 function normalizeRepoPath(repoPath: unknown): string | null {
@@ -73,6 +75,7 @@ export function createWorkspaceSession(input?: unknown): WorkspaceSession {
       recentRepos: z.unknown().optional(),
       workspaceTabs: workspaceTabsSchema.optional(),
       comments: z.array(commentDraftSchema).optional(),
+      reviewDrafts: z.array(reviewDraftSchema).optional(),
     })
     .safeParse(input ?? {});
   const session = parsed.success ? parsed.data : undefined;
@@ -90,6 +93,7 @@ export function createWorkspaceSession(input?: unknown): WorkspaceSession {
     recentRepos,
     ...(session?.workspaceTabs ? { workspaceTabs: session.workspaceTabs } : {}),
     ...(session?.comments ? { comments: session.comments } : {}),
+    ...(session?.reviewDrafts ? { reviewDrafts: session.reviewDrafts } : {}),
   };
 }
 

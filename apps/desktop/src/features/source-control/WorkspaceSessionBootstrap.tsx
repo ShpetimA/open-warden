@@ -50,8 +50,10 @@ export function WorkspaceSessionBootstrap({ children }: Props) {
         next.workspaces !== previous.workspaces ||
         next.sourceControl !== previous.sourceControl ||
         next.pullRequests !== previous.pullRequests ||
-        next.comments !== previous.comments;
+        next.comments !== previous.comments ||
+        next.reviewDrafts !== previous.reviewDrafts;
       const draftsChanged =
+        next.reviewDrafts !== previous.reviewDrafts ||
         workspaceViewsChanged ||
         next.comments !== previous.comments ||
         next.sourceControl.commitMessage !== previous.sourceControl.commitMessage;

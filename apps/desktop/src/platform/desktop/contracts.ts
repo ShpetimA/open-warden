@@ -272,11 +272,13 @@ export type SubmitPullRequestReviewInput = PullRequestLocatorInput & {
   body: string;
   comments: PullRequestReviewDraftCommentInput[];
   expectedHeadSha: string;
+  messageAlreadyPublished?: boolean;
 };
 
 export type SubmitPullRequestReviewResult = {
   submittedDraftIds: string[];
   decisionSubmitted: boolean;
+  messageSubmitted?: boolean;
   failedMessage: string | null;
 };
 
@@ -512,6 +514,7 @@ export type PreparedPullRequestWorkspace = {
 };
 
 export type WorkspaceSession = {
+  reviewDrafts?: import("./reviewDrafts").ReviewDraft[];
   comments?: import("./commentDrafts").CommentDraft[];
   recoveryNotice?: string;
   workspaceTabs?: import("./workspaceTabs").PersistedWorkspaceTabs;

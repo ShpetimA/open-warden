@@ -4,6 +4,7 @@ import { useHotkey } from "@tanstack/react-hotkeys";
 import type { ComposerPane } from "./commandComposerFlow";
 
 type Props = {
+  enabled?: boolean;
   rootRef: RefObject<HTMLDivElement | null>;
   searchRef: RefObject<HTMLInputElement | null>;
   runButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -30,6 +31,7 @@ function hasEditableValue(target: EventTarget | null): boolean {
 }
 
 export function useCommandComposerHotkeys({
+  enabled = true,
   rootRef,
   searchRef,
   runButtonRef,
@@ -48,6 +50,7 @@ export function useCommandComposerHotkeys({
   onRun,
 }: Props) {
   const options = {
+    enabled,
     target: rootRef,
     ignoreInputs: false,
     preventDefault: false,

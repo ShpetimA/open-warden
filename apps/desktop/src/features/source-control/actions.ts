@@ -1,3 +1,4 @@
+import { reviewDraftsRestored } from "@/features/pull-requests/reviewDraftsSlice";
 import { getPierreFileAfterRemoval } from "./pierreFileTreeNavigation";
 import { repositoryChangeTags } from "./repositoryFreshness";
 import type { WorkspaceSession } from "@/platform/desktop/contracts";
@@ -124,6 +125,7 @@ export async function persistWorkspaceSession(getState: () => RootState) {
     ...buildWorkspaceSession(state.sourceControl),
     workspaceTabs: serializeWorkspaceTabs(state),
     comments: state.comments,
+    reviewDrafts: state.reviewDrafts,
   };
   return saveSession(session, getState);
 }
@@ -189,9 +191,11 @@ export const restoreWorkspaceSession =
         recentRepos: restoredRecentRepos,
         workspaceTabs: storedSession.workspaceTabs,
         comments: storedSession.comments,
+        reviewDrafts: storedSession.reviewDrafts,
       });
 
       dispatch(restoreComments(storedSession.comments ?? []));
+      dispatch(reviewDraftsRestored(storedSession.reviewDrafts ?? []));
       if (storedSession.recoveryNotice)
         toast.warning(storedSession.recoveryNotice, {
           id: "workspace-recovery",

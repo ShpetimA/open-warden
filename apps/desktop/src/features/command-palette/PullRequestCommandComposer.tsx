@@ -1,7 +1,5 @@
-import {
-  usePullRequestRefresh,
-  useRetainPullRequestRefresh,
-} from "@/features/pull-requests/refresh/PullRequestRefreshProvider";
+import { PullRequestReviewPanel } from "@/features/pull-requests/components/PullRequestReviewPanel";
+import { usePullRequestRefresh } from "@/features/pull-requests/refresh/PullRequestRefreshProvider";
 import { failureFromUnknown, type DesktopFailure } from "@/platform/desktop/failure";
 import { ActionError } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
@@ -13,22 +11,15 @@ import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
-import { removeCommentsByIds } from "@/features/comments/commentsSlice";
 import { openPullRequestReview } from "@/features/hosted-repos/actions";
 import {
   useAddPullRequestCommentMutation,
   useGetPullRequestConversationQuery,
   useListPullRequestsQuery,
   useMergePullRequestMutation,
-  usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
-  useSubmitPullRequestReviewMutation,
   useSubmitPullRequestDecisionMutation,
 } from "@/features/hosted-repos/api";
-import {
-  buildSubmitPullRequestReviewCommentsInput,
-  getPendingReviewCommentsForContext,
-} from "@/features/pull-requests/utils/pendingReviewComments";
 import { pullRequestSummaryFromDetail } from "@/features/pull-requests/utils/pullRequestSummary";
 import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
@@ -43,8 +34,6 @@ import type { PullRequestComposerAction } from "./commandComposerModel";
 import { actions } from "./commandComposerModel";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
-const REVIEW_REFRESH_RESOURCES = ["comparison"] as const;
-
 export function PullRequestCommandComposer({
   action: initialAction,
   initialPullRequest,
@@ -52,6 +41,7 @@ export function PullRequestCommandComposer({
   onCreate,
   onBack,
   onClose,
+  onBusyChange,
 }: {
   action: PullRequestComposerAction | null;
   initialPullRequest?: PullRequestSummary | null;
@@ -59,11 +49,11 @@ export function PullRequestCommandComposer({
   onCreate: () => void;
   onBack: () => void;
   onClose: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const objectFirst = initialAction === null;
   const dispatch = useAppDispatch();
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
-  const comments = useAppSelector((state) => state.comments);
   const activeWorkspace = useAppSelector(selectActiveWorkspace);
   const activePullRequestWorkspace =
     activeWorkspace?.kind === "pull-request" ? activeWorkspace : null;
@@ -84,9 +74,6 @@ export function PullRequestCommandComposer({
     initialPullRequest ?? null,
   );
   const [mergeMethod, setMergeMethod] = useState<"merge" | "squash" | "rebase">("merge");
-  const [reviewDecision, setReviewDecision] = useState<"comment" | "approve" | "request-changes">(
-    "comment",
-  );
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | DesktopFailure>("");
@@ -127,22 +114,7 @@ export function PullRequestCommandComposer({
   const refresh = usePullRequestRefresh(
     selectedPullRequest ? { repoPath, pullRequestNumber: selectedPullRequest.number } : null,
   );
-  const compareArgs =
-    action === "submit-review" && selectedPullRequest
-      ? { repoPath, pullRequestNumber: selectedPullRequest.number }
-      : skipToken;
-  useRetainPullRequestRefresh(
-    compareArgs === skipToken ? null : compareArgs,
-    REVIEW_REFRESH_RESOURCES,
-  );
-  const { compareRefs, loadingCompareRefs } = usePreparePullRequestCompareRefsQuery(compareArgs, {
-    selectFromResult: ({ currentData, isFetching }) => ({
-      compareRefs: currentData,
-      loadingCompareRefs: isFetching,
-    }),
-  });
   const [addComment] = useAddPullRequestCommentMutation();
-  const [submitReview] = useSubmitPullRequestReviewMutation();
   const [submitDecision] = useSubmitPullRequestDecisionMutation();
   const [mergePullRequest] = useMergePullRequestMutation();
   const { selectedConversation } = useGetPullRequestConversationQuery(
@@ -154,19 +126,6 @@ export function PullRequestCommandComposer({
       ? { repoPath, pullRequestNumber: selectedPullRequest.number }
       : skipToken,
     { selectFromResult: ({ currentData }) => ({ selectedConversation: currentData }) },
-  );
-  const pendingDrafts = compareRefs
-    ? getPendingReviewCommentsForContext(comments, repoPath, {
-        kind: "review",
-        baseRef: compareRefs.compareBaseRef,
-        headRef: compareRefs.compareHeadRef,
-      })
-    : [];
-  const reviewRevisionMatches = Boolean(
-    compareRefs &&
-    selectedConversation &&
-    compareRefs.compareHeadRef.startsWith(selectedConversation.detail.headSha) &&
-    compareRefs.baseSha.startsWith(selectedConversation.detail.baseSha),
   );
   const actionInfo = actions.find((item) => item.id === action);
   const actionLabel = actionInfo?.label ?? "Choose action";
@@ -261,14 +220,6 @@ export function PullRequestCommandComposer({
       !["submit-review", "approve-pr", "request-changes", "merge-pr"].includes(action)) &&
     (action !== "open-pr-worktree" || hostedRepo) &&
     (action !== "comment-pr" || message.trim()) &&
-    (action !== "submit-review" ||
-      (reviewRevisionMatches &&
-        !loadingCompareRefs &&
-        Boolean(selectedConversation?.detail.headSha) &&
-        (reviewDecision !== "comment" || Boolean(message.trim() || pendingDrafts.length)) &&
-        (reviewDecision !== "request-changes" || Boolean(message.trim())) &&
-        selectedConversation?.detail.state === "open" &&
-        !selectedConversation.detail.isDraft)) &&
     (action !== "request-changes" || hostedRepo?.providerId !== "github" || message.trim()) &&
     ((action !== "merge-pr" && action !== "approve-pr" && action !== "request-changes") ||
       (selectedConversation?.detail.state === "open" && !selectedConversation.detail.isDraft)) &&
@@ -276,6 +227,8 @@ export function PullRequestCommandComposer({
   );
 
   useEffect(() => {
+    if (action === "submit-review" && pane === "review") return;
+
     if (pane === "choice" || pane === "action") searchRef.current?.focus();
     else if (
       pane === "review" &&
@@ -405,23 +358,6 @@ export function PullRequestCommandComposer({
           expectedHeadSha,
         }).unwrap();
         toast.success(status === "queued" ? "Merge started" : "Pull request merged");
-      } else {
-        const expectedHeadSha = selectedConversation?.detail.headSha;
-        if (!expectedHeadSha)
-          throw new Error("Load the latest pull request before submitting a review.");
-        const result = await submitReview({
-          ...buildSubmitPullRequestReviewCommentsInput({
-            repoPath,
-            pullRequestNumber: target.number,
-            comments: pendingDrafts,
-          }),
-          expectedHeadSha,
-          decision: reviewDecision,
-          body: message.trim(),
-        }).unwrap();
-        if (result.submittedDraftIds.length)
-          dispatch(removeCommentsByIds(result.submittedDraftIds));
-        if (result.failedMessage) throw new Error(result.failedMessage);
       }
       onClose();
     } catch (cause) {
@@ -479,7 +415,10 @@ export function PullRequestCommandComposer({
     runFromContext(initialPullRequest);
   }, [action, directAction, hostedRepo, initialPullRequest, objectFirst]);
 
+  const focusedReview = action === "submit-review" && pane === "review" && selectedPullRequest;
+
   useCommandComposerHotkeys({
+    enabled: !focusedReview,
     rootRef,
     searchRef,
     runButtonRef: runRef,
@@ -497,6 +436,18 @@ export function PullRequestCommandComposer({
     onClose,
     onRun: () => void run(),
   });
+
+  if (focusedReview) {
+    return (
+      <PullRequestReviewPanel
+        key={`${repoPath}:${focusedReview.number}`}
+        repoPath={repoPath}
+        pullRequest={focusedReview}
+        onClose={onClose}
+        onBusyChange={onBusyChange}
+      />
+    );
+  }
 
   let cardSteps: ComposerCardStep[] | undefined;
 
@@ -736,64 +687,6 @@ export function PullRequestCommandComposer({
                     ? `Head ${selectedConversation.detail.headSha.slice(0, 8)} · ${selectedConversation.detail.state}${selectedConversation.detail.isDraft ? " · Draft" : ""}`
                     : "Loading merge state…"}
                 </p>
-              </>
-            ) : action === "submit-review" ? (
-              <>
-                <div className="grid grid-cols-3 gap-2" role="group" aria-label="Review decision">
-                  {(["comment", "approve", "request-changes"] as const).map((decision) => (
-                    <Button
-                      key={decision}
-                      variant={reviewDecision === decision ? "default" : "outline"}
-                      aria-pressed={reviewDecision === decision}
-                      onClick={() => setReviewDecision(decision)}
-                      className="min-w-0 text-xs"
-                    >
-                      {decision === "comment"
-                        ? "Comment"
-                        : decision === "approve"
-                          ? "Approve"
-                          : "Request changes"}
-                    </Button>
-                  ))}
-                </div>
-                <label className="change-composer-panel-label" htmlFor="composer-review-message">
-                  Review message
-                  {reviewDecision === "request-changes" ? " (required)" : " (optional)"}
-                </label>
-                <Textarea
-                  id="composer-review-message"
-                  ref={messageRef}
-                  className="min-h-24 min-w-0 text-sm"
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  placeholder="Write your review…"
-                />
-                <p className="change-composer-help text-muted-foreground text-xs tabular-nums">
-                  {loadingCompareRefs
-                    ? "Loading review context…"
-                    : `${pendingDrafts.length} pending inline ${pendingDrafts.length === 1 ? "comment" : "comments"} will be published.`}
-                  {hostedRepo?.providerId === "bitbucket"
-                    ? " Bitbucket posts comments and the decision separately."
-                    : ""}
-                </p>
-                {!loadingCompareRefs && !reviewRevisionMatches ? (
-                  <div
-                    role="status"
-                    className="text-muted-foreground flex items-center justify-between gap-2 text-xs"
-                  >
-                    Refresh the pull request before submitting this review.
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      aria-disabled={refresh.busy}
-                      onClick={() => {
-                        if (!refresh.busy) void refresh.refresh();
-                      }}
-                    >
-                      Refresh
-                    </Button>
-                  </div>
-                ) : null}
               </>
             ) : (
               <p className="change-composer-help text-muted-foreground text-xs">

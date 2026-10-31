@@ -228,19 +228,26 @@ export async function submitPullRequestReview(
         decisionSubmitted: false,
         failedMessage: published.failedMessage,
       };
+    let messageSubmitted = Boolean(input.messageAlreadyPublished);
+
     try {
-      if (body) await addPullRequestComment({ ...input, body });
+      if (body && !messageSubmitted) {
+        await addPullRequestComment({ ...input, body });
+        messageSubmitted = true;
+      }
       if (input.decision !== "comment")
         await submitPullRequestDecision({ ...input, body, decision: input.decision });
       return {
         submittedDraftIds: published.submittedDraftIds,
         decisionSubmitted: true,
+        messageSubmitted,
         failedMessage: null,
       };
     } catch (error) {
       return {
         submittedDraftIds: published.submittedDraftIds,
         decisionSubmitted: false,
+        messageSubmitted,
         failedMessage: error instanceof Error ? error.message : String(error),
       };
     }

@@ -1,3 +1,4 @@
+import { reviewDraftsReducer } from "@/features/pull-requests/reviewDraftsSlice";
 import {
   type Action,
   type UnknownAction,
@@ -37,6 +38,7 @@ const combinedReducer = combineReducers({
   workspaceViews: (state: ReturnType<typeof reduceWorkspaceState>["workspaceViews"] = {}) => state,
   pullRequests: pullRequestsReducer,
   comments: commentsReducer,
+  reviewDrafts: reviewDraftsReducer,
   commentsClipboard: commentsClipboardReducer,
   [gitApi.reducerPath]: gitApi.reducer,
   [hostedReposApi.reducerPath]: hostedReposApi.reducer,

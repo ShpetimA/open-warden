@@ -1907,7 +1907,7 @@ test("background revision refresh preserves the open review draft and editor foc
   await page.getByRole("button", { name: "Review pull request", exact: true }).click();
   const editor = page.getByRole("textbox", { name: "Review message" });
   await editor.fill("Keep this review draft while the branch changes.");
-  const confirm = page.getByRole("button", { name: "Confirm submit review", exact: true });
+  const confirm = page.getByRole("button", { name: "Submit review", exact: false });
   await expect(confirm).toBeEnabled();
   await page.evaluate(() => window.reviewRefreshTest.changeHead());
   await expect.poll(() => page.evaluate(() => window.reviewRefreshTest.held())).toBe(true);
@@ -2298,3 +2298,107 @@ declare global {
     linkedImageActivations: boolean[];
   }
 }
+
+test.use({ video: { mode: "on", size: { width: 1440, height: 900 } } });
+
+test.describe("Focused review panel", () => {
+  for (const theme of ["light", "dark"] as const) {
+    test(`review drafts and retry work in ${theme}`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 900 });
+      await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+      await page.addInitScript(
+        ({ detail }) => {
+          const bridge = window.desktopBridge;
+          if (!bridge) throw new Error("Missing desktop bridge");
+          const loadSession = bridge.loadWorkspaceSession;
+          let attempts = 0;
+
+          bridge.loadWorkspaceSession = async () => {
+            const saved = localStorage.getItem("review-demo-session");
+            if (saved) return { ok: true, value: JSON.parse(saved) };
+            const result = await loadSession();
+            return result.ok
+              ? {
+                  ok: true,
+                  value: {
+                    ...result.value,
+                    comments: [
+                      {
+                        type: "annotation",
+                        id: "note",
+                        repoPath: "/projects/invoice",
+                        filePath: "src/invoice.ts",
+                        bucket: "unstaged",
+                        startLine: 3,
+                        endLine: 4,
+                        side: "additions",
+                        text: "Can we also test a zero amount?",
+                        contextKind: "review",
+                        baseRef: detail.baseSha,
+                        headRef: detail.headSha,
+                      },
+                    ],
+                  },
+                }
+              : result;
+          };
+          bridge.saveWorkspaceSession = async (session) => {
+            localStorage.setItem("review-demo-session", JSON.stringify(session));
+            return { ok: true, value: session };
+          };
+          bridge.submitPullRequestReview = async () => {
+            attempts += 1;
+            await new Promise((resolve) => setTimeout(resolve, 650));
+            if (attempts === 1)
+              return {
+                ok: false,
+                error: {
+                  operation: "submitPullRequestReview",
+                  code: "network",
+                  message: "Could not reach Bitbucket. Your draft is safe.",
+                },
+              };
+            return {
+              ok: true,
+              value: { submittedDraftIds: ["note"], decisionSubmitted: true, failedMessage: null },
+            };
+          };
+        },
+        { theme, detail },
+      );
+
+      await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+      const review = page.getByRole("button", { name: "Review pull request", exact: true });
+      await expect(review).toBeEnabled();
+      await review.click();
+      await expect(page.getByText("1 pending inline comment", { exact: true })).toBeVisible();
+      await page.getByRole("radio", { name: "Request changes", exact: true }).check();
+      const submit = page.getByRole("button", { name: /Submit review/ });
+      await expect(submit).toBeDisabled();
+      const message = page.getByRole("textbox", { name: /Review message/ });
+      await message.fill("Please cover zero amounts before merging. The rest looks good.");
+      await message.press("ArrowLeft");
+      await expect(message).toBeFocused();
+      await message.press("Escape");
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+      await expect(review).toBeFocused();
+      await page.reload();
+      await review.click();
+      await expect(message).toHaveValue(
+        "Please cover zero amounts before merging. The rest looks good.",
+      );
+      await submit.click();
+      await expect(page.getByRole("button", { name: "Close review" })).toBeDisabled();
+      await message.press("Escape");
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await expect(page.getByText("Could not reach Bitbucket. Your draft is safe.")).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`review-${theme}.png`) });
+      await expect(message).toHaveValue(
+        "Please cover zero amounts before merging. The rest looks good.",
+      );
+      await page.getByRole("button", { name: "Retry review" }).click();
+      await expect(page.getByRole("dialog")).not.toBeVisible();
+      await expect(page.getByText("Review submitted", { exact: true })).toBeVisible();
+    });
+  }
+});

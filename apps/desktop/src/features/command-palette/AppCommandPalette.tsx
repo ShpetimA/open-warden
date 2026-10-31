@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -36,11 +36,13 @@ export function AppCommandPalette({
         ? "pull-requests"
         : null,
   );
+  const opener = useRef<HTMLElement | null>(null);
   const [prefillPullRequest, setPrefillPullRequest] = useState(true);
   const [locked, setLocked] = useState(false);
 
   useLayoutEffect(() => {
     if (!open) setLocked(false);
+    else if (document.activeElement instanceof HTMLElement) opener.current = document.activeElement;
 
     setPrefillPullRequest(true);
     setSpecialAction(
@@ -84,6 +86,12 @@ export function AppCommandPalette({
         className="command-composer-dialog top-0 max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] translate-y-0 border-0 bg-transparent p-0 shadow-none sm:max-w-[680px]"
         showCloseButton={false}
         contentAnimated={false}
+        onCloseAutoFocus={(event) => {
+          if (!opener.current?.isConnected) return;
+
+          event.preventDefault();
+          opener.current.focus({ preventScroll: true });
+        }}
         onEscapeKeyDown={(event) => event.preventDefault()}
         onKeyDown={(event) => event.stopPropagation()}
         onKeyUp={(event) => event.stopPropagation()}
@@ -130,6 +138,7 @@ export function AppCommandPalette({
               />
             ) : specialAction === "pull-requests" ? (
               <PullRequestCommandComposer
+                onBusyChange={setLocked}
                 action={null}
                 initialPullRequest={prefillPullRequest ? initialPullRequest : null}
                 prefillFromWorkspace={prefillPullRequest}
@@ -145,6 +154,7 @@ export function AppCommandPalette({
               />
             ) : specialAction !== null && isPullRequestAction(specialAction) ? (
               <PullRequestCommandComposer
+                onBusyChange={setLocked}
                 action={specialAction}
                 initialPullRequest={initialPullRequest}
                 onCreate={() => setSpecialAction("create-pr")}
