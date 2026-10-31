@@ -717,7 +717,10 @@ export function PullRequestCommandComposer({
             <Kbd>↵</Kbd> {pane === "review" ? "Confirm" : "Select"}
           </span>
           <span>
-            <Kbd>Esc</Kbd> Back
+            <Kbd>⌫</Kbd> Back
+          </span>
+          <span>
+            <Kbd>Esc</Kbd> Close
           </span>
         </div>
       </div>

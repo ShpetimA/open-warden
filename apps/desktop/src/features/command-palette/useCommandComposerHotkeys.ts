@@ -170,8 +170,8 @@ export function useCommandComposerHotkeys({
     (event) => {
       event.preventDefault();
       if (busy) return;
-      if (pane === "action" && actionIsRoot) onClose();
-      else onBack();
+
+      onClose();
     },
     options,
   );

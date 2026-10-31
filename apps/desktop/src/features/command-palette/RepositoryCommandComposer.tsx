@@ -314,7 +314,10 @@ export function RepositoryCommandComposer({
             <Kbd>↵</Kbd> Open or browse
           </span>
           <span>
-            <Kbd>Esc</Kbd> Back
+            <Kbd>⌫</Kbd> Back
+          </span>
+          <span>
+            <Kbd>Esc</Kbd> Close
           </span>
         </div>
       </div>

@@ -176,6 +176,84 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const theme of ["light", "dark"] as const) {
+  test(`closes quick actions with Escape and steps back with Backspace in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1000, height: 900 });
+    await page.addInitScript(() => {
+      const bridge = window.desktopBridge;
+
+      if (!bridge) throw new Error("Missing desktop test bridge");
+
+      bridge.getGitRepositoryState = async () => ({
+        ok: true,
+        value: {
+          branch: "main",
+          upstream: "origin/main",
+          ahead: 0,
+          behind: 0,
+          remotes: ["origin"],
+          branches: [
+            { name: "main", remote: false, worktree: "/projects/invoice" },
+            { name: "feature/invoices", remote: false, worktree: "" },
+          ],
+          tags: [],
+          worktrees: [],
+          operation: null,
+          conflicts: [],
+          lastCommit: null,
+          stashes: [],
+          incoming: [],
+          outgoing: [],
+        },
+      });
+    });
+
+    await page.goto("/#/history");
+    await expect(
+      page.getByRole("complementary", { name: "History commits", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("ControlOrMeta+k");
+
+    const dialog = page.getByRole("dialog", { name: "Command composer" });
+    const actions = dialog.getByRole("textbox", { name: "Search actions", exact: true });
+
+    await actions.fill("fetch");
+    await actions.press("Enter");
+    const confirm = dialog.getByRole("button", { name: "Confirm Fetch", exact: true });
+    await expect(confirm).toBeFocused();
+    await expect(dialog.locator(".change-composer-footer")).toContainText("Esc Close");
+    await page.screenshot({ path: testInfo.outputPath(`quick-actions-confirm-${theme}.png`) });
+
+    await confirm.press("Backspace");
+    await expect(actions).toBeFocused();
+    await actions.fill("fetch");
+    await actions.press("Enter");
+    await confirm.press("Escape");
+    await expect(dialog).not.toBeVisible();
+
+    await page.keyboard.press("ControlOrMeta+k");
+    await actions.fill("branches");
+    await actions.press("Enter");
+
+    const branches = dialog.getByRole("textbox", { name: "Search branches", exact: true });
+    await expect(branches).toBeFocused();
+    await branches.fill("feature");
+    await branches.press("Backspace");
+    await expect(branches).toHaveValue("featur");
+    await branches.fill("");
+    await page.screenshot({ path: testInfo.outputPath(`quick-actions-branches-${theme}.png`) });
+    await branches.press("Backspace");
+    await expect(actions).toBeFocused();
+
+    await actions.fill("branches");
+    await actions.press("Enter");
+    await branches.fill("feature");
+    await branches.press("Escape");
+    await expect(dialog).not.toBeVisible();
+  });
+
   test(`shares the compact commit design and preserves history comparison in ${theme}`, async ({
     page,
   }, testInfo) => {

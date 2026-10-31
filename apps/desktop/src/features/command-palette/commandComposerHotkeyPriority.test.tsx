@@ -43,7 +43,17 @@ function ComposerNavigation() {
   );
 }
 
-function HostedComposerNavigation({ onBack, onRun }: { onBack: () => void; onRun: () => void }) {
+function HostedComposerNavigation({
+  onBack,
+  onClose,
+  onRun,
+  busy = false,
+}: {
+  onBack: () => void;
+  onClose: () => void;
+  onRun: () => void;
+  busy?: boolean;
+}) {
   const rootRef = useCommandComposerRootRef();
   const searchRef = useRef<HTMLInputElement>(null);
   const runButtonRef = useRef<HTMLButtonElement>(null);
@@ -60,11 +70,11 @@ function HostedComposerNavigation({ onBack, onRun }: { onBack: () => void; onRun
     activeChoiceId: highlighted,
     canRun: true,
     hasError: false,
-    busy: false,
+    busy,
     onHighlight: setHighlighted,
     onSelect: () => setPane("review"),
     onBack,
-    onClose: () => {},
+    onClose,
     onRun,
   });
 
@@ -123,10 +133,11 @@ describe("composer keyboard priority", () => {
 
   test("focuses hosted choices and handles arrows, Enter, and Escape inside the composer", () => {
     const onBack = vi.fn();
+    const onClose = vi.fn();
     const onRun = vi.fn();
     render(
       <CommandComposerLayoutHost>
-        <HostedComposerNavigation onBack={onBack} onRun={onRun} />
+        <HostedComposerNavigation onBack={onBack} onClose={onClose} onRun={onRun} />
       </CommandComposerLayoutHost>,
     );
 
@@ -137,6 +148,15 @@ describe("composer keyboard priority", () => {
     expect(screen.getByTestId("hosted-highlighted")).toHaveTextContent("second");
 
     fireEvent.keyDown(search, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+
+    fireEvent.change(search, { target: { value: "branch" } });
+    fireEvent.keyDown(search, { key: "Backspace" });
+    expect(onBack).not.toHaveBeenCalled();
+
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.keyDown(search, { key: "Backspace" });
     expect(onBack).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(search, { key: "Enter" });
@@ -150,6 +170,33 @@ describe("composer keyboard priority", () => {
     expect(onBack).toHaveBeenCalledTimes(2);
 
     fireEvent.keyDown(confirm, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onBack).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(confirm, { key: "Backspace" });
     expect(onBack).toHaveBeenCalledTimes(3);
+  });
+
+  test("keeps the composer open while an operation is running", () => {
+    let closed = false;
+
+    render(
+      <CommandComposerLayoutHost>
+        <HostedComposerNavigation
+          busy
+          onBack={() => {}}
+          onClose={() => {
+            closed = true;
+          }}
+          onRun={() => {}}
+        />
+      </CommandComposerLayoutHost>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Search pull requests" }), {
+      key: "Escape",
+    });
+
+    expect(closed).toBe(false);
   });
 });

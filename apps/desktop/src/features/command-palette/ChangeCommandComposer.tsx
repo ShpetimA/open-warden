@@ -1282,22 +1282,22 @@ export function ChangeCommandComposer({
                 </span>
               ) : null}
             </>
-          ) : pane === "review" ? (
-            <>
-              <span>
-                <Kbd>←</Kbd> Back
-              </span>
-              {!isReadOnly ? (
-                <span>
-                  <Kbd>⌘↵</Kbd> Run
-                </span>
-              ) : null}
-            </>
+          ) : pane === "review" && !isReadOnly ? (
+            <span>
+              <Kbd>⌘↵</Kbd> Run
+            </span>
           ) : null}
           {pane !== "execute" || error ? (
-            <span>
-              <Kbd>Esc</Kbd> {pane === "action" && !scope ? "Close" : "Back"}
-            </span>
+            <>
+              {pane !== "action" || scope ? (
+                <span>
+                  <Kbd>⌫</Kbd> Back
+                </span>
+              ) : null}
+              <span>
+                <Kbd>Esc</Kbd> Close
+              </span>
+            </>
           ) : null}
         </div>
       </div>
