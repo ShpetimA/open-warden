@@ -125,12 +125,14 @@ function setup(prepareRefs: () => Promise<PullRequestCompareRefs>) {
   render(
     <Provider store={store}>
       <MemoryRouter initialEntries={["/pull-requests/bitbucket/team/invoice/114/files"]}>
-        <Routes>
-          <Route
-            path="/pull-requests/:providerId/:owner/:repo/:pullRequestNumber/files"
-            element={<PullRequestFiles />}
-          />
-        </Routes>
+        <CommandComposerLauncherProvider open={() => {}}>
+          <Routes>
+            <Route
+              path="/pull-requests/:providerId/:owner/:repo/:pullRequestNumber/files"
+              element={<PullRequestFiles />}
+            />
+          </Routes>
+        </CommandComposerLauncherProvider>
       </MemoryRouter>
     </Provider>,
   );
