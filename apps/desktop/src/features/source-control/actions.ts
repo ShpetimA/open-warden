@@ -1,3 +1,11 @@
+import { reviewDraftsRestored } from "@/features/pull-requests/reviewDraftsSlice";
+import { getPierreFileAfterRemoval } from "./pierreFileTreeNavigation";
+import { repositoryChangeTags } from "./repositoryFreshness";
+import type { WorkspaceSession } from "@/platform/desktop/contracts";
+import type { DesktopResult } from "@/platform/desktop/failure";
+import type { DiffEditExpectation } from "@/platform/desktop/fileEdits";
+import { desktopSuccess, failureFromUnknown } from "@/platform/desktop/failure";
+import { serializeWorkspaceTabs } from "@/features/workspaces/workspaceState";
 import type { AppThunk, RootState } from "@/app/store";
 import { toast } from "sonner";
 import { desktop } from "@/platform/desktop";
@@ -8,7 +16,14 @@ import {
   createWorkspaceSession,
   normalizeRepoPaths,
 } from "@/platform/desktop/workspaceSession";
-import { removeCommentsForRepo } from "@/features/comments/commentsSlice";
+import { restoreComments } from "@/features/comments/commentsSlice";
+import {
+  repoWorkspaceUpserted,
+  workspaceCommitDraftReplaced,
+  workspacesHydrated,
+  projectRemoved,
+  workspaceSessionRestored,
+} from "@/features/workspaces/workspacesSlice";
 import {
   clearCurrentPullRequestReview,
   setPullRequestFilesViewMode,
@@ -30,6 +45,7 @@ import {
   setDiffFocusTarget,
   setDiffStyle,
   clearHistoryCommitSelection,
+  pinHistoryCommit,
   setHistoryCommitId,
   setHistoryCommitSelected,
   setHistoryNavTarget,
@@ -43,21 +59,6 @@ import {
   setSelectionAnchor,
   setRunningAction,
 } from "./sourceControlSlice";
-
-function nextChangedFileAfterStage(snapshot: GitSnapshot | null | undefined, filePath: string) {
-  if (!snapshot) return null;
-
-  const changed: Array<{ bucket: Bucket; path: string }> = [
-    ...snapshot.unstaged.map((file) => ({ bucket: "unstaged" as const, path: file.path })),
-    ...snapshot.untracked.map((file) => ({ bucket: "untracked" as const, path: file.path })),
-  ];
-  if (changed.length === 0) return null;
-
-  const index = changed.findIndex((item) => item.path === filePath);
-  if (index < 0) return null;
-
-  return changed[index + 1] ?? null;
-}
 
 function fileSelectionKey(file: SelectedFile): string {
   return `${file.bucket}\u0000${file.path}`;
@@ -118,15 +119,47 @@ const resetRepoScopedState = (): AppThunk => (dispatch) => {
   dispatch(clearCurrentPullRequestReview());
 };
 
-async function persistWorkspaceSession(getState: () => RootState) {
-  const { sourceControl } = getState();
-  await desktop.saveWorkspaceSession(buildWorkspaceSession(sourceControl));
+export async function persistWorkspaceSession(getState: () => RootState) {
+  const state = getState();
+  const session = {
+    ...buildWorkspaceSession(state.sourceControl),
+    workspaceTabs: serializeWorkspaceTabs(state),
+    comments: state.comments,
+    reviewDrafts: state.reviewDrafts,
+  };
+  return saveSession(session, getState);
+}
+
+async function saveSession(
+  session: WorkspaceSession,
+  getState: () => RootState,
+): Promise<DesktopResult<WorkspaceSession>> {
+  let result: DesktopResult<WorkspaceSession>;
+  try {
+    result = await desktop.saveWorkspaceSession(session);
+  } catch (cause) {
+    result = { ok: false, error: failureFromUnknown(cause, "saveWorkspaceSession") };
+  }
+
+  if (result.ok) toast.dismiss("workspace-save");
+  else
+    toast.error(result.error.message, {
+      id: "workspace-save",
+      duration: Infinity,
+      action: {
+        label: "Retry",
+        onClick: () => {
+          void persistWorkspaceSession(getState);
+        },
+      },
+    });
+  return result;
 }
 
 async function resolveRepoPath(repoPath: string): Promise<string | null> {
   try {
     const snapshot = await desktop.getGitSnapshot(repoPath);
-    return snapshot.repoRoot.trim() || repoPath;
+    return snapshot.ok ? snapshot.value.repoRoot.trim() || repoPath : null;
   } catch {
     return null;
   }
@@ -141,40 +174,69 @@ async function restoreRepoPaths(repoPaths: string[]): Promise<string[]> {
   return normalizeRepoPaths(resolvedPaths);
 }
 
-export const restoreWorkspaceSession = (): AppThunk<Promise<void>> => async (dispatch) => {
-  try {
-    const storedSession = await desktop.loadWorkspaceSession();
-    const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
-    const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
-    const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
-    const workspaceSession = createWorkspaceSession({
-      openRepos: restoredOpenRepos,
-      activeRepo: restoredActiveRepo ?? undefined,
-      recentRepos: restoredRecentRepos,
-    });
+export const restoreWorkspaceSession =
+  (): AppThunk<Promise<DesktopResult<void>>> => async (dispatch, getState) => {
+    try {
+      const loaded = await desktop.loadWorkspaceSession();
+      if (!loaded.ok) {
+        return loaded;
+      }
+      const storedSession = loaded.value;
+      const restoredOpenRepos = await restoreRepoPaths(storedSession.openRepos);
+      const restoredRecentRepos = await restoreRepoPaths(storedSession.recentRepos);
+      const restoredActiveRepo = await resolveRepoPath(storedSession.activeRepo);
+      const workspaceSession = createWorkspaceSession({
+        openRepos: restoredOpenRepos,
+        activeRepo: restoredActiveRepo ?? undefined,
+        recentRepos: restoredRecentRepos,
+        workspaceTabs: storedSession.workspaceTabs,
+        comments: storedSession.comments,
+        reviewDrafts: storedSession.reviewDrafts,
+      });
 
-    dispatch(hydrateWorkspaceSessionState(workspaceSession));
+      dispatch(restoreComments(storedSession.comments ?? []));
+      dispatch(reviewDraftsRestored(storedSession.reviewDrafts ?? []));
+      if (storedSession.recoveryNotice)
+        toast.warning(storedSession.recoveryNotice, {
+          id: "workspace-recovery",
+          duration: Infinity,
+        });
+      dispatch(hydrateWorkspaceSessionState(workspaceSession));
+      dispatch(
+        workspacesHydrated({
+          openRepos: workspaceSession.openRepos,
+          activeRepo: workspaceSession.activeRepo,
+        }),
+      );
 
-    if (!workspaceSession.activeRepo) {
-      dispatch(resetRepoScopedState());
+      if (workspaceSession.workspaceTabs)
+        dispatch(workspaceSessionRestored(workspaceSession.workspaceTabs));
+
+      if (!workspaceSession.activeRepo) {
+        dispatch(resetRepoScopedState());
+      }
+
+      await saveSession(workspaceSession, getState);
+      return desktopSuccess(undefined);
+    } catch (cause) {
+      return { ok: false, error: failureFromUnknown(cause, "restoreWorkspaceSession") };
     }
-
-    await desktop.saveWorkspaceSession(workspaceSession);
-  } catch (error) {
-    dispatch(hydrateWorkspaceSessionState(createWorkspaceSession()));
-    const message = error instanceof Error ? error.message : String(error);
-    toast.error(`Failed to restore workspace session: ${message}`);
-  }
-};
+  };
 
 export const openRepo =
-  (repoPath: string): AppThunk<Promise<void>> =>
+  (
+    repoPath: string,
+    options: { workspace: "repo" | "preserve"; canActivate?: () => boolean } = {
+      workspace: "repo",
+    },
+  ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const resolvedRepoPath = await resolveRepoPath(repoPath);
+    if (options.canActivate && !options.canActivate()) return false;
 
     if (!resolvedRepoPath) {
       toast.error(`Could not open repository: ${repoPath}`);
-      return;
+      return false;
     }
 
     const { activeRepo, repos, recentRepos } = getState().sourceControl;
@@ -183,24 +245,33 @@ export const openRepo =
 
     if (resolvedRepoPath === activeRepo && repos.includes(resolvedRepoPath)) {
       dispatch(setRecentRepos(nextRecentRepos));
+      if (options.workspace === "repo")
+        dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
       await persistWorkspaceSession(getState);
-      return;
+      return true;
     }
 
     dispatch(setRepos(nextRepos));
     dispatch(setActiveRepo(resolvedRepoPath));
     dispatch(setRecentRepos(nextRecentRepos));
-    dispatch(resetRepoScopedState());
+    if (options.workspace === "repo")
+      dispatch(repoWorkspaceUpserted({ repoPath: resolvedRepoPath, activate: true }));
     await persistWorkspaceSession(getState);
+    return true;
   };
 
 export const selectFolder = (): AppThunk => async (dispatch) => {
   let selected: string | null;
 
   try {
-    selected = await desktop.selectFolder();
+    const result = await desktop.selectFolder();
+    if (!result.ok) {
+      toast.error(result.error.message);
+      return;
+    }
+    selected = result.value;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = failureFromUnknown(error, "repositoryAction").message;
     toast.error(`Failed to select folder: ${message}`);
     return;
   }
@@ -221,12 +292,8 @@ export const closeRepo =
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     const closingActiveRepo = repo === activeRepo;
+    dispatch(projectRemoved({ repoPath: repo }));
     dispatch(removeRepo(repo));
-    dispatch(removeCommentsForRepo(repo));
-
-    if (closingActiveRepo) {
-      dispatch(resetRepoScopedState());
-    }
 
     await persistWorkspaceSession(getState);
 
@@ -240,10 +307,16 @@ export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
   if (!activeRepo) return;
 
-  dispatch(gitApi.util.invalidateTags([{ type: "Snapshot", id: activeRepo }]));
-  dispatch(gitApi.util.invalidateTags(["FileVersions"]));
   dispatch(
-    gitApi.util.invalidateTags([{ type: "HistoryCommits", id: activeRepo }, "HistoryFiles"]),
+    gitApi.util.invalidateTags([
+      ...repositoryChangeTags({
+        repoPath: activeRepo,
+        kinds: ["worktree", "index", "refs", "config"],
+        paths: [],
+        structure: true,
+      }),
+      { type: "CommitData", id: activeRepo },
+    ]),
   );
 };
 
@@ -326,6 +399,16 @@ export const selectHistoryCommit =
     dispatch(setHistoryCommitId(commitId));
   };
 
+export const selectHistoryPullRequestCommit =
+  (commitId: string): AppThunk =>
+  async (dispatch, getState) => {
+    if (!getState().sourceControl.activeRepo) return;
+    dispatch(clearHistoryCommitSelection());
+    dispatch(setHistoryNavTarget("commits"));
+    dispatch(setHistoryCommitId(commitId));
+    dispatch(pinHistoryCommit(commitId));
+  };
+
 export const setHistoryCommitSelectedValue =
   (commitId: string, selected: boolean): AppThunk =>
   async (dispatch, getState) => {
@@ -350,6 +433,24 @@ export const selectHistoryFile =
     if (!getState().sourceControl.historyCommitId) return;
     dispatch(setHistoryNavTarget("files"));
     dispatch(setActivePath(relPath));
+  };
+
+export const openHistoryFileFromBlame =
+  ({
+    repoPath,
+    commitId,
+    relPath,
+  }: {
+    repoPath: string;
+    commitId: string;
+    relPath: string;
+  }): AppThunk =>
+  (dispatch, getState) => {
+    if (getState().sourceControl.activeRepo !== repoPath) return;
+
+    dispatch(selectHistoryPullRequestCommit(commitId));
+    dispatch(selectHistoryFile(relPath));
+    dispatch(closeFileViewer());
   };
 
 export const setCommitMessageValue =
@@ -462,16 +563,37 @@ function repoActionLabel(action: RunningAction): string {
 }
 
 const runRepoAction =
-  (action: RunningAction, thunk: AppThunk<Promise<void>>): AppThunk =>
+  (
+    action: RunningAction,
+    thunk: AppThunk<Promise<void>>,
+    removed: readonly SelectedFile[] = [],
+  ): AppThunk<Promise<boolean>> =>
   async (dispatch, getState) => {
     const { activeRepo, runningAction } = getState().sourceControl;
-    if (!activeRepo || runningAction) return;
+    if (!activeRepo || runningAction) return false;
+    const before = getState();
+    const selection = {
+      bucket: before.sourceControl.activeBucket,
+      path: before.sourceControl.activePath,
+    };
     dispatch(setRunningAction(action));
     try {
       await dispatch(thunk);
+      const next = getPierreFileAfterRemoval("changes-files", selection, removed);
+      const current = getState();
+      if (
+        next &&
+        current.workspaces.activeWorkspaceId === before.workspaces.activeWorkspaceId &&
+        current.sourceControl.activeRepo === activeRepo &&
+        current.sourceControl.activePath === selection.path &&
+        current.sourceControl.activeBucket === selection.bucket
+      )
+        await dispatch(selectFile(next.bucket, next.path));
+      return true;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = failureFromUnknown(error, "repositoryAction").message;
       toast.error(`Failed to ${repoActionLabel(action)}: ${message}`);
+      return false;
     } finally {
       dispatch(setRunningAction(""));
     }
@@ -480,26 +602,23 @@ const runRepoAction =
 export const stageFileAction =
   (filePath: string): AppThunk =>
   async (dispatch, getState) => {
-    const state = getState();
-    const { activeRepo, activePath } = state.sourceControl;
+    const { activeRepo } = getState().sourceControl;
     if (!activeRepo) return;
 
-    if (activePath === filePath) {
-      const snapshot = gitApi.endpoints.getGitSnapshot.select(activeRepo)(state).data;
-      const next = nextChangedFileAfterStage(snapshot, filePath);
-      if (next) {
-        dispatch(setActiveBucket(next.bucket));
-        dispatch(setActivePath(next.path));
-      }
-    }
-
     await dispatch(
-      runRepoAction(`file:stage:${filePath}`, async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        `file:stage:${filePath}`,
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
+          );
+          await result.unwrap();
+        },
+        [
+          { bucket: "unstaged", path: filePath },
+          { bucket: "untracked", path: filePath },
+        ],
+      ),
     );
   };
 
@@ -510,17 +629,26 @@ export const unstageFileAction =
     if (!activeRepo) return;
 
     await dispatch(
-      runRepoAction(`file:unstage:${filePath}`, async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        `file:unstage:${filePath}`,
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: filePath }),
+          );
+          await result.unwrap();
+        },
+        [{ bucket: "staged", path: filePath }],
+      ),
     );
   };
 
 export const applyHunkToIndexAction =
-  (input: { filePath: string; contents: string; operation: DiffHunkOperation }): AppThunk =>
+  (input: {
+    filePath: string;
+    contents: string;
+    operation: DiffHunkOperation;
+    expected: DiffEditExpectation;
+  }): AppThunk =>
   async (dispatch, getState) => {
     const { activeRepo } = getState().sourceControl;
     if (!activeRepo) return;
@@ -533,6 +661,7 @@ export const applyHunkToIndexAction =
               repoPath: activeRepo,
               relPath: input.filePath,
               contents: input.contents,
+              expected: input.expected,
             }),
           );
           await result.unwrap();
@@ -550,6 +679,7 @@ export const applyHunkToIndexAction =
               repoPath: activeRepo,
               relPath: input.filePath,
               contents: input.contents,
+              expected: input.expected,
             }),
           );
           await result.unwrap();
@@ -566,14 +696,19 @@ export const stageFilesAction =
 
     const paths = [...new Set(files.map((file) => file.path))];
     await dispatch(
-      runRepoAction("stage-files", async (innerDispatch) => {
-        for (const path of paths) {
+      runRepoAction(
+        "stage-files",
+        async (innerDispatch) => {
           const result = innerDispatch(
-            gitApi.endpoints.stageFile.initiate({ repoPath: activeRepo, relPath: path }),
+            gitApi.endpoints.stageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
           );
           await result.unwrap();
-        }
-      }),
+        },
+        paths.flatMap((path) => [
+          { bucket: "unstaged" as const, path },
+          { bucket: "untracked" as const, path },
+        ]),
+      ),
     );
   };
 
@@ -585,14 +720,16 @@ export const unstageFilesAction =
 
     const paths = [...new Set(files.map((file) => file.path))];
     await dispatch(
-      runRepoAction("unstage-files", async (innerDispatch) => {
-        for (const path of paths) {
+      runRepoAction(
+        "unstage-files",
+        async (innerDispatch) => {
           const result = innerDispatch(
-            gitApi.endpoints.unstageFile.initiate({ repoPath: activeRepo, relPath: path }),
+            gitApi.endpoints.unstageFiles.initiate({ repoPath: activeRepo, relPaths: paths }),
           );
           await result.unwrap();
-        }
-      }),
+        },
+        paths.map((path) => ({ bucket: "staged" as const, path })),
+      ),
     );
   };
 
@@ -609,16 +746,20 @@ export const discardFileAction =
     if (!target) return;
 
     await dispatch(
-      runRepoAction(`file:discard:${filePath}`, async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.discardFile.initiate({
-            repoPath: activeRepo,
-            relPath: target.relPath,
-            bucket: target.bucket,
-          }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        `file:discard:${filePath}`,
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.discardFile.initiate({
+              repoPath: activeRepo,
+              relPath: target.relPath,
+              bucket: target.bucket,
+            }),
+          );
+          await result.unwrap();
+        },
+        [{ bucket: target.bucket, path: target.relPath }],
+      ),
     );
   };
 
@@ -643,11 +784,11 @@ export const stageOrUnstageSelectionAction = (): AppThunk => async (dispatch, ge
   await dispatch(stageFilesAction(toStage));
 };
 
-export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
+export const stageAllAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
-  if (!activeRepo) return;
+  if (!activeRepo) return false;
 
-  await dispatch(
+  return dispatch(
     runRepoAction("stage-all", async (innerDispatch) => {
       const result = innerDispatch(gitApi.endpoints.stageAll.initiate({ repoPath: activeRepo }));
       await result.unwrap();
@@ -655,11 +796,11 @@ export const stageAllAction = (): AppThunk => async (dispatch, getState) => {
   );
 };
 
-export const unstageAllAction = (): AppThunk => async (dispatch, getState) => {
+export const unstageAllAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
-  if (!activeRepo) return;
+  if (!activeRepo) return false;
 
-  await dispatch(
+  return dispatch(
     runRepoAction("unstage-all", async (innerDispatch) => {
       const result = innerDispatch(gitApi.endpoints.unstageAll.initiate({ repoPath: activeRepo }));
       await result.unwrap();
@@ -682,29 +823,38 @@ export const discardChangesGroupAction =
     if (payload.length === 0) return;
 
     await dispatch(
-      runRepoAction("discard-changes", async (innerDispatch) => {
-        const result = innerDispatch(
-          gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
-        );
-        await result.unwrap();
-      }),
+      runRepoAction(
+        "discard-changes",
+        async (innerDispatch) => {
+          const result = innerDispatch(
+            gitApi.endpoints.discardFiles.initiate({ repoPath: activeRepo, files: payload }),
+          );
+          await result.unwrap();
+        },
+        payload.map((file) => ({ bucket: file.bucket, path: file.relPath })),
+      ),
     );
   };
 
-export const commitAction = (): AppThunk => async (dispatch, getState) => {
+export const commitAction = (): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
   const { activeRepo, commitMessage } = getState().sourceControl;
-  if (!activeRepo) return;
+  const workspaceId = getState().workspaces.activeWorkspaceId;
+  if (!activeRepo) return false;
   const trimmed = commitMessage.trim();
-  if (!trimmed) return;
+  if (!trimmed) return false;
 
-  await dispatch(
+  return dispatch(
     runRepoAction("commit", async (innerDispatch) => {
       const result = innerDispatch(
         gitApi.endpoints.commitStaged.initiate({ repoPath: activeRepo, message: trimmed }),
       );
       const commitId = await result.unwrap();
-      innerDispatch(setLastCommitId(commitId));
-      innerDispatch(setCommitMessage(""));
+      if (getState().workspaces.activeWorkspaceId === workspaceId) {
+        innerDispatch(setLastCommitId(commitId));
+      }
+      innerDispatch(
+        workspaceCommitDraftReplaced({ workspaceId, expectedMessage: commitMessage, message: "" }),
+      );
     }),
   );
 };

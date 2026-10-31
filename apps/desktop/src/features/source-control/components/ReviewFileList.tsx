@@ -1,8 +1,17 @@
-import { useEffect, type ReactNode } from "react";
+import { FilePaneEmpty, FilePaneHeader } from "./FilePaneHeader";
+import { filePaneCount, filterFilePaths } from "./filePaneFilter";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
+import { RetainedFileList } from "./RetainedFileList";
+import {
+  areCommentCountMapsEqual,
+  selectReviewCommentCountsForRepo,
+} from "@/features/comments/selectors";
 import { countPullRequestThreadsForFile } from "@/features/pull-requests/utils/reviewThreadAnnotations";
+import { ReviewFileViewControl } from "./ReviewFileViewControl";
+import type { ReviewFileView } from "./reviewFileGrouping";
+import { selectReviewFilePath } from "../fileSelection";
 import { FileList } from "@/features/source-control/components/FileList";
 import { useReviewKeyboardNav } from "@/features/source-control/hooks/useReviewKeyboardNav";
 import { setReviewActivePath } from "@/features/source-control/sourceControlSlice";
@@ -41,11 +50,6 @@ export function ReviewSelectionSync({
       }
       return;
     }
-
-    const existing = branchFiles.find((file) => file.path === reviewActivePath);
-    if (!existing) {
-      dispatch(setReviewActivePath(branchFiles[0].path));
-    }
   }, [branchFiles, dispatch, hasBranchFilesData, readyForDiff, reviewActivePath]);
 
   return null;
@@ -60,10 +64,11 @@ type ReviewFileListProps = {
   reviewHeadRef: string;
   navRegion?: string;
   emptyState?: ReactNode;
+  isLoading?: boolean;
+  error?: unknown;
+  hasData?: boolean;
+  onRetry?: () => void;
   paneClassName?: string;
-  headerClassName?: string;
-  bodyClassName?: string;
-  scrollAreaClassName?: string;
   reviewThreads?: PullRequestReviewThread[];
 };
 
@@ -75,61 +80,76 @@ export function ReviewFileList({
   reviewBaseRef,
   reviewHeadRef,
   navRegion = "review-files",
-  emptyState = null,
+  emptyState = <FilePaneEmpty description="No changed files between these revisions." />,
+  isLoading = false,
+  error,
+  hasData = true,
+  onRetry,
   paneClassName,
-  headerClassName,
   reviewThreads = [],
 }: ReviewFileListProps) {
   const dispatch = useAppDispatch();
-  const fileBrowserMode = useAppSelector(
-    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  const [filter, setFilter] = useState("");
+  const visibleFiles = filterFilePaths(branchFiles, filter);
+  const [fileView, setFileView] = useState<ReviewFileView>("review");
+  const commentCounts = useAppSelector<ReadonlyMap<string, number>>(
+    (state) => selectReviewCommentCountsForRepo(state, activeRepo, reviewBaseRef, reviewHeadRef),
+    areCommentCountMapsEqual,
   );
-  const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
-  const comments = useAppSelector((state) => state.comments);
 
   useReviewKeyboardNav(navRegion);
+
+  let emptyContent = emptyState;
+
+  if (filter.trim()) {
+    emptyContent = <FilePaneEmpty filtered description="" onClear={() => setFilter("")} />;
+  }
 
   const getCommentCount = (file: FileItem) =>
     countPullRequestThreadsForFile({
       path: file.path,
       previousPath: file.previousPath,
       reviewThreads,
-    }) +
-    countCommentsForPathInRepoContext(comments, activeRepo, file.path, {
-      kind: "review",
-      baseRef: reviewBaseRef,
-      headRef: reviewHeadRef,
-    });
+    }) + (commentCounts.get(file.path) ?? 0);
 
   return (
     <aside
       className={`bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r ${paneClassName ?? ""}`.trim()}
     >
-      {title || subtitle ? (
-        <div className={`border-border border-b ${headerClassName ?? "px-3 py-2"}`.trim()}>
-          {title ? (
-            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-              {title}
-            </div>
-          ) : null}
-          {subtitle ? <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div> : null}
-        </div>
-      ) : null}
-      {branchFiles.length === 0 ? (
-        emptyState
-      ) : (
-        <FileList
-          files={branchFiles}
-          mode={fileBrowserMode}
-          selectedPath={reviewActivePath}
-          navRegion={navRegion}
-          onActivatePath={(path) => {
-            dispatch(setReviewActivePath(path));
-          }}
-          getCommentCount={getCommentCount}
-          getFileStatus={(file) => file.status}
-        />
-      )}
+      <FilePaneHeader
+        title={title}
+        summary={hasData ? filePaneCount(visibleFiles.length, branchFiles.length) : undefined}
+        description={subtitle}
+        filter={filter}
+        onFilterChange={setFilter}
+        actions={<ReviewFileViewControl value={fileView} onChange={setFileView} compact />}
+      />
+      <RetainedFileList
+        hasData={hasData}
+        fetching={isLoading}
+        error={error}
+        loadingLabel="Loading changed files…"
+        errorTitle="Couldn’t load compared files"
+        onRetry={() => onRetry?.()}
+      >
+        {visibleFiles.length === 0 ? (
+          emptyContent
+        ) : (
+          <FileList
+            files={visibleFiles}
+            mode={fileView}
+            selection={selectReviewFilePath}
+            selectFirstFile
+            autoFocus={false}
+            navRegion={navRegion}
+            onActivatePath={(path) => {
+              dispatch(setReviewActivePath(path));
+            }}
+            getCommentCount={getCommentCount}
+            getFileStatus={(file) => file.status}
+          />
+        )}
+      </RetainedFileList>
     </aside>
   );
 }

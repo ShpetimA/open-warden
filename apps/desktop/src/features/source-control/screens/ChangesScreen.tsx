@@ -1,4 +1,6 @@
+import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
+import { getDiffTextFile } from "@/platform/desktop/fileContent";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
@@ -22,18 +24,25 @@ import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMe
 
 export function ChangesScreen() {
   useChangesKeyboardNav("changes");
-  useChangesSync();
 
   return (
-    <ResizableSidebarLayout
-      panelId="primary"
-      sidebarDefaultSize={22}
-      sidebarMinSize={14}
-      sidebarMaxSize={34}
-      sidebar={<ChangesSidebar />}
-      content={<ChangesDiffPane />}
-    />
+    <>
+      <ChangesSelectionSync />
+      <ResizableSidebarLayout
+        panelId="primary"
+        sidebarDefaultSize={22}
+        sidebarMinSize={14}
+        sidebarMaxSize={34}
+        sidebar={<ChangesSidebar />}
+        content={<ChangesDiffPane />}
+      />
+    </>
   );
+}
+
+function ChangesSelectionSync() {
+  useChangesSync();
+  return null;
 }
 
 function ChangesDiffPane() {
@@ -43,41 +52,53 @@ function ChangesDiffPane() {
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
 
-  const { data: snapshot } = useGetGitSnapshotQuery(activeRepo ?? "", {
+  const { isMergeConflict, previousPath } = useGetGitSnapshotQuery(activeRepo ?? "", {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
+    selectFromResult: ({ currentData }) => ({
+      previousPath:
+        currentData?.[activeBucket].find((file) => file.path === activePath)?.previousPath ?? null,
+      isMergeConflict: Boolean(
+        activePath &&
+        currentData?.unstaged.some(
+          (file) => file.path === activePath && file.status === "unmerged",
+        ),
+      ),
+    }),
   });
-
-  const isMergeConflict =
-    activePath &&
-    (snapshot?.unstaged.some((f) => f.path === activePath && f.status === "unmerged") ?? false);
 
   const previewSelection = useThrottledDiffSelection(
     activePath && !isMergeConflict
       ? {
           bucket: activeBucket,
           path: activePath,
+          previousPath,
         }
       : null,
   );
 
   const workingFileVersions = useGetFileVersionsQuery(
     activeRepo && previewSelection
-      ? { repoPath: activeRepo, bucket: previewSelection.bucket, relPath: previewSelection.path }
+      ? {
+          repoPath: activeRepo,
+          bucket: previewSelection.bucket,
+          relPath: previewSelection.path,
+          previousPath: previewSelection.previousPath,
+        }
       : skipToken,
     {
       refetchOnFocus: true,
       refetchOnReconnect: true,
     },
   );
-  const fileVersions = workingFileVersions.currentData ?? workingFileVersions.data;
+  const fileVersions = workingFileVersions.currentData;
   const loadingPatch = !fileVersions && workingFileVersions.isFetching;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
   const errorMessage = fileVersions ? "" : errorMessageFrom(workingFileVersions.error, "");
   const previewPath = previewSelection?.path ?? activePath ?? "";
-  const lspText = !loadingPatch && newFile ? newFile.contents : null;
+  const lspText = !loadingPatch ? (getDiffTextFile(fileVersions ?? null)?.contents ?? null) : null;
   const lspHoverDocument =
     activeRepo && previewPath && lspText !== null && !isMergeConflict
       ? { repoPath: activeRepo, relPath: previewPath }
@@ -106,7 +127,7 @@ function ChangesDiffPane() {
         : [];
 
   function handleHunkAction(operation: DiffHunkOperation, payload: DiffHunkActionPayload) {
-    if (!previewPath) {
+    if (!previewPath || payload.fileDiff.name !== previewPath) {
       return;
     }
 
@@ -121,6 +142,11 @@ function ChangesDiffPane() {
         filePath: previewPath,
         contents,
         operation,
+        expected: {
+          kind: "diff",
+          bucket: operation === "unstage" ? "staged" : "unstaged",
+          ...payload.source,
+        },
       }),
     );
   }
@@ -130,7 +156,17 @@ function ChangesDiffPane() {
       <section className="flex h-full min-h-0 min-w-0 flex-col">
         <div className="min-h-0 min-w-0 flex-1">
           {errorMessage ? (
-            <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+            <ErrorState
+              title="Couldn’t load this diff"
+              error={workingFileVersions.error}
+              recovery={{
+                label: "Retry",
+                onAction: () => {
+                  void workingFileVersions.refetch();
+                },
+              }}
+              busy={workingFileVersions.isFetching}
+            />
           ) : loadingPatch ? (
             <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
           ) : !activePath ? (
@@ -143,8 +179,27 @@ function ChangesDiffPane() {
             <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
           ) : (
             <div className="flex h-full min-h-0 min-w-0 flex-col">
-              <LspStatusNotice repoPath={activeRepo} relPath={previewPath} active />
+              {workingFileVersions.error ? (
+                <ErrorNotice
+                  title="Couldn’t refresh this diff"
+                  error={workingFileVersions.error}
+                  busy={workingFileVersions.isFetching}
+                  lastUpdated={workingFileVersions.fulfilledTimeStamp}
+                  recovery={{
+                    label: "Retry",
+                    onAction: () => {
+                      void workingFileVersions.refetch();
+                    },
+                  }}
+                />
+              ) : null}
+              <LspStatusNotice
+                repoPath={activeRepo}
+                relPath={previewPath}
+                active={lspText !== null}
+              />
               <DiffWorkspace
+                modeChange={fileVersions?.modeChange}
                 oldFile={oldFile}
                 newFile={newFile}
                 activePath={previewPath}

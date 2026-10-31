@@ -21,7 +21,9 @@ export function DesktopUpdateBootstrap() {
 
     void desktop
       .getUpdateState()
-      .then(applyState)
+      .then((result) => {
+        if (result.ok) applyState(result.value);
+      })
       .catch(() => {});
 
     const unsubscribe = desktop.onUpdateState((state) => {

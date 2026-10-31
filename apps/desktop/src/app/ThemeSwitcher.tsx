@@ -23,7 +23,7 @@ export function ThemeSwitcher() {
           <button
             key={option.value}
             type="button"
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-sm ${
+            className={`focus-visible:ring-ring inline-flex h-7 w-7 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 ${
               isActive
                 ? "bg-surface-active text-foreground"
                 : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -31,6 +31,7 @@ export function ThemeSwitcher() {
             onClick={() => setTheme(option.value)}
             title={option.label}
             aria-label={option.label}
+            aria-pressed={isActive}
           >
             <Icon className="h-3.5 w-3.5" />
           </button>

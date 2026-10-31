@@ -65,6 +65,7 @@ export function useDiffCommentAnnotations({
 }: UseDiffCommentAnnotationsOptions) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null);
+  const [composerRange, setComposerRange] = useState<SelectionRange | null>(null);
 
   const { annotations: commentAnnotations } = useCurrentFileComments(
     activeRepo,
@@ -80,33 +81,39 @@ export function useDiffCommentAnnotations({
 
   const { showFirstCommentTip } = useFirstCommentTip();
 
-  const onLineSelected = useCallback((range: SelectionRange | null) => {
+  // Pierre replaces its pointer session when an option callback changes identity.
+  const [onLineSelectionStart] = useState(() => (range: SelectionRange | null) => {
     setSelectedRange(range);
-  }, []);
+    setComposerRange(null);
+  });
+  const onLineSelected = setSelectedRange;
+  const onLineSelectionChange = setSelectedRange;
 
   const onLineSelectionEnd = useCallback((range: SelectionRange | null) => {
     setSelectedRange(range);
+    setComposerRange(range);
   }, []);
 
   const onCloseCommentComposer = useCallback(() => {
     setSelectedRange(null);
+    setComposerRange(null);
   }, []);
 
   const composerAnnotation = useMemo<DiffLineAnnotation<DiffAnnotationItem> | null>(() => {
-    if (!selectedRange) return null;
+    if (!composerRange) return null;
 
     return {
-      lineNumber: selectedRange.end,
+      lineNumber: composerRange.end,
       metadata: {
         type: "composer",
-        side: selectedRange.side ?? "deletions",
-        endSide: selectedRange.endSide,
-        startLine: selectedRange.start,
-        endLine: selectedRange.end,
+        side: composerRange.side ?? "deletions",
+        endSide: composerRange.endSide,
+        startLine: composerRange.start,
+        endLine: composerRange.end,
       },
-      side: selectedRange.side ?? "deletions",
+      side: composerRange.side ?? "deletions",
     };
-  }, [selectedRange]);
+  }, [composerRange]);
 
   const annotations = useMemo<DiffLineAnnotation<DiffAnnotationItem>[]>(() => {
     if (!composerAnnotation) return commentAnnotations;
@@ -120,7 +127,7 @@ export function useDiffCommentAnnotations({
           <CommentComposer
             visible
             activePath={activePath}
-            selectedRange={selectedRange}
+            selectedRange={composerRange}
             commentContext={commentContext}
             onClose={onCloseCommentComposer}
             onBeforeSubmit={repoCommentCount === 0 ? showFirstCommentTip : undefined}
@@ -141,7 +148,7 @@ export function useDiffCommentAnnotations({
       commentMentions,
       onCloseCommentComposer,
       repoCommentCount,
-      selectedRange,
+      composerRange,
       showFirstCommentTip,
     ],
   );
@@ -152,6 +159,8 @@ export function useDiffCommentAnnotations({
     selectedRange,
     setSelectedRange,
     onLineSelected,
+    onLineSelectionStart,
+    onLineSelectionChange,
     onLineSelectionEnd,
     onCloseCommentComposer,
   };

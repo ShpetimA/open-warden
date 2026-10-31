@@ -1,10 +1,23 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, type ReactNode, type RefObject } from "react";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 import { useAppSelector } from "@/app/hooks";
+import {
+  getFileContentMetadata,
+  getTextFile,
+  type FileContent,
+  type FileModeChange,
+} from "@/platform/desktop/fileContent";
+import {
+  FileContentNotice,
+  FileModeChangeNotice,
+  type FileContentNoticeReason,
+} from "./components/FileContentNotice";
+import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { DiagnosticTokenPopover } from "@/features/diff-view/components/DiagnosticTokenPopover";
 import { DiffHeaderMetadataControls } from "@/features/diff-view/components/DiffHeaderMetadataControls";
+import { GuidanceExplanation } from "@/features/guidance/GuidanceExplanation";
 import { PullRequestInlineAnchorAnnotation } from "@/features/pull-requests/components/PullRequestInlineAnchorAnnotation";
 import { PullRequestInlineReviewThread } from "@/features/pull-requests/components/PullRequestInlineReviewThread";
 import {
@@ -20,6 +33,7 @@ import type {
   DiffFile,
   DiffReturnTarget,
   LspDiagnostic,
+  SelectionRange,
 } from "@/features/source-control/types";
 import type {
   DiffHunkActionAnnotation,
@@ -33,8 +47,9 @@ import { useDiffAnnotationRenderer } from "@/features/diff-view/hooks/useDiffAnn
 import { type DiffLineAnnotation, type FileDiffOptions } from "@pierre/diffs";
 
 type Props = {
-  oldFile: DiffFile | null;
-  newFile: DiffFile | null;
+  oldFile: FileContent | null;
+  newFile: FileContent | null;
+  modeChange?: FileModeChange;
   activePath: string;
   commentContext: CommentContext;
   canComment: boolean;
@@ -46,15 +61,22 @@ type Props = {
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
   annotationItems?: DiffLineAnnotation<DiffAnnotationItem>[];
+  highlightedLines?: SelectionRange;
+  defaultExpandUnchanged?: boolean;
   commentMentions?: MentionConfig;
   includeCurrentFileComments?: boolean;
   disableFileHeader?: boolean;
   hideHeaderMetadataControls?: boolean;
+  headerAction?: ReactNode;
   hunkOperations?: DiffHunkOperation[];
   onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
 };
 
 type LspJumpContextKind = "changes" | "review" | "history" | "history-range" | "pull-request";
+
+const EMPTY_LSP_DIAGNOSTICS: LspDiagnostic[] = [];
+const EMPTY_ANNOTATION_ITEMS: DiffLineAnnotation<DiffAnnotationItem>[] = [];
+const EMPTY_HUNK_OPERATIONS: DiffHunkOperation[] = [];
 
 function buildReturnToDiffTarget(
   jumpContextKind: LspJumpContextKind | null,
@@ -135,27 +157,90 @@ function buildReturnToDiffTarget(
   };
 }
 
-export function DiffWorkspace({
+export function DiffWorkspace(props: Props) {
+  const metadata = getFileContentMetadata(props.oldFile) ?? getFileContentMetadata(props.newFile);
+
+  if (metadata) {
+    return <NonTextDiffWorkspace {...props} notice={{ metadata, modeChange: props.modeChange }} />;
+  }
+
+  const oldText = getTextFile(props.oldFile);
+  const newText = getTextFile(props.newFile);
+
+  if (props.modeChange && oldText && newText && oldText.contents === newText.contents) {
+    return <NonTextDiffWorkspace {...props} notice={{ modeChange: props.modeChange }} />;
+  }
+
+  return (
+    <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
+      {props.modeChange ? <FileModeChangeNotice change={props.modeChange} /> : null}
+      <TextDiffWorkspace {...props} oldFile={oldText} newFile={newText} />
+    </div>
+  );
+}
+
+function NonTextDiffWorkspace({ notice, ...props }: Props & { notice: FileContentNoticeReason }) {
+  const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
+  const metadata = getFileContentMetadata(props.newFile);
+  const workingFile =
+    props.commentContext.kind === "changes" &&
+    (metadata?.kind === "binary" || metadata?.kind === "too-large" || metadata?.kind === "image");
+
+  return (
+    <FileContentNotice
+      activePath={props.activePath}
+      notice={notice}
+      oldFile={props.oldFile}
+      newFile={props.newFile}
+      mode="comparison"
+      headerAction={
+        props.hideHeaderMetadataControls ? null : (
+          <div className="flex shrink-0 items-center gap-1">
+            {props.headerAction}
+            {workingFile ? (
+              <OpenInExternalEditor
+                repoPath={repoPath}
+                filePath={props.activePath}
+                target="file"
+                compact
+              />
+            ) : null}
+          </div>
+        )
+      }
+    />
+  );
+}
+
+type TextProps = Omit<Props, "oldFile" | "newFile"> & {
+  oldFile: DiffFile | null;
+  newFile: DiffFile | null;
+};
+
+function TextDiffWorkspace({
   oldFile,
   newFile,
   activePath,
   commentContext,
   canComment,
-  lspDiagnostics = [],
+  lspDiagnostics = EMPTY_LSP_DIAGNOSTICS,
   fileViewerRevision,
   lspHoverDocument,
   lspJumpContextKind,
   focusedLineNumber = null,
   focusedLineIndex = null,
   focusedLineKey = null,
-  annotationItems = [],
+  annotationItems = EMPTY_ANNOTATION_ITEMS,
+  highlightedLines,
+  defaultExpandUnchanged = false,
   commentMentions,
   includeCurrentFileComments = true,
   disableFileHeader = false,
   hideHeaderMetadataControls = false,
-  hunkOperations = [],
+  headerAction,
+  hunkOperations = EMPTY_HUNK_OPERATIONS,
   onHunkAction,
-}: Props) {
+}: TextProps) {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const jumpContext: LspJumpContextKind | null =
@@ -167,6 +252,11 @@ export function DiffWorkspace({
       ? commentContext.kind
       : null);
   const viewerRef = useRef<DiffViewerHandle | null>(null);
+  const symbolPeekContainerRef = useRef<RefObject<HTMLDivElement | null>>({
+    get current() {
+      return viewerRef.current?.getViewportElement() ?? null;
+    },
+  }).current;
 
   const getReturnToDiffTarget = useCallback(
     (source: { lineNumber: number; lineIndex: string | null }) =>
@@ -206,7 +296,7 @@ export function DiffWorkspace({
   });
 
   const handleTokenClick = useCallback<
-    NonNullable<FileDiffOptions<DiffAnnotationItem>["onTokenClick"]>
+    NonNullable<FileDiffOptions<DiffAnnotationItem, undefined>["onTokenClick"]>
   >(
     (props, event) => {
       if (onHoverTokenClick(props, event)) {
@@ -219,6 +309,15 @@ export function DiffWorkspace({
   );
 
   const renderAnnotation = useDiffAnnotationRenderer({
+    guidance: (data) => (
+      <GuidanceExplanation
+        key={data.id}
+        title={data.title}
+        body={data.body}
+        details={data.details}
+        referenceLabel={data.referenceLabel}
+      />
+    ),
     "hunk-action": (data: DiffHunkActionAnnotation) => {
       const actionMeta = {
         stage: { label: "Stage hunk", Icon: Plus },
@@ -241,7 +340,11 @@ export function DiffWorkspace({
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
-                  data.onAction(operation, { fileDiff: data.fileDiff, hunkIndex: data.hunkIndex });
+                  data.onAction(operation, {
+                    fileDiff: data.fileDiff,
+                    hunkIndex: data.hunkIndex,
+                    source: data.source,
+                  });
                 }}
               >
                 <Icon className="h-3 w-3" />
@@ -279,7 +382,7 @@ export function DiffWorkspace({
     [comments.annotations, annotationItems],
   );
 
-  const options = useMemo<Partial<FileDiffOptions<DiffAnnotationItem>>>(
+  const options = useMemo<Partial<FileDiffOptions<DiffAnnotationItem, undefined>>>(
     () => ({
       disableFileHeader,
       enableLineSelection: canComment,
@@ -288,13 +391,18 @@ export function DiffWorkspace({
       onTokenEnter: diagnostics.onTokenEnter,
       onTokenLeave: diagnostics.onTokenLeave,
       onLineSelected: canComment ? comments.onLineSelected : undefined,
+      onLineSelectionStart: canComment ? comments.onLineSelectionStart : undefined,
+      onLineSelectionChange: canComment ? comments.onLineSelectionChange : undefined,
       onLineSelectionEnd: canComment ? comments.onLineSelectionEnd : undefined,
+      onGutterUtilityClick: canComment ? comments.onLineSelectionEnd : undefined,
       onPostRender: diagnostics.onPostRender,
     }),
     [
       canComment,
       comments.onLineSelected,
       comments.onLineSelectionEnd,
+      comments.onLineSelectionStart,
+      comments.onLineSelectionChange,
       diagnostics.onPostRender,
       diagnostics.onTokenEnter,
       diagnostics.onTokenLeave,
@@ -310,17 +418,27 @@ export function DiffWorkspace({
       }
 
       return (
-        <DiffHeaderMetadataControls
-          activePath={activePath}
-          canComment={canComment}
-          commentContext={commentContext}
-          expandUnchanged={controls.expandUnchanged}
-          fileViewerRevision={fileViewerRevision}
-          onToggleExpandUnchanged={controls.onToggleExpandUnchanged}
-        />
+        <div className="flex items-center gap-1">
+          {headerAction}
+          <DiffHeaderMetadataControls
+            activePath={activePath}
+            canComment={canComment}
+            commentContext={commentContext}
+            expandUnchanged={controls.expandUnchanged}
+            fileViewerRevision={fileViewerRevision}
+            onToggleExpandUnchanged={controls.onToggleExpandUnchanged}
+          />
+        </div>
       );
     },
-    [activePath, canComment, commentContext, fileViewerRevision, hideHeaderMetadataControls],
+    [
+      activePath,
+      canComment,
+      commentContext,
+      fileViewerRevision,
+      headerAction,
+      hideHeaderMetadataControls,
+    ],
   );
 
   return (
@@ -341,21 +459,15 @@ export function DiffWorkspace({
         lineAnnotations={mergedAnnotations}
         renderAnnotation={renderAnnotation}
         renderHeaderMetadata={renderHeaderMetadata}
-        selectedLines={comments.selectedRange}
+        selectedLines={comments.selectedRange ?? highlightedLines}
+        defaultExpandUnchanged={defaultExpandUnchanged}
         focusedLineNumber={focusedLineNumber}
         focusedLineIndex={focusedLineIndex}
         focusedLineKey={focusedLineKey}
         hunkOperations={hunkOperations}
         onHunkAction={onHunkAction}
       >
-        <LspSymbolPeekContainer
-          document={lspHoverDocument}
-          containerRef={{
-            get current() {
-              return viewerRef.current?.getViewportElement() ?? null;
-            },
-          }}
-        />
+        <LspSymbolPeekContainer document={lspHoverDocument} containerRef={symbolPeekContainerRef} />
       </DiffViewer>
     </div>
   );

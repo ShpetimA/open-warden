@@ -128,7 +128,8 @@ export function buildSourceControlFileTree<TFile extends { path: string }>(
     const ancestors: MutableDirectoryNode<TFile>[] = [root];
     let currentDirectory = root;
 
-    for (const segment of segments.slice(0, -1)) {
+    const isDirectory = file.path.endsWith("/");
+    for (const segment of isDirectory ? segments : segments.slice(0, -1)) {
       const nextPath = currentDirectory.path ? `${currentDirectory.path}/${segment}` : segment;
       const existing = currentDirectory.directories.get(segment);
       if (existing) {
@@ -146,6 +147,8 @@ export function buildSourceControlFileTree<TFile extends { path: string }>(
       }
       ancestors.push(currentDirectory);
     }
+
+    if (isDirectory) continue;
 
     currentDirectory.files.push({
       kind: "file",

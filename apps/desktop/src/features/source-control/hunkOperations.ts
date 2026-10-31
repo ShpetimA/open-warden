@@ -5,6 +5,7 @@ export type DiffHunkOperation = "stage" | "unstage" | "discard";
 export type DiffHunkActionPayload = {
   fileDiff: FileDiffMetadata;
   hunkIndex: number;
+  source: { oldContents: string | null; newContents: string | null };
 };
 
 export type DiffHunkActionAnnotation = DiffHunkActionPayload & {

@@ -14,6 +14,11 @@ import { useGetBranchFileVersionsQuery } from "@/features/source-control/api";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type { CommentContext, PullRequestReviewAnchor } from "@/features/source-control/types";
 import type { GitProviderId } from "@/platform/desktop";
+import { getFileContentMetadata, getTextFile } from "@/platform/desktop/fileContent";
+import {
+  FileContentNotice,
+  FileModeChangeNotice,
+} from "@/features/diff-view/components/FileContentNotice";
 
 type PullRequestOverviewAnchorCardProps = {
   providerId?: GitProviderId;
@@ -24,6 +29,7 @@ type PullRequestOverviewAnchorCardProps = {
   anchor: PullRequestReviewAnchor;
   onOpenFile: () => void;
   onPublishPending?: () => void;
+  publishingPaused?: boolean;
   onCopyPending?: () => void;
   onClearPending?: () => void;
   commentMentions?: MentionConfig;
@@ -38,6 +44,7 @@ export function PullRequestOverviewAnchorCard({
   anchor,
   onOpenFile,
   onPublishPending,
+  publishingPaused = false,
   onCopyPending,
   onClearPending,
   commentMentions,
@@ -59,9 +66,10 @@ export function PullRequestOverviewAnchorCard({
         }
       : skipToken,
   );
-  const fileVersions = fileVersionsQuery.currentData ?? fileVersionsQuery.data ?? null;
+  const fileVersions = fileVersionsQuery.currentData ?? null;
   const oldFile = fileVersions?.oldFile ?? null;
   const newFile = fileVersions?.newFile ?? null;
+  const metadata = getFileContentMetadata(oldFile) ?? getFileContentMetadata(newFile);
   const loadingSnippet = hasCompareRefs && !fileVersions && fileVersionsQuery.isFetching;
   const snippetError = fileVersions ? "" : errorMessageFrom(fileVersionsQuery.error, "");
   const hasPendingDrafts = anchor.pendingDrafts.length > 0;
@@ -103,7 +111,12 @@ export function PullRequestOverviewAnchorCard({
           </Button>
           {hasPendingDrafts ? (
             <>
-              <Button size="sm" className="h-7 px-2 text-xs" onClick={onPublishPending}>
+              <Button
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={onPublishPending}
+                disabled={publishingPaused}
+              >
                 <MessageSquarePlus className="h-3.5 w-3.5" />
                 Publish
               </Button>
@@ -139,16 +152,29 @@ export function PullRequestOverviewAnchorCard({
           <div className="text-muted-foreground rounded-md border border-border/70 px-3 py-2 text-sm">
             Loading snippet...
           </div>
-        ) : oldFile || newFile ? (
-          <PullRequestAnchorSnippet
+        ) : metadata ? (
+          <FileContentNotice
+            activePath={anchor.path}
+            notice={{ metadata, modeChange: fileVersions?.modeChange }}
             oldFile={oldFile}
             newFile={newFile}
-            activePath={anchor.path}
-            commentContext={commentContext}
-            anchor={anchor}
-            annotationItems={annotationItems}
-            commentMentions={commentMentions}
+            mode="comparison"
           />
+        ) : oldFile || newFile ? (
+          <>
+            {fileVersions?.modeChange ? (
+              <FileModeChangeNotice change={fileVersions.modeChange} />
+            ) : null}
+            <PullRequestAnchorSnippet
+              oldFile={getTextFile(oldFile)}
+              newFile={getTextFile(newFile)}
+              activePath={anchor.path}
+              commentContext={commentContext}
+              anchor={anchor}
+              annotationItems={annotationItems}
+              commentMentions={commentMentions}
+            />
+          </>
         ) : (
           <div className="text-muted-foreground rounded-md border border-border/70 px-3 py-2 text-sm">
             Diff snippet unavailable.
@@ -156,7 +182,7 @@ export function PullRequestOverviewAnchorCard({
         )}
       </div>
 
-      {snippetError || (!oldFile && !newFile && !loadingSnippet) ? (
+      {snippetError || metadata || (!oldFile && !newFile && !loadingSnippet) ? (
         <div className="mt-3 flex flex-col gap-2.5">
           {anchor.remoteThreads.map((thread) => (
             <PullRequestInlineReviewThread

@@ -1,6 +1,9 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { ReviewNote } from "@/components/ui/review-note";
+
 import { useAppDispatch } from "@/app/hooks";
 import { removeComment, updateComment } from "@/features/comments/actions";
 import type { CommentItem } from "@/features/source-control/types";
@@ -24,7 +27,7 @@ export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
   };
 
   const onSaveEdit = (text: string) => {
-    if (!comment.text.trim()) return;
+    if (!text.trim()) return;
     onBeforeMutate?.();
     dispatch(updateComment(comment.id, text));
     setIsEditing(false);
@@ -43,29 +46,28 @@ export function CommentAnnotation({ comment, onBeforeMutate }: Props) {
   }
 
   return (
-    <div className="bg-accent text-accent-foreground group flex max-w-[28rem] items-center gap-1 p-1 text-[10px]">
-      <span className="min-w-0 flex-1 truncate">{comment.text}</span>
-      <button
-        type="button"
-        className="text-muted-foreground hover:text-foreground"
-        onMouseDown={(event) => event.stopPropagation()}
-        onClick={onStartEdit}
-        title="Edit"
-      >
-        <Pencil className="h-3 w-3" />
-      </button>
-      <button
-        type="button"
-        className="text-muted-foreground hover:text-foreground"
-        onMouseDown={(event) => event.stopPropagation()}
-        onClick={() => {
-          onBeforeMutate?.();
-          dispatch(removeComment(comment.id));
-        }}
-        title="Remove"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
-    </div>
+    <ReviewNote
+      title="Review note"
+      label="Review note"
+      body={comment.text}
+      actions={
+        <>
+          <Button variant="ghost" size="icon-xs" aria-label="Edit note" onClick={onStartEdit}>
+            <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Remove note"
+            onClick={() => {
+              onBeforeMutate?.();
+              dispatch(removeComment(comment.id));
+            }}
+          >
+            <Trash2 />
+          </Button>
+        </>
+      }
+    />
   );
 }

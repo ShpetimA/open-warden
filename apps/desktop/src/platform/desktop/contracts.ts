@@ -1,10 +1,25 @@
-export type ErrorCode = "INVALID_INPUT" | "INVALID_STATUS" | "BACKEND" | "UNAVAILABLE";
+import type { DiffEditExpectation, FileEditExpectation } from "./fileEdits";
+import type {
+  GuidanceActivity,
+  GuidanceConnection,
+  GuidanceDocument,
+  GuidanceLocator,
+  GuidanceMessageInput,
+  GuidanceNavigate,
+  GuidanceProgressInput,
+  GuidanceResult,
+} from "./guidance";
+import type { GitCommand, GitRepositoryState, GitResult } from "./gitOperations";
+import type { DesktopResult } from "./failure";
+import type { FileContent, FileVersions } from "./fileContent";
+import type { ImageSource, ImagePreviewData } from "./imagePreview";
+import type {
+  RepositoryConfiguration,
+  RepositoryConfigurationCommand,
+  RepositorySetupInput,
+} from "./repositoryManagement";
 
-export type ApiError = {
-  code: ErrorCode;
-  message: string;
-  details: string | null;
-};
+export type { DiffFile, FileContent, FileContentMetadata, FileVersions } from "./fileContent";
 
 export type Bucket = "unstaged" | "staged" | "untracked";
 
@@ -18,24 +33,24 @@ export type FileStatus =
   | "modified"
   | "untracked";
 
-export type DiffFile = {
-  name: string;
-  contents: string;
-};
-
 export type FileItem = {
   path: string;
   previousPath: string | null;
   status: FileStatus;
 };
 
-export type RepoFileItem = {
-  path: string;
+export type RepositoryEntryPathInput = {
+  readonly repoPath: string;
+  readonly path: string;
 };
 
-export type FileVersions = {
-  oldFile: DiffFile | null;
-  newFile: DiffFile | null;
+export type RepositoryEntry = {
+  readonly path: string;
+  readonly kind: "file" | "directory";
+};
+
+export type RepoFileItem = {
+  path: string;
 };
 
 export type GitSnapshot = {
@@ -53,6 +68,19 @@ export type HistoryCommit = {
   author: string;
   relativeTime: string;
 };
+
+export type CommitDetails = Readonly<{
+  commitId: string;
+  summary: string;
+  body: string;
+  author: string;
+  authorEmail: string;
+  authoredAt: string;
+  committer: string;
+  committerEmail: string;
+  committedAt: string;
+  parents: readonly string[];
+}>;
 
 export type DiscardFileInput = {
   relPath: string;
@@ -109,20 +137,35 @@ export type PullRequestSummary = {
   title: string;
   state: PullRequestState;
   isDraft: boolean;
-  authorLogin: string;
-  authorDisplayName: string | null;
+  author: PullRequestPerson;
   url: string;
   baseRef: string;
   headRef: string;
   headOwner: string;
   headRepo: string;
+  createdAt: string;
   updatedAt: string;
+  /** Requested reviewers and everyone whose latest review approved or asked for changes. */
+  reviewers: PullRequestReviewer[];
+  reviewDecision: "approved" | "changes-requested" | "review-required" | null;
+  /** Null when the provider does not report checks in its listing. */
+  checksState: PullRequestCheckState | null;
+  commentCount: number | null;
+  additions: number | null;
+  deletions: number | null;
+  changedFiles: number | null;
 };
+
+export type PullRequestInvolvement = "all" | "authored" | "review-requested" | "involved";
 
 export type ListPullRequestsInput = {
   repoPath: string;
   page: number;
   perPage: number;
+  state?: "open" | "merged" | "closed" | "all";
+  query?: string;
+  author?: string;
+  involvement?: PullRequestInvolvement;
 };
 
 export type ResolveActivePullRequestForBranchInput = {
@@ -159,6 +202,7 @@ export type PullRequestDetail = {
   headSha: string;
   createdAt: string;
   updatedAt: string;
+  labels: Array<{ name: string; description: string | null }>;
 };
 
 export type PullRequestIssueComment = {
@@ -169,6 +213,10 @@ export type PullRequestIssueComment = {
   updatedAt: string;
   author: PullRequestPerson | null;
   url: string | null;
+  reactions: Array<{
+    content: "+1" | "-1" | "laugh" | "hooray" | "confused" | "heart" | "rocket" | "eyes";
+    count: number;
+  }>;
 };
 
 export type PullRequestReviewComment = {
@@ -202,6 +250,167 @@ export type PullRequestConversation = {
   reviewThreads: PullRequestReviewThread[];
 };
 
+export type PullRequestReviewer = PullRequestPerson & {
+  id: string;
+  state: "requested" | "approved" | "changes-requested" | "commented";
+  reviewedAt: string | null;
+};
+
+export type PullRequestReviewOverview = {
+  reviewers: PullRequestReviewer[];
+  viewerLogin: string;
+  canManageReviewers: boolean | null;
+};
+
+export type SetPullRequestReviewerInput = PullRequestLocatorInput & {
+  reviewer: string;
+  requested: boolean;
+};
+
+export type SubmitPullRequestReviewInput = PullRequestLocatorInput & {
+  decision: "comment" | "approve" | "request-changes";
+  body: string;
+  comments: PullRequestReviewDraftCommentInput[];
+  expectedHeadSha: string;
+  messageAlreadyPublished?: boolean;
+};
+
+export type SubmitPullRequestReviewResult = {
+  submittedDraftIds: string[];
+  decisionSubmitted: boolean;
+  messageSubmitted?: boolean;
+  failedMessage: string | null;
+};
+
+export type PullRequestLifecycleInput = PullRequestLocatorInput & {
+  expectedHeadSha: string;
+} & (
+    | { action: "edit"; title: string; body: string; expectedTitle: string; expectedBody: string }
+    | { action: "close" | "reopen" | "draft" | "ready" | "update-branch" | "revert" }
+    | { action: "auto-merge"; method: "merge" | "squash" | "rebase" }
+  );
+
+export type PullRequestLifecycleResult = { createdPullRequestUrl: string | null };
+
+export type PullRequestViewedFiles = {
+  storage: "provider" | "device";
+  viewedPaths: string[];
+  truncated: boolean;
+};
+
+export type SetPullRequestFileViewedInput = PullRequestLocatorInput & {
+  path: string;
+  viewed: boolean;
+};
+
+export type PullRequestActivityEvent =
+  | "approved"
+  | "changes-requested"
+  | "reviewed"
+  | "review-requested"
+  | "review-request-removed"
+  | "force-pushed"
+  | "ready"
+  | "draft"
+  | "merged"
+  | "closed"
+  | "reopened"
+  | "renamed"
+  | "edited"
+  | "labeled"
+  | "unlabeled"
+  | "assigned"
+  | "unassigned"
+  | "auto-merge-enabled"
+  | "auto-merge-disabled";
+
+export type PullRequestActivityItem = {
+  id: string;
+  actor: PullRequestPerson | null;
+  occurredAt: string;
+  url: string | null;
+} & (
+  | {
+      kind: "event";
+      event: PullRequestActivityEvent;
+      /** Event specifics: the old and new title, a label name, the person asked to review. */
+      detail: string | null;
+      /** A review's summary, when the event is one. */
+      body: string | null;
+    }
+  | { kind: "commit"; commitSha: string; message: string }
+);
+
+export type PullRequestActivity = {
+  items: PullRequestActivityItem[];
+  truncated: boolean;
+};
+
+export type PullRequestCheckState = "passed" | "failed" | "pending";
+
+export type PullRequestCheck = {
+  id: string;
+  name: string;
+  description: string | null;
+  state: PullRequestCheckState;
+  url: string | null;
+};
+
+export type PullRequestChecksResult = {
+  headSha: string;
+  checks: PullRequestCheck[];
+  complete: boolean;
+  mergeability: "mergeable" | "conflicting" | "unknown";
+};
+
+export type PullRequestLabel = { name: string; description: string | null };
+export type PullRequestWorkflowRun = {
+  id: number;
+  name: string;
+  status: string;
+  conclusion: string | null;
+  url: string;
+  attempt: number;
+};
+export type PullRequestStackLink = {
+  number: number;
+  title: string;
+  relationship: "parent" | "child";
+};
+
+export type GitBlameLine = {
+  line: number;
+  commitId: string;
+  author: string;
+  authoredAt: string | null;
+  summary: string;
+};
+export type GitBlameResult = { lines: GitBlameLine[]; truncated: boolean };
+export type PullRequestExtras = {
+  providerId: GitProviderId;
+  labelsAvailable: boolean;
+  workflowsAvailable: boolean;
+  stackAvailable: boolean;
+  availableLabels: PullRequestLabel[];
+  workflowRuns: PullRequestWorkflowRun[];
+  stack: PullRequestStackLink[];
+  stackCandidates: Array<{ number: number; title: string }>;
+  truncated: boolean;
+};
+export type SetPullRequestLabelsInput = PullRequestLocatorInput & {
+  labels: string[];
+  expectedLabels: string[];
+  expectedHeadSha: string;
+};
+export type RerunPullRequestWorkflowInput = PullRequestLocatorInput & {
+  runId: number;
+  expectedHeadSha: string;
+};
+export type AddPullRequestReactionInput = PullRequestLocatorInput & {
+  commentId: number;
+  content: PullRequestIssueComment["reactions"][number]["content"];
+};
+
 export type PullRequestChangedFile = {
   path: string;
   previousPath: string | null;
@@ -213,6 +422,7 @@ export type PullRequestChangedFile = {
 export type PullRequestOpenMode = "branch" | "worktree";
 
 export type PullRequestCompareRefs = {
+  baseSha: string;
   providerId: GitProviderId;
   owner: string;
   repo: string;
@@ -237,6 +447,24 @@ export type PullRequestLocatorInput = {
 
 export type AddPullRequestCommentInput = PullRequestLocatorInput & {
   body: string;
+};
+
+export type CreatePullRequestInput = {
+  repoPath: string;
+  title: string;
+  body: string;
+  baseRef: string;
+  headRef: string;
+};
+
+export type SubmitPullRequestDecisionInput = PullRequestLocatorInput & {
+  decision: "approve" | "request-changes";
+  body: string;
+};
+
+export type MergePullRequestInput = PullRequestLocatorInput & {
+  method: "merge" | "squash" | "rebase";
+  expectedHeadSha: string;
 };
 
 export type ReplyToPullRequestThreadInput = PullRequestLocatorInput & {
@@ -286,6 +514,10 @@ export type PreparedPullRequestWorkspace = {
 };
 
 export type WorkspaceSession = {
+  reviewDrafts?: import("./reviewDrafts").ReviewDraft[];
+  comments?: import("./commentDrafts").CommentDraft[];
+  recoveryNotice?: string;
+  workspaceTabs?: import("./workspaceTabs").PersistedWorkspaceTabs;
   openRepos: string[];
   activeRepo: string;
   recentRepos: string[];
@@ -374,10 +606,37 @@ export type LspLocation = {
   endCharacter: number;
 };
 
-export type DesktopApi = {
+export type DesktopHandlers = {
+  setupRepository(input: RepositorySetupInput): Promise<DesktopResult<string>>;
+
+  getRepositoryConfiguration(repoPath: string): Promise<DesktopResult<RepositoryConfiguration>>;
+
+  configureRepository(
+    repoPath: string,
+    input: RepositoryConfigurationCommand,
+  ): Promise<DesktopResult<void>>;
+
+  setRepositorySubscriptions(paths: string[]): Promise<import("./failure").DesktopResult<void>>;
+  getGuidanceActivity(input: GuidanceLocator): Promise<GuidanceResult<GuidanceActivity | null>>;
+  clearGuidanceMessages(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument>>;
+  getPullRequestGuidance(input: GuidanceLocator): Promise<GuidanceResult<GuidanceDocument | null>>;
+  setGuidanceProgress(input: GuidanceProgressInput): Promise<GuidanceResult<GuidanceDocument>>;
+  addGuidanceMessage(input: GuidanceMessageInput): Promise<GuidanceResult<GuidanceDocument>>;
+  getGuidanceConnection(): Promise<GuidanceConnection>;
+  startGuidanceConnection(): Promise<GuidanceConnection>;
+  stopGuidanceConnection(): Promise<GuidanceConnection>;
+  getGitStashPatch(repoPath: string, oid: string): Promise<GitResult<string>>;
+  getGitRepositoryState(repoPath: string): Promise<GitResult<GitRepositoryState>>;
+  runGitCommand(
+    repoPath: string,
+    command: GitCommand,
+  ): Promise<import("./failure").DesktopResult<string>>;
+  browseDirectory(path: string): Promise<DirectoryListing>;
   selectFolder(): Promise<string | null>;
-  loadWorkspaceSession(): Promise<WorkspaceSession>;
-  saveWorkspaceSession(session: WorkspaceSession): Promise<WorkspaceSession>;
+  loadWorkspaceSession(): Promise<import("./failure").DesktopResult<WorkspaceSession>>;
+  saveWorkspaceSession(
+    session: WorkspaceSession,
+  ): Promise<import("./failure").DesktopResult<WorkspaceSession>>;
   loadAppSettings(): Promise<AppSettings>;
   saveAppSettings(settings: AppSettings): Promise<AppSettings>;
   getAppSettingsPath(): Promise<string>;
@@ -393,9 +652,27 @@ export type DesktopApi = {
     input: ResolveActivePullRequestForBranchInput,
   ): Promise<PullRequestSummary | null>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
+  getPullRequestReviewOverview(input: PullRequestLocatorInput): Promise<PullRequestReviewOverview>;
+  setPullRequestReviewer(input: SetPullRequestReviewerInput): Promise<void>;
+  submitPullRequestReview(
+    input: SubmitPullRequestReviewInput,
+  ): Promise<SubmitPullRequestReviewResult>;
+  runPullRequestLifecycle(input: PullRequestLifecycleInput): Promise<PullRequestLifecycleResult>;
+  getPullRequestViewedFiles(input: PullRequestLocatorInput): Promise<PullRequestViewedFiles>;
+  setPullRequestFileViewed(input: SetPullRequestFileViewedInput): Promise<void>;
+  getPullRequestActivity(input: PullRequestLocatorInput): Promise<PullRequestActivity>;
+  getPullRequestChecks(input: PullRequestLocatorInput): Promise<PullRequestChecksResult>;
+  getPullRequestExtras(input: PullRequestLocatorInput): Promise<PullRequestExtras>;
+  setPullRequestLabels(input: SetPullRequestLabelsInput): Promise<void>;
+  rerunPullRequestWorkflow(input: RerunPullRequestWorkflowInput): Promise<void>;
+  cancelPullRequestWorkflow(input: RerunPullRequestWorkflowInput): Promise<void>;
+  addPullRequestReaction(input: AddPullRequestReactionInput): Promise<void>;
   getPullRequestFiles(input: PullRequestLocatorInput): Promise<PullRequestChangedFile[]>;
   getPullRequestPatch(input: PullRequestLocatorInput): Promise<string>;
   addPullRequestComment(input: AddPullRequestCommentInput): Promise<PullRequestIssueComment>;
+  createPullRequest(input: CreatePullRequestInput): Promise<PullRequestSummary>;
+  submitPullRequestDecision(input: SubmitPullRequestDecisionInput): Promise<void>;
+  mergePullRequest(input: MergePullRequestInput): Promise<"merged" | "queued">;
   replyToPullRequestThread(input: ReplyToPullRequestThreadInput): Promise<PullRequestReviewThread>;
   submitPullRequestReviewComments(
     input: SubmitPullRequestReviewCommentsInput,
@@ -404,12 +681,22 @@ export type DesktopApi = {
     input: SetPullRequestThreadResolvedInput,
   ): Promise<PullRequestReviewThread>;
   preparePullRequestCompareRefs(input: PullRequestLocatorInput): Promise<PullRequestCompareRefs>;
+  preparePullRequestFromUrl(url: string): Promise<PreparedPullRequestWorkspace>;
   preparePullRequestWorkspace(
     input: PreparePullRequestWorkspaceInput,
-  ): Promise<PreparedPullRequestWorkspace>;
+  ): Promise<import("./failure").DesktopResult<PreparedPullRequestWorkspace>>;
   getGitSnapshot(repoPath: string): Promise<GitSnapshot>;
+  createRepositoryEntry(
+    input: RepositoryEntryPathInput,
+  ): Promise<import("./failure").DesktopResult<RepositoryEntry>>;
+  trashRepositoryEntry(
+    input: RepositoryEntryPathInput,
+  ): Promise<import("./failure").DesktopResult<void>>;
   getRepoFiles(repoPath: string): Promise<RepoFileItem[]>;
   getCommitHistory(repoPath: string, limit?: number): Promise<HistoryCommit[]>;
+  getHistoryGraph(repoPath: string): Promise<import("./history").HistoryGraph>;
+  getCommitDetails(repoPath: string, commitId: string): Promise<CommitDetails>;
+  getBranchCommits(repoPath: string, baseRef: string, headRef: string): Promise<HistoryCommit[]>;
   getBranches(repoPath: string): Promise<string[]>;
   getBranchFiles(repoPath: string, baseRef: string, headRef: string): Promise<FileItem[]>;
   getCommitFiles(repoPath: string, commitId: string): Promise<FileItem[]>;
@@ -419,7 +706,12 @@ export type DesktopApi = {
     relPath: string,
     previousPath?: string,
   ): Promise<FileVersions>;
-  getFileVersions(repoPath: string, relPath: string, bucket: Bucket): Promise<FileVersions>;
+  getFileVersions(
+    repoPath: string,
+    relPath: string,
+    bucket: Bucket,
+    previousPath: string | null,
+  ): Promise<FileVersions>;
   getBranchFileVersions(
     repoPath: string,
     baseRef: string,
@@ -427,22 +719,68 @@ export type DesktopApi = {
     relPath: string,
     previousPath?: string,
   ): Promise<FileVersions>;
-  stageFile(repoPath: string, relPath: string): Promise<void>;
-  unstageFile(repoPath: string, relPath: string): Promise<void>;
-  updateIndexFileContents(repoPath: string, relPath: string, contents: string): Promise<void>;
-  updateWorktreeFileContents(repoPath: string, relPath: string, contents: string): Promise<void>;
-  stageAll(repoPath: string): Promise<void>;
-  unstageAll(repoPath: string): Promise<void>;
-  discardFile(repoPath: string, relPath: string, bucket: Bucket): Promise<void>;
-  discardFiles(repoPath: string, files: DiscardFileInput[]): Promise<void>;
-  discardAll(repoPath: string): Promise<void>;
-  commitStaged(repoPath: string, message: string): Promise<string>;
-  getRepoFile(input: GetRepoFileInput): Promise<DiffFile | null>;
+  stageFile(repoPath: string, relPath: string): Promise<import("./failure").DesktopResult<void>>;
+  unstageFile(repoPath: string, relPath: string): Promise<import("./failure").DesktopResult<void>>;
+  stageFiles(
+    repoPath: string,
+    relPaths: readonly string[],
+  ): Promise<import("./failure").DesktopResult<void>>;
+  unstageFiles(
+    repoPath: string,
+    relPaths: readonly string[],
+  ): Promise<import("./failure").DesktopResult<void>>;
+  updateIndexFileContents(
+    repoPath: string,
+    relPath: string,
+    contents: string,
+    expected: DiffEditExpectation,
+  ): Promise<import("./failure").DesktopResult<void>>;
+  updateWorktreeFileContents(
+    repoPath: string,
+    relPath: string,
+    contents: string,
+    expected: FileEditExpectation,
+  ): Promise<import("./failure").DesktopResult<void>>;
+  stageAll(repoPath: string): Promise<import("./failure").DesktopResult<void>>;
+  unstageAll(repoPath: string): Promise<import("./failure").DesktopResult<void>>;
+  discardFile(
+    repoPath: string,
+    relPath: string,
+    bucket: Bucket,
+  ): Promise<import("./failure").DesktopResult<void>>;
+  discardFiles(
+    repoPath: string,
+    files: DiscardFileInput[],
+  ): Promise<import("./failure").DesktopResult<void>>;
+  discardAll(repoPath: string): Promise<import("./failure").DesktopResult<void>>;
+  commitStaged(
+    repoPath: string,
+    message: string,
+  ): Promise<import("./failure").DesktopResult<string>>;
+  getRepoFile(input: GetRepoFileInput): Promise<FileContent | null>;
+  getImagePreview(source: ImageSource): Promise<DesktopResult<ImagePreviewData>>;
+  getGitBlame(repoPath: string, relPath: string, revision?: string | null): Promise<GitBlameResult>;
   syncLspDocument(input: SyncLspDocumentInput): Promise<void>;
   closeLspDocument(input: CloseLspDocumentInput): Promise<void>;
   getLspHover(input: GetLspHoverInput): Promise<LspHoverResult | null>;
   getLspDefinition(input: GetLspHoverInput): Promise<LspLocation[]>;
   getLspReferences(input: GetLspReferencesInput): Promise<LspLocation[]>;
+};
+
+export type DesktopValue<T> = T extends { ok: true; value: infer Value }
+  ? Value
+  : T extends { ok: false }
+    ? never
+    : T extends { ok: true }
+      ? Omit<T, "ok">
+      : T;
+
+export type DesktopApi = {
+  [Method in keyof DesktopHandlers]: (
+    ...args: Parameters<DesktopHandlers[Method]>
+  ) => Promise<
+    import("./failure").DesktopResult<DesktopValue<Awaited<ReturnType<DesktopHandlers[Method]>>>>
+  >;
 };
 
 export type DesktopUpdateStatus =
@@ -478,10 +816,10 @@ export type DesktopUpdateActionResult = {
 };
 
 export type DesktopUpdateApi = {
-  getUpdateState(): Promise<DesktopUpdateState>;
-  checkForUpdates(): Promise<DesktopUpdateActionResult>;
-  downloadUpdate(): Promise<DesktopUpdateActionResult>;
-  installUpdate(): Promise<DesktopUpdateActionResult>;
+  getUpdateState(): Promise<import("./failure").DesktopResult<DesktopUpdateState>>;
+  checkForUpdates(): Promise<import("./failure").DesktopResult<DesktopUpdateActionResult>>;
+  downloadUpdate(): Promise<import("./failure").DesktopResult<DesktopUpdateActionResult>>;
+  installUpdate(): Promise<import("./failure").DesktopResult<DesktopUpdateActionResult>>;
   onUpdateState(listener: (state: DesktopUpdateState) => void): () => void;
 };
 
@@ -489,8 +827,22 @@ export type DesktopLspApi = {
   onLspDiagnostics(listener: (event: LspDiagnosticsEvent) => void): () => void;
 };
 
-export type DesktopSettingsApi = {
-  onAppSettingsChanged(listener: (settings: AppSettings) => void): () => void;
+export type DesktopGuidanceEventsApi = {
+  onGuidanceNavigate(listener: (target: GuidanceNavigate) => void): () => void;
 };
 
-export type DesktopBridge = DesktopApi & DesktopUpdateApi & DesktopLspApi & DesktopSettingsApi;
+export type DesktopSettingsApi = {
+  onAppSettingsChanged(listener: (settings: AppSettings) => void): () => void;
+  onWorkspaceFlushRequested?(listener: () => Promise<boolean>): () => void;
+};
+
+export type DesktopBridge = import("./repositoryEvents").RepositoryEventsApi &
+  DesktopApi &
+  DesktopUpdateApi &
+  DesktopLspApi &
+  DesktopSettingsApi &
+  DesktopGuidanceEventsApi;
+
+export type DirectoryListing =
+  | { ok: true; path: string; parentPath: string; entries: { name: string; path: string }[] }
+  | { ok: false; message: string };

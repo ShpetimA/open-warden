@@ -1,6 +1,8 @@
 import { execFileSync } from "node:child_process";
 import {
   copyFileSync,
+  mkdirSync,
+  symlinkSync,
   existsSync,
   mkdtempSync,
   readFileSync,
@@ -8,23 +10,29 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { rm } from "node:fs/promises";
+import { rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { getTextFile } from "../src/platform/desktop/fileContent";
 
 import {
   commitStaged,
+  createRepositoryEntry,
+  getRepoFiles,
+  trashRepositoryEntry,
   discardAll,
   discardFile,
   discardFiles,
   getBranches,
+  getBranchCommits,
   getBranchFileVersions,
   getBranchFiles,
   getCommitFileVersions,
   getCommitFiles,
   getCommitHistory,
+  getCommitDetails,
   getFileVersions,
   getGitSnapshot,
   stageAll,
@@ -57,7 +65,71 @@ afterEach(async () => {
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
+vi.setConfig({ testTimeout: 30_000 });
+
 describe("electron git backend", () => {
+  test("reads complete commit messages, identities, dates, and root or parent references", async () => {
+    const repo = makeRepo();
+    git(repo, ["commit", "--allow-empty", "-m", "Root commit"]);
+    const root = git(repo, ["rev-parse", "HEAD"]);
+    expect((await getCommitDetails(repo, root)).parents).toEqual([]);
+
+    git(repo, [
+      "commit",
+      "--allow-empty",
+      "-m",
+      "Validate invoice exports",
+      "-m",
+      "Keep negative amounts out of generated invoices.\n\nRefs: OF-11384",
+    ]);
+    const head = git(repo, ["rev-parse", "HEAD"]);
+    const details = await getCommitDetails(repo, head);
+    expect(details).toMatchObject({
+      commitId: head,
+      summary: "Validate invoice exports",
+      body: "Keep negative amounts out of generated invoices.\n\nRefs: OF-11384",
+      author: "OpenWarden Test",
+      authorEmail: "test@example.com",
+      committer: "OpenWarden Test",
+      committerEmail: "test@example.com",
+      parents: [root],
+    });
+    expect(details.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(details.committedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  test("lists the full PR range independently of the checked out branch and compares each commit", async () => {
+    const repo = makeRepo();
+    writeFileSync(path.join(repo, "notes.md"), "original\n");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "base"]);
+    const base = git(repo, ["rev-parse", "HEAD"]);
+
+    git(repo, ["checkout", "-b", "feature"]);
+    writeFileSync(path.join(repo, "notes.md"), "updated\n");
+    git(repo, ["commit", "-am", "Update notes"]);
+    const first = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["mv", "notes.md", "renamed.md"]);
+    git(repo, ["commit", "-m", "Rename notes"]);
+    const head = git(repo, ["rev-parse", "HEAD"]);
+    git(repo, ["checkout", "-b", "destination", base]);
+    writeFileSync(path.join(repo, "unrelated.md"), "destination only\n");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "Unrelated destination change"]);
+
+    const commits = await getBranchCommits(repo, base, head);
+    expect(commits.map((commit) => commit.commitId)).toEqual([head, first]);
+    expect(commits.map((commit) => commit.summary)).toEqual(["Rename notes", "Update notes"]);
+    expect(commits[0]?.author).toBe("OpenWarden Test");
+    expect(await getBranchCommits(repo, head, head)).toEqual([]);
+    expect(await getBranchFiles(repo, `${head}^`, head)).toEqual([
+      { path: "renamed.md", previousPath: "notes.md", status: "renamed" },
+    ]);
+    const versions = await getBranchFileVersions(repo, `${head}^`, head, "renamed.md", "notes.md");
+    expect(getTextFile(versions.oldFile)?.contents).toBe("updated\n");
+    expect(getTextFile(versions.newFile)?.contents).toBe("updated\n");
+  });
+
   test("reads snapshot buckets from system git", async () => {
     const repo = makeRepo();
 
@@ -140,9 +212,9 @@ describe("electron git backend", () => {
       },
     ]);
     expect(combinedVersions.oldFile).toBeNull();
-    expect(combinedVersions.newFile?.contents.trim()).toEqual("v2");
-    expect(versions.oldFile?.contents.trim()).toEqual("v1");
-    expect(versions.newFile?.contents.trim()).toEqual("v2");
+    expect(getTextFile(combinedVersions.newFile)?.contents.trim()).toEqual("v2");
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("v1");
+    expect(getTextFile(versions.newFile)?.contents.trim()).toEqual("v2");
   });
 
   test("compares branches with rename-aware and copy-aware diff metadata", async () => {
@@ -189,10 +261,14 @@ describe("electron git backend", () => {
     ]);
     expect(renamedVersions.oldFile?.name).toEqual("file.txt");
     expect(renamedVersions.newFile?.name).toEqual("renamed.txt");
-    expect(renamedVersions.oldFile?.contents).toEqual(renamedVersions.newFile?.contents);
+    expect(getTextFile(renamedVersions.oldFile)?.contents).toEqual(
+      getTextFile(renamedVersions.newFile)?.contents,
+    );
     expect(copiedVersions.oldFile?.name).toEqual("file.txt");
     expect(copiedVersions.newFile?.name).toEqual("copied.txt");
-    expect(copiedVersions.oldFile?.contents).toEqual(copiedVersions.newFile?.contents);
+    expect(getTextFile(copiedVersions.oldFile)?.contents).toEqual(
+      getTextFile(copiedVersions.newFile)?.contents,
+    );
   });
 
   test("reports detached HEAD state and still lists branches", async () => {
@@ -213,7 +289,7 @@ describe("electron git backend", () => {
     expect(branches).toContain(initialBranch);
   });
 
-  test("rejects binary file contents in a controlled way", async () => {
+  test("returns binary file metadata as a successful read", async () => {
     const repo = makeRepo();
 
     writeFileSync(path.join(repo, "binary.bin"), Buffer.from([0x00, 0x01, 0x02]));
@@ -222,9 +298,14 @@ describe("electron git backend", () => {
 
     const history = await getCommitHistory(repo);
 
-    await expect(getCommitFileVersions(repo, history[0]!.commitId, "binary.bin")).rejects.toThrow(
-      /binary file is not supported/i,
-    );
+    const commit = history[0];
+
+    if (!commit) throw new Error("Expected the binary commit");
+
+    expect(await getCommitFileVersions(repo, commit.commitId, "binary.bin")).toEqual({
+      oldFile: null,
+      newFile: { kind: "binary", name: "binary.bin", byteLength: 3 },
+    });
   });
 
   test("stages, unstages, discards, and commits without Rust", async () => {
@@ -240,14 +321,14 @@ describe("electron git backend", () => {
     await stageFile(repo, "tracked.txt");
     await unstageFile(repo, "tracked.txt");
 
-    let versions = await getFileVersions(repo, "tracked.txt", "unstaged");
-    expect(versions.oldFile?.contents.trim()).toEqual("one");
-    expect(versions.newFile?.contents.trim()).toEqual("two");
+    let versions = await getFileVersions(repo, "tracked.txt", "unstaged", null);
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("one");
+    expect(getTextFile(versions.newFile)?.contents.trim()).toEqual("two");
 
     await stageFile(repo, "tracked.txt");
-    versions = await getFileVersions(repo, "tracked.txt", "staged");
-    expect(versions.oldFile?.contents.trim()).toEqual("one");
-    expect(versions.newFile?.contents.trim()).toEqual("two");
+    versions = await getFileVersions(repo, "tracked.txt", "staged", null);
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("one");
+    expect(getTextFile(versions.newFile)?.contents.trim()).toEqual("two");
 
     await unstageAll(repo);
     await discardFile(repo, "tracked.txt", "unstaged");
@@ -267,14 +348,14 @@ describe("electron git backend", () => {
     unlinkSync(path.join(repo, "delete-me.txt"));
     writeFileSync(path.join(repo, "scratch.txt"), "scratch\n");
 
-    const versions = await getFileVersions(repo, "delete-me.txt", "unstaged");
-    expect(versions.oldFile?.contents.trim()).toEqual("delete me");
+    const versions = await getFileVersions(repo, "delete-me.txt", "unstaged", null);
+    expect(getTextFile(versions.oldFile)?.contents.trim()).toEqual("delete me");
     expect(versions.newFile).toBeNull();
 
     await stageAll(repo);
 
-    const stagedDeletedVersions = await getFileVersions(repo, "delete-me.txt", "staged");
-    expect(stagedDeletedVersions.oldFile?.contents.trim()).toEqual("delete me");
+    const stagedDeletedVersions = await getFileVersions(repo, "delete-me.txt", "staged", null);
+    expect(getTextFile(stagedDeletedVersions.oldFile)?.contents.trim()).toEqual("delete me");
     expect(stagedDeletedVersions.newFile).toBeNull();
 
     await unstageAll(repo);
@@ -366,5 +447,165 @@ describe("electron git backend", () => {
     } finally {
       process.env.PATH = previousPath;
     }
+  });
+});
+
+describe("repository entry creation", () => {
+  test("creates nested files and retains empty folders in the repository tree", async () => {
+    const repo = makeRepo();
+    expect(await createRepositoryEntry({ repoPath: repo, path: "src/nested/new.ts" })).toEqual({
+      ok: true,
+      value: { path: "src/nested/new.ts", kind: "file" },
+    });
+    expect(readFileSync(path.join(repo, "src/nested/new.ts"), "utf8")).toBe("");
+    expect(await createRepositoryEntry({ repoPath: repo, path: "src/empty/deep/" })).toEqual({
+      ok: true,
+      value: { path: "src/empty/deep", kind: "directory" },
+    });
+    expect(await getRepoFiles(repo)).toEqual([
+      { path: "src/nested/new.ts" },
+      { path: "src/empty/deep/" },
+    ]);
+    expect(await getRepoFiles(repo)).toContainEqual({ path: "src/empty/deep/" });
+  });
+
+  test("preserves existing files, folders and symlinks", async () => {
+    const repo = makeRepo();
+    writeFileSync(path.join(repo, "keep.ts"), "keep me");
+    mkdirSync(path.join(repo, "existing"));
+    symlinkSync(path.join(repo, "keep.ts"), path.join(repo, "link.ts"));
+    for (const entryPath of ["keep.ts", "existing/", "link.ts"]) {
+      expect(await createRepositoryEntry({ repoPath: repo, path: entryPath })).toMatchObject({
+        ok: false,
+        error: { code: "conflict" },
+      });
+    }
+    expect(readFileSync(path.join(repo, "keep.ts"), "utf8")).toBe("keep me");
+  });
+
+  test.each([
+    "../escape.ts",
+    "/tmp/escape.ts",
+    "C:\\escape.ts",
+    "a/../escape.ts",
+    "a//file.ts",
+    "./file.ts",
+    ".git/config",
+    "a/.GiT/config",
+    "a/\0file.ts",
+    "a/\nfile.ts",
+    " ",
+  ])("rejects unsafe path %j", async (entryPath) => {
+    const repo = makeRepo();
+    expect(await createRepositoryEntry({ repoPath: repo, path: entryPath })).toMatchObject({
+      ok: false,
+      error: { code: "invalid-input" },
+    });
+  });
+
+  test("does not traverse symlink parents or enumerate ignored folders", async () => {
+    const repo = makeRepo();
+    const outside = makeRepo();
+    symlinkSync(outside, path.join(repo, "linked"));
+    expect(await createRepositoryEntry({ repoPath: repo, path: "linked/escape.ts" })).toMatchObject(
+      { ok: false, error: { code: "invalid-input" } },
+    );
+    expect(existsSync(path.join(outside, "escape.ts"))).toBe(false);
+    writeFileSync(path.join(repo, ".gitignore"), "node_modules/\n**/cache/\n");
+    mkdirSync(path.join(repo, "node_modules/package/empty"), { recursive: true });
+    mkdirSync(path.join(repo, "src/cache/empty"), { recursive: true });
+    mkdirSync(path.join(repo, "src/visible/empty"), { recursive: true });
+    expect(await getRepoFiles(repo)).toEqual([
+      { path: ".gitignore" },
+      { path: "linked" },
+      { path: "src/visible/empty/" },
+    ]);
+  });
+});
+
+test("concurrent file creation chooses one result without overwriting, preserving path whitespace", async () => {
+  const repo = makeRepo();
+  const results = await Promise.all([
+    createRepositoryEntry({ repoPath: repo, path: "src/spaced name.ts " }),
+    createRepositoryEntry({ repoPath: repo, path: "src/spaced name.ts " }),
+  ]);
+  expect(results.filter((result) => result.ok)).toHaveLength(1);
+  expect(results.filter((result) => !result.ok)).toMatchObject([
+    { ok: false, error: { code: "conflict" } },
+  ]);
+  expect(await getRepoFiles(repo)).toEqual([{ path: "src/spaced name.ts " }]);
+});
+
+describe("repository Trash", () => {
+  test("moves tracked files and folders through the Trash seam and removes them from Files", async () => {
+    const repo = makeRepo();
+    const trash = makeRepo();
+    mkdirSync(path.join(repo, "src/nested"), { recursive: true });
+    writeFileSync(path.join(repo, "src/file.ts"), "recoverable file");
+    writeFileSync(path.join(repo, "src/nested/child.ts"), "recoverable child");
+    git(repo, ["add", "."]);
+    git(repo, ["commit", "-m", "Files to trash"]);
+    const moveToTrash = async (absolute: string) => {
+      await rename(absolute, path.join(trash, path.basename(absolute)));
+    };
+    expect(
+      await trashRepositoryEntry({ repoPath: repo, path: "src/file.ts" }, moveToTrash),
+    ).toEqual({ ok: true, value: undefined });
+    expect(readFileSync(path.join(trash, "file.ts"), "utf8")).toBe("recoverable file");
+    expect(await getRepoFiles(repo)).toEqual([{ path: "src/nested/child.ts" }]);
+    expect((await getGitSnapshot(repo)).unstaged).toContainEqual({
+      path: "src/file.ts",
+      previousPath: null,
+      status: "deleted",
+    });
+    expect(await trashRepositoryEntry({ repoPath: repo, path: "src/" }, moveToTrash)).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect(readFileSync(path.join(trash, "src/nested/child.ts"), "utf8")).toBe("recoverable child");
+    expect(await getRepoFiles(repo)).toEqual([]);
+  });
+
+  test("refuses repository roots, traversal, metadata and symlink parents", async () => {
+    const repo = makeRepo();
+    const outside = makeRepo();
+    writeFileSync(path.join(outside, "keep.ts"), "keep");
+    symlinkSync(outside, path.join(repo, "linked"));
+    const requests: string[] = [];
+    const moveToTrash = async (absolute: string) => {
+      requests.push(absolute);
+    };
+    for (const entry of ["", ".", "/", "../", ".git", ".git/config", "linked/keep.ts"]) {
+      expect(
+        await trashRepositoryEntry({ repoPath: repo, path: entry }, moveToTrash),
+      ).toMatchObject({ ok: false, error: { code: "invalid-input" } });
+    }
+    expect(requests).toEqual([]);
+    expect(readFileSync(path.join(outside, "keep.ts"), "utf8")).toBe("keep");
+  });
+
+  test("trashes a symlink itself and preserves the original target", async () => {
+    const repo = makeRepo();
+    const trash = makeRepo();
+    writeFileSync(path.join(repo, "keep.ts"), "keep");
+    symlinkSync(path.join(repo, "keep.ts"), path.join(repo, "link.ts"));
+    expect(
+      await trashRepositoryEntry({ repoPath: repo, path: "link.ts" }, async (absolute) => {
+        await rename(absolute, path.join(trash, "link.ts"));
+      }),
+    ).toEqual({ ok: true, value: undefined });
+    expect(readFileSync(path.join(repo, "keep.ts"), "utf8")).toBe("keep");
+    expect(existsSync(path.join(repo, "link.ts"))).toBe(false);
+    expect(readFileSync(path.join(trash, "link.ts"), "utf8")).toBe("keep");
+  });
+
+  test("reports Trash failures without removing the source", async () => {
+    const repo = makeRepo();
+    writeFileSync(path.join(repo, "keep.ts"), "keep");
+    const result = await trashRepositoryEntry({ repoPath: repo, path: "keep.ts" }, async () => {
+      throw Object.assign(new Error("Trash unavailable"), { code: "EACCES" });
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: "permission" } });
+    expect(readFileSync(path.join(repo, "keep.ts"), "utf8")).toBe("keep");
   });
 });

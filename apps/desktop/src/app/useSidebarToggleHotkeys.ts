@@ -16,7 +16,7 @@ export function useSidebarToggleHotkeys({ sidebars, toggle }: UseSidebarToggleHo
   const rightSidebarPanelId = sidebarPanelIdForIcon(sidebars, "right");
 
   useHotkey(
-    "Mod+S",
+    "Mod+B",
     (event) => {
       if (!leftSidebarPanelId) return;
       event.preventDefault();
@@ -31,7 +31,7 @@ export function useSidebarToggleHotkeys({ sidebars, toggle }: UseSidebarToggleHo
   );
 
   useHotkey(
-    "Mod+Shift+S",
+    "Mod+D",
     (event) => {
       if (!rightSidebarPanelId) return;
       event.preventDefault();

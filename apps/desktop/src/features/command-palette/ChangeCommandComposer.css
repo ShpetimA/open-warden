@@ -1,0 +1,369 @@
+.command-composer-dialog[data-slot="dialog-content"] {
+  --composer-top: max(16px, calc(40vh - 220px));
+
+  top: var(--composer-top);
+  translate: -50% 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.change-composer {
+  --composer-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  display: grid;
+  width: min(560px, 100%);
+  margin-inline: auto;
+  color: var(--foreground);
+  background: transparent;
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--elevation-overlay);
+}
+
+.change-composer:focus {
+  outline: none;
+}
+
+.change-composer-context {
+  min-width: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px) calc(var(--radius) + 4px) 0 0;
+  background: var(--surface-toolbar);
+}
+
+.change-composer-context ol {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.change-composer-context li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.change-composer-context li > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+
+.change-composer-context li:last-child {
+  max-width: 45%;
+  flex: none;
+}
+
+.change-composer-context button,
+.change-composer-context-current {
+  display: block;
+  min-width: 0;
+  min-height: 40px;
+  overflow: hidden;
+  padding: 10px 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-composer-context button {
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.change-composer-context button:hover {
+  color: var(--foreground);
+}
+
+.change-composer-context button:focus-visible,
+.change-composer-choice:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.change-composer-context-current {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.change-composer-panel {
+  display: flex;
+  width: 100%;
+  max-height: max(220px, min(520px, calc(100vh - var(--composer-top) - 72px)));
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 12px;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
+  background: var(--surface-elevated);
+}
+
+.change-composer-panel-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-composer-panel-label {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.change-composer-panel-heading {
+  display: flex;
+  min-height: 24px;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.change-composer-choices {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+  gap: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-toolbar);
+}
+
+.change-composer-choice-section {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--foreground);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.change-composer-choice-section:not(:first-child) {
+  border-top: 1px solid var(--border);
+}
+
+.change-composer-search {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-toolbar);
+}
+
+.change-composer-search:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px var(--surface-active);
+}
+
+@media (max-height: 520px) {
+  .command-composer-dialog[data-slot="dialog-content"] {
+    max-height: calc(100vh - var(--composer-top) - 16px);
+    overflow-y: auto;
+  }
+}
+
+.change-composer-choice {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition:
+    background-color 120ms var(--composer-motion-ease),
+    border-color 120ms var(--composer-motion-ease);
+}
+
+.change-composer-choice:hover {
+  background: var(--surface-elevated);
+}
+
+.change-composer-choice[data-highlighted="true"] {
+  border-color: color-mix(in oklab, var(--ring) 55%, var(--border));
+  background: var(--surface-active);
+  box-shadow: inset 2px 0 0 var(--ring);
+}
+
+.change-composer-choice[data-highlighted="true"] .change-composer-choice-icon,
+.change-composer-choice[data-highlighted="true"] .change-composer-choice-detail {
+  color: var(--foreground);
+}
+
+.change-composer-choice:active {
+  background: var(--surface-toolbar);
+}
+
+.change-composer-choice:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.change-composer-choice-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--muted-foreground);
+}
+
+.change-composer-choice-label,
+.change-composer-choice-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-composer-choice-path {
+  display: flex;
+}
+
+.change-composer-choice-path > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.change-composer-choice-path > span:last-child {
+  max-width: 65%;
+  flex: none;
+}
+
+.change-composer-choice-detail {
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-composer-review {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  min-width: 0;
+  align-content: start;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-toolbar);
+}
+
+.change-composer-review p,
+.change-composer-help {
+  overflow-wrap: anywhere;
+}
+
+.change-composer-review-icon,
+.change-composer-execution-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-elevated);
+  color: var(--primary);
+}
+
+.change-composer-review > pre {
+  grid-column: 1 / -1;
+}
+
+.change-composer-execution {
+  display: flex;
+  min-height: 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px;
+}
+
+.change-composer-review-content {
+  display: grid;
+  width: 100%;
+  min-height: 0;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.change-composer-commit-list {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.change-composer-submit {
+  display: block;
+  padding-top: 8px;
+}
+
+.change-composer-footer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  margin: 0 -12px -12px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
+  background: var(--surface-toolbar);
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
+.change-composer-footer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.change-composer-footer [data-slot="kbd"] {
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .change-composer *,
+  .change-composer *::before,
+  .change-composer *::after {
+    transition-duration: 0ms !important;
+  }
+}

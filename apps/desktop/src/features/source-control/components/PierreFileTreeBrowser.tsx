@@ -1,6 +1,10 @@
+import { createPreparedTreeProjection, preparedFileAfterRemoval } from "./pierreFileTreeProjection";
+import { preparePierreTreeInput } from "./preparePierreTreeInput";
+import { InlinePierreTreeRow, type PierreTreeInlineEditor } from "./InlinePierreTreeRow";
+import { expandPierreFileTreeParents } from "./pierreFileTree";
 import {
-  prepareFileTreeInput,
   type FileTree as PierreFileTreeModel,
+  type FileTreePreparedInput,
   type FileTreeRowDecorationRenderer,
   type FileTreeSortComparator,
   type GitStatusEntry,
@@ -13,10 +17,15 @@ import {
   type KeyboardEvent,
   type MouseEvent,
   type PointerEvent,
+  type ReactNode,
 } from "react";
+import { TreeRowHover } from "./TreeRowHover";
 
 import type { BuildSourceControlFileTreeOptions } from "@/features/source-control/fileTree";
 import {
+  requestPierreFileTreeFocus,
+  getPierreFileTreeVisibleFiles,
+  getPierreFileTreeVisiblePaths,
   registerPierreFileTreeNav,
   unregisterPierreFileTreeNav,
 } from "@/features/source-control/pierreFileTreeNavigation";
@@ -24,24 +33,28 @@ import type { Bucket } from "@/features/source-control/types";
 import { getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
 import useOnLayoutScrollToFocusedPath from "@/features/source-control/components/useOnLayoutScrollToFocusedPath";
 import {
-  buildNavTreeOptions,
   buildTreeOptions,
   collectCollapsedDirectoryPaths,
-  collectVisibleFilePaths,
   collapseDirectoryPaths,
+  collectExpandedDirectoryPaths,
   type PierreFileTreeBrowserFile,
+  type PierreFileTreeNavFile,
 } from "./pierreFileTree";
 
 export type { PierreFileTreeBrowserFile } from "./pierreFileTree";
 
-type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
+export type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   files: ReadonlyArray<TFile>;
   selectedPath: string;
+  inlineEditor?: PierreTreeInlineEditor;
+  autoFocus?: boolean;
+  selectFirstFile?: boolean;
+  initialExpansion?: "open" | "closed";
+  directoryLabelPriority?: "start" | "end";
   selectedPaths?: readonly string[];
   navRegion: string;
   className?: string;
   style?: CSSProperties;
-  disableInternalScroll?: boolean;
   flattenEmptyDirectories?: boolean;
   sort?: "default" | FileTreeSortComparator;
   compareTreeDirectories?: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"];
@@ -50,10 +63,22 @@ type PierreFileTreeBrowserProps<TFile extends PierreFileTreeBrowserFile> = {
   onRangeSelectPath?: (path: string) => void;
   gitStatus?: readonly GitStatusEntry[];
   renderRowDecoration?: FileTreeRowDecorationRenderer;
+  renderHoverContent?: (path: string, label: string) => ReactNode;
+  rowDecorationInvalidationKey?: unknown;
   renderContextMenu?: Parameters<typeof PierreFileTree>[0]["renderContextMenu"];
 };
 
 export const PIERRE_FILE_TREE_ITEM_HEIGHT = 22;
+
+const DIRECTORY_TITLE_CSS = `
+  [data-item-type='folder'] [data-truncate-group-container='middle'] > div:first-child {
+    flex: 0 1 max-content;
+  }
+
+  [data-item-type='folder'] [data-truncate-group-container='middle'] > div:last-child {
+    flex: 0 999999 max-content;
+  }
+`;
 
 const TREE_HOST_STYLE: CSSProperties = {
   height: "100%",
@@ -79,6 +104,28 @@ const TREE_HOST_STYLE: CSSProperties = {
 };
 
 const TREE_UNSAFE_CSS = `
+  [data-item-section='content']:has([data-tree-inline-editor]) {
+    flex: 1 1 0;
+  }
+  [data-item-section='content']:has([data-tree-inline-editor]) ~ [data-item-section='decoration'],
+  [data-item-section='content']:has([data-tree-inline-editor]) ~ [data-item-section='git'],
+  [data-item-section='content']:has([data-tree-inline-editor]) ~ [data-item-section='action'] {
+    display: none;
+  }
+  [data-item-section='content']:has([data-tree-inline-editor]) > :not([data-tree-inline-editor]) {
+    display: none;
+  }
+  [data-tree-inline-editor] {
+    display: flex;
+    min-width: 0;
+    width: 100%;
+  }
+  [data-tree-inline-spinner] { animation: tree-inline-spin 1s linear infinite; }
+  @keyframes tree-inline-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-tree-inline-spinner] { animation: none; }
+  }
+
   [data-file-tree-virtualized-scroll='true'] {
     padding-block: 2px;
   }
@@ -103,17 +150,6 @@ const TREE_UNSAFE_CSS = `
   }
 `;
 
-const TREE_DISABLE_INTERNAL_SCROLL_CSS = `
-  [data-file-tree-virtualized-scroll='true'] {
-    overflow: hidden !important;
-    scrollbar-width: none;
-  }
-
-  [data-file-tree-virtualized-scroll='true']::-webkit-scrollbar {
-    display: none;
-  }
-`;
-
 function areFilePathsEqual(
   left: ReadonlyArray<PierreFileTreeBrowserFile>,
   right: ReadonlyArray<PierreFileTreeBrowserFile>,
@@ -135,51 +171,97 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   files,
   selectedPath,
   selectedPaths,
+  inlineEditor,
   navRegion,
   className = "",
+  autoFocus = true,
+  directoryLabelPriority = "end",
   style,
-  disableInternalScroll = false,
   flattenEmptyDirectories = true,
   sort = "default",
   compareTreeDirectories,
   onActivatePath,
+  selectFirstFile = false,
+  initialExpansion = "open",
   onTogglePathSelection,
   onRangeSelectPath,
   gitStatus,
   renderRowDecoration,
+  renderHoverContent,
+  rowDecorationInvalidationKey,
   renderContextMenu,
 }: PierreFileTreeBrowserProps<TFile>) {
   const onActivatePathRef = useRef(onActivatePath);
   const onTogglePathSelectionRef = useRef(onTogglePathSelection);
   const onRangeSelectPathRef = useRef(onRangeSelectPath);
   const filesRef = useRef(files);
-  const filePathSetRef = useRef(new Set(files.map((file) => file.path)));
-  const pierreSelectedPathsRef = useRef<ReadonlySet<string>>(
-    new Set(selectedPaths ?? (selectedPath ? [selectedPath] : [])),
-  );
+  const selectedPathRef = useRef(selectedPath);
+  const previousSelectedPath = useRef(selectedPath);
+  const replacementPath = useRef<string | null>(null);
+  const selectedPathsRef = useRef(selectedPaths);
+  const initialFilePathsRef = useRef<readonly string[] | null>(null);
+  const initialSelectedPathsRef = useRef<readonly string[] | null>(null);
+  const initialPreparedInputRef = useRef<FileTreePreparedInput | null>(null);
+  const filePathSetRef = useRef<Set<string> | null>(null);
+  const pierreSelectedPathsRef = useRef<ReadonlySet<string> | null>(null);
+  const navFilesRef = useRef<ReadonlyArray<PierreFileTreeNavFile>>([]);
   const renderRowDecorationRef = useRef(renderRowDecoration);
   const suppressClickPathRef = useRef<string | null>(null);
   const suppressPierreSelectionChangeRef = useRef(false);
   const syncingSelectionRef = useRef(false);
+  const preparedInlineAnchorRef = useRef(inlineEditor?.anchorPath);
+  // Pierre retains its initial comparator to validate later resetPaths calls.
+  const preparedSortRef = useRef<FileTreeSortComparator>(() => 0);
+  const controllerSortRef = useRef<FileTreeSortComparator>((left, right) =>
+    preparedSortRef.current(left, right),
+  );
 
   onActivatePathRef.current = onActivatePath;
   onTogglePathSelectionRef.current = onTogglePathSelection;
   onRangeSelectPathRef.current = onRangeSelectPath;
+  selectedPathRef.current = selectedPath;
+  selectedPathsRef.current = selectedPaths;
   renderRowDecorationRef.current = renderRowDecoration;
 
-  const filePaths = files.map((file) => file.path);
-  const initialPreparedInput = prepareFileTreeInput(filePaths, {
-    flattenEmptyDirectories,
-    sort,
-  });
+  if (initialFilePathsRef.current === null) {
+    initialFilePathsRef.current = files.map((file) => file.path);
+  }
+  const initialFilePaths = initialFilePathsRef.current;
+
+  if (initialSelectedPathsRef.current === null) {
+    initialSelectedPathsRef.current = selectedPaths ?? (selectedPath ? [selectedPath] : []);
+  }
+  const initialSelectedPaths = initialSelectedPathsRef.current;
+
+  if (initialPreparedInputRef.current === null) {
+    const initialInput = preparePierreTreeInput(
+      initialFilePaths,
+      {
+        flattenEmptyDirectories,
+        sort,
+      },
+      inlineEditor,
+    );
+    initialPreparedInputRef.current = initialInput.preparedInput;
+    preparedSortRef.current = initialInput.sort;
+  }
+  const initialPreparedInput = initialPreparedInputRef.current;
+  const preparedInputRef = useRef(initialPreparedInput);
+
+  if (filePathSetRef.current === null) {
+    filePathSetRef.current = new Set(initialFilePaths);
+  }
+  if (pierreSelectedPathsRef.current === null) {
+    pierreSelectedPathsRef.current = new Set(initialSelectedPaths);
+  }
 
   const { model } = useFileTree({
     density: 0.5,
     flattenEmptyDirectories,
     gitStatus,
     icons: "complete",
-    initialExpansion: "open",
-    initialSelectedPaths: selectedPaths ?? (selectedPath ? [selectedPath] : []),
+    initialExpansion,
+    initialSelectedPaths,
     itemHeight: PIERRE_FILE_TREE_ITEM_HEIGHT,
     onSelectionChange: (selectedPaths) => {
       if (suppressPierreSelectionChangeRef.current) {
@@ -190,7 +272,9 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
         return;
       }
 
-      const nextSelectedPaths = selectedPaths.filter((path) => filePathSetRef.current.has(path));
+      const nextSelectedPaths = selectedPaths.filter(
+        (path) => filePathSetRef.current?.has(path) ?? false,
+      );
       if (nextSelectedPaths.length === 0) {
         pierreSelectedPathsRef.current = new Set();
         return;
@@ -200,9 +284,9 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
     },
     preparedInput: initialPreparedInput,
     renderRowDecoration: (context) => renderRowDecorationRef.current?.(context) ?? null,
-    sort,
+    sort: controllerSortRef.current,
     stickyFolders: false,
-    unsafeCSS: `${TREE_UNSAFE_CSS}${disableInternalScroll ? TREE_DISABLE_INTERNAL_SCROLL_CSS : ""}`,
+    unsafeCSS: TREE_UNSAFE_CSS + (directoryLabelPriority === "start" ? DIRECTORY_TITLE_CSS : ""),
     composition: renderContextMenu
       ? {
           contextMenu: {
@@ -214,58 +298,38 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       : undefined,
   });
 
-  const treeOptions = buildTreeOptions(compareTreeDirectories, flattenEmptyDirectories, sort);
-
-  const setPierreSelectedPaths = (paths: ReadonlyArray<string>) => {
-    const nextPaths = paths.filter((path) => filePathSetRef.current.has(path));
-    const nextPathSet = new Set(nextPaths);
-    const previousPathSet = pierreSelectedPathsRef.current;
-    const sameSelection =
-      nextPathSet.size === previousPathSet.size &&
-      nextPaths.every((path) => previousPathSet.has(path));
-
-    if (sameSelection) {
-      return;
-    }
-
-    syncingSelectionRef.current = true;
-    try {
-      for (const previousPath of previousPathSet) {
-        if (!nextPathSet.has(previousPath)) {
-          model.getItem(previousPath)?.deselect();
-        }
-      }
-      for (const path of nextPathSet) {
-        model.getItem(path)?.select();
-      }
-      pierreSelectedPathsRef.current = nextPathSet;
-    } finally {
-      syncingSelectionRef.current = false;
-    }
-  };
-
   useEffect(() => {
     const nextSelectedPaths = selectedPaths ?? (selectedPath ? [selectedPath] : []);
-    setPierreSelectedPaths(nextSelectedPaths);
-  }, [model, selectedPath, selectedPaths]);
+    if (initialExpansion === "closed" && selectedPath) {
+      expandPierreFileTreeParents(model, selectedPath);
+    }
+    syncPierreSelectedPaths(
+      model,
+      filePathSetRef,
+      pierreSelectedPathsRef,
+      syncingSelectionRef,
+      nextSelectedPaths,
+    );
+  }, [initialExpansion, model, selectedPath, selectedPaths]);
 
   useEffect(() => {
-    if (!selectedPath || !filePathSetRef.current.has(selectedPath)) {
+    if (!selectedPath || !filePathSetRef.current?.has(selectedPath)) {
       return;
     }
 
-    if (model.getFocusedPath() === selectedPath) {
-      return;
-    }
+    const focusedPath = model.getFocusedPath();
+    if (focusedPath === selectedPath) return;
+    if (focusedPath && focusedPath !== previousSelectedPath.current) return;
 
     model.focusPath(selectedPath);
   }, [model, selectedPath]);
 
   useEffect(() => {
     model.setGitStatus(gitStatus);
-  }, [gitStatus, model]);
+  }, [gitStatus, model, rowDecorationInvalidationKey]);
 
   useOnLayoutScrollToFocusedPath({
+    autoFocus,
     model,
     selectedPath,
     filesRef,
@@ -276,73 +340,154 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   });
 
   useEffect(() => {
+    const treeOptions = buildTreeOptions(compareTreeDirectories, flattenEmptyDirectories, sort);
     const pathsChanged = !areFilePathsEqual(filesRef.current, files);
-    filePathSetRef.current = new Set(files.map((file) => file.path));
+    const nextPaths = files.map((file) => file.path);
+    filePathSetRef.current = new Set(nextPaths);
 
-    if (pathsChanged) {
+    if (pathsChanged || preparedInlineAnchorRef.current !== inlineEditor?.anchorPath) {
+      replacementPath.current = null;
       const focusedPath = model.getFocusedPath();
+      const previousPath = previousSelectedPath.current;
+      const hadFocus = Boolean(model.getFileTreeContainer()?.shadowRoot?.activeElement);
+      const replacement =
+        previousPath && !filePathSetRef.current.has(previousPath)
+          ? preparedFileAfterRemoval(
+              createPreparedTreeProjection(
+                preparedInputRef.current.paths,
+                model,
+                flattenEmptyDirectories,
+              ).getVisiblePaths(),
+              previousPath,
+              new Set(nextPaths.filter((path) => !path.endsWith("/"))),
+            )
+          : null;
       const collapsedDirectoryPaths = collectCollapsedDirectoryPaths(
         filesRef.current,
         model,
         treeOptions,
       );
-      const nextPaths = files.map((file) => file.path);
-      const nextPreparedInput = prepareFileTreeInput(nextPaths, {
-        flattenEmptyDirectories,
-        sort,
-      });
+      const expandedDirectoryPaths =
+        initialExpansion === "closed"
+          ? collectExpandedDirectoryPaths(filesRef.current, model, treeOptions)
+          : undefined;
+      const nextInput = preparePierreTreeInput(
+        nextPaths,
+        {
+          flattenEmptyDirectories,
+          sort,
+        },
+        inlineEditor,
+      );
+      const nextPreparedInput = nextInput.preparedInput;
+      preparedSortRef.current = nextInput.sort;
       syncingSelectionRef.current = true;
-      model.resetPaths(nextPaths, { preparedInput: nextPreparedInput });
-      collapseDirectoryPaths(model, collapsedDirectoryPaths);
-      if (selectedPath && nextPaths.includes(selectedPath)) {
-        model.focusPath(selectedPath);
-      } else {
-        model.focusNearestPath(focusedPath);
+      try {
+        model.resetPaths(nextPaths, {
+          preparedInput: nextPreparedInput,
+          initialExpandedPaths: expandedDirectoryPaths,
+        });
+        preparedInputRef.current = nextPreparedInput;
+        collapseDirectoryPaths(model, collapsedDirectoryPaths);
+        const currentSelectedPath = selectedPathRef.current;
+        if (currentSelectedPath && filePathSetRef.current.has(currentSelectedPath)) {
+          if (initialExpansion === "closed") {
+            expandPierreFileTreeParents(model, currentSelectedPath);
+          }
+        }
+        const selectionChanged = currentSelectedPath !== previousPath;
+        if (
+          selectionChanged &&
+          (!focusedPath || focusedPath === previousPath || focusedPath === currentSelectedPath) &&
+          currentSelectedPath &&
+          filePathSetRef.current.has(currentSelectedPath)
+        ) {
+          model.focusPath(currentSelectedPath);
+        } else {
+          model.focusNearestPath(focusedPath ?? currentSelectedPath);
+        }
+        syncPierreSelectedPaths(
+          model,
+          filePathSetRef,
+          pierreSelectedPathsRef,
+          syncingSelectionRef,
+          selectedPathsRef.current ?? (currentSelectedPath ? [currentSelectedPath] : []),
+        );
+      } finally {
+        syncingSelectionRef.current = false;
       }
-      setPierreSelectedPaths(selectedPaths ?? (selectedPath ? [selectedPath] : []));
-      syncingSelectionRef.current = false;
+      if (
+        replacement &&
+        (!selectedPathRef.current || !filePathSetRef.current.has(selectedPathRef.current))
+      ) {
+        replacementPath.current = replacement;
+        onActivatePathRef.current(replacement);
+        if (hadFocus) requestPierreFileTreeFocus(navRegion, replacement);
+      }
     }
     filesRef.current = files;
-
-    registerPierreFileTreeNav(
-      navRegion,
-      files.map((file) => ({
-        bucket: "bucket" in file ? (file.bucket as Bucket | undefined) : undefined,
-        path: file.path,
-        realPath: "realPath" in file ? (file.realPath as string | undefined) : undefined,
-      })),
-      model,
-      {
-        selectedPath,
-        treeOptions: buildNavTreeOptions(compareTreeDirectories, flattenEmptyDirectories, sort),
-      },
-    );
-
-    return () => {
-      unregisterPierreFileTreeNav(navRegion, model);
-    };
+    preparedInlineAnchorRef.current = inlineEditor?.anchorPath;
   }, [
     compareTreeDirectories,
     files,
     flattenEmptyDirectories,
+    initialExpansion,
+    inlineEditor,
     model,
     navRegion,
-    selectedPath,
-    selectedPaths,
     sort,
   ]);
 
+  useEffect(() => {
+    navFilesRef.current = files.map(toPierreFileTreeNavFile);
+    registerPierreFileTreeNav(navRegion, navFilesRef.current, model, {
+      selectedPath: selectedPathRef.current,
+      preparedInput: preparedInputRef.current,
+      flattenEmptyDirectories,
+    });
+  }, [compareTreeDirectories, files, flattenEmptyDirectories, model, navRegion, sort]);
+
+  useEffect(() => {
+    registerPierreFileTreeNav(navRegion, navFilesRef.current, model, {
+      selectedPath,
+      preparedInput: preparedInputRef.current,
+      flattenEmptyDirectories,
+    });
+  }, [flattenEmptyDirectories, model, navRegion, selectedPath]);
+
+  useEffect(() => {
+    if (!selectFirstFile || (selectedPath && filePathSetRef.current?.has(selectedPath))) return;
+    const firstPath =
+      replacementPath.current ??
+      getPierreFileTreeVisibleFiles(navRegion).find(
+        (file) => !file.path.endsWith("/") && file.path !== inlineEditor?.path,
+      )?.path;
+    if (firstPath) onActivatePathRef.current(firstPath);
+  }, [files, inlineEditor?.path, model, navRegion, selectFirstFile, selectedPath]);
+
+  useEffect(() => {
+    return () => {
+      unregisterPierreFileTreeNav(navRegion, model);
+    };
+  }, [model, navRegion]);
+
+  useEffect(() => {
+    previousSelectedPath.current = selectedPath;
+  }, [selectedPath]);
+
   const activatePath = (path: string) => {
-    if (!filePathSetRef.current.has(path)) {
+    if (!filePathSetRef.current?.has(path)) {
       return;
     }
 
-    setPierreSelectedPaths([path]);
+    syncPierreSelectedPaths(model, filePathSetRef, pierreSelectedPathsRef, syncingSelectionRef, [
+      path,
+    ]);
     onActivatePathRef.current(path);
   };
 
   const togglePathSelection = (path: string) => {
-    if (!filePathSetRef.current.has(path)) {
+    if (!filePathSetRef.current?.has(path)) {
       return;
     }
 
@@ -350,7 +495,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
   };
 
   const rangeSelectPath = (path: string) => {
-    if (!filePathSetRef.current.has(path)) {
+    if (!filePathSetRef.current?.has(path)) {
       return;
     }
 
@@ -441,7 +586,7 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
 
   const handleHostKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.shiftKey && isRangeNavigationKey(event)) {
-      const targetPath = getShiftNavigationTargetPath(model, filesRef.current, event, treeOptions);
+      const targetPath = getShiftNavigationTargetPath(model, navRegion, event);
       if (!targetPath) {
         return;
       }
@@ -490,22 +635,77 @@ export function PierreFileTreeBrowser<TFile extends PierreFileTreeBrowserFile>({
       className={`min-h-0 flex-1 overflow-hidden ${className}`.trim()}
       style={style}
     >
-      <PierreFileTree
-        model={model}
-        className="block h-full min-h-0"
-        style={{
-          ...TREE_HOST_STYLE,
-          ...(renderContextMenu
-            ? { ["--trees-action-lane-width-override" as string]: "24px" }
-            : null),
-        }}
-        onClick={handleHostClick}
-        onPointerDownCapture={handleHostPointerDownCapture}
-        onKeyDown={handleHostKeyDown}
-        renderContextMenu={renderContextMenu}
-      />
+      <TreeRowHover directoriesOnly renderContent={renderHoverContent}>
+        <PierreFileTree
+          model={model}
+          className="block h-full min-h-0"
+          style={{
+            ...TREE_HOST_STYLE,
+            ...(renderContextMenu
+              ? { ["--trees-action-lane-width-override" as string]: "24px" }
+              : null),
+          }}
+          onClick={handleHostClick}
+          onPointerDownCapture={handleHostPointerDownCapture}
+          onKeyDown={handleHostKeyDown}
+          renderContextMenu={renderContextMenu}
+        />
+      </TreeRowHover>
+      {inlineEditor ? <InlinePierreTreeRow model={model} {...inlineEditor} /> : null}
     </div>
   );
+}
+
+function syncPierreSelectedPaths(
+  model: PierreFileTreeModel,
+  filePathSetRef: { current: ReadonlySet<string> | null },
+  selectedPathSetRef: { current: ReadonlySet<string> | null },
+  syncingSelectionRef: { current: boolean },
+  paths: ReadonlyArray<string>,
+) {
+  const nextPaths = paths.filter((path) => filePathSetRef.current?.has(path) ?? false);
+  const nextPathSet = new Set(nextPaths);
+  const previousPathSet = selectedPathSetRef.current ?? new Set<string>();
+  const sameSelection =
+    nextPathSet.size === previousPathSet.size &&
+    nextPaths.every((path) => previousPathSet.has(path));
+
+  if (sameSelection) {
+    return;
+  }
+
+  const wasSyncingSelection = syncingSelectionRef.current;
+  syncingSelectionRef.current = true;
+  try {
+    for (const previousPath of previousPathSet) {
+      if (!nextPathSet.has(previousPath)) {
+        model.getItem(previousPath)?.deselect();
+      }
+    }
+    for (const path of nextPathSet) {
+      model.getItem(path)?.select();
+    }
+    selectedPathSetRef.current = nextPathSet;
+  } finally {
+    syncingSelectionRef.current = wasSyncingSelection;
+  }
+}
+
+function toPierreFileTreeNavFile(file: PierreFileTreeBrowserFile): PierreFileTreeNavFile {
+  const navFile: PierreFileTreeNavFile = { path: file.path };
+
+  if ("bucket" in file && isBucket(file.bucket)) {
+    navFile.bucket = file.bucket;
+  }
+  if ("realPath" in file && typeof file.realPath === "string") {
+    navFile.realPath = file.realPath;
+  }
+
+  return navFile;
+}
+
+function isBucket(value: unknown): value is Bucket {
+  return value === "staged" || value === "unstaged" || value === "untracked";
 }
 
 function getFilePathFromComposedPath(path: EventTarget[]) {
@@ -532,13 +732,12 @@ function isRangeNavigationKey(event: KeyboardEvent<HTMLElement>) {
   );
 }
 
-function getShiftNavigationTargetPath<TFile extends PierreFileTreeBrowserFile>(
+function getShiftNavigationTargetPath(
   model: PierreFileTreeModel,
-  files: ReadonlyArray<TFile>,
+  navRegion: string,
   event: KeyboardEvent<HTMLElement>,
-  treeOptions: BuildSourceControlFileTreeOptions<TFile>,
 ) {
-  const visibleFilePaths = collectVisibleFilePaths(files, model, treeOptions);
+  const visibleFilePaths = getPierreFileTreeVisiblePaths(navRegion);
   if (visibleFilePaths.length === 0) {
     return null;
   }

@@ -1,3 +1,5 @@
+import { rootReducer } from "@/app/store";
+import { workspacesReducer, workspacesHydrated } from "@/features/workspaces/workspacesSlice";
 import { configureStore } from "@reduxjs/toolkit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -5,9 +7,13 @@ import { commentsReducer } from "@/features/comments/commentsSlice";
 import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice";
 import { settingsReducer } from "@/features/settings/settingsSlice";
 import { desktop } from "@/platform/desktop";
+import { gitApi } from "./api";
 
 import {
   closeRepo,
+  commitAction,
+  stageAllAction,
+  unstageAllAction,
   navigateBackToDiffFromFileViewer,
   openRepo,
   restoreWorkspaceSession,
@@ -66,6 +72,7 @@ function createTestStore() {
   return configureStore({
     reducer: {
       settings: settingsReducer,
+      workspaces: workspacesReducer,
       sourceControl: sourceControlReducer,
       pullRequests: pullRequestsReducer,
       comments: commentsReducer,
@@ -76,35 +83,99 @@ function createTestStore() {
 describe("source control workspace actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(desktop.saveWorkspaceSession).mockImplementation(async (session) => session);
+    vi.mocked(desktop.saveWorkspaceSession).mockImplementation(async (session) => ({
+      ok: true,
+      value: session,
+    }));
+  });
+
+  it("reports whether a commit completed and preserves the message on failure", async () => {
+    const store = configureStore({
+      reducer: rootReducer,
+      middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+    });
+    store.dispatch(
+      hydrateWorkspaceSession({
+        openRepos: ["/repo/a"],
+        activeRepo: "/repo/a",
+        recentRepos: ["/repo/a"],
+      }),
+    );
+    store.dispatch(setCommitMessage("A commit"));
+    vi.mocked(desktop.commitStaged).mockResolvedValue({ ok: true, value: "abc123" });
+
+    expect(await store.dispatch(commitAction())).toBe(true);
+    expect(store.getState().sourceControl.commitMessage).toBe("");
+
+    store.dispatch(setCommitMessage("Retry this commit"));
+    vi.mocked(desktop.commitStaged).mockRejectedValue(new Error("Git rejected the commit"));
+
+    expect(await store.dispatch(commitAction())).toBe(false);
+    expect(store.getState().sourceControl.commitMessage).toBe("Retry this commit");
+    expect(store.getState().sourceControl.runningAction).toBe("");
+  });
+
+  it("reports whether stage all and unstage all completed", async () => {
+    const store = configureStore({
+      reducer: rootReducer,
+      middleware: (getDefault) => getDefault().concat(gitApi.middleware),
+    });
+    store.dispatch(
+      hydrateWorkspaceSession({
+        openRepos: ["/repo/a"],
+        activeRepo: "/repo/a",
+        recentRepos: ["/repo/a"],
+      }),
+    );
+    vi.mocked(desktop.stageAll).mockResolvedValue({ ok: true, value: undefined });
+    vi.mocked(desktop.unstageAll).mockResolvedValue({ ok: true, value: undefined });
+
+    expect(await store.dispatch(stageAllAction())).toBe(true);
+    expect(await store.dispatch(unstageAllAction())).toBe(true);
+
+    vi.mocked(desktop.stageAll).mockRejectedValue(new Error("Git could not stage"));
+    vi.mocked(desktop.unstageAll).mockRejectedValue(new Error("Git could not unstage"));
+
+    expect(await store.dispatch(stageAllAction())).toBe(false);
+    expect(await store.dispatch(unstageAllAction())).toBe(false);
+    expect(store.getState().sourceControl.runningAction).toBe("");
   });
 
   it("restores a saved session, drops invalid repos, and persists the sanitized state", async () => {
     const store = createTestStore();
 
     vi.mocked(desktop.loadWorkspaceSession).mockResolvedValue({
-      openRepos: ["/repo/a", "/missing"],
-      activeRepo: "/repo/a",
-      recentRepos: ["/missing", "/repo/b"],
+      ok: true,
+      value: {
+        openRepos: ["/repo/a", "/missing"],
+        activeRepo: "/repo/a",
+        recentRepos: ["/missing", "/repo/b"],
+      },
     });
     vi.mocked(desktop.getGitSnapshot).mockImplementation(async (repoPath: string) => {
       if (repoPath === "/repo/a") {
         return {
-          repoRoot: "/repo/a",
-          branch: "main",
-          staged: [],
-          unstaged: [],
-          untracked: [],
+          ok: true,
+          value: {
+            repoRoot: "/repo/a",
+            branch: "main",
+            staged: [],
+            unstaged: [],
+            untracked: [],
+          },
         };
       }
 
       if (repoPath === "/repo/b") {
         return {
-          repoRoot: "/repo/b",
-          branch: "main",
-          staged: [],
-          unstaged: [],
-          untracked: [],
+          ok: true,
+          value: {
+            repoRoot: "/repo/b",
+            branch: "main",
+            staged: [],
+            unstaged: [],
+            untracked: [],
+          },
         };
       }
 
@@ -137,11 +208,14 @@ describe("source control workspace actions", () => {
     store.dispatch(setSelectedFiles([{ bucket: "unstaged", path: "src/file.ts" }]));
 
     vi.mocked(desktop.getGitSnapshot).mockResolvedValue({
-      repoRoot: "/repo/a",
-      branch: "main",
-      staged: [],
-      unstaged: [],
-      untracked: [],
+      ok: true,
+      value: {
+        repoRoot: "/repo/a",
+        branch: "main",
+        staged: [],
+        unstaged: [],
+        untracked: [],
+      },
     });
 
     await store.dispatch(openRepo("/repo/a"));
@@ -154,7 +228,7 @@ describe("source control workspace actions", () => {
   });
 
   it("resets repo-scoped tab state when closing the active repo", async () => {
-    const store = createTestStore();
+    const store = configureStore({ reducer: rootReducer });
 
     store.dispatch(
       hydrateWorkspaceSession({
@@ -162,6 +236,9 @@ describe("source control workspace actions", () => {
         activeRepo: "/repo/b",
         recentRepos: ["/repo/b", "/repo/a"],
       }),
+    );
+    store.dispatch(
+      workspacesHydrated({ openRepos: ["/repo/a", "/repo/b"], activeRepo: "/repo/b" }),
     );
     store.dispatch(setActivePath("src/file.ts"));
     store.dispatch(setSelectedFiles([{ bucket: "unstaged", path: "src/file.ts" }]));
@@ -246,7 +323,6 @@ describe("source control workspace actions", () => {
     expect(state.sourceControl.changesSidebarMode).toBe("pull-request");
     expect(state.sourceControl.fileViewerTarget).toBeNull();
     expect(state.sourceControl.reviewActivePath).toBe("src/pr-origin.ts");
-    expect(state.pullRequests.activeReviewTab).toBe("files");
     expect(state.pullRequests.filesViewMode).toBe("review");
     expect(state.pullRequests.fileJumpTarget).toEqual(
       expect.objectContaining({

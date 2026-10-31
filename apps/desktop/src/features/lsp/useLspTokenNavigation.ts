@@ -57,7 +57,7 @@ export function useLspTokenNavigation(
   const createPeekPayload = useCallback(
     (
       kind: "definitions" | "references",
-      locations: Awaited<ReturnType<typeof desktop.getLspDefinition>>,
+      locations: import("@/platform/desktop").LspLocation[],
       source: LspJumpSource,
       returnToDiff: DiffReturnTarget | null,
     ) => {
@@ -111,7 +111,12 @@ export function useLspTokenNavigation(
             ...position,
             includeDeclaration: false,
           })
-          .then((locations) => {
+          .then((result) => {
+            if (!result.ok) {
+              toast.error(result.error.message);
+              return;
+            }
+            const locations = result.value;
             if (locations.length === 0) {
               toast.info("No references found.");
               return;
@@ -134,7 +139,12 @@ export function useLspTokenNavigation(
           ...document,
           ...position,
         })
-        .then((locations) => {
+        .then((result) => {
+          if (!result.ok) {
+            toast.error(result.error.message);
+            return;
+          }
+          const locations = result.value;
           if (locations.length === 0) {
             toast.info("No definition found.");
             return;

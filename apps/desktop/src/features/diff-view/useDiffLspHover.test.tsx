@@ -78,7 +78,10 @@ describe("useDiffLspHover", () => {
 
   it("fetches and opens hover info on Meta click", async () => {
     mocks.getLspHover.mockResolvedValue({
-      text: "(alias) foo\n\nDetailed description for foo.",
+      ok: true,
+      value: {
+        text: "(alias) foo\n\nDetailed description for foo.",
+      },
     });
     const { result } = renderHook(() =>
       useDiffLspHover({
@@ -166,7 +169,10 @@ describe("useDiffLspHover", () => {
 
   it("keeps popover open when scrolling inside the popover", async () => {
     mocks.getLspHover.mockResolvedValue({
-      text: "(alias) foo",
+      ok: true,
+      value: {
+        text: "(alias) foo",
+      },
     });
     const { result } = renderHook(() =>
       useDiffLspHover({

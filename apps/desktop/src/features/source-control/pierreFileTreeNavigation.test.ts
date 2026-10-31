@@ -1,5 +1,6 @@
-import type { FileTree as PierreFileTreeModel } from "@pierre/trees";
+import { prepareFileTreeInput, type FileTree as PierreFileTreeModel } from "@pierre/trees";
 import { describe, expect, it, vi } from "vitest";
+import type { PierreFileTreeNavFile } from "./components/pierreFileTree";
 
 import {
   getPierreFileTreeFocusedSelectedFile,
@@ -7,10 +8,23 @@ import {
   getPierreFileTreeVisiblePaths,
   movePierreFileTreeFocus,
   movePierreFileTreeFocusFile,
-  registerPierreFileTreeNav,
+  registerPierreFileTreeNav as registerPreparedTree,
   scrollPierreFileTreePathIntoView,
   unregisterPierreFileTreeNav,
 } from "./pierreFileTreeNavigation";
+
+// Default-sort fixture; registration requires the renderer's prepared input.
+function registerTestTree(
+  regionId: string,
+  files: ReadonlyArray<PierreFileTreeNavFile>,
+  model: PierreFileTreeModel,
+  options: { selectedPath?: string } = {},
+) {
+  registerPreparedTree(regionId, files, model, {
+    ...options,
+    preparedInput: prepareFileTreeInput(files.map((file) => file.path)),
+  });
+}
 
 function createModel(expansionState: Record<string, boolean> = {}) {
   const focusPath = vi.fn<(path: string) => void>();
@@ -42,7 +56,7 @@ describe("pierreFileTreeNavigation", () => {
     const model = createModel({ src: true, "src/utils": true });
     const regionId = "repo-files-test-visible";
 
-    registerPierreFileTreeNav(
+    registerTestTree(
       regionId,
       [{ path: "README.md" }, { path: "src/main.ts" }, { path: "src/utils/helper.ts" }],
       model,
@@ -61,7 +75,7 @@ describe("pierreFileTreeNavigation", () => {
     const model = createModel({ src: false, "src/utils": true });
     const regionId = "repo-files-test-collapsed";
 
-    registerPierreFileTreeNav(
+    registerTestTree(
       regionId,
       [{ path: "README.md" }, { path: "src/main.ts" }, { path: "src/utils/helper.ts" }],
       model,
@@ -76,7 +90,7 @@ describe("pierreFileTreeNavigation", () => {
     const model = createModel();
     const regionId = "repo-files-test-scroll";
 
-    registerPierreFileTreeNav(regionId, [{ path: "src/main.ts" }], model);
+    registerTestTree(regionId, [{ path: "src/main.ts" }], model);
 
     scrollPierreFileTreePathIntoView(regionId, "src/main.ts");
 
@@ -103,7 +117,7 @@ describe("pierreFileTreeNavigation", () => {
     } as unknown as PierreFileTreeModel;
     const regionId = "repo-files-test-move-focus";
 
-    registerPierreFileTreeNav(regionId, [{ path: "src/main.ts" }], model);
+    registerTestTree(regionId, [{ path: "src/main.ts" }], model);
 
     expect(movePierreFileTreeFocus(regionId, true)).toBe("src/main.ts");
 
@@ -118,8 +132,8 @@ describe("pierreFileTreeNavigation", () => {
     const unstagedModel = createModel();
     const regionId = "changes-files-test-visible";
 
-    registerPierreFileTreeNav(regionId, [{ bucket: "staged", path: "src/main.ts" }], stagedModel);
-    registerPierreFileTreeNav(regionId, [{ bucket: "unstaged", path: "README.md" }], unstagedModel);
+    registerTestTree(regionId, [{ bucket: "staged", path: "src/main.ts" }], stagedModel);
+    registerTestTree(regionId, [{ bucket: "unstaged", path: "README.md" }], unstagedModel);
 
     expect(getPierreFileTreeVisibleSelectedFiles(regionId)).toEqual([
       { bucket: "staged", path: "src/main.ts" },
@@ -134,7 +148,7 @@ describe("pierreFileTreeNavigation", () => {
     const model = createModel({ "STAGED CHANGES": true });
     const regionId = "changes-files-test-synthetic-visible";
 
-    registerPierreFileTreeNav(
+    registerTestTree(
       regionId,
       [
         {
@@ -168,12 +182,8 @@ describe("pierreFileTreeNavigation", () => {
     } as unknown as PierreFileTreeModel;
     const regionId = "changes-files-test-focused-bucketed";
 
-    registerPierreFileTreeNav(regionId, [{ bucket: "staged", path: "staged.ts" }], stagedModel);
-    registerPierreFileTreeNav(
-      regionId,
-      [{ bucket: "unstaged", path: "unstaged.ts" }],
-      unstagedModel,
-    );
+    registerTestTree(regionId, [{ bucket: "staged", path: "staged.ts" }], stagedModel);
+    registerTestTree(regionId, [{ bucket: "unstaged", path: "unstaged.ts" }], unstagedModel);
 
     expect(getPierreFileTreeFocusedSelectedFile(regionId)).toEqual({
       bucket: "unstaged",
@@ -209,12 +219,8 @@ describe("pierreFileTreeNavigation", () => {
     } as unknown as PierreFileTreeModel;
     const regionId = "changes-files-test-cross-tree";
 
-    registerPierreFileTreeNav(regionId, [{ bucket: "staged", path: "staged.ts" }], stagedModel);
-    registerPierreFileTreeNav(
-      regionId,
-      [{ bucket: "unstaged", path: "unstaged.ts" }],
-      unstagedModel,
-    );
+    registerTestTree(regionId, [{ bucket: "staged", path: "staged.ts" }], stagedModel);
+    registerTestTree(regionId, [{ bucket: "unstaged", path: "unstaged.ts" }], unstagedModel);
 
     expect(movePierreFileTreeFocus(regionId, true)).toBe("unstaged.ts");
     expect(keydownHandler).toHaveBeenCalledTimes(1);
@@ -244,7 +250,7 @@ describe("pierreFileTreeNavigation", () => {
     } as unknown as PierreFileTreeModel;
     const regionId = "changes-files-test-directory-row-move";
 
-    registerPierreFileTreeNav(
+    registerTestTree(
       regionId,
       [
         { bucket: "staged", path: "STAGED CHANGES/src/main.ts", realPath: "src/main.ts" },
@@ -280,7 +286,7 @@ describe("pierreFileTreeNavigation", () => {
     const unstagedModel = createModel();
     const regionId = "changes-files-test-last-row-move";
 
-    registerPierreFileTreeNav(
+    registerTestTree(
       regionId,
       [
         { bucket: "staged", path: "index.html" },
@@ -288,11 +294,7 @@ describe("pierreFileTreeNavigation", () => {
       ],
       stagedModel,
     );
-    registerPierreFileTreeNav(
-      regionId,
-      [{ bucket: "unstaged", path: "first-unstaged.ts" }],
-      unstagedModel,
-    );
+    registerTestTree(regionId, [{ bucket: "unstaged", path: "first-unstaged.ts" }], unstagedModel);
 
     expect(movePierreFileTreeFocusFile(regionId, true)).toEqual({
       bucket: "staged",
@@ -318,8 +320,8 @@ describe("pierreFileTreeNavigation", () => {
     } as unknown as PierreFileTreeModel;
     const regionId = "changes-files-test-overlapping-paths";
 
-    registerPierreFileTreeNav(regionId, [{ bucket: "staged", path: "same.ts" }], stagedModel);
-    registerPierreFileTreeNav(regionId, [{ bucket: "unstaged", path: "same.ts" }], unstagedModel, {
+    registerTestTree(regionId, [{ bucket: "staged", path: "same.ts" }], stagedModel);
+    registerTestTree(regionId, [{ bucket: "unstaged", path: "same.ts" }], unstagedModel, {
       selectedPath: "same.ts",
     });
 

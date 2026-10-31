@@ -41,6 +41,8 @@ export function statusBadge(status: FileStatus): string {
 
 export function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
+  if (target.shadowRoot?.activeElement && isTypingTarget(target.shadowRoot.activeElement))
+    return true;
   if (target.isContentEditable) return true;
   const tag = target.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;

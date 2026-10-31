@@ -42,22 +42,25 @@ describe("electron workspace session persistence", () => {
     });
 
     await expect(loadWorkspaceSession()).resolves.toEqual({
-      openRepos: ["/repo/a", "/repo/b"],
-      activeRepo: "/repo/b",
-      recentRepos: ["/repo/b", "/repo/a", "/repo/c"],
+      ok: true,
+      value: {
+        openRepos: ["/repo/a", "/repo/b"],
+        activeRepo: "/repo/b",
+        recentRepos: ["/repo/b", "/repo/a", "/repo/c"],
+      },
     });
   });
 
-  test("falls back to an empty session when the file is invalid", async () => {
+  test("reports invalid saved data without silently emptying the session", async () => {
     const sessionPath = path.join(userDataPath, "workspace-session.json");
     await writeFile(sessionPath, "{not json", "utf8");
 
     const { loadWorkspaceSession } = await import("./workspaceSession");
 
-    await expect(loadWorkspaceSession()).resolves.toEqual({
-      openRepos: [],
-      activeRepo: "",
-      recentRepos: [],
+    await expect(loadWorkspaceSession()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "storage-failed" },
     });
+    expect(await readFile(sessionPath, "utf8")).toBe("{not json");
   });
 });

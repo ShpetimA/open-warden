@@ -1,4 +1,12 @@
+import { createSelector } from "@reduxjs/toolkit";
+
 import type { CommentContext, CommentItem } from "@/features/source-control/types";
+
+type CommentsStateContainer = {
+  comments: Array<CommentItem | undefined>;
+};
+
+const CHANGES_COMMENT_CONTEXT = { kind: "changes" } as const;
 
 function fileKey(repoPath: string, filePath: string): string {
   return `${repoPath}::${filePath}`;
@@ -35,6 +43,47 @@ export function createCommentCountByPathForRepo(
   }
 
   return counts;
+}
+
+export const selectChangesCommentCountByPathForRepo: (
+  state: CommentsStateContainer,
+  repoPath: string,
+) => Map<string, number> = createSelector(
+  [
+    (state: CommentsStateContainer) => state.comments,
+    (_state: CommentsStateContainer, repoPath: string) => repoPath,
+  ],
+  (comments, repoPath) =>
+    createCommentCountByPathForRepo(comments, repoPath, CHANGES_COMMENT_CONTEXT),
+);
+
+export const selectReviewCommentCountsForRepo = createSelector(
+  [
+    (state: CommentsStateContainer) => state.comments,
+    (_state: CommentsStateContainer, repoPath: string) => repoPath,
+    (_state: CommentsStateContainer, _repoPath: string, baseRef: string) => baseRef,
+    (_state: CommentsStateContainer, _repoPath: string, _baseRef: string, headRef: string) =>
+      headRef,
+  ],
+  (comments, repoPath, baseRef, headRef) =>
+    createCommentCountByPathForRepo(comments, repoPath, { kind: "review", baseRef, headRef }),
+);
+
+export function areCommentCountMapsEqual(
+  left: ReadonlyMap<string, number>,
+  right: ReadonlyMap<string, number>,
+): boolean {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const [path, count] of left) {
+    if (right.get(path) !== count) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 export function countCommentsForRepoContext(

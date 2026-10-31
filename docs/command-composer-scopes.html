@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Open Warden · Command composer scopes</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page: #f5f6f8;
+        --surface: #ffffff;
+        --soft: #f1f3f6;
+        --ink: #17202d;
+        --muted: #5d6878;
+        --line: #d8dde5;
+        --blue: #1868d6;
+        --blue-soft: #e6f0ff;
+        --shadow: 0 14px 38px #17202d12;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--page);
+        color: var(--ink);
+      }
+
+      a {
+        color: var(--blue);
+      }
+
+      .wrap {
+        width: min(1100px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      header {
+        padding: 64px 0 35px;
+      }
+
+      .eyebrow {
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 750;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 12px 0 14px;
+        font-size: clamp(34px, 5vw, 52px);
+        letter-spacing: -0.05em;
+        line-height: 1.08;
+      }
+
+      header p {
+        max-width: 730px;
+        margin: 0;
+        color: var(--muted);
+        font-size: 16px;
+        line-height: 1.55;
+      }
+
+      section {
+        margin-bottom: 44px;
+      }
+
+      h2 {
+        margin: 0 0 8px;
+        font-size: 24px;
+        letter-spacing: -0.03em;
+      }
+
+      .section-note {
+        margin: 0 0 18px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .panel,
+      .scope,
+      .rule {
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      .step-label {
+        margin: 0 0 11px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .composer-card {
+        min-height: 134px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 11px;
+        margin-bottom: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--soft);
+        text-align: center;
+      }
+
+      .composer-card.active {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .card-icon {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface);
+        color: var(--blue);
+        font-size: 20px;
+        line-height: 1;
+      }
+
+      .composer-card strong {
+        font-size: 17px;
+      }
+
+      .composer-card small {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .choice-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .choice-list li {
+        padding: 9px 10px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .choice-list li + li {
+        margin-top: 3px;
+      }
+
+      .choice-list .selected {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .choice-list .muted {
+        color: var(--muted);
+      }
+
+      .inline-path {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 7px;
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .inline-path b {
+        color: var(--ink);
+      }
+
+      .scope-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .scope {
+        padding: 22px;
+      }
+
+      .scope h3 {
+        margin: 0 0 8px;
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+
+      .scope p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .scope-row {
+        display: grid;
+        grid-template-columns: 118px minmax(0, 1fr);
+        gap: 14px;
+        padding: 11px 0;
+        border-top: 1px solid var(--line);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .scope-row strong {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .direct-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .direct-list span {
+        padding: 8px 11px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--surface);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .rule-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .rule {
+        padding: 18px;
+      }
+
+      .rule h3 {
+        margin: 0 0 7px;
+        font-size: 14px;
+      }
+
+      .rule p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      footer {
+        padding: 8px 0 48px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      @media (max-width: 800px) {
+        .flow,
+        .rule-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .scope-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page: #101318;
+          --surface: #1a1e25;
+          --soft: #232932;
+          --ink: #f1f4f8;
+          --muted: #abb5c2;
+          --line: #343b45;
+          --blue: #7aafff;
+          --blue-soft: #193357;
+          --shadow: 0 14px 38px #00000030;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <div class="eyebrow">Command composer · 37 previous root commands → 17 entries</div>
+        <h1>Choose the thing, then the action.</h1>
+        <p>
+          Put commands that act on an existing pull request, branch, stash, or tag behind that
+          object's picker. Keep short actions on the current repository directly in Cmd+K.
+        </p>
+      </header>
+
+      <main>
+        <section aria-labelledby="pr-flow-title">
+          <h2 id="pr-flow-title">The pull request flow</h2>
+          <p class="section-note">
+            The composer now lists pull requests in the current project before asking what to do
+            with the selected PR.
+          </p>
+
+          <div class="flow">
+            <div class="panel">
+              <p class="step-label">1 · Cmd+K root</p>
+              <div class="composer-card active">
+                <span class="card-icon" aria-hidden="true">⑂</span>
+                <small>Scope</small>
+                <strong>Pull requests</strong>
+              </div>
+              <ul class="choice-list">
+                <li class="selected">Pull requests</li>
+                <li>Branches</li>
+                <li>Stashes</li>
+                <li>Tags</li>
+                <li class="muted">Pull · Push · Commit · …</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <p class="step-label">2 · Select a PR in this project</p>
+              <div class="composer-card active">
+                <span class="card-icon" aria-hidden="true">#</span>
+                <small>Pull request</small>
+                <strong>Selected PR</strong>
+              </div>
+              <ul class="choice-list">
+                <li class="selected">Search and choose an existing PR</li>
+                <li>Create pull request…</li>
+              </ul>
+            </div>
+
+            <div class="panel">
+              <p class="step-label">3 · Actions for that PR</p>
+              <div class="composer-card active">
+                <span class="card-icon" aria-hidden="true">↗</span>
+                <small>Action</small>
+                <strong>Open review tab</strong>
+              </div>
+              <ul class="choice-list">
+                <li class="selected">Open review tab</li>
+                <li>Open in worktree</li>
+                <li>Copy link · Comment</li>
+                <li>Submit review · Merge</li>
+              </ul>
+            </div>
+          </div>
+
+          <p class="inline-path">
+            <b>Review decision:</b> Submit review → Comment / Approve / Request changes. The current
+            composer already supports these three decisions.
+          </p>
+        </section>
+
+        <section aria-labelledby="groups-title">
+          <h2 id="groups-title">Which commands move where</h2>
+          <p class="section-note">
+            These are commands already present in the composer. Creation commands and actions on the
+            current branch sit inside their scope without requiring another object selection.
+          </p>
+
+          <div class="scope-grid">
+            <article class="scope">
+              <h3>Pull requests</h3>
+              <p>Choose a PR first; its state and provider determine which actions are enabled.</p>
+              <div class="scope-row">
+                <strong>Selected PR</strong>
+                <span>
+                  Open review tab, Open in worktree, Copy link, Comment, Submit review, Merge.
+                </span>
+              </div>
+              <div class="scope-row">
+                <strong>New row</strong>
+                <span>Create pull request.</span>
+              </div>
+              <div class="scope-row">
+                <strong>Fold in</strong>
+                <span>Approve and Request changes become decisions inside Submit review.</span>
+              </div>
+              <div class="scope-row">
+                <strong>PR screen only</strong>
+                <span>
+                  Edit details, Draft / Ready, Update branch, Auto-merge, Close / Reopen, Revert
+                  already exist in the PR screen. They could join this selected-PR menu later,
+                  subject to provider and state.
+                </span>
+              </div>
+            </article>
+
+            <article class="scope">
+              <h3>Branches</h3>
+              <p>Choose a branch first for actions that target a different branch.</p>
+              <div class="scope-row">
+                <strong>Selected branch</strong>
+                <span>
+                  Switch, Stash &amp; switch, Merge into current, Rebase current onto selected,
+                  Delete merged local branch, Create worktree.
+                </span>
+              </div>
+              <div class="scope-row">
+                <strong>Other rows</strong>
+                <span>Create branch; Rename current branch.</span>
+              </div>
+            </article>
+
+            <article class="scope">
+              <h3>Stashes</h3>
+              <p>Choose a saved stash before deciding what to do with it.</p>
+              <div class="scope-row">
+                <strong>Selected stash</strong>
+                <span>Apply, Pop, Delete.</span>
+              </div>
+              <div class="scope-row">
+                <strong>New row</strong>
+                <span>Save stash.</span>
+              </div>
+            </article>
+
+            <article class="scope">
+              <h3>Tags</h3>
+              <p>The existing View tags list already opens the tagged commit in History.</p>
+              <div class="scope-row">
+                <strong>Selected tag</strong>
+                <span>Open tagged commit, Delete local tag.</span>
+              </div>
+              <div class="scope-row">
+                <strong>New row</strong>
+                <span>Create tag at HEAD.</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section aria-labelledby="direct-title">
+          <h2 id="direct-title">Keep these direct</h2>
+          <p class="section-note">
+            They act on the current repository or have only one useful action after selection. An
+            extra scope step would slow them down.
+          </p>
+          <div class="direct-list" aria-label="Direct commands">
+            <span>Pull</span>
+            <span>Push</span>
+            <span>Commit</span>
+            <span>Stage all</span>
+            <span>Unstage all</span>
+            <span>Stash staged</span>
+            <span>Fetch</span>
+            <span>Publish branch</span>
+            <span>View incoming commits</span>
+            <span>View outgoing commits</span>
+            <span>Open repository</span>
+            <span>Blame file</span>
+            <span>Remove worktree</span>
+          </div>
+          <p class="inline-path">
+            <b>Worktrees:</b> Create worktree follows a selected branch. Remove worktree keeps its
+            existing “choose worktree → confirm” flow; it does not need a one-action Worktrees hub.
+          </p>
+        </section>
+
+        <section aria-labelledby="rules-title">
+          <h2 id="rules-title">Behavior that makes the grouping useful</h2>
+          <div class="rule-grid">
+            <div class="rule">
+              <h3>Search stays scoped</h3>
+              <p>
+                Root search returns scopes and direct commands. It may match a child command, but
+                shows its parent scope as the result. Inside a scope, search the objects or actions
+                for that scope.
+              </p>
+            </div>
+            <div class="rule">
+              <h3>Selection is context</h3>
+              <p>
+                Launching Cmd+K from an open PR can preselect that PR and start on its actions. Back
+                returns to the PR list with the same item highlighted.
+              </p>
+            </div>
+            <div class="rule">
+              <h3>Confirm by consequence</h3>
+              <p>
+                Open review, open repository, and copy link run on selection. Merge, delete, review
+                submission, and other changes keep a final preview or confirmation.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>
+          Sources:
+          <a href="../apps/desktop/src/features/command-palette/commandComposerModel.ts">
+            Composer action model
+          </a>
+          ·
+          <a
+            href="../apps/desktop/src/features/pull-requests/components/PullRequestLifecycleSection.tsx"
+          >
+            PR lifecycle actions
+          </a>
+        </p>
+        <p>
+          This page documents the Cmd+K grouping. The PR screen actions marked “PR screen only”
+          remain in that screen.
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

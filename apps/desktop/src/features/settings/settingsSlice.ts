@@ -1,3 +1,4 @@
+import type { DesktopFailure } from "@/platform/desktop/failure";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import { createAppSettings } from "@/platform/desktop/appSettings";
@@ -5,12 +6,12 @@ import type { AppSettings, FileTreeRenderMode } from "@/platform/desktop";
 
 type SettingsState = {
   appSettings: AppSettings;
-  error: string;
+  error: DesktopFailure | null;
 };
 
 const initialState: SettingsState = {
   appSettings: createAppSettings(),
-  error: "",
+  error: null,
 };
 
 const settingsSlice = createSlice({
@@ -19,17 +20,17 @@ const settingsSlice = createSlice({
   reducers: {
     hydrateAppSettings(state, action: PayloadAction<AppSettings>) {
       state.appSettings = action.payload;
-      state.error = "";
+      state.error = null;
     },
     setFileTreeRenderMode(state, action: PayloadAction<FileTreeRenderMode>) {
       state.appSettings.sourceControl.fileTreeRenderMode = action.payload;
     },
-    setSettingsError(state, action: PayloadAction<string>) {
+    setSettingsError(state, action: PayloadAction<DesktopFailure>) {
       state.error = action.payload;
     },
     clearSettingsError(state) {
-      if (state.error !== "") {
-        state.error = "";
+      if (state.error !== null) {
+        state.error = null;
       }
     },
   },

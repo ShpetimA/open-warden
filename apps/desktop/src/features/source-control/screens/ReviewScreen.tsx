@@ -1,25 +1,16 @@
+import { FilePaneEmpty } from "@/features/source-control/components/FilePaneHeader";
+import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { ArrowRightLeft, GitCompare } from "lucide-react";
+import { ArrowRightLeft } from "lucide-react";
 import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  EmptyDescription,
-} from "@/components/ui/empty";
+import { BranchCombobox } from "../components/BranchCombobox";
+
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
+  useGetCommitDetailsQuery,
   useGetBranchesQuery,
   useGetBranchFilesQuery,
   useGetBranchFileVersionsQuery,
@@ -61,42 +52,6 @@ function firstDifferentBranch(branches: string[], current: string): string {
 const EMPTY_BRANCHES: string[] = [];
 const EMPTY_BRANCH_FILES: FileItem[] = [];
 
-type BranchSelectFieldProps = {
-  label: string;
-  value: string;
-  placeholder: string;
-  options: string[];
-  onChange: (value: string) => void;
-};
-
-function BranchSelectField({
-  label,
-  value,
-  placeholder,
-  options,
-  onChange,
-}: BranchSelectFieldProps) {
-  return (
-    <div className="min-w-0">
-      <div className="text-muted-foreground mb-1 text-[10px] font-semibold tracking-[0.12em] uppercase">
-        {label}
-      </div>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-7 w-full text-xs">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((branch) => (
-            <SelectItem key={`${label}-${branch}`} value={branch}>
-              {branch}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-}
-
 type ReviewDiffPaneProps = {
   activeRepo: string;
   reviewBaseRef: string;
@@ -135,7 +90,7 @@ function ReviewDiffPane({
       : skipToken,
   );
 
-  const reviewVersions = branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data;
+  const reviewVersions = branchFileVersionsQuery.currentData;
   const oldFile = reviewVersions?.oldFile ?? null;
   const newFile = reviewVersions?.newFile ?? null;
   const loadingPatch = !reviewVersions && branchFileVersionsQuery.isFetching;
@@ -159,7 +114,17 @@ function ReviewDiffPane({
     <section className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1">
         {errorMessage ? (
-          <div className="text-destructive p-3 text-sm">{errorMessage}</div>
+          <ErrorState
+            title="Couldn’t load this diff"
+            error={branchFileVersionsQuery.error}
+            recovery={{
+              label: "Retry",
+              onAction: () => {
+                void branchFileVersionsQuery.refetch();
+              },
+            }}
+            busy={branchFileVersionsQuery.isFetching}
+          />
         ) : loadingPatch ? (
           <div className="text-muted-foreground p-3 text-sm">Loading diff...</div>
         ) : !reviewActivePath ? (
@@ -168,7 +133,22 @@ function ReviewDiffPane({
           <div className="text-muted-foreground p-3 text-sm">No diff content.</div>
         ) : (
           <div className="flex h-full min-h-0 min-w-0 flex-col">
+            {branchFileVersionsQuery.error ? (
+              <ErrorNotice
+                title="Couldn’t refresh this comparison"
+                error={branchFileVersionsQuery.error}
+                busy={branchFileVersionsQuery.isFetching}
+                lastUpdated={branchFileVersionsQuery.fulfilledTimeStamp}
+                recovery={{
+                  label: "Retry",
+                  onAction: () => {
+                    void branchFileVersionsQuery.refetch();
+                  },
+                }}
+              />
+            ) : null}
             <DiffWorkspace
+              modeChange={reviewVersions?.modeChange}
               oldFile={oldFile}
               newFile={newFile}
               activePath={previewPath}
@@ -199,22 +179,60 @@ export function ReviewScreen() {
       activeBranch: data?.branch ?? "",
     }),
   });
-  const { branchList } = useGetBranchesQuery(activeRepo, {
+  const {
+    branchList,
+    loadingBranches,
+    fetchingBranches,
+    branchesError,
+    refetch: retryBranches,
+  } = useGetBranchesQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      branchList: data ?? EMPTY_BRANCHES,
+    selectFromResult: ({ currentData, isFetching, error }) => ({
+      branchList: currentData ?? EMPTY_BRANCHES,
+      loadingBranches: isFetching && !currentData,
+      branchesError: error,
+      fetchingBranches: isFetching,
     }),
   });
-  const readyForDiff = Boolean(activeRepo && reviewBaseRef && reviewHeadRef);
+  const baseRevision = useGetCommitDetailsQuery(
+    activeRepo && reviewBaseRef ? { repoPath: activeRepo, commitId: reviewBaseRef } : skipToken,
+    {
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        id: currentData?.commitId ?? "",
+        error,
+        isFetching,
+      }),
+    },
+  );
+  const headRevision = useGetCommitDetailsQuery(
+    activeRepo && reviewHeadRef ? { repoPath: activeRepo, commitId: reviewHeadRef } : skipToken,
+    {
+      selectFromResult: ({ currentData, error, isFetching }) => ({
+        id: currentData?.commitId ?? "",
+        error,
+        isFetching,
+      }),
+    },
+  );
+  const readyForDiff = Boolean(activeRepo && baseRevision.id && headRevision.id);
+  const revisionError = baseRevision.error ?? headRevision.error;
 
-  const { branchFiles, hasBranchFilesData } = useGetBranchFilesQuery(
+  const {
+    branchFiles,
+    hasBranchFilesData,
+    loadingBranchFiles,
+    branchFilesError,
+    refetch: retryComparedFiles,
+  } = useGetBranchFilesQuery(
     readyForDiff
-      ? { repoPath: activeRepo, baseRef: reviewBaseRef, headRef: reviewHeadRef }
+      ? { repoPath: activeRepo, baseRef: baseRevision.id, headRef: headRevision.id }
       : skipToken,
     {
-      selectFromResult: ({ data }) => ({
-        branchFiles: data ?? EMPTY_BRANCH_FILES,
-        hasBranchFilesData: Boolean(data),
+      selectFromResult: ({ currentData, isFetching, error }) => ({
+        branchFiles: currentData ?? EMPTY_BRANCH_FILES,
+        hasBranchFilesData: Boolean(currentData),
+        loadingBranchFiles: isFetching,
+        branchFilesError: error,
       }),
     },
   );
@@ -225,6 +243,7 @@ export function ReviewScreen() {
       return;
     }
     if (branchList.length === 0) {
+      if (loadingBranches || branchesError) return;
       if (reviewBaseRef) dispatch(setReviewBaseRef(""));
       if (reviewHeadRef) dispatch(setReviewHeadRef(""));
       dispatch(clearReviewSelection());
@@ -246,7 +265,16 @@ export function ReviewScreen() {
     if (nextHead !== reviewHeadRef) {
       dispatch(setReviewHeadRef(nextHead));
     }
-  }, [activeBranch, activeRepo, branchList, dispatch, reviewBaseRef, reviewHeadRef]);
+  }, [
+    activeBranch,
+    activeRepo,
+    branchList,
+    branchesError,
+    loadingBranches,
+    dispatch,
+    reviewBaseRef,
+    reviewHeadRef,
+  ]);
 
   return (
     <ResizableSidebarLayout
@@ -262,10 +290,9 @@ export function ReviewScreen() {
             </div>
             <div className="border-input bg-surface mt-2 rounded-md border p-2">
               <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-1.5">
-                <BranchSelectField
+                <BranchCombobox
                   label="Base"
                   value={reviewBaseRef}
-                  placeholder="Base ref"
                   options={branchList}
                   onChange={(value) => {
                     dispatch(setReviewBaseRef(value));
@@ -290,10 +317,9 @@ export function ReviewScreen() {
                   <ArrowRightLeft className="h-3.5 w-3.5" />
                 </Button>
 
-                <BranchSelectField
+                <BranchCombobox
                   label="Compare"
                   value={reviewHeadRef}
-                  placeholder="Compare ref"
                   options={branchList}
                   onChange={(value) => {
                     dispatch(setReviewHeadRef(value));
@@ -312,41 +338,38 @@ export function ReviewScreen() {
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <ReviewFileList
-              title="BRANCH REVIEW"
+              title="Compared files"
               subtitle={undefined}
               branchFiles={branchFiles}
+              hasData={hasBranchFilesData}
+              isLoading={
+                fetchingBranches ||
+                loadingBranchFiles ||
+                baseRevision.isFetching ||
+                headRevision.isFetching
+              }
+              error={branchesError || branchFilesError || revisionError}
+              onRetry={() => {
+                if (revisionError) {
+                  void baseRevision.refetch();
+                  void headRevision.refetch();
+                } else void (branchesError ? retryBranches() : retryComparedFiles());
+              }}
               activeRepo={activeRepo}
-              reviewBaseRef={reviewBaseRef}
-              reviewHeadRef={reviewHeadRef}
+              reviewBaseRef={baseRevision.id}
+              reviewHeadRef={headRevision.id}
               paneClassName="border-0 bg-transparent"
-              headerClassName="hidden"
-              bodyClassName="space-y-0.5 p-0.5"
-              scrollAreaClassName="min-h-0 flex-1 overflow-hidden"
               emptyState={
                 !reviewBaseRef || !reviewHeadRef ? (
-                  <Empty className="h-auto border-0 p-4">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <GitCompare className="h-5 w-5" />
-                      </EmptyMedia>
-                      <EmptyTitle>Select branches</EmptyTitle>
-                      <EmptyDescription>
-                        Select both base and compare branches to start review.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+                  <FilePaneEmpty
+                    title="Select branches"
+                    description="Select both base and compare branches to start review."
+                  />
                 ) : (
-                  <Empty className="h-auto border-0 p-4">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <GitCompare className="h-5 w-5" />
-                      </EmptyMedia>
-                      <EmptyTitle>No changes</EmptyTitle>
-                      <EmptyDescription>
-                        No changed files between the selected branches.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+                  <FilePaneEmpty
+                    title="No changes"
+                    description="No changed files between the selected branches."
+                  />
                 )
               }
             />
@@ -356,8 +379,8 @@ export function ReviewScreen() {
       content={
         <ReviewDiffPane
           activeRepo={activeRepo}
-          reviewBaseRef={reviewBaseRef}
-          reviewHeadRef={reviewHeadRef}
+          reviewBaseRef={baseRevision.id}
+          reviewHeadRef={headRevision.id}
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
         />

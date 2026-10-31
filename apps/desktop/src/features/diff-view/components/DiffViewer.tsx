@@ -1,3 +1,4 @@
+import { ErrorState } from "@/components/ui/error-state";
 import {
   forwardRef,
   useCallback,
@@ -33,6 +34,7 @@ import {
   getDiffThemeType,
 } from "@/features/diff-view/diffRenderConfig";
 import { useParsedDiff } from "@/features/diff-view/hooks/useParsedDiff";
+import { getDiffFileIdentity } from "@/features/diff-view/services/diffFileIdentity";
 import { MAX_DIFF_LINE_LENGTH } from "@/features/diff-view/services/diffRenderLimits";
 import { useDiffLineFocus, DIFF_LINE_FOCUS_CSS } from "@/features/source-control/diffLineFocus";
 import {
@@ -49,7 +51,7 @@ export type DiffViewerProps = {
   oldFile: DiffFile | null;
   newFile: DiffFile | null;
   activePath: string;
-  options?: Partial<FileDiffOptions<DiffAnnotationItem>>;
+  options?: Partial<FileDiffOptions<DiffAnnotationItem, undefined>>;
   lineAnnotations?: DiffLineAnnotation<DiffAnnotationItem>[];
   renderAnnotation?: (annotation: { metadata?: DiffAnnotationItem }) => React.ReactNode;
   renderHeaderMetadata?: (controls: {
@@ -57,6 +59,7 @@ export type DiffViewerProps = {
     onToggleExpandUnchanged: () => void;
   }) => React.ReactNode;
   selectedLines?: SelectionRange | null;
+  defaultExpandUnchanged?: boolean;
   focusedLineNumber?: number | null;
   focusedLineIndex?: string | null;
   focusedLineKey?: number | string | null;
@@ -64,6 +67,10 @@ export type DiffViewerProps = {
   onHunkAction?: (operation: DiffHunkOperation, payload: DiffHunkActionPayload) => void;
   children?: React.ReactNode;
 };
+
+const EMPTY_OPTIONS: Partial<FileDiffOptions<DiffAnnotationItem, undefined>> = {};
+const EMPTY_LINE_ANNOTATIONS: DiffLineAnnotation<DiffAnnotationItem>[] = [];
+const EMPTY_HUNK_OPERATIONS: DiffHunkOperation[] = [];
 
 const STICKY_HEADER_CSS = `
 :host {
@@ -129,6 +136,11 @@ pre[data-diff-type='single'] {
   border-radius: 999px;
 }
 
+[data-utility-button]:hover {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
 [data-hunk-operation-button] {
   display: inline-flex;
   align-items: center;
@@ -171,15 +183,16 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     oldFile,
     newFile,
     activePath,
-    options = {},
-    lineAnnotations = [],
+    options = EMPTY_OPTIONS,
+    lineAnnotations = EMPTY_LINE_ANNOTATIONS,
     renderAnnotation,
     renderHeaderMetadata,
     selectedLines,
+    defaultExpandUnchanged = false,
     focusedLineNumber = null,
     focusedLineIndex = null,
     focusedLineKey = null,
-    hunkOperations = [],
+    hunkOperations = EMPTY_HUNK_OPERATIONS,
     onHunkAction,
     children,
   },
@@ -196,8 +209,8 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     getViewportElement: () => viewportRef.current,
   }));
 
-  const [expandUnchanged, setExpandUnchanged] = useState(false);
-  const activeDiffIdentity = `${activePath}:${diffFileIdentity(oldFile)}:${diffFileIdentity(newFile)}:${expandUnchanged ? "expanded" : "collapsed"}`;
+  const [expandUnchanged, setExpandUnchanged] = useState(defaultExpandUnchanged);
+  const activeDiffIdentity = `${activePath}:${getDiffFileIdentity(oldFile)}:${getDiffFileIdentity(newFile)}:${expandUnchanged ? "expanded" : "collapsed"}`;
   const [forceShowLargeDiffIdentity, setForceShowLargeDiffIdentity] = useState<string | null>(null);
   const forceShowLargeDiff = forceShowLargeDiffIdentity === activeDiffIdentity;
 
@@ -205,13 +218,14 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     setExpandUnchanged((prev) => !prev);
   }, []);
 
-  const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
-    activePath,
-    oldFile,
-    newFile,
-    cacheSalt: diffThemeCacheSalt,
-    allowLargeDiff: forceShowLargeDiff,
-  });
+  const { currentFileDiff, diffRenderGate, isParsingDiff, parseError, retryParsing } =
+    useParsedDiff({
+      activePath,
+      oldFile,
+      newFile,
+      cacheSalt: diffThemeCacheSalt,
+      allowLargeDiff: forceShowLargeDiff,
+    });
 
   useDiffLineFocus({
     containerRef: viewportRef,
@@ -221,7 +235,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
     enabled: Boolean(currentFileDiff),
   });
 
-  const mergedOptions = useMemo<FileDiffOptions<DiffAnnotationItem>>(
+  const mergedOptions = useMemo<FileDiffOptions<DiffAnnotationItem, undefined>>(
     () => ({
       diffStyle,
       theme: diffTheme,
@@ -250,6 +264,10 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
 
   const hunkActionAnnotations = useMemo<DiffLineAnnotation<DiffAnnotationItem>[]>(() => {
     if (!currentFileDiff || hunkOperations.length === 0 || !onHunkAction) return [];
+    const source = {
+      oldContents: oldFile?.contents ?? null,
+      newContents: newFile?.contents ?? null,
+    };
 
     return currentFileDiff.hunks.map((hunk, hunkIndex) => {
       let additionOffset = 0;
@@ -272,6 +290,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
           firstChangedLine > hunkStartLine ? firstChangedLine - 1 : firstChangedLine;
         const metadata: DiffHunkActionAnnotation = {
           type: "hunk-action",
+          source,
           operations: hunkOperations,
           fileDiff: currentFileDiff,
           hunkIndex,
@@ -283,6 +302,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
 
       const metadata: DiffHunkActionAnnotation = {
         type: "hunk-action",
+        source,
         operations: hunkOperations,
         fileDiff: currentFileDiff,
         hunkIndex,
@@ -290,7 +310,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
       };
       return { side: "additions", lineNumber: hunk.additionStart, metadata };
     });
-  }, [currentFileDiff, hunkOperations, onHunkAction]);
+  }, [currentFileDiff, hunkOperations, onHunkAction, oldFile, newFile]);
 
   const mergedLineAnnotations = useMemo(
     () => [...hunkActionAnnotations, ...lineAnnotations],
@@ -348,6 +368,12 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
         renderUnrenderableDiffWarning()
       ) : diffRenderGate === "large" && !forceShowLargeDiff ? (
         renderLargeDiffWarning()
+      ) : parseError ? (
+        <ErrorState
+          title="Couldn’t render this diff"
+          error={parseError}
+          recovery={{ label: "Retry", onAction: retryParsing }}
+        />
       ) : isParsingDiff ? (
         <div className="text-muted-foreground p-3 text-xs">Parsing diff...</div>
       ) : (
@@ -395,22 +421,6 @@ type DiffScrollbarMarker = {
 
 function clampPercent(value: number) {
   return Math.min(100, Math.max(0, value));
-}
-
-function hashDiffContents(value: string) {
-  let hash = 0x811c9dc5;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return (hash >>> 0).toString(36);
-}
-
-function diffFileIdentity(file: DiffFile | null) {
-  if (!file) return "missing";
-  return `${file.name}:${file.contents.length}:${hashDiffContents(file.contents)}`;
 }
 
 function getDiffTotalLines(fileDiff: FileDiffMetadata, diffStyle: "unified" | "split") {

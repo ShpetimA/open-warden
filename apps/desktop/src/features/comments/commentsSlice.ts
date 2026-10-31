@@ -10,6 +10,10 @@ const commentsSlice = createSlice({
   name: "comments",
   initialState,
   reducers: {
+    restoreComments(state, action: PayloadAction<CommentItem[]>) {
+      const existing = new Set(state.map((comment) => comment.id));
+      state.push(...action.payload.filter((comment) => !existing.has(comment.id)));
+    },
     addComment(state, action: PayloadAction<CommentItem>) {
       state.push(action.payload);
     },
@@ -34,6 +38,7 @@ const commentsSlice = createSlice({
 });
 
 export const {
+  restoreComments,
   addComment,
   removeComment,
   removeCommentsByIds,

@@ -54,7 +54,6 @@ function createState(overrides: Partial<RootState["sourceControl"]>): RootState 
     },
     pullRequests: {
       currentReview: null,
-      activeReviewTab: "files",
       filesViewMode: "review",
       activeConversationThreadId: null,
       fileJumpTarget: null,

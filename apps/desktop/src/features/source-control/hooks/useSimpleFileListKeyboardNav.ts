@@ -2,10 +2,7 @@ import { useStore } from "react-redux";
 
 import { useAppDispatch } from "@/app/hooks";
 import type { RootState } from "@/app/store";
-import {
-  movePierreFileTreeFocus,
-  movePierreFileTreeFocusFile,
-} from "@/features/source-control/pierreFileTreeNavigation";
+import { movePierreFileTreeFileForKey } from "@/features/source-control/pierreFileTreeNavigation";
 import { setSymbolPeekActiveIndex } from "@/features/source-control/sourceControlSlice";
 import { isTypingTarget } from "@/features/source-control/utils";
 import { useVerticalNavigationHotkeys } from "./keyboardNavigation";
@@ -13,8 +10,6 @@ import { getNextSymbolPeekIndex } from "./symbolPeekNavigation";
 
 type UseSimpleFileListKeyboardNavOptions = {
   regionId: string;
-  getAllFilePaths: (state: RootState) => string[];
-  getActivePath: (state: RootState) => string;
   onSelectPath: (path: string) => void;
   enabled?: (state: RootState) => boolean;
   includeSymbolPeek?: boolean;
@@ -55,12 +50,7 @@ export function useSimpleFileListKeyboardNav({
 
     event.preventDefault();
 
-    if (state.settings.appSettings.sourceControl.fileTreeRenderMode === "tree") {
-      movePierreFileTreeFocus(regionId, nextKey);
-      return;
-    }
-
-    const targetFile = movePierreFileTreeFocusFile(regionId, nextKey);
+    const targetFile = movePierreFileTreeFileForKey(regionId, event.key, nextKey);
     if (!targetFile) {
       return;
     }

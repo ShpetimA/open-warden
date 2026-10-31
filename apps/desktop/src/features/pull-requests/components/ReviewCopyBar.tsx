@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useGetPullRequestConversationQuery } from "@/features/hosted-repos/api";
 import { usePullRequestPendingReviewActions } from "@/features/pull-requests/hooks/usePullRequestPendingReviewActions";
 import { buildPullRequestReviewCommentsPayload } from "@/features/pull-requests/utils/reviewCommentsPayload";
+import { PullRequestReviewControl } from "./PullRequestReviewControl";
 import { isTypingTarget } from "@/features/source-control/utils";
 
 type ReviewCommentsCopyToolbarProps = {
@@ -17,6 +18,7 @@ type ReviewCommentsCopyToolbarProps = {
   compareHeadRef: string;
   activePath: string;
   activePreviousPath?: string;
+  showCommentActions?: boolean;
 };
 
 function joinReviewCommentPayloads(...payloads: string[]) {
@@ -30,6 +32,7 @@ function ReviewCommentsCopyToolbar({
   compareHeadRef,
   activePath,
   activePreviousPath,
+  showCommentActions = true,
 }: ReviewCommentsCopyToolbarProps) {
   const pendingActions = usePullRequestPendingReviewActions({
     repoPath,
@@ -40,12 +43,9 @@ function ReviewCommentsCopyToolbar({
   const conversationQueryArg =
     repoPath && pullRequestNumber > 0 ? { repoPath, pullRequestNumber } : skipToken;
   const { reviewThreads } = useGetPullRequestConversationQuery(conversationQueryArg, {
-    selectFromResult: ({ data }) => ({
+    selectFromResult: ({ currentData: data }) => ({
       reviewThreads: data?.reviewThreads ?? [],
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
   });
 
   const filePendingPayload = activePath ? pendingActions.getPendingPayloadForFile(activePath) : "";
@@ -54,12 +54,14 @@ function ReviewCommentsCopyToolbar({
     : 0;
   const filePublishedPayload = activePath
     ? buildPullRequestReviewCommentsPayload({
-        reviewThreads,
+        reviewThreads: pendingActions.publishingPaused ? [] : reviewThreads,
         path: activePath,
         previousPath: activePreviousPath,
       })
     : "";
-  const allPublishedPayload = buildPullRequestReviewCommentsPayload({ reviewThreads });
+  const allPublishedPayload = buildPullRequestReviewCommentsPayload({
+    reviewThreads: pendingActions.publishingPaused ? [] : reviewThreads,
+  });
   const filePayload = joinReviewCommentPayloads(filePublishedPayload, filePendingPayload);
   const allPayload = joinReviewCommentPayloads(
     allPublishedPayload,
@@ -93,7 +95,7 @@ function ReviewCommentsCopyToolbar({
       void copyReviewCommentsPayload(allPayload, "Copied all review comments");
     },
     {
-      enabled: hasAnyReviewComments,
+      enabled: showCommentActions && hasAnyReviewComments,
     },
   );
 
@@ -108,72 +110,81 @@ function ReviewCommentsCopyToolbar({
       void copyReviewCommentsPayload(filePayload, "Copied file review comments");
     },
     {
-      enabled: hasFileReviewComments,
+      enabled: showCommentActions && hasFileReviewComments,
     },
   );
 
+  const showComments = showCommentActions && hasAnyReviewComments;
+
   return (
-    <div className="border-border/70 bg-surface-toolbar flex items-center justify-between gap-2 border-b px-2 py-1">
-      <div className="text-muted-foreground min-w-0 text-xs">
-        {totalPendingCommentCount > 0
-          ? `${totalPendingCommentCount} pending comment${totalPendingCommentCount === 1 ? "" : "s"}${filePendingCommentCount > 0 ? ` · ${filePendingCommentCount} in this file` : ""}`
-          : "No pending inline comments"}
-      </div>
-      <div className="flex items-center gap-1">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="xs"
-                disabled={
-                  totalPendingCommentCount === 0 || pendingActions.isSubmittingReviewComments
-                }
-                onClick={() => {
-                  void pendingActions.publishAllPendingDrafts();
-                }}
-                aria-label="Publish all pending review comments"
-              >
-                <MessageSquarePlus />
-                Publish all
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Publish all pending inline comments</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="xs"
-                variant="ghost"
-                disabled={!hasFileReviewComments}
-                onClick={() => {
-                  void copyReviewCommentsPayload(filePayload, "Copied file review comments");
-                }}
-                aria-label="Copy file review comments"
-              >
-                <Copy />
-                File
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Copy file review comments</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="xs"
-                variant="ghost"
-                disabled={!hasAnyReviewComments}
-                onClick={() => {
-                  void copyReviewCommentsPayload(allPayload, "Copied all review comments");
-                }}
-                aria-label="Copy all review comments"
-              >
-                <Copy />
-                All
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">Copy all review comments (⌘⌥C)</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+    <div className="border-border/70 bg-surface-toolbar flex flex-wrap items-center justify-between gap-2 border-b px-2 py-1">
+      {showComments ? (
+        <div className="text-muted-foreground min-w-0 text-xs">
+          {totalPendingCommentCount > 0
+            ? `${totalPendingCommentCount} pending comment${totalPendingCommentCount === 1 ? "" : "s"}${filePendingCommentCount > 0 ? ` · ${filePendingCommentCount} in this file` : ""}`
+            : "Review comments"}
+        </div>
+      ) : null}
+      <div className="ml-auto flex flex-wrap items-center gap-1">
+        {showComments ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="xs"
+                  disabled={
+                    totalPendingCommentCount === 0 ||
+                    pendingActions.isSubmittingReviewComments ||
+                    pendingActions.publishingPaused
+                  }
+                  onClick={() => {
+                    void pendingActions.publishAllPendingDrafts();
+                  }}
+                  aria-label="Publish all pending review comments"
+                >
+                  <MessageSquarePlus />
+                  Publish all
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Publish all pending inline comments</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={!hasFileReviewComments}
+                  onClick={() => {
+                    void copyReviewCommentsPayload(filePayload, "Copied file review comments");
+                  }}
+                  aria-label="Copy file review comments"
+                >
+                  <Copy />
+                  File
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy file review comments</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  disabled={!hasAnyReviewComments}
+                  onClick={() => {
+                    void copyReviewCommentsPayload(allPayload, "Copied all review comments");
+                  }}
+                  aria-label="Copy all review comments"
+                >
+                  <Copy />
+                  All
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Copy all review comments (⌘⌥C)</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
+        <PullRequestReviewControl repoPath={repoPath} pullRequestNumber={pullRequestNumber} />
       </div>
     </div>
   );

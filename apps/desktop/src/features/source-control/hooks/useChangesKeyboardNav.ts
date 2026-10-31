@@ -17,12 +17,12 @@ import {
   getPierreFileTreeFocusedSelectedFile,
   getPierreFileTreeFocusedPath,
   getPierreFileTreeVisibleSelectedFiles,
-  movePierreFileTreeFocus,
-  movePierreFileTreeFocusFile,
+  movePierreFileTreeFileForKey,
+  movePierreFileTreeHierarchy,
   scrollPierreFileTreeBucketedFileIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
 import { getUnifiedChangeDirectoryContext } from "@/features/source-control/components/changesUnifiedPierreTree";
-import type { Bucket, BucketedFile, FileItem, SelectedFile } from "@/features/source-control/types";
+import type { Bucket, BucketedFile, FileItem } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
 import {
   openFileViewer,
@@ -85,15 +85,16 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     event.preventDefault();
 
-    const { activeBucket, activePath, activeRepo, collapseStaged, collapseUnstaged, snapshot } =
-      getNavigationData();
+    const { activeBucket, activePath, activeRepo } = getNavigationData();
 
     if (mode === "files") {
       if (!activeRepo) {
         return;
       }
 
-      const targetFile = movePierreFileTreeFocusFile("repo-files", nextKey);
+      const targetFile = movePierreFileTreeFileForKey("repo-files", event.key, nextKey, {
+        includeDirectories: true,
+      });
       const targetPath = targetFile?.realPath ?? targetFile?.path;
       if (!targetPath) {
         return;
@@ -109,46 +110,13 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
       return;
     }
 
-    const unstaged = snapshot?.unstaged ?? [];
-    const staged = snapshot?.staged ?? [];
-    const untracked = snapshot?.untracked ?? [];
-    const conflictRows: BucketedFile[] = unstaged
-      .filter((file) => file.status === "unmerged")
-      .map((file) => toBucketedFile(file, "unstaged"));
-    const stagedRows: BucketedFile[] = staged
-      .filter((file) => file.status !== "unmerged")
-      .map((file) => toBucketedFile(file, "staged"));
-    const changedRows: BucketedFile[] = [
-      ...unstaged
-        .filter((file) => file.status !== "unmerged")
-        .map((file) => toBucketedFile(file, "unstaged")),
-      ...untracked.map((file) => toBucketedFile(file, "untracked")),
-    ];
-
     if (!extendSelection) {
-      const targetPath = movePierreFileTreeFocus("changes-files", nextKey);
-      if (!targetPath) {
-        return;
-      }
-
-      const focusedFile = getPierreFileTreeFocusedSelectedFile("changes-files");
-      if (focusedFile) {
-        void dispatch(selectFile(focusedFile.bucket, focusedFile.path));
-      }
+      const file = movePierreFileTreeFileForKey("changes-files", event.key, nextKey);
+      if (file?.bucket) void dispatch(selectFile(file.bucket, file.realPath ?? file.path));
       return;
     }
 
-    const visibleTreeRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
-    const visibleChangeRows =
-      visibleTreeRows.length > 0
-        ? visibleTreeRows
-        : (() => {
-            const fallbackRows: BucketedFile[] = [];
-            if (!collapseStaged) fallbackRows.push(...stagedRows);
-            if (!collapseUnstaged) fallbackRows.push(...changedRows);
-            fallbackRows.push(...conflictRows);
-            return fallbackRows;
-          })();
+    const visibleChangeRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
 
     if (visibleChangeRows.length === 0) return;
 
@@ -175,35 +143,9 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
     return;
   };
 
-  const focusNextFileAfterStageOrUnstage = (
-    currentFile: SelectedFile | null,
-    movedCandidates: SelectedFile[],
-  ) => {
-    if (!currentFile || movedCandidates.length === 0) return;
-
-    const visibleRows = getPierreFileTreeVisibleSelectedFiles("changes-files");
-    const currentIndex = visibleRows.findIndex(
-      (file) => file.bucket === currentFile.bucket && file.path === currentFile.path,
-    );
-    if (currentIndex < 0 || currentIndex >= visibleRows.length - 1) return;
-
-    const movedCandidateKeys = new Set(
-      movedCandidates.map((file) => `${file.bucket}\u0000${file.path}`),
-    );
-    const targetFile = visibleRows.slice(currentIndex + 1).find((file) => {
-      if (movedCandidateKeys.has(`${file.bucket}\u0000${file.path}`)) return false;
-      return currentFile.bucket === "staged" ? file.bucket === "staged" : file.bucket !== "staged";
-    });
-    if (!targetFile) return;
-
-    scrollPierreFileTreeBucketedFileIntoView("changes-files", targetFile.bucket, targetFile.path);
-    void dispatch(selectFile(targetFile.bucket, targetFile.path));
-  };
-
   const stageOrUnstageSelection = (event: KeyboardEvent) => {
     if (isTypingTarget(event.target)) return;
-    const { activeBucket, activePath, runningAction, selectedFiles, snapshot } =
-      getNavigationData();
+    const { runningAction, snapshot } = getNavigationData();
     if (mode !== "changes") return;
     if (runningAction) return;
 
@@ -241,13 +183,7 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
     event.preventDefault();
 
-    const candidates = selectedFiles.length
-      ? selectedFiles
-      : activePath
-        ? [{ bucket: activeBucket, path: activePath }]
-        : [];
     void dispatch(stageOrUnstageSelectionAction());
-    focusNextFileAfterStageOrUnstage(focusedFile ?? candidates[0] ?? null, candidates);
   };
 
   const discardSelection = async (event: KeyboardEvent) => {
@@ -303,4 +239,22 @@ export function useChangesKeyboardNav(mode: "changes" | "files") {
 
   useHotkey("Mod+Enter", stageOrUnstageSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
   useHotkey("Mod+Escape", discardSelection, SOURCE_CONTROL_HOTKEY_OPTIONS);
+
+  function navigateHierarchy(event: KeyboardEvent, direction: "ArrowLeft" | "ArrowRight") {
+    if (mode !== "files" || isTypingTarget(event.target)) return;
+    const repoPath = store.getState().sourceControl.activeRepo;
+    if (!repoPath) return;
+    event.preventDefault();
+    const file = movePierreFileTreeHierarchy("repo-files", direction);
+    if (file) dispatch(openFileViewer({ repoPath, relPath: file.realPath ?? file.path }));
+  }
+
+  useHotkey("H", (event) => navigateHierarchy(event, "ArrowLeft"), {
+    ...SOURCE_CONTROL_HOTKEY_OPTIONS,
+    enabled: mode === "files",
+  });
+  useHotkey("L", (event) => navigateHierarchy(event, "ArrowRight"), {
+    ...SOURCE_CONTROL_HOTKEY_OPTIONS,
+    enabled: mode === "files",
+  });
 }

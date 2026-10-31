@@ -1,97 +1,239 @@
-import { useEffect, useState } from "react";
-import { ExternalLink, FileJson, Settings2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router";
 
-import { useAppSelector } from "@/app/hooks";
+import { ThemeSwitcher } from "@/app/ThemeSwitcher";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { ActionError } from "@/components/ui/error-state";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GuidanceConnectionSettings } from "@/features/guidance/GuidanceConnectionSettings";
+import { restoreAppSettings, updateFileTreeRenderMode } from "@/features/settings/actions";
 import { SourceControlFileViewToggle } from "@/features/source-control/components/SourceControlFileViewToggle";
+import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
+import { workspacePath } from "@/features/workspaces/workspaceRoutes";
 import { desktop } from "@/platform/desktop";
+import type { DesktopFailure, DesktopResult } from "@/platform/desktop/failure";
+import { KeyboardShortcuts } from "../components/KeyboardShortcuts";
+
+const sections = [
+  { id: "preferences", label: "Preferences" },
+  { id: "shortcuts", label: "Shortcuts" },
+  { id: "integrations", label: "Integrations" },
+  { id: "advanced", label: "Advanced" },
+] as const;
+
+type Section = (typeof sections)[number]["id"];
+
+function SettingsPage({
+  content,
+  notice,
+  onBack,
+}: {
+  content: Readonly<Record<Section, ReactNode>>;
+  notice?: ReactNode;
+  onBack: () => void;
+}) {
+  const [section, setSection] = useState<Section>("preferences");
+
+  return (
+    <div className="h-full overflow-auto">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 py-4">
+        <header className="flex items-center gap-2">
+          <Button variant="ghost" size="icon-sm" aria-label="Back to workspace" onClick={onBack}>
+            <ArrowLeft />
+          </Button>
+          <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+        </header>
+        {notice}
+        <Tabs
+          value={section}
+          onValueChange={(value) => {
+            const next = sections.find((item) => item.id === value);
+
+            if (next) setSection(next.id);
+          }}
+          className="gap-4"
+        >
+          <TabsList aria-label="Settings sections" className="bg-surface-toolbar">
+            {sections.map((item) => (
+              <TabsTrigger key={item.id} value={item.id}>
+                {item.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {sections.map((item) => (
+            <TabsContent key={item.id} value={item.id}>
+              {section === item.id ? content[item.id] : null}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+    </div>
+  );
+}
+
+function SettingsPreferences({
+  themeControl,
+  fileLayoutControl,
+}: {
+  themeControl: ReactNode;
+  fileLayoutControl: ReactNode;
+}) {
+  return (
+    <section
+      aria-label="Preferences"
+      className="border-border/70 bg-surface-toolbar divide-border/70 divide-y rounded-md border"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-sm font-medium">Theme</h2>
+          <p className="text-muted-foreground text-xs">Light, dark, or follow your system.</p>
+        </div>
+        {themeControl}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+        <div className="min-w-0 space-y-1">
+          <h2 className="text-sm font-medium">File layout</h2>
+          <p className="text-muted-foreground text-xs">Use folders or a flat list in file panes.</p>
+        </div>
+        {fileLayoutControl}
+      </div>
+    </section>
+  );
+}
 
 export function SettingsScreen() {
+  const navigate = useNavigate();
+  const workspace = useAppSelector(selectActiveWorkspace);
+  const savedPath = useAppSelector((state) =>
+    workspace ? state.workspaces.locations[workspace.id] : undefined,
+  );
+
+  return (
+    <SettingsPage
+      onBack={() => navigate(savedPath ?? (workspace ? workspacePath(workspace) : "/changes"))}
+      notice={<PreferencesFailure />}
+      content={{
+        preferences: (
+          <SettingsPreferences
+            themeControl={<ThemeSwitcher />}
+            fileLayoutControl={<SourceControlFileViewToggle />}
+          />
+        ),
+        shortcuts: <KeyboardShortcuts />,
+        integrations: <GuidanceConnectionSettings />,
+        advanced: <SettingsFile />,
+      }}
+    />
+  );
+}
+
+function PreferencesFailure() {
+  const dispatch = useAppDispatch();
   const error = useAppSelector((state) => state.settings.error);
-  const [settingsPath, setSettingsPath] = useState("");
+  const mode = useAppSelector(
+    (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
+  );
+
+  if (!error) return null;
+
+  return (
+    <ActionError
+      title="Preferences couldn’t be saved or loaded"
+      error={error}
+      recovery={{
+        label: "Retry",
+        onAction: () => {
+          if (error.operation === "saveAppSettings") void dispatch(updateFileTreeRenderMode(mode));
+          else void dispatch(restoreAppSettings());
+        },
+      }}
+    />
+  );
+}
+
+function SettingsFile() {
+  const [pathResult, setPathResult] = useState<DesktopResult<string> | null>(null);
+  const [openError, setOpenError] = useState<DesktopFailure | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    void desktop
-      .getAppSettingsPath()
-      .then((path) => {
-        if (!cancelled) {
-          setSettingsPath(path);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSettingsPath("");
-        }
-      });
+    void desktop.getAppSettingsPath().then((result) => {
+      if (!cancelled) setPathResult(result);
+    });
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  async function findPath() {
+    setBusy(true);
+
+    setPathResult(await desktop.getAppSettingsPath());
+
+    setBusy(false);
+  }
+
+  async function openFile() {
+    if (!pathResult?.ok || busy) return;
+
+    setBusy(true);
+    setOpenError(null);
+
+    const result = await desktop.openPath(pathResult.value);
+
+    if (!result.ok) setOpenError(result.error);
+
+    setBusy(false);
+  }
+
   return (
-    <div className="h-full overflow-auto">
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8">
-        <div className="space-y-2">
-          <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-surface-alt">
-            <Settings2 className="h-5 w-5" />
-          </div>
-          <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-[-0.03em]">Settings</h1>
-            <p className="text-muted-foreground max-w-2xl text-sm leading-6">
-              Global preferences are stored in a JSON file and stay in sync with the app while it is
-              open.
-            </p>
-          </div>
-        </div>
-
-        <section className="border-border/70 bg-surface-toolbar rounded-2xl border">
-          <div className="border-border/70 flex items-start justify-between gap-4 border-b px-5 py-4">
-            <div className="space-y-1">
-              <div className="text-sm font-medium">File Tree Views</div>
-              <p className="text-muted-foreground text-sm leading-6">
-                Choose the default render mode used across changes, history, review, and repository
-                file trees.
-              </p>
-            </div>
-            <SourceControlFileViewToggle />
-          </div>
-
-          <div className="flex items-start gap-3 px-5 py-4">
-            <div className="bg-background text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/8">
-              <FileJson className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="text-sm font-medium">Settings file</div>
-              <p className="text-muted-foreground text-sm leading-6">
-                Editing the JSON file updates the UI live. UI changes write back to the same file.
-              </p>
-              {settingsPath ? (
-                <p className="text-muted-foreground truncate font-mono text-xs">{settingsPath}</p>
-              ) : null}
-              {error ? <p className="text-destructive text-sm">{error}</p> : null}
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="shrink-0"
-              disabled={!settingsPath}
-              onClick={() => {
-                if (!settingsPath) {
-                  return;
-                }
-
-                void desktop.openPath(settingsPath);
-              }}
-            >
-              <ExternalLink className="h-4 w-4" />
-              Open JSON
-            </Button>
-          </div>
-        </section>
+    <section
+      aria-labelledby="settings-file-title"
+      className="border-border/70 bg-surface-toolbar space-y-3 rounded-md border p-4"
+    >
+      <div className="space-y-1">
+        <h2 id="settings-file-title" className="text-sm font-medium">
+          Settings file
+        </h2>
+        <p className="text-muted-foreground text-xs">
+          Edit preferences that are not available in this screen.
+        </p>
       </div>
-    </div>
+      {!pathResult ? (
+        <p role="status" className="text-muted-foreground text-xs">
+          Finding settings file…
+        </p>
+      ) : null}
+      {pathResult?.ok ? (
+        <>
+          <p className="text-muted-foreground break-all font-mono text-xs">{pathResult.value}</p>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => void openFile()}>
+            <ExternalLink />
+            {busy ? "Opening…" : "Open settings file"}
+          </Button>
+        </>
+      ) : null}
+      {pathResult && !pathResult.ok ? (
+        <ActionError
+          title="Couldn’t locate settings file"
+          error={pathResult.error}
+          busy={busy}
+          recovery={{ label: "Retry", onAction: () => void findPath() }}
+        />
+      ) : null}
+      {openError ? (
+        <ActionError
+          title="Couldn’t open settings file"
+          error={openError}
+          busy={busy}
+          recovery={{ label: "Retry", onAction: () => void openFile() }}
+        />
+      ) : null}
+    </section>
   );
 }

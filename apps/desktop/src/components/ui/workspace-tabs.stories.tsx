@@ -1,0 +1,181 @@
+import { ProjectMonogram } from "./project-monogram";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { FileDiff, GitPullRequest, History, Link2, List } from "lucide-react";
+import { useState } from "react";
+
+import { WorkspaceTabs, type WorkspaceTabItem } from "@/components/ui/workspace-tabs";
+import { DesignSystemCanvas } from "@/design-system/storybook/DesignSystemCanvas";
+
+const initialTabs: readonly WorkspaceTabItem[] = [
+  {
+    id: "open-warden-changes",
+    label: "open-warden",
+    context: "Changes",
+    icon: <ProjectMonogram name="open-warden" identity="/projects/open-warden" />,
+    closable: false,
+  },
+  {
+    id: "t3code-history",
+    label: "t3code",
+    context: "History",
+    icon: <ProjectMonogram name="t3code" identity="/projects/t3code" />,
+  },
+  {
+    id: "pull-request-418",
+    label: "#418 Review navigation",
+    context: "open-warden · Pull request",
+    icon: <ProjectMonogram name="open-warden" identity="/projects/open-warden" />,
+  },
+];
+
+function InteractiveWorkspaceTabs() {
+  const [items, setItems] = useState(initialTabs);
+  const [activeId, setActiveId] = useState(initialTabs[0]?.id ?? "");
+
+  return (
+    <WorkspaceTabs
+      items={items}
+      activeId={activeId}
+      onActivate={setActiveId}
+      onClose={(id) => {
+        const closedIndex = items.findIndex((item) => item.id === id);
+        const nextItems = items.filter((item) => item.id !== id);
+        setItems(nextItems);
+        if (id === activeId) {
+          setActiveId(nextItems[closedIndex]?.id ?? nextItems[closedIndex - 1]?.id ?? "");
+        }
+      }}
+      onAdd={() => undefined}
+    />
+  );
+}
+
+const meta = {
+  title: "Design system/Components/Workspace Tabs",
+  component: WorkspaceTabs,
+  parameters: { layout: "fullscreen" },
+  args: {
+    items: initialTabs,
+    activeId: initialTabs[0]?.id ?? "",
+    onActivate: () => undefined,
+  },
+} satisfies Meta<typeof WorkspaceTabs>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const MixedResources: Story = {
+  render: () => (
+    <DesignSystemCanvas
+      title="Composable workspace tabs"
+      description="Projects and pull requests can coexist. The active tab owns the visible workspace; ⌘K and the plus button open another resource."
+    >
+      <div className="overflow-hidden rounded-xl shadow-[var(--elevation-raised)] ring-1 ring-border">
+        <InteractiveWorkspaceTabs />
+        <div className="flex min-h-72 items-center justify-center bg-background p-8 text-sm text-muted-foreground">
+          Active workspace content
+        </div>
+      </div>
+    </DesignSystemCanvas>
+  ),
+};
+
+export const AddMenu: Story = {
+  render: () => {
+    const [items, setItems] = useState(initialTabs);
+    const [activeId, setActiveId] = useState(initialTabs[0]?.id ?? "");
+
+    return (
+      <WorkspaceTabs
+        items={items}
+        activeId={activeId}
+        onActivate={setActiveId}
+        onClose={(id) => {
+          const closedIndex = items.findIndex((item) => item.id === id);
+          const nextItems = items.filter((item) => item.id !== id);
+          setItems(nextItems);
+          if (id === activeId) {
+            setActiveId(nextItems[closedIndex]?.id ?? nextItems[closedIndex - 1]?.id ?? "");
+          }
+        }}
+        addLabel="Open a new tab"
+        addItems={[
+          { id: "pull-request", label: "Pull request", icon: <GitPullRequest />, shortcut: "P" },
+          { id: "linked", label: "Linked pull requests", icon: <Link2 />, shortcut: "L" },
+          { id: "history", label: "History", icon: <History />, shortcut: "T" },
+          { id: "diff", label: "Diff", icon: <FileDiff />, shortcut: "D" },
+        ]}
+        onAddSelect={() => undefined}
+      />
+    );
+  },
+};
+
+export const ProjectContexts: Story = {
+  render: () => (
+    <DesignSystemCanvas
+      title="The same project in different contexts"
+      description="The secondary label keeps project identity distinct from the feature currently open inside it."
+    >
+      <WorkspaceTabs
+        items={[
+          { id: "changes", label: "open-warden", context: "Changes", icon: <FileDiff /> },
+          { id: "history", label: "open-warden", context: "History", icon: <History /> },
+          {
+            id: "pull-requests",
+            label: "open-warden",
+            context: "Pull requests",
+            icon: <GitPullRequest />,
+          },
+        ]}
+        activeId="history"
+        onActivate={() => undefined}
+        onClose={() => undefined}
+        onAdd={() => undefined}
+      />
+    </DesignSystemCanvas>
+  ),
+};
+
+export const ProjectReviews: Story = {
+  args: {
+    variant: "secondary",
+    ariaLabel: "Project pull requests",
+    items: [
+      { id: "list", label: "Pull requests", icon: <GitPullRequest />, closable: false },
+      { id: "review", label: "#418 Review navigation", icon: <GitPullRequest /> },
+    ],
+    activeId: "review",
+    onClose: () => {},
+  },
+};
+
+export const PullRequestHoverCards: Story = {
+  args: {
+    variant: "secondary",
+    activeId: "review",
+    items: [
+      { id: "inbox", label: "Pull requests", icon: <List />, closable: false },
+      {
+        id: "review",
+        label: "#418 Keep review navigation in the rendered file order",
+        icon: <GitPullRequest />,
+        hoverContent: (
+          <div className="flex max-w-80 flex-col gap-2 leading-relaxed">
+            <p className="text-muted-foreground">team/open-warden · GitHub · #418</p>
+            <p className="font-medium">Keep review navigation in the rendered file order</p>
+            <p className="border-border border-t pt-2">Alice · Open · review-navigation → main</p>
+            <p>Use the same ordered files for rendering, selection, and keyboard actions.</p>
+          </div>
+        ),
+      },
+      {
+        id: "second-review",
+        label: "#419 Compact commit history",
+        icon: <GitPullRequest />,
+        hoverContent: <p>Compact commit history · Bob · Draft</p>,
+      },
+    ],
+    onClose: () => undefined,
+  },
+};

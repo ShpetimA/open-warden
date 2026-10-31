@@ -1,6 +1,8 @@
 import type {
   AddPullRequestCommentInput,
+  CreatePullRequestInput,
   ListPullRequestsInput,
+  MergePullRequestInput,
   PullRequestChangedFile,
   PullRequestConversation,
   PullRequestIssueComment,
@@ -14,9 +16,11 @@ import type {
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
+  SubmitPullRequestDecisionInput,
 } from "../../src/platform/desktop/contracts";
 import {
   bitbucketPullRequestPath,
+  bitbucketPullRequestsPath,
   bitbucketRequest,
   bitbucketThreadRootDatabaseId,
   fetchBitbucketConversation,
@@ -27,6 +31,7 @@ import {
   resolveBitbucketOpenPullRequestForBranch,
   toBitbucketIssueComment,
   toBitbucketPullRequestSummary,
+  type BitbucketPullRequestResponse,
   type BitbucketCommentResponse,
 } from "../bitbucket-repo";
 import {
@@ -43,12 +48,13 @@ import {
   toPullRequestSummary,
   toPullRequestIssueComment,
   type GitHubIssueCommentResponse,
+  type GitHubPullRequestResponse,
 } from "../github-repo";
 import { getProviderConnection } from "../providerConnections";
 import { resolveHostedRepo } from "./repository";
 import { missingConnectionMessage, providerDisplayName } from "./providers";
 
-async function resolvePullRequestContext(input: PullRequestLocatorInput) {
+export async function resolvePullRequestContext(input: { repoPath: string }) {
   const hostedRepo = await resolveHostedRepo(input.repoPath);
   if (!hostedRepo) {
     throw new Error("No supported hosted repository was found for the selected repo.");
@@ -110,7 +116,7 @@ function managedPullRequestNumberFromBranch(branch: string) {
   return pullRequestNumber;
 }
 
-function normalizePullRequestReviewComments(
+export function normalizePullRequestReviewComments(
   comments: SubmitPullRequestReviewCommentsInput["comments"],
 ) {
   return comments.map((comment) => {
@@ -148,7 +154,7 @@ function normalizePullRequestReviewComments(
   });
 }
 
-function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput) {
+export function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput) {
   return {
     body: comment.body,
     path: comment.path,
@@ -163,7 +169,7 @@ function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput)
   };
 }
 
-function toBitbucketInline(comment: PullRequestReviewDraftCommentInput) {
+export function toBitbucketInline(comment: PullRequestReviewDraftCommentInput) {
   const inline: {
     path: string;
     from?: number;
@@ -209,11 +215,22 @@ export async function listPullRequests(input: ListPullRequestsInput): Promise<Pu
   }
 
   if (hostedRepo.providerId === "github") {
-    return listGitHubPullRequests(hostedRepo, connection.token, input.page, input.perPage);
+    return listGitHubPullRequests(hostedRepo, connection.token, input.page, input.perPage, {
+      state: input.state,
+      query: input.query,
+      author: input.author,
+      involvement: input.involvement,
+      viewerLogin: connection.login,
+    });
   }
 
   if (hostedRepo.providerId === "bitbucket") {
-    return listBitbucketPullRequests(hostedRepo, connection, input.page, input.perPage);
+    return listBitbucketPullRequests(hostedRepo, connection, input.page, input.perPage, {
+      state: input.state,
+      query: input.query,
+      author: input.author,
+      involvement: input.involvement,
+    });
   }
 
   throw new Error(
@@ -397,6 +414,162 @@ export async function addPullRequestComment(
   }
 
   throw new Error(`${providerDisplayName(hostedRepo.providerId)} comments are not supported yet.`);
+}
+
+export async function createPullRequest(
+  input: CreatePullRequestInput,
+): Promise<PullRequestSummary> {
+  const title = input.title.trim();
+  const headRef = input.headRef.trim();
+  const baseRef = input.baseRef.trim();
+  if (!title || !headRef || !baseRef) throw new Error("Title and both branches are required.");
+  if (headRef === baseRef) throw new Error("Choose different source and target branches.");
+
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+  if (hostedRepo.providerId === "github") {
+    const response = await githubJsonRequest<GitHubPullRequestResponse>(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls`,
+      connection.token,
+      { method: "POST", body: { title, body: input.body.trim(), head: headRef, base: baseRef } },
+    );
+    return toPullRequestSummary(response, "github");
+  }
+  if (hostedRepo.providerId === "bitbucket") {
+    const { data } = await bitbucketRequest<BitbucketPullRequestResponse>(
+      bitbucketPullRequestsPath(hostedRepo),
+      connection,
+      {
+        method: "POST",
+        body: {
+          title,
+          description: input.body.trim(),
+          source: { branch: { name: headRef } },
+          destination: { branch: { name: baseRef } },
+        },
+      },
+    );
+    return toBitbucketPullRequestSummary(data, hostedRepo);
+  }
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} pull request creation is not supported yet.`,
+  );
+}
+
+export async function submitPullRequestDecision(
+  input: SubmitPullRequestDecisionInput,
+): Promise<void> {
+  const body = input.body.trim();
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+  if (hostedRepo.providerId === "github") {
+    if (input.decision === "request-changes" && !body)
+      throw new Error("Explain the changes requested before submitting the review.");
+    const current = await fetchGitHubPullRequest(
+      hostedRepo,
+      connection.token,
+      input.pullRequestNumber,
+    );
+    if (current.state !== "open" || current.draft)
+      throw new Error("This pull request is not ready for review decisions.");
+    await githubJsonRequest(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/reviews`,
+      connection.token,
+      {
+        method: "POST",
+        body: { event: input.decision === "approve" ? "APPROVE" : "REQUEST_CHANGES", body },
+      },
+    );
+    return;
+  }
+  if (hostedRepo.providerId === "bitbucket" && input.decision === "approve") {
+    const current = await fetchBitbucketPullRequest(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    if (current.state !== "OPEN" || current.draft)
+      throw new Error("This pull request is not ready for review decisions.");
+    await bitbucketRequest(
+      `${bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber)}/approve`,
+      connection,
+      { method: "POST", responseType: "text" },
+    );
+    return;
+  }
+  if (hostedRepo.providerId === "bitbucket" && input.decision === "request-changes") {
+    const current = await fetchBitbucketPullRequest(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    if (current.state !== "OPEN" || current.draft)
+      throw new Error("This pull request is not ready for review decisions.");
+    await bitbucketRequest(
+      `${bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber)}/request-changes`,
+      connection,
+      { method: "POST" },
+    );
+    return;
+  }
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} does not support this review decision.`,
+  );
+}
+
+export async function mergePullRequest(input: MergePullRequestInput): Promise<"merged" | "queued"> {
+  if (!input.expectedHeadSha.trim())
+    throw new Error("The pull request head must be loaded before merging.");
+  const { hostedRepo, connection } = await resolvePullRequestContext(input);
+  if (hostedRepo.providerId === "github") {
+    const current = await fetchGitHubPullRequest(
+      hostedRepo,
+      connection.token,
+      input.pullRequestNumber,
+    );
+    if (current.state !== "open" || current.draft)
+      throw new Error("This pull request is not ready to merge.");
+    if (current.head.sha !== input.expectedHeadSha)
+      throw new Error("The pull request changed. Review the latest commit before merging.");
+    const response = await githubJsonRequest<{ merged?: boolean; message?: string }>(
+      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/merge`,
+      connection.token,
+      { method: "PUT", body: { sha: input.expectedHeadSha, merge_method: input.method } },
+    );
+    if (!response.merged)
+      throw new Error(response.message ?? "GitHub could not merge this pull request.");
+    return "merged";
+  }
+  if (hostedRepo.providerId === "bitbucket") {
+    const current = await fetchBitbucketPullRequest(
+      hostedRepo,
+      connection,
+      input.pullRequestNumber,
+    );
+    if (current.state !== "OPEN" || current.draft)
+      throw new Error("This pull request is not ready to merge.");
+    if (current.source?.commit?.hash !== input.expectedHeadSha)
+      throw new Error("The pull request changed. Review the latest commit before merging.");
+    const { status } = await bitbucketRequest<string>(
+      `${bitbucketPullRequestPath(hostedRepo, input.pullRequestNumber)}/merge`,
+      connection,
+      {
+        method: "POST",
+        responseType: "text",
+        body: {
+          type: "pullrequest",
+          merge_strategy:
+            input.method === "merge"
+              ? "merge_commit"
+              : input.method === "rebase"
+                ? "rebase_merge"
+                : "squash",
+        },
+      },
+    );
+    return status === 202 ? "queued" : "merged";
+  }
+  throw new Error(
+    `${providerDisplayName(hostedRepo.providerId)} pull request merging is not supported yet.`,
+  );
 }
 
 export async function replyToPullRequestThread(

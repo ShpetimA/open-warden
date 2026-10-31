@@ -1,4 +1,4 @@
-import { AlertCircle, Copy, LoaderCircle, Search, TriangleAlert } from "lucide-react";
+import { AlertCircle, Copy, LoaderCircle, Search, Info } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAppSelector } from "@/app/hooks";
@@ -77,9 +77,9 @@ export function LspStatusNotice({ repoPath, relPath, active }: Props) {
 
   if (fileState.reason) {
     return (
-      <div className="border-border/70 bg-destructive/8 text-destructive flex items-center gap-2 border-b px-3 py-2 text-xs">
+      <div className="border-border/70 bg-surface-alt text-muted-foreground flex items-center gap-2 border-b px-3 py-2 text-xs">
         <div className="h-5 flex items-center">
-          <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
+          <Info className="h-3.5 w-3.5 shrink-0" />
         </div>
         <span className="truncate">Diagnostics unavailable: {fileState.reason}</span>
       </div>

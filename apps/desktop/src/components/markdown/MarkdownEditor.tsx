@@ -12,7 +12,19 @@ import {
 } from "react";
 
 import { getCaretCoordinates } from "@/components/markdown/get-caret-coordinates";
-import { Markdown, highlightCode } from "@/components/markdown/Markdown";
+import { Markdown } from "@/components/markdown/Markdown";
+import { useHotkey } from "@tanstack/react-hotkeys";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Kbd } from "@/components/ui/kbd";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+} from "@/components/ui/dropdown-menu";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -26,6 +38,7 @@ import {
   ListOrdered,
   ListTodo,
   Quote,
+  MoreHorizontal,
 } from "lucide-react";
 
 export type MentionCandidate = {
@@ -45,6 +58,7 @@ type MarkdownEditorProps = {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  label?: string;
   compact?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
@@ -181,10 +195,89 @@ function useMentions(
   };
 }
 
+const formatting = {
+  bold: {
+    label: "Bold",
+    before: "**",
+    after: "**",
+    placeholder: "bold",
+    shortcut: "⌘B",
+    icon: Bold,
+  },
+  italic: {
+    label: "Italic",
+    before: "_",
+    after: "_",
+    placeholder: "italic",
+    shortcut: "⌘I",
+    icon: Italic,
+  },
+  code: {
+    label: "Code",
+    before: "`",
+    after: "`",
+    placeholder: "code",
+    shortcut: "⌘E",
+    icon: Code,
+  },
+  link: {
+    label: "Link",
+    before: "[",
+    after: "](url)",
+    placeholder: "text",
+    shortcut: "⌘K",
+    icon: Link,
+  },
+  heading: {
+    label: "Heading",
+    before: "### ",
+    after: "",
+    placeholder: "heading",
+    shortcut: "⌘H",
+    icon: Heading,
+  },
+  quote: {
+    label: "Quote",
+    before: "> ",
+    after: "",
+    placeholder: "quote",
+    shortcut: "⌘⇧.",
+    icon: Quote,
+  },
+  unordered: {
+    label: "Unordered list",
+    before: "- ",
+    after: "",
+    placeholder: "item",
+    shortcut: "⌘⇧8",
+    icon: List,
+  },
+  ordered: {
+    label: "Ordered list",
+    before: "1. ",
+    after: "",
+    placeholder: "item",
+    shortcut: "⌘⇧7",
+    icon: ListOrdered,
+  },
+  task: {
+    label: "Task list",
+    before: "- [ ] ",
+    after: "",
+    placeholder: "task",
+    shortcut: "",
+    icon: ListTodo,
+  },
+} as const;
+
+const commonFormatting = ["bold", "italic", "code", "link"] as const;
+const moreFormatting = ["heading", "quote", "unordered", "ordered", "task"] as const;
+
 export function MarkdownEditor({
   value,
   onChange,
   placeholder = "Leave a comment...",
+  label = "Comment",
   compact,
   onKeyDown: externalOnKeyDown,
   textareaRef: externalRef,
@@ -206,64 +299,44 @@ export function MarkdownEditor({
     dismiss: dismissMention,
   } = useMentions(editorRef, value, onChange, mentionConfig);
 
-  const insertMarkdown = useCallback(
-    (before: string, after = "", placeholderText = "") => {
-      const textarea = editorRef.current;
-      if (!textarea) return;
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const selected = value.slice(start, end);
-      const text = selected || placeholderText;
-      const nextValue = `${value.slice(0, start)}${before}${text}${after}${value.slice(end)}`;
-      onChange(nextValue);
-      requestAnimationFrame(() => {
-        textarea.focus();
-        const cursorStart = start + before.length;
-        textarea.setSelectionRange(cursorStart, cursorStart + text.length);
-      });
-    },
-    [value, onChange, editorRef],
-  );
+  function applyFormatting(key: keyof typeof formatting) {
+    const textarea = editorRef.current;
 
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLTextAreaElement>) => {
-      if (handleMentionKeyDown(event)) return;
+    if (!textarea) return;
 
-      const mod = event.metaKey || event.ctrlKey;
-      if (mod) {
-        const shortcuts: Record<string, () => void> = {
-          b: () => insertMarkdown("**", "**", "bold"),
-          i: () => insertMarkdown("_", "_", "italic"),
-          e: () => insertMarkdown("`", "`", "code"),
-          k: () => insertMarkdown("[", "](url)", "text"),
-          h: () => insertMarkdown("### ", "", "heading"),
-        };
-        const shiftShortcuts: Record<string, () => void> = {
-          ".": () => insertMarkdown("> ", "", "quote"),
-          "8": () => insertMarkdown("- ", "", "item"),
-          "7": () => insertMarkdown("1. ", "", "item"),
-        };
+    const action = formatting[key];
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = value.slice(start, end);
+    const text = selected || action.placeholder;
+    const nextValue = `${value.slice(0, start)}${action.before}${text}${action.after}${value.slice(end)}`;
 
-        const key = event.key.toLowerCase();
-        const action = event.shiftKey ? shiftShortcuts[key] : shortcuts[key];
+    onChange(nextValue);
 
-        if (action) {
-          event.preventDefault();
-          action();
-          return;
-        }
-      }
-      externalOnKeyDown?.(event);
-    },
-    [handleMentionKeyDown, insertMarkdown, externalOnKeyDown],
-  );
+    requestAnimationFrame(() => {
+      textarea.focus();
 
-  const handleChange = useCallback(
-    (nextValue: string) => {
-      onChange(nextValue);
-    },
-    [onChange],
-  );
+      const cursorStart = start + action.before.length;
+      textarea.setSelectionRange(cursorStart, cursorStart + text.length);
+    });
+  }
+
+  const hotkeyOptions = { target: editorRef, ignoreInputs: false, enabled: tab === "write" };
+
+  useHotkey("Mod+B", () => applyFormatting("bold"), hotkeyOptions);
+  useHotkey("Mod+I", () => applyFormatting("italic"), hotkeyOptions);
+  useHotkey("Mod+E", () => applyFormatting("code"), hotkeyOptions);
+  useHotkey("Mod+K", () => applyFormatting("link"), hotkeyOptions);
+  useHotkey("Mod+H", () => applyFormatting("heading"), hotkeyOptions);
+  useHotkey({ key: ">", mod: true, shift: true }, () => applyFormatting("quote"), hotkeyOptions);
+  useHotkey("Mod+Shift+8", () => applyFormatting("unordered"), hotkeyOptions);
+  useHotkey("Mod+Shift+7", () => applyFormatting("ordered"), hotkeyOptions);
+
+  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (handleMentionKeyDown(event)) return;
+
+    externalOnKeyDown?.(event);
+  }
 
   useEffect(() => {
     if (tab === "write" && mentionConfig) {
@@ -272,149 +345,108 @@ export function MarkdownEditor({
   }, [value, tab, mentionConfig, detectMention]);
 
   return (
-    <div className="bg-surface-elevated border-border/70 overflow-hidden border">
-      <div className="border-border/60 flex items-center justify-between border-b px-3 py-2">
-        <div className="flex items-center gap-1 rounded-full bg-transparent p-1">
-          <button
-            type="button"
-            onClick={() => setTab("write")}
-            className={cn(
-              "rounded-full px-4 py-1.5 text-xs font-semibold tracking-[-0.01em] transition-colors",
-              tab === "write"
-                ? "bg-surface-alt"
-                : "text-muted-foreground hover:bg-black/20 hover:text-foreground",
-            )}
-          >
-            Write
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab("preview")}
-            className={cn(
-              "rounded-full px-4 py-1.5 text-xs font-semibold tracking-[-0.01em] transition-colors",
-              tab === "preview"
-                ? "bg-surface-alt"
-                : "text-muted-foreground hover:bg-black/20 hover:text-foreground",
-            )}
-          >
-            Preview
-          </button>
-        </div>
+    <Tabs
+      value={tab}
+      onValueChange={(value) => {
+        if (value === "write" || value === "preview") setTab(value);
+      }}
+      className="bg-background border-border/70 focus-within:border-ring/70 overflow-hidden rounded-md border"
+    >
+      <div className="border-border/70 bg-surface-toolbar flex flex-wrap items-center justify-between gap-1 border-b px-2 py-1">
+        <TabsList aria-label="Comment editor" className="p-0">
+          <TabsTrigger value="write">Write</TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+        </TabsList>
+        {tab === "write" ? (
+          <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
+            <div
+              role="group"
+              aria-label="Markdown formatting"
+              className="text-muted-foreground ml-auto flex items-center gap-0.5"
+            >
+              {commonFormatting.map((key) => {
+                const action = formatting[key];
+                const Icon = action.icon;
 
-        <TooltipProvider delayDuration={300}>
-          <div
-            className={cn(
-              "text-muted-foreground flex items-center gap-0.5",
-              tab !== "write" && "invisible",
-            )}
-          >
-            <MdToolbarButton
-              label="Heading"
-              shortcut="⌘H"
-              onClick={() => insertMarkdown("### ", "", "heading")}
-            >
-              <Heading />
-            </MdToolbarButton>
-            <MdToolbarButton
-              label="Bold"
-              shortcut="⌘B"
-              onClick={() => insertMarkdown("**", "**", "bold")}
-            >
-              <Bold />
-            </MdToolbarButton>
-            <MdToolbarButton
-              label="Italic"
-              shortcut="⌘I"
-              onClick={() => insertMarkdown("_", "_", "italic")}
-            >
-              <Italic />
-            </MdToolbarButton>
-            <span className="bg-border/70 mx-1.5 h-5 w-px" />
-            <MdToolbarButton
-              label="Code"
-              shortcut="⌘E"
-              onClick={() => insertMarkdown("`", "`", "code")}
-            >
-              <Code />
-            </MdToolbarButton>
-            <MdToolbarButton
-              label="Link"
-              shortcut="⌘K"
-              onClick={() => insertMarkdown("[", "](url)", "text")}
-            >
-              <Link />
-            </MdToolbarButton>
-            <MdToolbarButton
-              label="Quote"
-              shortcut="⌘⇧."
-              onClick={() => insertMarkdown("> ", "", "quote")}
-            >
-              <Quote />
-            </MdToolbarButton>
-            <span className="bg-border/70 mx-1.5 h-5 w-px" />
-            <MdToolbarButton
-              label="Unordered list"
-              shortcut="⌘⇧8"
-              onClick={() => insertMarkdown("- ", "", "item")}
-            >
-              <List />
-            </MdToolbarButton>
-            <MdToolbarButton
-              label="Ordered list"
-              shortcut="⌘⇧7"
-              onClick={() => insertMarkdown("1. ", "", "item")}
-            >
-              <ListOrdered />
-            </MdToolbarButton>
-            <MdToolbarButton label="Task list" onClick={() => insertMarkdown("- [ ] ", "", "task")}>
-              <ListTodo />
-            </MdToolbarButton>
-          </div>
-        </TooltipProvider>
+                return (
+                  <MdToolbarButton
+                    key={key}
+                    label={action.label}
+                    shortcut={action.shortcut}
+                    onClick={() => applyFormatting(key)}
+                  >
+                    <Icon className="size-3.5" aria-hidden="true" />
+                  </MdToolbarButton>
+                );
+              })}
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="More formatting"
+                    title="More formatting"
+                  >
+                    <MoreHorizontal className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {moreFormatting.map((key) => {
+                    const action = formatting[key];
+                    const Icon = action.icon;
+
+                    return (
+                      <DropdownMenuItem key={key} onSelect={() => applyFormatting(key)}>
+                        <Icon aria-hidden="true" />
+                        {action.label}
+                        {action.shortcut ? (
+                          <DropdownMenuShortcut>{action.shortcut}</DropdownMenuShortcut>
+                        ) : null}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </TooltipProvider>
+        ) : null}
       </div>
-
-      {tab === "write" ? (
-        <div className="relative max-h-[14rem]">
-          {compact ? (
-            <textarea
-              ref={editorRef}
-              value={value}
-              onChange={(event) => handleChange(event.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              rows={2}
-              className="placeholder:text-muted-foreground w-full resize-y bg-transparent px-5 py-5 font-mono text-[15px] leading-7 outline-none"
-            />
-          ) : (
-            <HighlightedMarkdownEditor
-              value={value}
-              onChange={handleChange}
-              placeholder={placeholder}
-              textareaRef={editorRef}
-              onKeyDown={handleKeyDown}
-            />
+      <TabsContent value="write" className="relative">
+        <Textarea
+          ref={editorRef}
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          rows={compact ? 2 : 4}
+          className={cn(
+            "max-h-56 resize-y rounded-none border-0 bg-transparent px-3 py-2 font-sans text-sm leading-5 shadow-none focus-visible:ring-0 dark:bg-transparent",
+            compact ? "min-h-16" : "min-h-24",
           )}
-          {mentionState && dropdownPos ? (
-            <MentionDropdown
-              candidates={filtered}
-              activeIndex={activeIndex}
-              isLoading={mentionLoading}
-              position={dropdownPos}
-              onSelect={selectCandidate}
-              onDismiss={dismissMention}
-            />
-          ) : null}
-        </div>
-      ) : (
-        <div className={cn("px-5 py-5", compact ? "min-h-[6.3rem]" : "min-h-[200px]")}>
-          {value ? (
-            <Markdown>{value}</Markdown>
-          ) : (
-            <p className="text-muted-foreground text-sm italic">Nothing to preview</p>
-          )}
-        </div>
-      )}
-    </div>
+        />
+        {tab === "write" && mentionState && dropdownPos ? (
+          <MentionDropdown
+            candidates={filtered}
+            activeIndex={activeIndex}
+            isLoading={mentionLoading}
+            position={dropdownPos}
+            onSelect={selectCandidate}
+            onDismiss={dismissMention}
+          />
+        ) : null}
+      </TabsContent>
+      <TabsContent
+        value="preview"
+        className={cn("max-h-56 overflow-auto px-3 py-2", compact ? "min-h-16" : "min-h-24")}
+      >
+        {value ? (
+          <Markdown>{value}</Markdown>
+        ) : (
+          <p className="text-muted-foreground text-sm">Nothing to preview yet.</p>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -457,7 +489,9 @@ function MentionDropdown({
   return createPortal(
     <div
       ref={listRef}
-      className="bg-surface-elevated border-border/70 fixed z-50 max-h-56 min-w-[240px] overflow-y-auto rounded-2xl border p-1 shadow-2xl"
+      role="group"
+      aria-label="Mention suggestions"
+      className="bg-surface-elevated border-border/70 fixed z-50 max-h-56 min-w-[240px] overflow-y-auto rounded-md border p-1 shadow-md"
       style={{ top: position.top, left: position.left }}
     >
       {isLoading && candidates.length === 0 ? (
@@ -477,7 +511,7 @@ function MentionDropdown({
             onSelect(candidate);
           }}
           className={cn(
-            "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors",
+            "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs transition-colors",
             index === activeIndex
               ? "bg-accent text-foreground"
               : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
@@ -515,100 +549,22 @@ function MdToolbarButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={label}
+          onMouseDown={(event) => event.preventDefault()}
           onClick={onClick}
-          className="hover:bg-accent/70 hover:text-foreground flex size-8 items-center justify-center rounded-full transition-colors"
         >
-          <svg
-            aria-hidden="true"
-            fill="none"
-            height={15}
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            viewBox="0 0 24 24"
-            width={15}
-          >
-            {children}
-          </svg>
-        </button>
+          {children}
+        </Button>
       </TooltipTrigger>
       <TooltipContent>
         <span className="flex items-center gap-1.5">
           {label}
-          {shortcut ? (
-            <kbd className="bg-foreground/10 rounded-full px-1.5 py-0.5 font-mono text-[10px]">
-              {shortcut}
-            </kbd>
-          ) : null}
+          {shortcut ? <Kbd>{shortcut}</Kbd> : null}
         </span>
       </TooltipContent>
     </Tooltip>
-  );
-}
-
-function HighlightedMarkdownEditor({
-  value,
-  onChange,
-  placeholder,
-  textareaRef: externalRef,
-  onKeyDown,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-  textareaRef?: RefObject<HTMLTextAreaElement | null>;
-  onKeyDown?: KeyboardEventHandler<HTMLTextAreaElement>;
-}) {
-  const [highlightedHtml, setHighlightedHtml] = useState("");
-  const internalRef = useRef<HTMLTextAreaElement>(null);
-  const textareaRef = externalRef || internalRef;
-  const highlightRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!value) {
-      setHighlightedHtml("");
-      return;
-    }
-    void highlightCode(value, "markdown").then((html) => {
-      if (!cancelled) {
-        setHighlightedHtml(html);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [value]);
-
-  const syncScroll = () => {
-    if (highlightRef.current && textareaRef.current) {
-      highlightRef.current.scrollTop = textareaRef.current.scrollTop;
-      highlightRef.current.scrollLeft = textareaRef.current.scrollLeft;
-    }
-  };
-
-  return (
-    <div className="relative">
-      <div
-        ref={highlightRef}
-        aria-hidden
-        className="pointer-events-none absolute inset-0 overflow-auto p-5 whitespace-pre-wrap break-words [scrollbar-width:none] [word-break:break-all] [&::-webkit-scrollbar]:hidden [&_pre]:!m-0 [&_pre]:!bg-transparent [&_pre]:!p-0 [&_pre]:!whitespace-pre-wrap [&_pre]:!break-words [&_pre]:font-mono [&_pre]:text-sm [&_pre]:!leading-[1.625] [&_code]:!font-mono [&_code]:!text-sm [&_code]:!leading-[1.625]"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: html from shiki highlighter is trusted
-        dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-      />
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={onKeyDown}
-        onScroll={syncScroll}
-        className="placeholder:text-muted-foreground caret-foreground relative h-full w-full resize-y bg-transparent p-5 font-mono text-sm leading-[1.625] whitespace-pre-wrap break-words text-transparent outline-none [word-break:break-all]"
-        placeholder={placeholder}
-        spellCheck={false}
-      />
-    </div>
   );
 }

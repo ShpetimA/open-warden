@@ -20,6 +20,7 @@ type SourceControlState = {
   recentRepos: string[];
   historyFilter: string;
   historyCommitId: string;
+  historyPinnedCommitId: string;
   historySelectedCommitIds: string[];
   historyNavTarget: HistoryNavTarget;
   collapseStaged: boolean;
@@ -48,6 +49,7 @@ const initialState: SourceControlState = {
   recentRepos: [],
   historyFilter: "",
   historyCommitId: "",
+  historyPinnedCommitId: "",
   historySelectedCommitIds: [],
   historyNavTarget: "commits",
   collapseStaged: false,
@@ -96,6 +98,7 @@ const sourceControlSlice = createSlice({
     setActiveRepo(state, action: PayloadAction<string>) {
       if (state.activeRepo !== action.payload) {
         state.activeRepo = action.payload;
+        state.historyPinnedCommitId = "";
       }
     },
     setRecentRepos(state, action: PayloadAction<string[]>) {
@@ -110,6 +113,12 @@ const sourceControlSlice = createSlice({
       if (state.historyCommitId !== action.payload) {
         state.historyCommitId = action.payload;
       }
+      if (state.historyPinnedCommitId !== action.payload) {
+        state.historyPinnedCommitId = "";
+      }
+    },
+    pinHistoryCommit(state, action: PayloadAction<string>) {
+      state.historyPinnedCommitId = action.payload;
     },
     setHistoryCommitSelected(
       state,
@@ -186,6 +195,7 @@ const sourceControlSlice = createSlice({
     resetRepoViewState(state) {
       state.historyFilter = "";
       state.historyCommitId = "";
+      state.historyPinnedCommitId = "";
       state.historySelectedCommitIds = [];
       state.historyNavTarget = "commits";
       state.activeBucket = "unstaged";
@@ -216,6 +226,7 @@ const sourceControlSlice = createSlice({
       }
     },
     clearHistorySelection(state) {
+      state.historyPinnedCommitId = "";
       if (state.historyCommitId !== "") {
         state.historyCommitId = "";
       }
@@ -281,6 +292,23 @@ const sourceControlSlice = createSlice({
       state.fileViewerTarget = action.payload;
       state.symbolPeek = null;
     },
+    repositoryEntryTrashed(state, { payload }: PayloadAction<{ repoPath: string; path: string }>) {
+      if (state.activeRepo !== payload.repoPath) return;
+      const contains = (path: string) =>
+        path === payload.path || path.startsWith(`${payload.path}/`);
+      if (contains(state.repoTreeActivePath)) state.repoTreeActivePath = "";
+      if (
+        state.fileViewerTarget &&
+        !state.fileViewerTarget.revision &&
+        contains(state.fileViewerTarget.relPath)
+      ) {
+        state.fileViewerTarget = null;
+        state.symbolPeek = null;
+      }
+    },
+    clearFileViewerFocus(state) {
+      if (state.fileViewerTarget) state.fileViewerTarget.focusKey = null;
+    },
     closeFileViewer(state) {
       if (state.fileViewerTarget !== null) {
         state.fileViewerTarget = null;
@@ -324,6 +352,8 @@ export const {
   clearDiffFocusTarget,
   clearDiffSelection,
   closeFileViewer,
+  clearFileViewerFocus,
+  repositoryEntryTrashed,
   clearHistoryCommitSelection,
   clearHistorySelection,
   clearReviewSelection,
@@ -339,6 +369,7 @@ export const {
   setChangesSidebarMode,
   setDiffStyle,
   setHistoryCommitId,
+  pinHistoryCommit,
   setHistoryCommitSelected,
   setHistoryFilter,
   setHistoryNavTarget,

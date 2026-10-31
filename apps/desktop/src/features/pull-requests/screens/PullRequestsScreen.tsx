@@ -1,63 +1,44 @@
+import { PullRequestRefreshControl } from "../refresh/PullRequestRefreshControl";
+import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
+import { readDesktopFailure } from "@/platform/desktop/failure";
 import { skipToken } from "@reduxjs/toolkit/query";
 import { useHotkey } from "@tanstack/react-hotkeys";
-import { useEffect, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
-import {
-  CalendarClock,
-  ExternalLink,
-  GitBranch,
-  GitPullRequest,
-  MessageSquare,
-  Plug,
-  Unplug,
-} from "lucide-react";
+import { MoreHorizontal, Plug, Unplug } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { useCommandComposerLauncher } from "@/features/command-palette/CommandComposerLauncher";
 import {
   useDisconnectProviderMutation,
-  useGetPullRequestConversationQuery,
-  useGetPullRequestFilesQuery,
   useListProviderConnectionsQuery,
   useListPullRequestsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
-import { CommentBody } from "@/features/pull-requests/components/pullRequestCommentParts";
-import { buildPullRequestPreviewPath } from "@/features/pull-requests/utils";
-import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import { isTypingTarget } from "@/features/source-control/utils";
-import type { GitProviderId, PullRequestSummary } from "@/platform/desktop";
 import {
   ConnectBitbucketDialog,
   ConnectGitHubDialog,
 } from "@/features/pull-requests/components/ConnectToProviders";
+import { PullRequestInboxFilters } from "@/features/pull-requests/inbox/PullRequestInboxFilters";
+import { PullRequestInboxPreview } from "@/features/pull-requests/inbox/PullRequestInboxPreview";
+import { PullRequestInboxRow } from "@/features/pull-requests/inbox/PullRequestInboxRow";
+import { usePullRequestInboxFilters } from "@/features/pull-requests/inbox/usePullRequestInboxFilters";
+import { isTypingTarget } from "@/features/source-control/utils";
+import { openPullRequestWorkspace } from "@/features/workspaces/actions";
+import type { GitProviderId, PullRequestPerson, PullRequestSummary } from "@/platform/desktop";
 
-function formatPullRequestUpdatedAt(updatedAt: string) {
-  const date = new Date(updatedAt);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown update time";
-  }
-
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatPullRequestLongDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown";
-  }
-
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+const PULL_REQUESTS_PAGE_SIZE = 25;
 
 function providerTitle(providerId: GitProviderId) {
   if (providerId === "github") return "GitHub";
@@ -69,261 +50,83 @@ function providerImplemented(providerId: GitProviderId) {
   return providerId === "github" || providerId === "bitbucket";
 }
 
-function PreviewDetail({ label, value }: { label: string; value: ReactNode }) {
+function RowSkeletons() {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5">
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="min-w-0 text-right text-sm font-medium">{value}</dd>
+    <div className="flex flex-col" role="status">
+      <div className="text-muted-foreground flex items-center gap-2 px-4 py-3 text-xs">
+        <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+        Loading pull requests…
+      </div>
+      <div aria-hidden="true">
+        {[0, 1, 2, 3].map((row) => (
+          <div key={row} className="border-border/50 flex items-center gap-3 border-b px-4 py-3">
+            <div className="bg-border size-4 motion-safe:animate-pulse rounded-full" />
+            <div className="flex-1 space-y-2">
+              <div className="bg-border h-3.5 w-2/3 motion-safe:animate-pulse rounded" />
+              <div className="bg-border h-3 w-1/2 motion-safe:animate-pulse rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-const PULL_REQUESTS_PAGE_SIZE = 25;
-
-function PullRequestRow({
-  pullRequest,
-  selected,
-  index,
-  onSelect,
-  onOpen,
-}: {
-  pullRequest: PullRequestSummary;
-  selected: boolean;
-  index: number;
-  onSelect: () => void;
-  onOpen: () => void;
-}) {
+function EmptyState({ children }: { children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      data-pull-request-row="true"
-      data-pull-request-number={String(pullRequest.number)}
-      data-nav-index={String(index)}
-      aria-current={selected ? "true" : undefined}
-      className={`block w-full px-3 py-2.5 text-left transition-colors ${
-        selected
-          ? "bg-primary/10 text-foreground shadow-[0_0_0_1px_hsl(var(--primary)/0.24)_inset]"
-          : "hover:bg-surface-1"
-      }`}
-      onClick={onSelect}
-      onDoubleClick={onOpen}
-    >
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 shrink-0 text-muted-foreground">
-          <GitPullRequest className="h-4 w-4" />
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="truncate text-sm font-medium">
-              #{pullRequest.number} {pullRequest.title}
-            </div>
-            {pullRequest.isDraft ? (
-              <div className="shrink-0 rounded-full border border-border/80 px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-                Draft
-              </div>
-            ) : null}
-          </div>
-
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5">
-            <span>{pullRequest.authorLogin}</span>
-            <span className="inline-flex items-center gap-1">
-              <GitBranch className="h-3 w-3" />
-              {pullRequest.baseRef} ← {pullRequest.headRef}
-            </span>
-            <span>{formatPullRequestUpdatedAt(pullRequest.updatedAt)}</span>
-          </div>
-        </div>
-      </div>
-    </button>
+    <div className="text-muted-foreground flex h-full min-h-40 items-center justify-center p-6 text-center text-sm">
+      {children}
+    </div>
   );
 }
 
-function PullRequestPreviewPane({
-  activeRepo,
-  pullRequest,
-  onOpen,
-}: {
-  activeRepo: string;
-  pullRequest: PullRequestSummary | null;
-  onOpen: (pullRequest: PullRequestSummary) => void;
-}) {
-  const queryArg = pullRequest
-    ? { repoPath: activeRepo, pullRequestNumber: pullRequest.number }
-    : skipToken;
-  const { conversation, loadingConversation } = useGetPullRequestConversationQuery(queryArg, {
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
-      conversation: data ?? null,
-      loadingConversation: isLoading || isFetching,
-    }),
-  });
-  const { files } = useGetPullRequestFilesQuery(queryArg, {
-    selectFromResult: ({ data }) => ({
-      files: data ?? [],
-    }),
-  });
-
-  if (!pullRequest) {
-    return (
-      <aside className="flex h-full min-h-0 items-center justify-center bg-surface-0 p-6 text-center text-sm text-muted-foreground">
-        Select a pull request to preview it.
-      </aside>
-    );
-  }
-
-  const detail = conversation?.detail;
-  const totalAdditions = files.reduce((sum, file) => sum + file.additions, 0);
-  const totalDeletions = files.reduce((sum, file) => sum + file.deletions, 0);
-
-  return (
-    <aside className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-0 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
-      <div className="border-b border-border/70 px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-muted-foreground flex items-center gap-2 text-xs">
-              <GitPullRequest className="h-3.5 w-3.5" />#{pullRequest.number} by{" "}
-              {pullRequest.authorLogin}
-            </div>
-            <h2 className="mt-2 text-lg font-semibold leading-6 tracking-[-0.02em] text-balance">
-              {pullRequest.title}
-            </h2>
-          </div>
-          {pullRequest.isDraft ? (
-            <div className="shrink-0 rounded-full border border-border/80 px-2 py-1 text-[10px] font-medium uppercase text-muted-foreground">
-              Draft
-            </div>
-          ) : null}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-1 px-2 py-1">
-            <GitBranch className="h-3 w-3" />
-            {pullRequest.baseRef} ← {pullRequest.headRef}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-surface-1 px-2 py-1">
-            <CalendarClock className="h-3 w-3" />
-            Updated {formatPullRequestUpdatedAt(pullRequest.updatedAt)}
-          </span>
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-auto p-5">
-        {loadingConversation && !conversation ? (
-          <div className="space-y-3">
-            <div className="h-24 animate-pulse rounded-lg bg-background/80" />
-            <div className="h-36 animate-pulse rounded-lg bg-background/80" />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-5">
-            <section>
-              <div className="text-muted-foreground text-xs font-semibold tracking-[0.12em] uppercase">
-                Summary
-              </div>
-              <div className="mt-3 text-sm leading-6 text-pretty">
-                {detail?.body?.trim() ? (
-                  <CommentBody body={detail.body} />
-                ) : (
-                  <div className="text-muted-foreground italic">No description provided.</div>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-lg bg-background/60 px-4 py-2">
-              <dl className="divide-y divide-border/70">
-                <PreviewDetail label="Provider" value={providerTitle(pullRequest.providerId)} />
-                <PreviewDetail
-                  label="Created"
-                  value={detail ? formatPullRequestLongDate(detail.createdAt) : "—"}
-                />
-                <PreviewDetail label="State" value={pullRequest.state} />
-                <PreviewDetail
-                  label="Conversation"
-                  value={
-                    conversation
-                      ? `${conversation.issueComments.length} comments · ${conversation.reviewThreads.length} threads`
-                      : "—"
-                  }
-                />
-                <PreviewDetail
-                  label="Changes"
-                  value={
-                    files.length > 0 ? (
-                      <span className="tabular-nums">
-                        {files.length} files{" "}
-                        <span className="text-emerald-500">+{totalAdditions}</span>{" "}
-                        <span className="text-red-500">-{totalDeletions}</span>
-                      </span>
-                    ) : (
-                      "—"
-                    )
-                  }
-                />
-              </dl>
-            </section>
-
-            {conversation && conversation.issueComments.length > 0 ? (
-              <section>
-                <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                  <MessageSquare className="h-3.5 w-3.5" /> Recent comments
-                </div>
-                <div className="space-y-3">
-                  {conversation.issueComments.slice(0, 2).map((comment) => (
-                    <div
-                      key={comment.id}
-                      className="rounded-lg border border-border/70 bg-background/50 p-3"
-                    >
-                      <div className="text-muted-foreground mb-2 text-xs">
-                        {comment.author?.login ?? "Unknown"} ·{" "}
-                        {formatPullRequestUpdatedAt(comment.updatedAt)}
-                      </div>
-                      <div className="line-clamp-4 text-sm leading-6">
-                        <CommentBody body={comment.body} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-border/70 px-5 py-3">
-        <Button className="h-8 w-full gap-1.5 text-xs" onClick={() => onOpen(pullRequest)}>
-          Open full review
-          <ExternalLink className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-    </aside>
-  );
+/** Authors seen in the current results, so the author filter can suggest real people. */
+function uniqueAuthors(pullRequests: PullRequestSummary[]) {
+  const byLogin = new Map<string, PullRequestPerson>();
+  for (const pullRequest of pullRequests) byLogin.set(pullRequest.author.login, pullRequest.author);
+  return Array.from(byLogin.values());
 }
 
 export function PullRequestsScreen() {
-  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+  const openComposer = useCommandComposerLauncher();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const [githubDialogOpen, setGithubDialogOpen] = useState(false);
   const [bitbucketDialogOpen, setBitbucketDialogOpen] = useState(false);
   const [pullRequestsPage, setPullRequestsPage] = useState(1);
   const [selectedPullRequestNumber, setSelectedPullRequestNumber] = useState<number | null>(null);
+  const [filters] = usePullRequestInboxFilters();
 
-  const { connections, loadingConnections } = useListProviderConnectionsQuery(undefined, {
-    selectFromResult: ({ data, isLoading, isFetching }) => ({
+  const {
+    connections,
+    loadingConnections,
+    fetchingConnections,
+    connectionsError,
+    refetch: retryConnections,
+  } = useListProviderConnectionsQuery(undefined, {
+    selectFromResult: ({ data, isFetching, error }) => ({
       connections: data ?? [],
-      loadingConnections: isLoading || isFetching,
+      loadingConnections: isFetching && !data,
+      connectionsError: error,
+      fetchingConnections: isFetching,
     }),
   });
 
-  const { hostedRepo, hostedRepoError, resolvingHostedRepo } = useResolveHostedRepoQuery(
-    activeRepo,
-    {
-      skip: !activeRepo,
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        hostedRepo: data ?? null,
-        hostedRepoError: data ? "" : errorMessageFrom(error, ""),
-        resolvingHostedRepo: isLoading || isFetching,
-      }),
-    },
-  );
+  const {
+    hostedRepo,
+    hostedRepoError,
+    resolvingHostedRepo,
+    fetchingHostedRepo,
+    refetch: retryHostedRepo,
+  } = useResolveHostedRepoQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ currentData, error, isFetching }) => ({
+      hostedRepo: currentData ?? null,
+      hostedRepoError: error,
+      fetchingHostedRepo: isFetching,
+      resolvingHostedRepo: isFetching && !currentData,
+    }),
+  });
 
   const activeProviderConnection = hostedRepo
     ? (connections.find((connection) => connection.providerId === hostedRepo.providerId) ?? null)
@@ -338,20 +141,29 @@ export function PullRequestsScreen() {
     pullRequestsError,
     loadingPullRequests,
     fetchingPullRequests,
+    hasCachedPullRequests,
+    lastUpdated,
+    refetch: refetchPullRequests,
   } = useListPullRequestsQuery(
     activeRepo && hostedRepo && activeProviderConnection
       ? {
           repoPath: activeRepo,
           page: pullRequestsPage,
           perPage: PULL_REQUESTS_PAGE_SIZE,
+          state: filters.state,
+          query: filters.q,
+          author: filters.author,
+          involvement: filters.involvement,
         }
       : skipToken,
     {
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        pullRequests: data?.pullRequests ?? [],
-        hasNextPullRequestsPage: data?.hasNextPage ?? false,
-        pullRequestsError: data ? "" : errorMessageFrom(error, ""),
-        loadingPullRequests: isLoading,
+      selectFromResult: ({ currentData, error, isLoading, isFetching, fulfilledTimeStamp }) => ({
+        pullRequests: currentData?.pullRequests ?? [],
+        hasNextPullRequestsPage: currentData?.hasNextPage ?? false,
+        pullRequestsError: error,
+        hasCachedPullRequests: currentData !== undefined,
+        lastUpdated: fulfilledTimeStamp,
+        loadingPullRequests: isLoading || (isFetching && !currentData),
         fetchingPullRequests: isFetching,
       }),
     },
@@ -366,6 +178,11 @@ export function PullRequestsScreen() {
     setPullRequestsPage(1);
     setSelectedPullRequestNumber(null);
   }, [activeRepo, hostedRepo?.providerId, hostedRepo?.owner, hostedRepo?.repo]);
+
+  useEffect(() => {
+    setPullRequestsPage(1);
+    setSelectedPullRequestNumber(null);
+  }, [filters.state, filters.q, filters.author, filters.involvement]);
 
   useEffect(() => {
     if (pullRequests.length === 0) {
@@ -419,17 +236,16 @@ export function PullRequestsScreen() {
     }
   }
 
-  function onOpenPullRequest(pullRequest: { providerId: GitProviderId; number: number }) {
-    if (!hostedRepo) {
-      return;
-    }
-
-    navigate(
-      buildPullRequestPreviewPath({
+  function onOpenPullRequest(pullRequest: PullRequestSummary) {
+    if (!hostedRepo) return;
+    void dispatch(
+      openPullRequestWorkspace({
+        repoPath: activeRepo,
         providerId: pullRequest.providerId,
         owner: hostedRepo.owner,
         repo: hostedRepo.repo,
         pullRequestNumber: pullRequest.number,
+        title: pullRequest.title,
       }),
     );
   }
@@ -447,50 +263,37 @@ export function PullRequestsScreen() {
     setSelectedPullRequestNumber(pullRequests[nextIndex].number);
   }
 
-  function handleListNavigation(event: KeyboardEvent, direction: 1 | -1) {
-    if (isTypingTarget(event.target)) {
-      return;
-    }
+  function ignoresListKeys(event: KeyboardEvent) {
+    return (
+      isTypingTarget(event.target) ||
+      (event.target instanceof Element &&
+        Boolean(event.target.closest('[data-slot^="select-"], [role="menu"], [role="dialog"]')))
+    );
+  }
 
+  function handleListNavigation(event: KeyboardEvent, direction: 1 | -1) {
+    if (ignoresListKeys(event)) return;
     event.preventDefault();
     moveSelection(direction);
   }
 
-  useHotkey("ArrowDown", (event) => handleListNavigation(event, 1), {
+  const listHotkeyOptions = {
     ignoreInputs: false,
     preventDefault: false,
     stopPropagation: false,
-  });
-  useHotkey("J", (event) => handleListNavigation(event, 1), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
-  useHotkey("ArrowUp", (event) => handleListNavigation(event, -1), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
-  useHotkey("K", (event) => handleListNavigation(event, -1), {
-    ignoreInputs: false,
-    preventDefault: false,
-    stopPropagation: false,
-  });
+  } as const;
+  useHotkey("ArrowDown", (event) => handleListNavigation(event, 1), listHotkeyOptions);
+  useHotkey("J", (event) => handleListNavigation(event, 1), listHotkeyOptions);
+  useHotkey("ArrowUp", (event) => handleListNavigation(event, -1), listHotkeyOptions);
+  useHotkey("K", (event) => handleListNavigation(event, -1), listHotkeyOptions);
   useHotkey(
     "Enter",
     (event) => {
-      if (isTypingTarget(event.target) || !selectedPullRequest) {
-        return;
-      }
-
+      if (ignoresListKeys(event) || !selectedPullRequest) return;
       event.preventDefault();
       onOpenPullRequest(selectedPullRequest);
     },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
+    listHotkeyOptions,
   );
 
   if (!activeRepo) {
@@ -509,41 +312,28 @@ export function PullRequestsScreen() {
     return `${hostedRepo.owner}/${hostedRepo.repo} · ${providerTitle(hostedRepo.providerId)}`;
   }
 
-  function renderPagination(pageStart: number, pageEnd: number) {
+  function renderPagination() {
     if (pullRequestsPage <= 1 && !hasNextPullRequestsPage) {
       return null;
     }
 
     return (
-      <div className="border-border/70 flex items-center justify-between border-t px-2 py-2">
-        <div className="text-muted-foreground text-xs">
-          Showing {String(pageStart + 1)}-{String(pageEnd)}
-        </div>
+      <div className="border-border/70 flex items-center justify-between border-t px-3 py-2">
+        <div className="text-muted-foreground text-xs">Page {String(pullRequestsPage)}</div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs"
             disabled={pullRequestsPage <= 1 || fetchingPullRequests}
-            onClick={() => {
-              setPullRequestsPage((current) => Math.max(1, current - 1));
-            }}
+            onClick={() => setPullRequestsPage((current) => Math.max(1, current - 1))}
           >
             Previous
           </Button>
-          <div className="text-muted-foreground px-1 text-xs">Page {String(pullRequestsPage)}</div>
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs"
             disabled={!hasNextPullRequestsPage || fetchingPullRequests}
-            onClick={() => {
-              if (!hasNextPullRequestsPage) {
-                return;
-              }
-
-              setPullRequestsPage((current) => current + 1);
-            }}
+            onClick={() => setPullRequestsPage((current) => current + 1)}
           >
             Next
           </Button>
@@ -552,191 +342,227 @@ export function PullRequestsScreen() {
     );
   }
 
-  function renderPullRequestsContent() {
-    if (resolvingHostedRepo) {
+  function pullRequestsRecovery() {
+    const failure = readDesktopFailure(pullRequestsError);
+    if ((failure?.code === "authentication" || failure?.code === "permission") && hostedRepo) {
+      return {
+        label: `Reconnect ${providerTitle(hostedRepo.providerId)}`,
+        onAction: () => onConnectProvider(hostedRepo.providerId),
+      };
+    }
+    return {
+      label: "Retry",
+      onAction: () => {
+        void refetchPullRequests();
+      },
+    };
+  }
+
+  function renderList() {
+    if (pullRequestsError && !hasCachedPullRequests) {
       return (
-        <div className="space-y-2">
-          <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-          <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-          <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-        </div>
+        <ErrorState
+          title="Couldn’t load pull requests"
+          error={pullRequestsError}
+          busy={fetchingPullRequests}
+          recovery={pullRequestsRecovery()}
+        />
       );
     }
-
-    if (hostedRepoError) {
-      return <div className="text-destructive text-sm">{hostedRepoError}</div>;
-    }
-
-    if (!hostedRepo) {
-      return (
-        <div className="rounded-lg border border-border/70 bg-surface-0 p-4 text-sm text-muted-foreground">
-          No supported hosted remote was detected for this repository.
-        </div>
-      );
-    }
-
-    if (!providerImplemented(hostedRepo.providerId)) {
-      return (
-        <div className="rounded-lg border border-border/70 bg-surface-0 p-4 text-sm text-muted-foreground">
-          {providerTitle(hostedRepo.providerId)} support is planned.
-        </div>
-      );
-    }
-
-    if (!activeProviderConnection) {
-      return (
-        <section className="rounded-lg border border-border/70 bg-surface-0 p-4">
-          <div className="flex items-start gap-3">
-            <div className="mt-0.5 text-muted-foreground">
-              <Plug className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-sm font-medium">
-                Connect {providerTitle(hostedRepo.providerId)}
-              </div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                We detected {hostedRepo.owner}/{hostedRepo.repo} from your git remote. Connect{" "}
-                {providerTitle(hostedRepo.providerId)} to load pull requests.
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Button
-              size="sm"
-              disabled={loadingConnections}
-              onClick={() => onConnectProvider(hostedRepo.providerId)}
-            >
-              <Plug className="mr-1.5 h-3.5 w-3.5" />
-              Connect {providerTitle(hostedRepo.providerId)}
-            </Button>
-          </div>
-        </section>
-      );
-    }
-
-    if (loadingPullRequests && pullRequestsPage === 1) {
-      return (
-        <div className="space-y-1">
-          <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-          <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-          <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-        </div>
-      );
-    }
-
-    if (pullRequestsError) {
-      return <div className="text-destructive text-sm">{pullRequestsError}</div>;
-    }
-
-    if (pullRequests.length === 0 && pullRequestsPage > 1) {
-      const pageStart = (pullRequestsPage - 1) * PULL_REQUESTS_PAGE_SIZE;
-      const pageEnd = pageStart + PULL_REQUESTS_PAGE_SIZE;
-
-      return (
-        <div className="flex h-full min-h-0 flex-col rounded-lg border border-border/70 bg-surface-0">
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-1">
-            <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-            <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-            <div className="bg-background/80 h-16 animate-pulse rounded-lg border border-border/70" />
-          </div>
-          {renderPagination(pageStart, pageEnd)}
-        </div>
-      );
-    }
-
+    if (loadingPullRequests) return <RowSkeletons />;
     if (pullRequests.length === 0) {
       return (
-        <div className="rounded-lg border border-border/70 bg-surface-0 p-4 text-sm text-muted-foreground">
-          No open pull requests were found for this repository.
-        </div>
+        <EmptyState>
+          {filters.involvement === "review-requested"
+            ? "Nothing is waiting on your review."
+            : "No pull requests match these filters."}
+        </EmptyState>
+      );
+    }
+    return pullRequests.map((pullRequest, index) => (
+      <PullRequestInboxRow
+        key={pullRequest.id}
+        pullRequest={pullRequest}
+        selected={selectedPullRequest?.number === pullRequest.number}
+        index={index}
+        onSelect={() => setSelectedPullRequestNumber(pullRequest.number)}
+        onOpen={() => onOpenPullRequest(pullRequest)}
+      />
+    ));
+  }
+
+  function renderContent() {
+    if (connectionsError && connections.length === 0)
+      return (
+        <ErrorState
+          title="Couldn’t load provider connections"
+          error={connectionsError}
+          busy={fetchingConnections}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryConnections();
+            },
+          }}
+        />
+      );
+    if (hostedRepoError && !hostedRepo)
+      return (
+        <ErrorState
+          title="Couldn’t detect this repository’s provider"
+          error={hostedRepoError}
+          busy={fetchingHostedRepo}
+          recovery={{
+            label: "Retry",
+            onAction: () => {
+              void retryHostedRepo();
+            },
+          }}
+        />
+      );
+    if (resolvingHostedRepo || loadingConnections) return <RowSkeletons />;
+    if (!hostedRepo) {
+      return <EmptyState>No supported hosted remote was detected for this repository.</EmptyState>;
+    }
+    if (!providerImplemented(hostedRepo.providerId)) {
+      return <EmptyState>{providerTitle(hostedRepo.providerId)} support is planned.</EmptyState>;
+    }
+    if (!activeProviderConnection) {
+      return (
+        <section className="bg-surface-0 m-6 max-w-xl rounded-lg border p-4">
+          <div className="text-sm font-medium">Connect {providerTitle(hostedRepo.providerId)}</div>
+          <p className="text-muted-foreground mt-1 text-sm">
+            We detected {hostedRepo.owner}/{hostedRepo.repo} from your git remote. Connect{" "}
+            {providerTitle(hostedRepo.providerId)} to load pull requests.
+          </p>
+          <Button
+            size="sm"
+            className="mt-4"
+            disabled={loadingConnections}
+            onClick={() => onConnectProvider(hostedRepo.providerId)}
+          >
+            <Plug />
+            Connect {providerTitle(hostedRepo.providerId)}
+          </Button>
+        </section>
       );
     }
 
-    const pageStart = (pullRequestsPage - 1) * PULL_REQUESTS_PAGE_SIZE;
-    const pageEnd = pageStart + pullRequests.length;
-
     return (
-      <div className="grid h-full min-h-0 lg:grid-cols-[minmax(360px,0.95fr)_minmax(420px,1.05fr)]">
-        <section className="flex min-h-0 flex-col overflow-hidden border-r border-border/70 bg-surface-0 shadow-[0_1px_2px_hsl(var(--foreground)/0.04)]">
-          <div className="border-b border-border/70 px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium">Open pull requests</div>
-                <div className="text-muted-foreground mt-0.5 text-xs">
-                  Use ↑/↓ or J/K to preview. Enter opens the review.
-                </div>
-              </div>
-              <div className="text-muted-foreground rounded-full bg-surface-1 px-2 py-1 text-xs tabular-nums">
-                {pullRequests.length}
-              </div>
-            </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {pullRequests.map((pullRequest, index) => (
-              <PullRequestRow
-                key={pullRequest.id}
-                pullRequest={pullRequest}
-                selected={selectedPullRequest?.number === pullRequest.number}
-                index={index}
-                onSelect={() => {
-                  setSelectedPullRequestNumber(pullRequest.number);
-                }}
-                onOpen={() => {
-                  onOpenPullRequest(pullRequest);
-                }}
+      <ResizableSidebarLayout
+        panelId="primary"
+        contentPanelId="pr-files"
+        sidebarDefaultSize={55}
+        sidebarMinSize="360px"
+        sidebarMaxSize={100}
+        contentMinSize="280px"
+        sidebar={
+          <section
+            aria-label="Pull request list"
+            className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+          >
+            {pullRequestsError && hasCachedPullRequests ? (
+              <ErrorNotice
+                lastUpdated={lastUpdated}
+                title="Couldn’t refresh pull requests"
+                error={pullRequestsError}
+                busy={fetchingPullRequests}
+                recovery={pullRequestsRecovery()}
               />
-            ))}
-          </div>
-          {renderPagination(pageStart, pageEnd)}
-        </section>
-
-        <PullRequestPreviewPane
-          activeRepo={activeRepo}
-          pullRequest={selectedPullRequest}
-          onOpen={onOpenPullRequest}
-        />
-      </div>
+            ) : null}
+            {fetchingPullRequests && !loadingPullRequests && !pullRequestsError ? (
+              <div
+                role="status"
+                className="text-muted-foreground flex items-center gap-2 border-b px-4 py-2 text-xs"
+              >
+                <Spinner aria-hidden="true" className="motion-reduce:animate-none" />
+                Refreshing pull requests…
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto">{renderList()}</div>
+            {renderPagination()}
+            <div className="border-border/70 text-muted-foreground border-t px-4 py-1.5 text-[11px]">
+              ↑↓ or J/K to move · Enter to open · / to search
+            </div>
+          </section>
+        }
+        content={
+          loadingPullRequests ? (
+            <aside className="bg-surface h-full min-h-0">
+              <ListLoadingState label="Loading pull request preview…" />
+            </aside>
+          ) : (
+            <PullRequestInboxPreview
+              repoPath={activeRepo}
+              pullRequest={selectedPullRequest}
+              onOpen={onOpenPullRequest}
+              onActions={(pullRequest) => openComposer(undefined, pullRequest)}
+            />
+          )
+        }
+      />
     );
   }
 
   return (
-    <>
+    <TooltipProvider>
       <ConnectGitHubDialog open={githubDialogOpen} onOpenChange={setGithubDialogOpen} />
       <ConnectBitbucketDialog open={bitbucketDialogOpen} onOpenChange={setBitbucketDialogOpen} />
 
-      <div className="h-full overflow-hidden pt-6">
-        <div className="mx-auto flex h-full min-h-0 w-full px-6 flex-col">
-          <header className="border-border/70 flex flex-wrap items-start justify-between gap-3 border-b pb-3">
-            <div>
-              <h1 className="text-xl font-semibold tracking-[-0.02em]">Pull Requests</h1>
-              <div className="text-muted-foreground mt-1 text-xs">{headerSubtitle()}</div>
+      <div className="flex h-full min-h-0 flex-col overflow-hidden px-6 pt-5">
+        <header className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-[-0.02em]">Pull Requests</h1>
+            <div className="text-muted-foreground mt-0.5 text-xs">{headerSubtitle()}</div>
+          </div>
+          {activeProviderConnection ? (
+            <div className="flex items-center gap-1.5">
+              <PullRequestRefreshControl
+                locator={
+                  selectedPullRequestNumber
+                    ? { repoPath: activeRepo, pullRequestNumber: selectedPullRequestNumber }
+                    : null
+                }
+                onRefreshList={() => {
+                  void refetchPullRequests();
+                }}
+                listBusy={fetchingPullRequests}
+                listRetryAt={readDesktopFailure(pullRequestsError)?.retryAt}
+              />
+              <UserAvatar
+                login={activeProviderConnection.login}
+                name={activeProviderConnection.displayName}
+                avatarUrl={activeProviderConnection.avatarUrl}
+                size="sm"
+              />
+              <span className="text-muted-foreground hidden text-xs sm:inline">
+                {activeProviderConnection.displayName ?? activeProviderConnection.login}
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm" aria-label="Provider connection">
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={disconnectingProvider}
+                    onSelect={() => void onDisconnectProvider(activeProviderConnection.providerId)}
+                  >
+                    <Unplug /> Disconnect {providerTitle(activeProviderConnection.providerId)}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
+          ) : null}
+        </header>
 
-            {activeProviderConnection ? (
-              <div className="flex items-center gap-2">
-                <div className="text-muted-foreground hidden text-xs sm:block">
-                  Connected as {activeProviderConnection.login}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs"
-                  disabled={disconnectingProvider}
-                  onClick={() => {
-                    void onDisconnectProvider(activeProviderConnection.providerId);
-                  }}
-                >
-                  <Unplug className="h-3.5 w-3.5" />
-                  Disconnect
-                </Button>
-              </div>
-            ) : null}
-          </header>
-
-          <div className="min-h-0 flex-1">{renderPullRequestsContent()}</div>
-        </div>
+        {activeProviderConnection ? (
+          <PullRequestInboxFilters authors={uniqueAuthors(pullRequests)} />
+        ) : null}
+        <div className="border-border/70 -mx-6 min-h-0 flex-1 border-t">{renderContent()}</div>
       </div>
-    </>
+    </TooltipProvider>
   );
 }

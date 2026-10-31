@@ -18,6 +18,9 @@ type PullRequestFilesSidebarProps = {
   branchFiles: FileItem[];
   hasBranchFilesData: boolean;
   isLoadingBranchFiles: boolean;
+  filesError: string;
+  filesFailure?: unknown;
+  onRetry?: () => void;
   reviewThreads?: PullRequestReviewThread[];
 };
 
@@ -28,6 +31,9 @@ export function PullRequestFilesSidebar({
   branchFiles,
   hasBranchFilesData,
   isLoadingBranchFiles,
+  filesError,
+  filesFailure,
+  onRetry,
   reviewThreads = [],
 }: PullRequestFilesSidebarProps) {
   const dispatch = useAppDispatch();
@@ -53,16 +59,6 @@ export function PullRequestFilesSidebar({
 
         <PullRequestSidebarSummary review={review} />
 
-        <div className="border-border border-b px-3 py-2.5">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-            CHANGED FILES
-          </div>
-          <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
-            <span>{branchFiles.length}</span>
-            <span>{branchFiles.length === 1 ? "file" : "files"}</span>
-          </div>
-        </div>
-
         <ReviewSelectionSync
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
@@ -70,24 +66,19 @@ export function PullRequestFilesSidebar({
         />
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          {isLoadingBranchFiles ? (
-            <div className="text-muted-foreground px-2 py-2 text-xs">Loading changed files...</div>
-          ) : branchFiles.length === 0 ? (
-            <div className="text-muted-foreground px-2 py-2 text-xs">No changed files.</div>
-          ) : (
-            <ReviewFileList
-              title="CHANGED FILES"
-              branchFiles={branchFiles}
-              activeRepo={activeRepo}
-              reviewBaseRef={review.compareBaseRef}
-              reviewHeadRef={review.compareHeadRef}
-              paneClassName="border-0 bg-transparent"
-              headerClassName="hidden"
-              bodyClassName="space-y-0.5 p-0.5"
-              scrollAreaClassName="min-h-0 flex-1 overflow-hidden"
-              reviewThreads={reviewThreads}
-            />
-          )}
+          <ReviewFileList
+            title="CHANGED FILES"
+            branchFiles={branchFiles}
+            activeRepo={activeRepo}
+            reviewBaseRef={review.compareBaseRef}
+            reviewHeadRef={review.compareHeadRef}
+            isLoading={isLoadingBranchFiles}
+            error={filesFailure ?? (filesError || undefined)}
+            hasData={hasBranchFilesData}
+            onRetry={onRetry}
+            paneClassName="border-0 bg-transparent"
+            reviewThreads={reviewThreads}
+          />
         </div>
       </div>
     </aside>

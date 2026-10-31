@@ -27,20 +27,26 @@ describe("electron preload bridge", () => {
 
   test("exposes the desktop API through window.openWarden", async () => {
     invoke.mockResolvedValueOnce({
-      openRepos: ["/tmp/repo"],
-      activeRepo: "/tmp/repo",
-      recentRepos: ["/tmp/repo"],
+      ok: true,
+      value: {
+        openRepos: ["/tmp/repo"],
+        activeRepo: "/tmp/repo",
+        recentRepos: ["/tmp/repo"],
+      },
     });
     invoke.mockResolvedValueOnce({
-      version: 1,
-      sourceControl: {
-        fileTreeRenderMode: "tree",
-      },
-      lsp: {
-        servers: {},
+      ok: true,
+      value: {
+        version: 1,
+        sourceControl: {
+          fileTreeRenderMode: "tree",
+        },
+        lsp: {
+          servers: {},
+        },
       },
     });
-    invoke.mockResolvedValueOnce(["main"]);
+    invoke.mockResolvedValueOnce({ ok: true, value: ["main"] });
 
     await import("./preload");
 
@@ -61,15 +67,15 @@ describe("electron preload bridge", () => {
     expect(openWarden).toBe(desktopBridge);
 
     const workspaceSession = await desktopBridge.loadWorkspaceSession();
-    expect(workspaceSession.activeRepo).toBe("/tmp/repo");
+    expect(workspaceSession.value.activeRepo).toBe("/tmp/repo");
     expect(invoke).toHaveBeenCalledWith("desktop:invoke", "loadWorkspaceSession");
 
     const appSettings = await desktopBridge.loadAppSettings();
-    expect(appSettings.sourceControl.fileTreeRenderMode).toBe("tree");
+    expect(appSettings.value.sourceControl.fileTreeRenderMode).toBe("tree");
     expect(invoke).toHaveBeenCalledWith("desktop:invoke", "loadAppSettings");
 
     const branches = await desktopBridge.getBranches("/tmp/repo");
-    expect(branches).toEqual(["main"]);
+    expect(branches).toEqual({ ok: true, value: ["main"] });
     expect(invoke).toHaveBeenCalledWith("desktop:invoke", "getBranches", "/tmp/repo");
 
     await desktopBridge.getRepoFiles("/tmp/repo");

@@ -1,10 +1,24 @@
+import { RepositoryEvents } from "./repositoryEvents";
+import { randomUUID } from "node:crypto";
+import { flushAtomicJsonWrites } from "./atomicJsonStore";
+import { captureDesktopOperation } from "../src/platform/desktop/failure";
+import { classifyDesktopFailure } from "./desktop-failure";
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
 
 import { watchAppSettings } from "./appSettings";
+import {
+  configureGuidanceNavigation,
+  initializeGuidanceConnection,
+  disposeGuidanceConnection,
+} from "./guidance/runtime";
 import { configureDesktopApi, desktopApi, disposeDesktopApi } from "./desktop-api";
 import {
+  REPOSITORY_CHANGED_CHANNEL,
+  WORKSPACE_FLUSH_REQUEST_CHANNEL,
+  WORKSPACE_FLUSH_REPLY_CHANNEL,
+  GUIDANCE_NAVIGATE_CHANNEL,
   APP_SETTINGS_CHANGED_CHANNEL,
   DESKTOP_INVOKE_CHANNEL,
   LSP_DIAGNOSTICS_CHANNEL,
@@ -14,21 +28,40 @@ import {
   UPDATE_INSTALL_CHANNEL,
 } from "./ipc-channels";
 import { resolvePreloadPath } from "./preload-path";
+import { handleProviderMediaRequest } from "./providerMedia";
+import { PROVIDER_MEDIA_SCHEME } from "../src/platform/desktop/providerMedia";
 import { createUpdateManager } from "./updateManager";
 
 type DesktopMethod = keyof typeof desktopApi;
 let mainWindow: BrowserWindow | null = null;
 let disposeAppSettingsWatcher: (() => void) | null = null;
+let quitCleanupStarted = false;
+let quitCleanupFinished = false;
+let closeApproved = false;
+let closePending: Promise<boolean> | null = null;
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: PROVIDER_MEDIA_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+  },
+]);
+
 if (!gotSingleInstanceLock) {
   app.quit();
 }
 
+const repositoryEvents = new RepositoryEvents((event) => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed())
+    mainWindow.webContents.send(REPOSITORY_CHANGED_CHANNEL, event);
+});
+
 configureDesktopApi({
+  setRepositorySubscriptions: (paths) => repositoryEvents.setSubscriptions(paths),
   onDiagnostics(event) {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
@@ -46,6 +79,28 @@ function resolveRendererHtmlPath() {
   return path.resolve(__dirname, "../../dist/index.html");
 }
 
+function flushWorkspaceBeforeClose(window: BrowserWindow): Promise<boolean> {
+  if (window.isDestroyed() || window.webContents.isLoadingMainFrame()) return Promise.resolve(true);
+  if (closePending) return closePending;
+  closePending = new Promise<boolean>((resolve) => {
+    const requestId = randomUUID();
+    const finish = (saved: boolean) => {
+      clearTimeout(timer);
+      ipcMain.removeListener(WORKSPACE_FLUSH_REPLY_CHANNEL, receive);
+      resolve(saved);
+    };
+    const receive = (event: Electron.IpcMainEvent, id: unknown, saved: unknown) => {
+      if (event.sender === window.webContents && id === requestId) finish(saved === true);
+    };
+    const timer = setTimeout(() => finish(false), 10_000);
+    ipcMain.on(WORKSPACE_FLUSH_REPLY_CHANNEL, receive);
+    window.webContents.send(WORKSPACE_FLUSH_REQUEST_CHANNEL, requestId);
+  }).finally(() => {
+    closePending = null;
+  });
+  return closePending;
+}
+
 function createMainWindow() {
   const window = new BrowserWindow({
     width: 1440,
@@ -55,7 +110,7 @@ function createMainWindow() {
     show: false,
     title: "OpenWarden",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-    trafficLightPosition: process.platform === "darwin" ? { x: 16, y: 16 } : undefined,
+    trafficLightPosition: process.platform === "darwin" ? { x: 16, y: 13 } : undefined,
     webPreferences: {
       preload: resolvePreloadPath(__dirname),
       contextIsolation: true,
@@ -65,6 +120,17 @@ function createMainWindow() {
   });
 
   mainWindow = window;
+  closeApproved = false;
+  window.on("close", (event) => {
+    if (closeApproved) return;
+    event.preventDefault();
+    void flushWorkspaceBeforeClose(window).then(async (saved) => {
+      if (!saved || window.isDestroyed()) return;
+      await flushAtomicJsonWrites();
+      closeApproved = true;
+      window.close();
+    });
+  });
 
   window.once("ready-to-show", () => {
     window.show();
@@ -85,7 +151,11 @@ function createMainWindow() {
     }
   });
 
+  window.webContents.on("render-process-gone", () => {
+    void repositoryEvents.setSubscriptions([]);
+  });
   window.on("closed", () => {
+    void repositoryEvents.setSubscriptions([]);
     if (mainWindow === window) {
       mainWindow = null;
     }
@@ -122,24 +192,62 @@ ipcMain.removeHandler(DESKTOP_INVOKE_CHANNEL);
 ipcMain.handle(
   DESKTOP_INVOKE_CHANNEL,
   async (_event, method: DesktopMethod, ...args: unknown[]) => {
-    if (!(method in desktopApi)) {
-      throw new Error(`Unknown desktop method: ${String(method)}`);
+    if (!Object.hasOwn(desktopApi, method)) {
+      return {
+        ok: false,
+        error: {
+          operation: "desktop.invoke",
+          code: "unavailable",
+          message: "This desktop operation is unavailable. Reload the app and try again.",
+        },
+      };
     }
 
     const handler = desktopApi[method] as (...params: unknown[]) => unknown;
-    return handler(...args);
+    return captureDesktopOperation(method, () => handler(...args), classifyDesktopFailure);
   },
 );
 ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
-ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () => updateManager.getState());
+ipcMain.handle(UPDATE_GET_STATE_CHANNEL, async () =>
+  captureDesktopOperation("getUpdateState", () => updateManager.getState(), classifyDesktopFailure),
+);
 ipcMain.removeHandler(UPDATE_CHECK_CHANNEL);
-ipcMain.handle(UPDATE_CHECK_CHANNEL, async () => updateManager.checkForUpdates("manual"));
+ipcMain.handle(UPDATE_CHECK_CHANNEL, async () =>
+  captureDesktopOperation(
+    "checkForUpdates",
+    () => updateManager.checkForUpdates("manual"),
+    classifyDesktopFailure,
+  ),
+);
 ipcMain.removeHandler(UPDATE_DOWNLOAD_CHANNEL);
-ipcMain.handle(UPDATE_DOWNLOAD_CHANNEL, async () => updateManager.downloadUpdate());
+ipcMain.handle(UPDATE_DOWNLOAD_CHANNEL, async () =>
+  captureDesktopOperation(
+    "downloadUpdate",
+    () => updateManager.downloadUpdate(),
+    classifyDesktopFailure,
+  ),
+);
 ipcMain.removeHandler(UPDATE_INSTALL_CHANNEL);
-ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () => updateManager.installUpdate());
+ipcMain.handle(UPDATE_INSTALL_CHANNEL, async () =>
+  captureDesktopOperation(
+    "installUpdate",
+    () => updateManager.installUpdate(),
+    classifyDesktopFailure,
+  ),
+);
 
 app.whenReady().then(() => {
+  configureGuidanceNavigation((target) => {
+    const window = mainWindow ?? createMainWindow();
+    const send = () => window.webContents.send(GUIDANCE_NAVIGATE_CHANNEL, target);
+    if (window.webContents.isLoadingMainFrame()) window.webContents.once("did-finish-load", send);
+    else send();
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  });
+  void initializeGuidanceConnection();
+  protocol.handle(PROVIDER_MEDIA_SCHEME, handleProviderMediaRequest);
   createMainWindow();
   updateManager.initialize();
   void watchAppSettings({
@@ -153,9 +261,13 @@ app.whenReady().then(() => {
     onError(error) {
       console.error("Failed to reload app settings", error);
     },
-  }).then((dispose) => {
-    disposeAppSettingsWatcher = dispose;
-  });
+  })
+    .then((dispose) => {
+      disposeAppSettingsWatcher = dispose;
+    })
+    .catch((error) => {
+      console.error("Failed to watch app settings", error);
+    });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -164,11 +276,40 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("before-quit", () => {
-  updateManager.dispose();
-  disposeAppSettingsWatcher?.();
-  disposeAppSettingsWatcher = null;
-  void disposeDesktopApi();
+app.on("before-quit", (event) => {
+  if (quitCleanupFinished) {
+    return;
+  }
+
+  event.preventDefault();
+  if (quitCleanupStarted) {
+    return;
+  }
+
+  quitCleanupStarted = true;
+  void (async () => {
+    try {
+      if (mainWindow && !(await flushWorkspaceBeforeClose(mainWindow))) {
+        quitCleanupStarted = false;
+        return;
+      }
+      await flushAtomicJsonWrites();
+      closeApproved = true;
+      await repositoryEvents.dispose();
+      updateManager.dispose();
+      disposeAppSettingsWatcher?.();
+      disposeAppSettingsWatcher = null;
+      await disposeGuidanceConnection();
+      await disposeDesktopApi();
+    } catch (error) {
+      console.error("Failed to dispose desktop services", error);
+    } finally {
+      if (closeApproved || !mainWindow) {
+        quitCleanupFinished = true;
+        app.quit();
+      }
+    }
+  })();
 });
 
 app.on("window-all-closed", () => {

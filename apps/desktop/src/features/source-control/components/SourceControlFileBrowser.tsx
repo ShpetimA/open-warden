@@ -55,7 +55,7 @@ export function SourceControlFileBrowser<TFile extends { path: string }>({
     <FileList
       files={files}
       mode={mode}
-      selectedPath={selectedPath}
+      selection={selectedPath}
       navRegion={navRegion}
       className={className}
       onActivatePath={onActivatePath}

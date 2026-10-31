@@ -1,6 +1,9 @@
+import { desktopFailure, desktopSuccess, type DesktopResult } from "@/platform/desktop/failure";
 import type { ParsePriority } from "@/features/diff-view/services/parseDiffInWorker";
+import { getDiffFileIdentity } from "@/features/diff-view/services/diffFileIdentity";
 import { getDiffRenderGate } from "@/features/diff-view/services/diffRenderLimits";
 import { parseDiffInWorker } from "@/features/diff-view/services/parseDiffInWorker";
+import { WeightedLruCache } from "@/features/diff-view/services/weightedLruCache";
 import type { DiffFile } from "@/features/source-control/types";
 
 export type ParsedDiff = Awaited<ReturnType<typeof parseDiffInWorker>>;
@@ -13,38 +16,24 @@ type ParsedDiffRequest = {
   newFile: ParseWorkerFile;
 };
 
-const MAX_PARSED_DIFF_CACHE_SIZE = 64;
-
-const parsedDiffCache = new Map<string, ParsedDiff | null>();
+const MAX_PARSED_DIFF_CACHE_ENTRIES = 24;
+const MAX_PARSED_DIFF_CACHE_ESTIMATED_BYTES = 64 * 1024 * 1024;
+const MIN_PARSED_DIFF_ESTIMATED_BYTES = 16 * 1024;
+const JAVASCRIPT_STRING_BYTES_PER_CHARACTER = 2;
+const PARSED_DIFF_STRUCTURE_MULTIPLIER = 4;
 
 type InFlightParse = {
-  promise: Promise<ParsedDiff | null>;
+  promise: Promise<DesktopResult<ParsedDiff>>;
   priority: ParsePriority;
   controller: AbortController;
 };
-
-const inFlightParses = new Map<string, InFlightParse>();
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-function hashStringFNV1a(value: string): string {
-  let hash = 0x811c9dc5;
-
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return (hash >>> 0).toString(36);
-}
-
 function getFileCacheKey(file: DiffFile): string {
-  const nameHash = hashStringFNV1a(file.name);
-  const contentsHash = hashStringFNV1a(file.contents);
-
-  return `f-${nameHash}-${file.contents.length}-${contentsHash}`;
+  return getDiffFileIdentity(file);
 }
 
 function withCacheKey(file: DiffFile, salt = ""): ParseWorkerFile {
@@ -55,15 +44,12 @@ function withCacheKey(file: DiffFile, salt = ""): ParseWorkerFile {
   };
 }
 
-function touchParsedDiff(key: string, diff: ParsedDiff | null) {
-  parsedDiffCache.delete(key);
-  parsedDiffCache.set(key, diff);
-
-  while (parsedDiffCache.size > MAX_PARSED_DIFF_CACHE_SIZE) {
-    const oldestKey = parsedDiffCache.keys().next().value;
-    if (!oldestKey) break;
-    parsedDiffCache.delete(oldestKey);
-  }
+function estimateParsedDiffBytes(request: ParsedDiffRequest): number {
+  const sourceCharacters = request.oldFile.contents.length + request.newFile.contents.length;
+  return Math.max(
+    MIN_PARSED_DIFF_ESTIMATED_BYTES,
+    sourceCharacters * JAVASCRIPT_STRING_BYTES_PER_CHARACTER * PARSED_DIFF_STRUCTURE_MULTIPLIER,
+  );
 }
 
 export function getParsedDiffRequest(
@@ -90,67 +76,60 @@ export function getParsedDiffRequest(
   };
 }
 
-export function getCachedParsedDiff(key: string): ParsedDiff | null | undefined {
-  if (!parsedDiffCache.has(key)) return undefined;
+export function createParsedDiffCache(parse: typeof parseDiffInWorker) {
+  const cache = new WeightedLruCache<string, ParsedDiff>({
+    maxEntries: MAX_PARSED_DIFF_CACHE_ENTRIES,
+    maxWeight: MAX_PARSED_DIFF_CACHE_ESTIMATED_BYTES,
+  });
+  const inFlightParses = new Map<string, InFlightParse>();
 
-  const diff = parsedDiffCache.get(key) ?? null;
-  touchParsedDiff(key, diff);
-  return diff;
-}
-
-export function peekCachedParsedDiff(key: string): ParsedDiff | null | undefined {
-  if (!parsedDiffCache.has(key)) return undefined;
-  return parsedDiffCache.get(key) ?? null;
-}
-
-export function isParsedDiffInFlight(key: string): boolean {
-  return inFlightParses.has(key);
-}
-
-export async function loadParsedDiff(
-  request: ParsedDiffRequest,
-  priority: ParsePriority = "high",
-): Promise<ParsedDiff | null> {
-  const cached = getCachedParsedDiff(request.key);
-  if (cached !== undefined) return cached;
-
-  const inFlight = inFlightParses.get(request.key);
-  if (inFlight && (priority === "low" || inFlight.priority === "high")) {
-    return inFlight.promise;
+  async function load(
+    request: ParsedDiffRequest,
+    priority: ParsePriority = "high",
+  ): Promise<DesktopResult<ParsedDiff>> {
+    const cached = cache.get(request.key);
+    if (cached !== undefined) return desktopSuccess(cached);
+    const inFlight = inFlightParses.get(request.key);
+    if (inFlight && (priority === "low" || inFlight.priority === "high")) return inFlight.promise;
+    inFlight?.controller.abort();
+    const controller = new AbortController();
+    const promise = parse(request.oldFile, request.newFile, controller.signal, priority)
+      .then((diff) => {
+        cache.set(request.key, diff, estimateParsedDiffBytes(request));
+        return desktopSuccess(diff);
+      })
+      .catch(
+        (cause: unknown): DesktopResult<ParsedDiff> => ({
+          ok: false,
+          error: isAbortError(cause)
+            ? desktopFailure("parseDiff", "cancelled", "Diff parsing was cancelled.")
+            : desktopFailure(
+                "parseDiff",
+                "unexpected",
+                "The diff could not be parsed. Retry to render it again.",
+              ),
+        }),
+      )
+      .finally(() => {
+        if (inFlightParses.get(request.key)?.promise === promise)
+          inFlightParses.delete(request.key);
+      });
+    inFlightParses.set(request.key, { promise, priority, controller });
+    return promise;
   }
-
-  inFlight?.controller.abort();
-
-  const controller = new AbortController();
-
-  const parsePromise = parseDiffInWorker(
-    request.oldFile,
-    request.newFile,
-    controller.signal,
-    priority,
-  )
-    .then((parsedDiff) => {
-      touchParsedDiff(request.key, parsedDiff);
-      return parsedDiff;
-    })
-    .catch((error) => {
-      if (isAbortError(error)) {
-        return null;
-      }
-
-      touchParsedDiff(request.key, null);
-      return null;
-    })
-    .finally(() => {
-      const currentInFlight = inFlightParses.get(request.key);
-      if (currentInFlight?.promise === parsePromise) {
-        inFlightParses.delete(request.key);
-      }
-    });
-
-  inFlightParses.set(request.key, { promise: parsePromise, priority, controller });
-  return parsePromise;
+  return {
+    load,
+    get: (key: string) => cache.get(key),
+    peek: (key: string) => cache.peek(key),
+    isInFlight: (key: string) => inFlightParses.has(key),
+  };
 }
+
+const sharedCache = createParsedDiffCache(parseDiffInWorker);
+export const loadParsedDiff = sharedCache.load;
+export const getCachedParsedDiff = sharedCache.get;
+export const peekCachedParsedDiff = sharedCache.peek;
+export const isParsedDiffInFlight = sharedCache.isInFlight;
 
 type PrefetchParsedDiffArgs = {
   activePath: string | null;

@@ -8,7 +8,7 @@ import { selectHistoryCommit, selectHistoryFile } from "@/features/source-contro
 import { HISTORY_FILTER_INPUT_ID } from "@/features/source-control/constants";
 import {
   movePierreFileTreeFocus,
-  movePierreFileTreeFocusFile,
+  movePierreFileTreeFileForKey,
   scrollPierreFileTreePathIntoView,
   scrollPierreFileTreeRealPathIntoView,
 } from "@/features/source-control/pierreFileTreeNavigation";
@@ -18,11 +18,7 @@ import {
 } from "@/features/source-control/sourceControlSlice";
 import type { HistoryCommit } from "@/features/source-control/types";
 import { isTypingTarget } from "@/features/source-control/utils";
-import {
-  focusKeyboardNavItem,
-  getWrappedNavigationIndex,
-  scrollKeyboardNavItemIntoView,
-} from "@/lib/keyboard-navigation";
+import { focusKeyboardNavItem, getWrappedNavigationIndex } from "@/lib/keyboard-navigation";
 import {
   focusInputById,
   SOURCE_CONTROL_HOTKEY_OPTIONS,
@@ -66,16 +62,11 @@ export function useHistoryKeyboardNav() {
 
     event.preventDefault();
 
-    const { historyCommitId, historyNavTarget, historyFilter, fileBrowserMode, allHistoryCommits } =
+    const { historyCommitId, historyNavTarget, historyFilter, allHistoryCommits } =
       getNavigationData();
 
     if (historyNavTarget === "files") {
-      if (fileBrowserMode === "tree") {
-        movePierreFileTreeFocus("history-files", nextKey);
-        return;
-      }
-
-      const targetFile = movePierreFileTreeFocusFile("history-files", nextKey);
+      const targetFile = movePierreFileTreeFileForKey("history-files", event.key, nextKey);
       if (!targetFile) return;
       void dispatch(selectHistoryFile(targetFile.realPath ?? targetFile.path));
       return;
@@ -107,7 +98,7 @@ export function useHistoryKeyboardNav() {
 
     const targetCommit = filteredHistoryCommits[targetIndex];
     if (!targetCommit) return;
-    scrollKeyboardNavItemIntoView("history-commits", targetIndex);
+    focusKeyboardNavItem("history-commits", targetIndex);
     void dispatch(selectHistoryCommit(targetCommit.commitId));
   };
 
@@ -134,9 +125,7 @@ export function useHistoryKeyboardNav() {
     );
     const targetIndex = activeIndex >= 0 ? activeIndex : 0;
 
-    window.requestAnimationFrame(() => {
-      focusKeyboardNavItem("history-commits", targetIndex);
-    });
+    focusKeyboardNavItem("history-commits", targetIndex);
   };
 
   const focusHistoryFileList = () => {

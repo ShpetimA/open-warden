@@ -1,10 +1,15 @@
+import { PullRequestRevisionNotice } from "../refresh/PullRequestRevisionNotice";
+import { useRetainPullRequestCommitRefresh } from "../refresh/PullRequestRefreshProvider";
+import { ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { FileCode2, LoaderCircle } from "lucide-react";
-import { useEffect } from "react";
+import { FileCode2, LoaderCircle, Square, SquareCheckBig } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
+import { Button } from "@/components/ui/button";
+import { ListLoadingState } from "@/components/ui/list-loading-state";
+import { Kbd } from "@/components/ui/kbd";
 import {
   Empty,
   EmptyDescription,
@@ -12,23 +17,31 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetPullRequestConversationQuery,
-  usePreparePullRequestCompareRefsQuery,
   useResolveHostedRepoQuery,
 } from "@/features/hosted-repos/api";
 import ReviewCommentsCopyToolbar from "@/features/pull-requests/components/ReviewCopyBar";
+import { PullRequestCommitFileGroups } from "@/features/pull-requests/components/PullRequestCommitFileGroups";
+import {
+  PullRequestChangesSidebar,
+  type PullRequestChangesView,
+} from "@/features/pull-requests/components/PullRequestChangesSidebar";
+import { usePullRequestComparison } from "@/features/pull-requests/hooks/usePullRequestComparison";
 import { usePullRequestMentionCandidates } from "@/features/pull-requests/hooks/usePullRequestMentionCandidates";
 import { usePullRequestReviewAnchors } from "@/features/pull-requests/hooks/usePullRequestReviewAnchors";
+import { usePullRequestViewedFiles } from "@/features/pull-requests/hooks/usePullRequestViewedFiles";
 import FilesSidebar from "@/features/pull-requests/screens/PullRequestFileList";
 import { setPullRequestPreviewActiveFilePath } from "@/features/pull-requests/pullRequestsSlice";
 import { buildPullRequestAnchorAnnotations } from "@/features/pull-requests/utils/reviewAnchors";
 import {
-  useGetBranchFileVersionsQuery,
   useGetBranchFilesQuery,
+  useGetBranchFileVersionsQuery,
 } from "@/features/source-control/api";
 import { useThrottledDiffSelection } from "@/features/source-control/hooks/useThrottledDiffSelection";
+import type { ReviewFileView } from "@/features/source-control/components/reviewFileGrouping";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
 import type {
   GitProviderId,
@@ -56,6 +69,38 @@ export const PullRequestFiles = () => {
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const { providerId, owner, repo, pullRequestNumber } = useParams();
 
+  return (
+    <PullRequestChanges
+      key={`${activeRepo}:${providerId}:${owner}:${repo}:${pullRequestNumber}`}
+      activeRepo={activeRepo}
+      providerId={providerId}
+      owner={owner}
+      repo={repo}
+      pullRequestNumber={pullRequestNumber}
+    />
+  );
+};
+
+function PullRequestChanges({
+  activeRepo,
+  providerId,
+  owner,
+  repo,
+  pullRequestNumber,
+}: {
+  activeRepo: string;
+  providerId: string | undefined;
+  owner: string | undefined;
+  repo: string | undefined;
+  pullRequestNumber: string | undefined;
+}) {
+  const dispatch = useAppDispatch();
+  const [view, setView] = useState<PullRequestChangesView>("files");
+  const [selectedCommitId, setSelectedCommitId] = useState("");
+  const [grouping, setGrouping] = useState<ReviewFileView | "commits">("review");
+  const groupedByCommit = view === "files" && grouping === "commits";
+  const reviewingCommit = view === "commits" || groupedByCommit;
+
   const parsedPullRequestNumber = Number.parseInt(pullRequestNumber ?? "", 10);
   const hasValidRoute = Boolean(
     providerId &&
@@ -65,10 +110,19 @@ export const PullRequestFiles = () => {
     parsedPullRequestNumber > 0,
   );
 
-  const { hostedRepo } = useResolveHostedRepoQuery(activeRepo, {
+  const {
+    hostedRepo,
+    hostedRepoError,
+    hostedRepoFailure,
+    resolvingHostedRepo,
+    refetch: retryHostedRepo,
+  } = useResolveHostedRepoQuery(activeRepo, {
     skip: !activeRepo,
-    selectFromResult: ({ data }) => ({
-      hostedRepo: data ?? null,
+    selectFromResult: ({ currentData, error, isFetching }) => ({
+      hostedRepo: currentData ?? null,
+      hostedRepoError: currentData ? "" : errorMessageFrom(error, ""),
+      hostedRepoFailure: error,
+      resolvingHostedRepo: isFetching && !currentData,
     }),
   });
 
@@ -87,99 +141,187 @@ export const PullRequestFiles = () => {
       ? { repoPath: activeRepo, pullRequestNumber: parsedPullRequestNumber }
       : skipToken;
 
-  const { compareRefs, compareRefsError, isLoadingCompareRefs } =
-    usePreparePullRequestCompareRefsQuery(filesQueryArg, {
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        compareRefs: data ?? null,
-        compareRefsError: data ? "" : errorMessageFrom(error, ""),
-        isLoadingCompareRefs: isLoading || isFetching,
-      }),
-    });
-
-  const { files, filesError, isLoadingFiles } = useGetBranchFilesQuery(
-    compareRefs && activeRepo
-      ? {
-          repoPath: activeRepo,
-          baseRef: compareRefs.compareBaseRef,
-          headRef: compareRefs.compareHeadRef,
-        }
-      : skipToken,
-    {
-      selectFromResult: ({ data, error, isLoading, isFetching }) => ({
-        files: (data ?? []).map(toChangedFile),
-        filesError: data ? "" : errorMessageFrom(error, ""),
-        isLoadingFiles: isLoading || isFetching,
-      }),
-    },
-  );
-
   const { conversation, reviewThreads } = useGetPullRequestConversationQuery(filesQueryArg, {
-    selectFromResult: ({ data }) => ({
+    selectFromResult: ({ currentData: data }) => ({
       conversation: data ?? null,
       reviewThreads: data?.reviewThreads ?? [],
     }),
-    pollingInterval: 10000,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
+  });
+  const comparison = usePullRequestComparison(filesQueryArg, {
+    commits: reviewingCommit,
+    groups: groupedByCommit,
+  });
+  const commits = comparison.commits ?? [];
+  const selectedCommit = reviewingCommit
+    ? (commits.find((commit) => commit.commitId === selectedCommitId) ?? commits[0] ?? null)
+    : null;
+  const selectedGroup = comparison.groups?.find(
+    (group) => group.commit.commitId === selectedCommit?.commitId,
+  );
+  useRetainPullRequestCommitRefresh(
+    filesQueryArg === skipToken ? null : filesQueryArg,
+    reviewingCommit && !groupedByCommit ? selectedCommit?.commitId : undefined,
+  );
+  const compareBaseRef = selectedCommit
+    ? `${selectedCommit.commitId}^`
+    : (comparison.refs?.compareBaseRef ?? "");
+  const compareHeadRef = selectedCommit?.commitId ?? comparison.refs?.compareHeadRef ?? "";
+  const commitFilesQuery = useGetBranchFilesQuery(
+    selectedCommit && activeRepo && !groupedByCommit
+      ? { repoPath: activeRepo, baseRef: compareBaseRef, headRef: compareHeadRef }
+      : skipToken,
+  );
+  const commitsError = comparison.error;
+  const commitsLoading =
+    reviewingCommit && !commitsError && (!comparison.refs || !comparison.commits);
+  const comparisonFiles = groupedByCommit
+    ? selectedGroup?.files
+    : reviewingCommit
+      ? commitFilesQuery.currentData
+      : comparison.files;
+  const files = (comparisonFiles ?? []).map(toChangedFile);
+  const filesError =
+    hostedRepoError ||
+    comparison.error ||
+    (reviewingCommit ? commitsError || errorMessageFrom(commitFilesQuery.error, "") : "");
+  const filesLoading =
+    resolvingHostedRepo ||
+    (reviewingCommit
+      ? commitsLoading || Boolean(selectedCommit && !comparisonFiles && !filesError)
+      : comparison.loading);
+  function retryFiles() {
+    if (hostedRepoError) {
+      void retryHostedRepo();
+      return;
+    }
+    if (comparison.error || !comparison.refs) {
+      comparison.retry();
+      return;
+    }
+    if (selectedCommit) {
+      void commitFilesQuery.refetch();
+      return;
+    }
+    comparison.retry();
+  }
+  const filesFailure = hostedRepoFailure ?? comparison.failure ?? commitFilesQuery.error;
+  const viewedState = usePullRequestViewedFiles({
+    repoPath: activeRepo ?? "",
+    pullRequestNumber: parsedPullRequestNumber,
+    headSha: conversation?.detail.headSha ?? "",
   });
 
   return (
     <>
       <PullRequestPreviewActiveFileSync files={files} />
-      <ResizableSidebarLayout
-        sidebarDefaultSize={24}
-        sidebarMinSize={16}
-        sidebarMaxSize={36}
-        sidebar={
-          <FilesSidebar
-            files={files}
-            repoPath={activeRepo ?? ""}
-            pullRequestNumber={parsedPullRequestNumber}
-            compareBaseRef={compareRefs?.compareBaseRef ?? ""}
-            compareHeadRef={compareRefs?.compareHeadRef ?? ""}
-            filesError={filesError}
-            isLoading={isLoadingFiles}
-          />
+      <PullRequestRevisionNotice stale={comparison.stale} hasContent={Boolean(comparison.refs)} />
+      <PullRequestChangesSidebar
+        view={view}
+        onViewChange={setView}
+        commits={commits}
+        selectedCommit={selectedCommit}
+        onCommitSelect={(commit) => setSelectedCommitId(commit.commitId)}
+        commitsLoading={commitsLoading && !filesError}
+        commitsError={filesFailure}
+        onRetryCommits={retryFiles}
+        filesPane={
+          groupedByCommit ? (
+            <PullRequestCommitFileGroups
+              groups={comparison.groups ?? []}
+              selectedCommit={selectedCommit}
+              loading={filesLoading}
+              error={filesError}
+              onRetry={retryFiles}
+              onGroupingChange={setGrouping}
+              onSelect={(commit, file) => {
+                setSelectedCommitId(commit.commitId);
+                dispatch(setPullRequestPreviewActiveFilePath(file.path));
+              }}
+            />
+          ) : (
+            <FilesSidebar
+              files={files}
+              repoPath={activeRepo ?? ""}
+              pullRequestNumber={parsedPullRequestNumber}
+              compareBaseRef={compareBaseRef}
+              compareHeadRef={compareHeadRef}
+              filesError={filesError}
+              failure={filesFailure}
+              onRetry={retryFiles}
+              isLoading={filesLoading}
+              viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
+              keyboardNavigationEnabled={view === "files"}
+              fileView={grouping === "commits" ? "review" : grouping}
+              onFileViewChange={setGrouping}
+              onGroupByCommit={view === "files" ? () => setGrouping("commits") : undefined}
+              commitTitle={selectedCommit?.summary}
+              commitId={selectedCommit?.commitId}
+            />
+          )
         }
-        content={
-          <div className="grid h-full min-h-0">
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <PullRequestFileActions
+            repoPath={activeRepo}
+            pullRequestNumber={parsedPullRequestNumber}
+            compareBaseRef={compareBaseRef}
+            compareHeadRef={compareHeadRef}
+            files={files}
+            showCommentActions={!reviewingCommit && !comparison.stale}
+          />
+          <div className="min-h-0 flex-1">
             <FilesDiffViewer
               providerId={providerId}
               repoPath={activeRepo ?? ""}
               pullRequestNumber={parsedPullRequestNumber}
-              compareBaseRef={compareRefs?.compareBaseRef ?? ""}
-              compareHeadRef={compareRefs?.compareHeadRef ?? ""}
-              compareRefsError={compareRefsError}
-              isLoadingCompareRefs={isLoadingCompareRefs}
+              compareBaseRef={compareBaseRef}
+              compareHeadRef={compareHeadRef}
+              filesError={filesError}
+              onRetryFiles={retryFiles}
+              filesLoading={filesLoading}
               files={files}
-              conversation={conversation}
-              reviewThreads={reviewThreads}
+              canComment={!comparison.stale}
+              conversation={comparison.conversation ?? conversation}
+              reviewThreads={!reviewingCommit && !comparison.stale ? reviewThreads : []}
+              viewedState={!reviewingCommit && !comparison.stale ? viewedState : null}
             />
           </div>
-        }
-      />
+        </div>
+      </PullRequestChangesSidebar>
     </>
   );
-};
+}
+
+function PullRequestFileActions({
+  files,
+  ...props
+}: {
+  repoPath: string;
+  pullRequestNumber: number;
+  compareBaseRef: string;
+  compareHeadRef: string;
+  files: readonly PullRequestChangedFile[];
+  showCommentActions: boolean;
+}) {
+  const activePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
+  const file = files.find((item) => item.path === activePath);
+
+  return (
+    <ReviewCommentsCopyToolbar
+      {...props}
+      activePath={activePath}
+      activePreviousPath={file?.previousPath ?? undefined}
+    />
+  );
+}
 
 function PullRequestPreviewActiveFileSync({ files }: { files: PullRequestChangedFile[] }) {
   const dispatch = useAppDispatch();
   const activeFilePath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
 
   useEffect(() => {
-    const hasMatchingActiveFile = Boolean(
-      activeFilePath && files.some((file) => file.path === activeFilePath),
-    );
-
-    if (files.length === 0) {
-      if (activeFilePath) {
-        dispatch(setPullRequestPreviewActiveFilePath(""));
-      }
-      return;
-    }
-
-    if (!hasMatchingActiveFile) {
-      dispatch(setPullRequestPreviewActiveFilePath(files[0].path));
+    if (files.length === 0 && activeFilePath) {
+      dispatch(setPullRequestPreviewActiveFilePath(""));
     }
   }, [activeFilePath, dispatch, files]);
 
@@ -192,22 +334,28 @@ function FilesDiffViewer({
   pullRequestNumber,
   compareBaseRef,
   compareHeadRef,
-  compareRefsError,
-  isLoadingCompareRefs,
+  filesError,
+  onRetryFiles,
+  filesLoading,
   files,
+  canComment,
   conversation,
   reviewThreads,
+  viewedState,
 }: {
   providerId?: string;
   repoPath: string;
   pullRequestNumber: number;
   compareBaseRef: string;
   compareHeadRef: string;
-  compareRefsError: string;
-  isLoadingCompareRefs: boolean;
+  filesError: string;
+  onRetryFiles: () => void;
+  filesLoading: boolean;
   files: PullRequestChangedFile[];
+  canComment: boolean;
   conversation: PullRequestConversation | null;
   reviewThreads: PullRequestReviewThread[];
+  viewedState: ReturnType<typeof usePullRequestViewedFiles> | null;
 }) {
   const selectedPath = useAppSelector((state) => state.pullRequests.previewActiveFilePath);
   const previewFileJumpTarget = useAppSelector((state) => state.pullRequests.previewFileJumpTarget);
@@ -241,8 +389,7 @@ function FilesDiffViewer({
       : skipToken,
   );
 
-  const branchFileVersions =
-    branchFileVersionsQuery.currentData ?? branchFileVersionsQuery.data ?? null;
+  const branchFileVersions = branchFileVersionsQuery.currentData ?? null;
   const selectedOldFile = branchFileVersions?.oldFile ?? null;
   const selectedNewFile = branchFileVersions?.newFile ?? null;
   const branchFileVersionsError = branchFileVersions
@@ -276,6 +423,20 @@ function FilesDiffViewer({
     previewFileJumpTarget && previewFileJumpTarget.path === previewPath
       ? previewFileJumpTarget.focusKey
       : null;
+
+  if (filesLoading && files.length === 0) {
+    return <ListLoadingState label="Loading changed files…" />;
+  }
+  if (filesError && files.length === 0) {
+    return (
+      <ErrorState
+        title="Couldn’t load this PR comparison"
+        error={undefined}
+        message={filesError}
+        recovery={{ label: "Retry", onAction: onRetryFiles }}
+      />
+    );
+  }
 
   if (files.length === 0) {
     return (
@@ -311,23 +472,6 @@ function FilesDiffViewer({
     );
   }
 
-  if (!hasCompareRefs && isLoadingCompareRefs) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <LoaderCircle className="text-muted-foreground h-5 w-5 animate-spin" />
-        <span className="text-muted-foreground ml-2 text-sm">Preparing compare refs...</span>
-      </div>
-    );
-  }
-
-  if (!hasCompareRefs && compareRefsError) {
-    return (
-      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
-        {compareRefsError}
-      </div>
-    );
-  }
-
   if (isLoadingBranchFileVersions) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -339,9 +483,17 @@ function FilesDiffViewer({
 
   if (branchFileVersionsError) {
     return (
-      <div className="text-destructive rounded-2xl border border-red-500/20 bg-red-500/8 px-4 py-3 text-sm">
-        {branchFileVersionsError}
-      </div>
+      <ErrorState
+        title="Couldn’t load this diff"
+        error={branchFileVersionsQuery.error}
+        busy={branchFileVersionsQuery.isFetching}
+        recovery={{
+          label: "Retry",
+          onAction: () => {
+            void branchFileVersionsQuery.refetch();
+          },
+        }}
+      />
     );
   }
 
@@ -366,20 +518,53 @@ function FilesDiffViewer({
   return (
     <div className="grid h-full min-h-0 min-w-0">
       <div className="flex h-full min-h-0 min-w-0 flex-col">
-        <ReviewCommentsCopyToolbar
-          repoPath={repoPath}
-          pullRequestNumber={pullRequestNumber}
-          compareBaseRef={compareBaseRef}
-          compareHeadRef={compareHeadRef}
-          activePath={previewFile?.path ?? selectedFile.path}
-          activePreviousPath={previewFile?.previousPath ?? selectedFile.previousPath ?? undefined}
-        />
         <DiffWorkspace
+          modeChange={branchFileVersions?.modeChange}
           oldFile={selectedOldFile}
           newFile={selectedNewFile}
           activePath={previewFile?.path ?? selectedFile.path}
+          headerAction={
+            viewedState ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant={
+                        viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                          ? "secondary"
+                          : "ghost"
+                      }
+                      disabled={!viewedState.viewedFiles || viewedState.changingViewed}
+                      aria-label={
+                        viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                          ? "Mark file unviewed"
+                          : "Mark file viewed"
+                      }
+                      onClick={() =>
+                        void viewedState.toggleViewed(previewFile?.path ?? selectedFile.path)
+                      }
+                    >
+                      {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path) ? (
+                        <SquareCheckBig />
+                      ) : (
+                        <Square />
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="flex items-center gap-2">
+                    {viewedState.viewedPaths.has(previewFile?.path ?? selectedFile.path)
+                      ? "Mark file unviewed"
+                      : "Mark file viewed"}
+                    <Kbd>V</Kbd>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : null
+          }
           commentContext={{ kind: "review", baseRef: compareBaseRef, headRef: compareHeadRef }}
-          canComment
+          canComment={canComment && Boolean(viewedState)}
           includeCurrentFileComments={false}
           fileViewerRevision={compareHeadRef}
           lspJumpContextKind="pull-request"

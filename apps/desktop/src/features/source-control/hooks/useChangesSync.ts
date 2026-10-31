@@ -1,23 +1,27 @@
+import { useStore } from "react-redux";
+import type { RootState } from "@/app/store";
 import { useEffect } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import {
   clearDiffSelection,
-  setActiveBucket,
   setSelectedFiles,
   setSelectionAnchor,
 } from "@/features/source-control/sourceControlSlice";
-import { findExistingBucket } from "@/features/source-control/utils";
 
 export function useChangesSync() {
   const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const activePath = useAppSelector((state) => state.sourceControl.activePath);
   const activeBucket = useAppSelector((state) => state.sourceControl.activeBucket);
   const selectedFiles = useAppSelector((state) => state.sourceControl.selectedFiles);
   const selectionAnchor = useAppSelector((state) => state.sourceControl.selectionAnchor);
-  const { data: snapshotData } = useGetGitSnapshotQuery(activeRepo, { skip: !activeRepo });
+  const { snapshot: snapshotData } = useGetGitSnapshotQuery(activeRepo, {
+    skip: !activeRepo,
+    selectFromResult: ({ currentData }) => ({ snapshot: currentData }),
+  });
   const snapshot = activeRepo ? snapshotData : undefined;
 
   useEffect(() => {
@@ -61,13 +65,22 @@ export function useChangesSync() {
           : snapshot.staged.some((file) => file.path === activePath);
     if (activeBucketHasPath) return;
 
-    const existingBucket = findExistingBucket(snapshot, activePath);
-    if (!existingBucket) {
-      dispatch(clearDiffSelection());
+    const current = store.getState().sourceControl;
+    if (
+      current.activeRepo !== activeRepo ||
+      current.activePath !== activePath ||
+      current.activeBucket !== activeBucket
+    )
       return;
-    }
-    if (existingBucket !== activeBucket) {
-      dispatch(setActiveBucket(existingBucket));
-    }
-  }, [activeRepo, activeBucket, activePath, dispatch, selectedFiles, selectionAnchor, snapshot]);
+    dispatch(clearDiffSelection());
+  }, [
+    activeRepo,
+    activeBucket,
+    activePath,
+    dispatch,
+    selectedFiles,
+    selectionAnchor,
+    snapshot,
+    store,
+  ]);
 }

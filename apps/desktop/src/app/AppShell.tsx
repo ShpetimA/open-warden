@@ -1,158 +1,113 @@
+import { GuidanceNavigation } from "@/features/guidance/GuidanceNavigation";
+import { WorkspaceChrome } from "@/components/layout/WorkspaceChrome";
+import { HotkeysProvider } from "@tanstack/react-hotkeys";
 import { useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { useHotkey } from "@tanstack/react-hotkeys";
+import { useAppNavigationHotkeys } from "./useAppNavigationHotkeys";
 
 import { AppHeader } from "@/app/AppHeader";
 import { NuqsAdapter } from "nuqs/adapters/react-router/v7";
 import { featureKeyFromPath } from "@/app/featureNavigation";
-import { RepoTabs } from "@/app/RepoTabs";
-import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { SidebarPanelRegistryProvider } from "@/components/layout/SidebarPanelRegistry";
 import { AppCommandPalette } from "@/features/command-palette/AppCommandPalette";
-import { closeRepo, openRepo, selectFolder, selectRepo } from "@/features/source-control/actions";
-import { RecentProjectsPicker } from "@/features/source-control/RecentProjectsPicker";
+import { CommandComposerLauncherProvider } from "@/features/command-palette/CommandComposerLauncher";
+import type { ComposerAction } from "@/features/command-palette/commandComposerModel";
+import type { PullRequestSummary } from "@/platform/desktop/contracts";
+import { WorkspaceContent } from "@/features/workspaces/components/WorkspaceContent";
+import { WorkspaceNavigation } from "@/features/workspaces/components/WorkspaceNavigation";
+import { WorkspaceRail } from "@/features/workspaces/components/WorkspaceRail";
+import { FileQuickOpen } from "@/features/source-control/components/FileQuickOpen";
 
 export type AppShellOutletContext = {
-  openRecentProjectsPicker: () => void;
+  openRepositoryComposer: () => void;
 };
 
 export function AppShell() {
-  const navigate = useNavigate();
   const location = useLocation();
-  const dispatch = useAppDispatch();
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
+  const navigate = useNavigate();
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [recentProjectsPickerOpen, setRecentProjectsPickerOpen] = useState(false);
+  const [fileQuickOpen, setFileQuickOpen] = useState(false);
+  const [composerInitialAction, setComposerInitialAction] = useState<ComposerAction | null>(null);
+  const [composerInitialPullRequest, setComposerInitialPullRequest] =
+    useState<PullRequestSummary | null>(null);
   const isSettingsRoute = location.pathname.startsWith("/settings");
   const activeFeature = isSettingsRoute ? null : featureKeyFromPath(location.pathname);
 
-  const openRecentProjectsPicker = () => {
-    setRecentProjectsPickerOpen(true);
+  const openRepositoryComposer = () => {
+    openComposer("open-repository");
   };
 
-  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
-    if (!switchingRepo) {
-      return;
-    }
+  const openComposer = (action?: ComposerAction, pullRequest?: PullRequestSummary) => {
+    setFileQuickOpen(false);
+    setComposerInitialAction(action ?? null);
+    setComposerInitialPullRequest(pullRequest ?? null);
+    setCommandPaletteOpen(true);
+  };
 
-    if (location.pathname === "/changes") {
-      return;
-    }
-
-    navigate("/changes", { replace: true });
-  }
-
-  useHotkey(
-    "Mod+O",
-    (event) => {
-      event.preventDefault();
-      openRecentProjectsPicker();
+  useAppNavigationHotkeys({
+    openProject: openRepositoryComposer,
+    openSettings: () => {
+      setCommandPaletteOpen(false);
+      navigate("/settings");
     },
-    {
-      ignoreInputs: false,
-      preventDefault: false,
-      stopPropagation: false,
-    },
-  );
+  });
 
   return (
     <NuqsAdapter>
       <SidebarPanelRegistryProvider>
-        <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
-          <div className="grid h-full" style={{ gridTemplateRows: "56px 1fr 34px" }}>
-            <AppHeader
-              activeFeature={activeFeature}
-              currentPath={location.pathname}
-              onOpenCommandPalette={() => {
-                setCommandPaletteOpen(true);
+        <CommandComposerLauncherProvider open={openComposer}>
+          <div className="bg-background text-foreground h-screen w-screen overflow-hidden">
+            <HotkeysProvider
+              defaultOptions={{ hotkey: { enabled: !commandPaletteOpen && !fileQuickOpen } }}
+            >
+              <WorkspaceNavigation />
+              <GuidanceNavigation />
+              <WorkspaceChrome
+                header={
+                  <AppHeader
+                    activeFeature={activeFeature}
+                    currentPath={location.pathname}
+                    showWorkspaceTabs
+                    onOpenWorkspaces={openRepositoryComposer}
+                    onOpenCommandPalette={() => openComposer()}
+                  />
+                }
+                rail={
+                  !isSettingsRoute && location.pathname !== "/repository-setup" ? (
+                    <WorkspaceRail />
+                  ) : null
+                }
+              >
+                <WorkspaceContent>
+                  <Outlet context={{ openRepositoryComposer }} />
+                </WorkspaceContent>
+              </WorkspaceChrome>
+            </HotkeysProvider>
+
+            <AppCommandPalette
+              open={commandPaletteOpen}
+              initialAction={composerInitialAction}
+              initialPullRequest={composerInitialPullRequest}
+              onOpenChange={(open) => {
+                if (open) setFileQuickOpen(false);
+                if (!open) {
+                  setComposerInitialAction(null);
+                  setComposerInitialPullRequest(null);
+                }
+                setCommandPaletteOpen(open);
               }}
             />
-
-            <div className="relative min-h-0">
-              <Outlet context={{ openRecentProjectsPicker }} />
-            </div>
-
-            <RepoTabsContainer
-              currentPath={location.pathname}
-              onShowRecentProjects={openRecentProjectsPicker}
+            <FileQuickOpen
+              open={fileQuickOpen}
+              onOpenChange={(open) => {
+                if (open) setCommandPaletteOpen(false);
+                setFileQuickOpen(open);
+              }}
             />
           </div>
-
-          <RecentProjectsPicker
-            open={recentProjectsPickerOpen}
-            activeRepo={activeRepo}
-            recentRepos={recentRepos}
-            onOpenChange={setRecentProjectsPickerOpen}
-            onSelectRepo={(repoPath) => {
-              const switchingRepo = repoPath !== activeRepo;
-              void dispatch(openRepo(repoPath)).then(() => {
-                navigateToChangesAfterRepoSwitch(switchingRepo);
-              });
-            }}
-            onChooseFolder={() => {
-              void dispatch(selectFolder());
-            }}
-          />
-          <AppCommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
-        </div>
-        <div id="modal-root" />
+          <div id="modal-root" />
+        </CommandComposerLauncherProvider>
       </SidebarPanelRegistryProvider>
     </NuqsAdapter>
-  );
-}
-
-type RepoTabsContainerProps = {
-  currentPath: string;
-  onShowRecentProjects: () => void;
-};
-
-function RepoTabsContainer({ currentPath, onShowRecentProjects }: RepoTabsContainerProps) {
-  const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const repos = useAppSelector((state) => state.sourceControl.repos);
-  const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
-  const recentRepos = useAppSelector((state) => state.sourceControl.recentRepos);
-
-  function navigateToChangesAfterRepoSwitch(switchingRepo: boolean) {
-    if (!switchingRepo) {
-      return;
-    }
-
-    if (currentPath === "/changes") {
-      return;
-    }
-
-    navigate("/changes", { replace: true });
-  }
-
-  return (
-    <RepoTabs
-      repos={repos}
-      activeRepo={activeRepo}
-      recentRepos={recentRepos}
-      onSelectRepo={(repo) => {
-        const switchingRepo = repo !== activeRepo;
-        void dispatch(selectRepo(repo));
-        navigateToChangesAfterRepoSwitch(switchingRepo);
-      }}
-      onCloseRepo={(repo) => {
-        void dispatch(closeRepo(repo)).then((result) => {
-          if (result.closedActiveRepo && currentPath !== "/changes") {
-            navigate("/changes", { replace: true });
-          }
-        });
-      }}
-      onOpenRecentRepo={(repo) => {
-        const switchingRepo = repo !== activeRepo;
-        void dispatch(openRepo(repo)).then(() => {
-          navigateToChangesAfterRepoSwitch(switchingRepo);
-        });
-      }}
-      onShowAllRecentProjects={onShowRecentProjects}
-      onOpenFolder={() => {
-        void dispatch(selectFolder());
-      }}
-    />
   );
 }

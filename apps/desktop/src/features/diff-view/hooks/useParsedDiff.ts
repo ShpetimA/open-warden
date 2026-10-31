@@ -1,3 +1,4 @@
+import type { DesktopResult } from "@/platform/desktop/failure";
 import { useEffect, useRef, useState } from "react";
 
 import { getDiffRenderGate } from "@/features/diff-view/services/diffRenderLimits";
@@ -11,7 +12,7 @@ import {
 } from "@/features/diff-view/services/parsedDiffCache";
 import type { DiffFile } from "@/features/source-control/types";
 
-type ParsedDiffState = { key: string; diff: ParsedDiff | null };
+type ParsedDiffState = { key: string; outcome: DesktopResult<ParsedDiff> };
 
 type UseParsedDiffArgs = {
   activePath: string | null;
@@ -29,6 +30,7 @@ export function useParsedDiff({
   allowLargeDiff = false,
 }: UseParsedDiffArgs) {
   const parseRequestTokenRef = useRef(0);
+  const [attempt, setAttempt] = useState(0);
   const [parsedState, setParsedState] = useState<ParsedDiffState | null>(null);
 
   const diffRenderGate = getDiffRenderGate(activePath, oldFile, newFile);
@@ -53,24 +55,35 @@ export function useParsedDiff({
       return;
     }
 
-    void loadParsedDiff(nextRequestPayload, "high").then((parsedDiff) => {
+    void loadParsedDiff(nextRequestPayload, "high").then((outcome) => {
       if (parseRequestTokenRef.current !== requestToken) return;
-      setParsedState({ key: nextRequestPayload.key, diff: parsedDiff });
+      if (!outcome.ok && outcome.error.code === "cancelled") {
+        setAttempt((value) => value + 1);
+        return;
+      }
+      setParsedState({ key: nextRequestPayload.key, outcome });
     });
-  }, [activePath, allowLargeDiff, cacheSalt, newFile, oldFile]);
+  }, [activePath, allowLargeDiff, cacheSalt, newFile, oldFile, attempt]);
 
   const requestKey = requestPayload?.key ?? null;
   const cachedDiff = requestKey ? peekCachedParsedDiff(requestKey) : undefined;
+  const outcome = parsedState?.key === requestKey ? parsedState.outcome : null;
+  const parseError = outcome && !outcome.ok ? outcome.error : undefined;
   const currentFileDiff =
-    cachedDiff !== undefined
-      ? cachedDiff
-      : requestKey && parsedState?.key === requestKey
-        ? (parsedState.diff ?? null)
-        : null;
+    cachedDiff !== undefined ? cachedDiff : outcome?.ok ? outcome.value : null;
   const isParsingDiff =
     requestKey !== null &&
     cachedDiff === undefined &&
     (isParsedDiffInFlight(requestKey) || parsedState?.key !== requestKey);
 
-  return { currentFileDiff, diffRenderGate, isParsingDiff };
+  return {
+    currentFileDiff,
+    diffRenderGate,
+    isParsingDiff,
+    parseError,
+    retryParsing: () => {
+      setParsedState(null);
+      setAttempt((value) => value + 1);
+    },
+  };
 }

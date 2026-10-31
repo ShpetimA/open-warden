@@ -2,7 +2,7 @@ import path from "node:path";
 
 import { defineConfig } from "vite";
 
-const external = ["electron", ...Object.keys(process.binding("natives"))];
+const external = ["electron", "@parcel/watcher", ...Object.keys(process.binding("natives"))];
 
 export default defineConfig({
   build: {

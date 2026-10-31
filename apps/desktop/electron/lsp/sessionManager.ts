@@ -23,6 +23,7 @@ import { resolveServerConfigForLanguage } from "./serverCatalog";
 type SessionManagerOptions = {
   onDiagnostics(event: LspDiagnosticsEvent): void;
   loadAppSettings?(): Promise<AppSettings>;
+  idleSessionTimeoutMs?: number;
 };
 
 type PendingRequest = {
@@ -108,6 +109,8 @@ type LocationLink = {
 const DEFAULT_REQUEST_TIMEOUT_MS = 12_000;
 const INITIALIZE_REQUEST_TIMEOUT_MS = 20_000;
 const SHUTDOWN_REQUEST_TIMEOUT_MS = 2_000;
+const PROCESS_EXIT_TIMEOUT_MS = 500;
+const DEFAULT_IDLE_SESSION_TIMEOUT_MS = 30_000;
 
 type FileSessionBinding = {
   sessionKey: string;
@@ -317,10 +320,11 @@ class LspSession {
   private readonly onExit: () => void;
   private nextRequestId = 1;
   private closed = false;
-  private disposing = false;
   private serverCapabilities: InitializeResult["capabilities"] | null = null;
   private readonly spawned: Promise<void>;
   private readonly initialized: Promise<void>;
+  private readonly exited: Promise<void>;
+  private disposePromise: Promise<void> | null = null;
 
   static async create(
     repoPath: string,
@@ -354,6 +358,9 @@ class LspSession {
     this.process = spawn(serverConfig.command, serverConfig.args, {
       cwd: repoPath,
       stdio: "pipe",
+    });
+    this.exited = new Promise<void>((resolve) => {
+      this.process.once("exit", () => resolve());
     });
 
     this.protocol = new JsonRpcProtocol({
@@ -580,13 +587,21 @@ class LspSession {
     return normalizeLspLocationResponse(this.repoPath, response);
   }
 
-  dispose() {
-    if (this.closed || this.disposing) {
-      return;
+  dispose(): Promise<void> {
+    if (this.disposePromise) {
+      return this.disposePromise;
+    }
+    if (this.closed) {
+      return Promise.resolve();
     }
 
-    this.disposing = true;
-    void this.shutdownAndDispose();
+    const disposePromise = this.shutdownAndDispose().finally(() => {
+      if (this.disposePromise === disposePromise) {
+        this.disposePromise = null;
+      }
+    });
+    this.disposePromise = disposePromise;
+    return disposePromise;
   }
 
   private handleNotification(method: string, params: unknown) {
@@ -729,10 +744,28 @@ class LspSession {
       // Ignore exit notification errors during teardown.
     }
 
-    this.closeInternals();
-    if (!this.process.killed) {
+    const exitedGracefully = await this.waitForProcessExit(PROCESS_EXIT_TIMEOUT_MS);
+    if (!exitedGracefully && this.process.exitCode === null) {
       this.process.kill();
+      const exitedAfterTerminate = await this.waitForProcessExit(PROCESS_EXIT_TIMEOUT_MS);
+      if (!exitedAfterTerminate && this.process.exitCode === null) {
+        this.process.kill("SIGKILL");
+        await this.waitForProcessExit(PROCESS_EXIT_TIMEOUT_MS);
+      }
     }
+    this.closeInternals();
+  }
+
+  private async waitForProcessExit(timeoutMs: number): Promise<boolean> {
+    if (this.process.exitCode !== null) return true;
+
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(false), timeoutMs);
+      void this.exited.then(() => {
+        clearTimeout(timeout);
+        resolve(true);
+      });
+    });
   }
 
   private handleFatalError(error: unknown) {
@@ -775,7 +808,6 @@ class LspSession {
     }
 
     this.closed = true;
-    this.disposing = false;
     this.protocol.dispose();
     this.failPendingRequests(
       new Error(reason ?? `Language server session closed for ${this.languageId}.`),
@@ -784,18 +816,31 @@ class LspSession {
   }
 }
 
+/** Owns and retires language-server processes shared by open documents. */
 export class LspSessionManager {
   private readonly sessions = new Map<string, Promise<LspSession>>();
   private readonly sessionSettingsSignatures = new Map<string, string>();
+  private readonly sessionIdleTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly fileSessionByFile = new Map<string, FileSessionBinding>();
   private readonly onDiagnostics: SessionManagerOptions["onDiagnostics"];
   private readonly loadAppSettings: NonNullable<SessionManagerOptions["loadAppSettings"]>;
+  private readonly idleSessionTimeoutMs: number;
 
-  constructor({ onDiagnostics, loadAppSettings }: SessionManagerOptions) {
+  /** Creates a manager that owns language-server processes by repository and language. */
+  constructor({
+    onDiagnostics,
+    loadAppSettings,
+    idleSessionTimeoutMs = DEFAULT_IDLE_SESSION_TIMEOUT_MS,
+  }: SessionManagerOptions) {
     this.onDiagnostics = onDiagnostics;
     this.loadAppSettings = loadAppSettings ?? (async () => createAppSettings());
+    this.idleSessionTimeoutMs =
+      Number.isFinite(idleSessionTimeoutMs) && idleSessionTimeoutMs >= 0
+        ? idleSessionTimeoutMs
+        : DEFAULT_IDLE_SESSION_TIMEOUT_MS;
   }
 
+  /** Opens or updates a document in its repository-language session. */
   async syncDocument({ repoPath, relPath, text }: SyncLspDocumentInput) {
     const settings = await this.loadNormalizedSettings();
     const fileKey = toFileKey(repoPath, relPath);
@@ -836,6 +881,7 @@ export class LspSessionManager {
     }
   }
 
+  /** Closes a document and schedules an unused session for retirement. */
   async closeDocument({ repoPath, relPath }: CloseLspDocumentInput) {
     const settings = await this.loadNormalizedSettings();
     const fileKey = toFileKey(repoPath, relPath);
@@ -856,6 +902,7 @@ export class LspSessionManager {
     await this.closeBoundSessionDocument(sessionKey, relPath);
   }
 
+  /** Requests hover information from the session that owns the document. */
   async getHover({
     repoPath,
     relPath,
@@ -876,6 +923,7 @@ export class LspSessionManager {
     }
   }
 
+  /** Requests definitions from the session that owns the document. */
   async getDefinition({
     repoPath,
     relPath,
@@ -896,6 +944,7 @@ export class LspSessionManager {
     }
   }
 
+  /** Requests references from the session that owns the document. */
   async getReferences({
     repoPath,
     relPath,
@@ -917,24 +966,28 @@ export class LspSessionManager {
     }
   }
 
+  /** Waits for every owned language-server process to stop. */
   async dispose() {
     const sessions = Array.from(this.sessions.values());
+    for (const timer of this.sessionIdleTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.sessionIdleTimers.clear();
     this.sessions.clear();
     this.sessionSettingsSignatures.clear();
     this.fileSessionByFile.clear();
 
-    for (const sessionPromise of sessions) {
-      try {
+    await Promise.allSettled(
+      sessions.map(async (sessionPromise) => {
         const session = await sessionPromise;
-        session.dispose();
-      } catch {
-        continue;
-      }
-    }
+        await session.dispose();
+      }),
+    );
   }
 
   private getSession(repoPath: string, languageId: string, settings: AppSettings) {
     const key = toSessionKey(repoPath, languageId);
+    this.cancelScheduledSessionDisposal(key);
     const nextSignature = toSessionSettingsSignature(languageId, settings);
     const existing = this.sessions.get(key);
     const existingSignature = this.sessionSettingsSignatures.get(key);
@@ -944,30 +997,27 @@ export class LspSessionManager {
     }
 
     if (existing && existingSignature !== nextSignature) {
-      this.sessions.delete(key);
-      this.sessionSettingsSignatures.delete(key);
+      this.removeSessionIfCurrent(key, existing);
       this.clearFileBindingsForSessionKey(key);
-      void existing
-        .then((session) => {
-          session.dispose();
-        })
-        .catch(() => {});
+      this.disposeSessionPromise(existing);
     }
 
-    const sessionPromise = LspSession.create(
+    let sessionPromise: Promise<LspSession>;
+    const creatingSession = LspSession.create(
       repoPath,
       languageId,
       settings,
       this.onDiagnostics,
       () => {
-        this.sessions.delete(key);
-        this.sessionSettingsSignatures.delete(key);
-        this.clearFileBindingsForSessionKey(key);
+        if (this.removeSessionIfCurrent(key, sessionPromise)) {
+          this.clearFileBindingsForSessionKey(key);
+        }
       },
-    ).catch((error) => {
-      this.sessions.delete(key);
-      this.sessionSettingsSignatures.delete(key);
-      this.clearFileBindingsForSessionKey(key);
+    );
+    sessionPromise = creatingSession.catch((error) => {
+      if (this.removeSessionIfCurrent(key, sessionPromise)) {
+        this.clearFileBindingsForSessionKey(key);
+      }
       throw error;
     });
 
@@ -1001,6 +1051,83 @@ export class LspSessionManager {
     }
   }
 
+  private hasFileBindingForSessionKey(sessionKey: string) {
+    for (const binding of this.fileSessionByFile.values()) {
+      if (binding.sessionKey === sessionKey) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private cancelScheduledSessionDisposal(sessionKey: string) {
+    const timer = this.sessionIdleTimers.get(sessionKey);
+    if (!timer) {
+      return;
+    }
+
+    clearTimeout(timer);
+    this.sessionIdleTimers.delete(sessionKey);
+  }
+
+  private async scheduleSessionDisposalIfIdle(sessionKey: string) {
+    if (this.hasFileBindingForSessionKey(sessionKey)) {
+      return;
+    }
+
+    this.cancelScheduledSessionDisposal(sessionKey);
+    if (this.idleSessionTimeoutMs === 0) {
+      await this.disposeSessionIfIdle(sessionKey);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      this.sessionIdleTimers.delete(sessionKey);
+      void this.disposeSessionIfIdle(sessionKey);
+    }, this.idleSessionTimeoutMs);
+    timer.unref();
+    this.sessionIdleTimers.set(sessionKey, timer);
+  }
+
+  private async disposeSessionIfIdle(sessionKey: string) {
+    if (this.hasFileBindingForSessionKey(sessionKey)) {
+      return;
+    }
+
+    const sessionPromise = this.sessions.get(sessionKey);
+    if (!sessionPromise) {
+      return;
+    }
+
+    this.removeSessionIfCurrent(sessionKey, sessionPromise);
+    try {
+      const session = await sessionPromise;
+      await session.dispose();
+    } catch {
+      // A failed session has already stopped owning resources.
+    }
+  }
+
+  private disposeSessionPromise(sessionPromise: Promise<LspSession>) {
+    void sessionPromise
+      .then(async (session) => {
+        await session.dispose();
+      })
+      .catch(() => {});
+  }
+
+  private removeSessionIfCurrent(sessionKey: string, sessionPromise: Promise<LspSession>) {
+    if (this.sessions.get(sessionKey) !== sessionPromise) {
+      return false;
+    }
+
+    this.cancelScheduledSessionDisposal(sessionKey);
+    this.sessions.delete(sessionKey);
+    this.sessionSettingsSignatures.delete(sessionKey);
+    return true;
+  }
+
   private async closeBoundSessionDocument(sessionKey: string, relPath: string) {
     const sessionPromise = this.sessions.get(sessionKey);
     if (!sessionPromise) {
@@ -1011,8 +1138,10 @@ export class LspSessionManager {
       const session = await sessionPromise;
       await session.closeDocument(relPath);
     } catch {
-      return;
+      // A failed session has already stopped owning resources.
     }
+
+    await this.scheduleSessionDisposalIfIdle(sessionKey);
   }
 
   private async loadNormalizedSettings(): Promise<AppSettings> {

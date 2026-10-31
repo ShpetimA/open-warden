@@ -1,6 +1,19 @@
+import { reviewDraftSchema } from "./reviewDrafts";
+import { z } from "zod";
+import { commentDraftSchema } from "./commentDrafts";
+import { workspaceTabsSchema } from "./workspaceTabs";
 import type { WorkspaceSession } from "./contracts";
 
 export const MAX_RECENT_REPOS = 12;
+
+export const storedWorkspaceSessionSchema = z.object({
+  openRepos: z.array(z.string()),
+  activeRepo: z.string(),
+  recentRepos: z.array(z.string()),
+  workspaceTabs: workspaceTabsSchema.optional(),
+  comments: z.array(commentDraftSchema).optional(),
+  reviewDrafts: z.array(reviewDraftSchema).optional(),
+});
 
 function normalizeRepoPath(repoPath: unknown): string | null {
   if (typeof repoPath !== "string") return null;
@@ -54,9 +67,18 @@ export function addRecentRepo(recentRepos: string[], repoPath: string): string[]
   return mergeRecentRepos(recentRepos, [], repoPath);
 }
 
-export function createWorkspaceSession(
-  session?: Partial<WorkspaceSession> | null,
-): WorkspaceSession {
+export function createWorkspaceSession(input?: unknown): WorkspaceSession {
+  const parsed = z
+    .object({
+      openRepos: z.unknown().optional(),
+      activeRepo: z.unknown().optional(),
+      recentRepos: z.unknown().optional(),
+      workspaceTabs: workspaceTabsSchema.optional(),
+      comments: z.array(commentDraftSchema).optional(),
+      reviewDrafts: z.array(reviewDraftSchema).optional(),
+    })
+    .safeParse(input ?? {});
+  const session = parsed.success ? parsed.data : undefined;
   const openRepos = normalizeRepoPaths(session?.openRepos);
   const activeRepo = resolveActiveRepo(session?.activeRepo, openRepos);
   const recentRepos = mergeRecentRepos(
@@ -69,6 +91,9 @@ export function createWorkspaceSession(
     openRepos,
     activeRepo,
     recentRepos,
+    ...(session?.workspaceTabs ? { workspaceTabs: session.workspaceTabs } : {}),
+    ...(session?.comments ? { comments: session.comments } : {}),
+    ...(session?.reviewDrafts ? { reviewDrafts: session.reviewDrafts } : {}),
   };
 }
 

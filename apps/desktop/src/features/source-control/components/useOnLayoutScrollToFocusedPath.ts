@@ -15,6 +15,7 @@ const TREE_SCROLL_SELECTOR = "[data-file-tree-virtualized-scroll='true']";
 type UseOnLayoutScrollToFocusedPathOptions<TFile extends PierreFileTreeBrowserFile> = {
   model: PierreFileTreeModel;
   selectedPath: string;
+  autoFocus: boolean;
   filesRef: { current: ReadonlyArray<TFile> };
   syncingSelectionRef: { current: boolean };
   compareTreeDirectories: BuildSourceControlFileTreeOptions<TFile>["compareDirectories"];
@@ -60,6 +61,7 @@ function getPierreFileTreeRowElement(model: PierreFileTreeModel, path: string) {
 function useOnLayoutScrollToFocusedPath<TFile extends PierreFileTreeBrowserFile>({
   model,
   selectedPath,
+  autoFocus,
   filesRef,
   syncingSelectionRef,
   compareTreeDirectories,
@@ -95,6 +97,12 @@ function useOnLayoutScrollToFocusedPath<TFile extends PierreFileTreeBrowserFile>
         return;
       }
 
+      const focusedPath = model.getFocusedPath();
+      if (focusedPath && focusedPath !== selectedPath) {
+        didApplyInitialScrollRef.current = true;
+        return;
+      }
+
       didApplyInitialScrollRef.current = true;
       const initialRowIndex = findExpandedInitialRowIndex(
         filesRef.current,
@@ -111,7 +119,7 @@ function useOnLayoutScrollToFocusedPath<TFile extends PierreFileTreeBrowserFile>
       syncingSelectionRef.current = true;
       model.focusPath(selectedPath);
       syncingSelectionRef.current = false;
-      focusTarget.focus({ preventScroll: true });
+      if (autoFocus) focusTarget.focus({ preventScroll: true });
       getPierreFileTreeRowElement(model, selectedPath)?.scrollIntoView({ block: "nearest" });
     };
 
@@ -123,7 +131,16 @@ function useOnLayoutScrollToFocusedPath<TFile extends PierreFileTreeBrowserFile>
         window.cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [compareTreeDirectories, flattenEmptyDirectories, selectedPath, model, sort]);
+  }, [
+    autoFocus,
+    compareTreeDirectories,
+    filesRef,
+    flattenEmptyDirectories,
+    selectedPath,
+    model,
+    sort,
+    syncingSelectionRef,
+  ]);
 }
 
 export default useOnLayoutScrollToFocusedPath;

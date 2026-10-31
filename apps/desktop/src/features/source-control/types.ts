@@ -92,6 +92,7 @@ export type DiffFocusTarget = {
 export type FileViewerTarget = {
   repoPath: string;
   relPath: string;
+  blame?: boolean;
   revision?: string | null;
   line?: number | null;
   column?: number | null;
@@ -204,6 +205,14 @@ export type DiffAnnotationItem =
   | DiagnosticAnnotation
   | PullRequestThreadAnnotation
   | PullRequestAnchorAnnotation
+  | {
+      type: "guidance";
+      id: string;
+      title: string;
+      body: string;
+      details?: string;
+      referenceLabel: string;
+    }
   | DiffHunkActionAnnotation;
 
 export type GitSnapshot = ContractGitSnapshot;

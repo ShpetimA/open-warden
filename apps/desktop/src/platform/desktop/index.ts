@@ -2,7 +2,7 @@ import { createDesktopApiForwarder } from "./createDesktopApi";
 import type { DesktopBridge } from "./contracts";
 import { browserDesktopApi, unavailableDesktopApi } from "./browser";
 
-function hasElectronRuntime() {
+export function hasElectronRuntime() {
   if (typeof window === "undefined") return false;
 
   return (
@@ -36,6 +36,11 @@ function resolveDesktopApi(): DesktopBridge {
 const desktopApi = createDesktopApiForwarder(() => resolveDesktopApi());
 
 export const desktop: DesktopBridge = {
+  onRepositoryChanged: (listener) =>
+    resolveDesktopApi().onRepositoryChanged?.(listener) ?? (() => {}),
+  onWorkspaceFlushRequested: (listener) =>
+    resolveDesktopApi().onWorkspaceFlushRequested?.(listener) ?? (() => {}),
+  onGuidanceNavigate: (listener) => resolveDesktopApi().onGuidanceNavigate(listener),
   ...desktopApi,
   getUpdateState: () => resolveDesktopApi().getUpdateState(),
   checkForUpdates: () => resolveDesktopApi().checkForUpdates(),
@@ -49,7 +54,7 @@ export const desktop: DesktopBridge = {
 export type {
   AppSettings,
   AddPullRequestCommentInput,
-  ApiError,
+  CreatePullRequestInput,
   Bucket,
   ConfirmOptions,
   ConnectProviderInput,
@@ -71,6 +76,7 @@ export type {
   GitSnapshot,
   HostedRepoRef,
   HistoryCommit,
+  CommitDetails,
   LspDiagnostic,
   LspDiagnosticSeverity,
   LspDiagnosticsEvent,
@@ -87,19 +93,45 @@ export type {
   PreparePullRequestWorkspaceInput,
   ProviderConnection,
   PullRequestChangedFile,
+  PullRequestCheck,
+  PullRequestChecksResult,
+  PullRequestExtras,
+  PullRequestLabel,
+  PullRequestWorkflowRun,
+  PullRequestStackLink,
+  SetPullRequestLabelsInput,
+  RerunPullRequestWorkflowInput,
+  AddPullRequestReactionInput,
+  GitBlameResult,
+  GitBlameLine,
+  PullRequestCheckState,
   PullRequestCompareRefs,
   PullRequestConversation,
   PullRequestDetail,
   PullRequestIssueComment,
   PullRequestLocatorInput,
+  PullRequestLifecycleInput,
+  PullRequestLifecycleResult,
+  PullRequestActivity,
+  PullRequestActivityItem,
+  PullRequestViewedFiles,
+  SetPullRequestFileViewedInput,
   PullRequestOpenMode,
   PullRequestPerson,
+  PullRequestActivityEvent,
   PullRequestReviewComment,
+  PullRequestReviewer,
+  PullRequestInvolvement,
+  PullRequestReviewOverview,
   PullRequestReviewDraftCommentInput,
   PullRequestReviewThread,
+  SetPullRequestReviewerInput,
+  SubmitPullRequestReviewInput,
+  SubmitPullRequestReviewResult,
   ProviderAuthType,
   ProviderConnectionMethod,
   ListPullRequestsInput,
+  MergePullRequestInput,
   ResolveActivePullRequestForBranchInput,
   PullRequestPage,
   PullRequestSummary,
@@ -108,5 +140,6 @@ export type {
   SetPullRequestThreadResolvedInput,
   SubmitPullRequestReviewCommentsInput,
   SubmitPullRequestReviewCommentsResult,
+  SubmitPullRequestDecisionInput,
   WorkspaceSession,
 } from "./contracts";

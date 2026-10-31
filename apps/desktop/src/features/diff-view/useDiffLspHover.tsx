@@ -203,7 +203,8 @@ export function useDiffLspHover({ document, resetKey }: UseDiffLspHoverOptions) 
           ...document,
           ...hoverPosition,
         })
-        .then((result) => {
+        .then((reply) => {
+          const result = reply.ok ? reply.value : null;
           if (hoverRequestIdRef.current !== nextRequestId || !result?.text) {
             if (hoverRequestIdRef.current === nextRequestId) {
               closeHover();

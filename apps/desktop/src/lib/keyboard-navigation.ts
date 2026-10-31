@@ -1,3 +1,11 @@
+import { z } from "zod";
+
+export const VIRTUAL_NAVIGATION_EVENT = "virtual-list-navigation";
+export const virtualNavigationSchema = z.object({
+  index: z.number().int().nonnegative(),
+  focus: z.boolean(),
+});
+
 export function getWrappedNavigationIndex(
   activeIndex: number,
   itemCount: number,
@@ -10,13 +18,23 @@ export function getWrappedNavigationIndex(
 }
 
 export function scrollKeyboardNavItemIntoView(region: string, targetIndex: number): void {
-  getKeyboardNavItem(region, targetIndex)?.scrollIntoView({ block: "nearest" });
+  const target = getKeyboardNavItem(region, targetIndex);
+  if (target) target.scrollIntoView({ block: "nearest" });
+  else requestVirtualNavigation(region, targetIndex, false);
 }
 
 export function focusKeyboardNavItem(region: string, targetIndex: number): void {
   const targetItem = getKeyboardNavItem(region, targetIndex);
+  if (!targetItem) requestVirtualNavigation(region, targetIndex, true);
   targetItem?.scrollIntoView({ block: "nearest" });
   targetItem?.focus({ preventScroll: true });
+}
+
+function requestVirtualNavigation(region: string, index: number, focus: boolean) {
+  if (index < 0) return;
+  document
+    .querySelector(`[data-nav-region="${region}"]`)
+    ?.dispatchEvent(new CustomEvent(VIRTUAL_NAVIGATION_EVENT, { detail: { index, focus } }));
 }
 
 function getKeyboardNavItem(region: string, targetIndex: number): HTMLElement | null {

@@ -1,4 +1,5 @@
 import { ArrowUpRight, FolderOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 import { repoLabel, repoParentPath } from "@/features/source-control/utils";
 
@@ -6,9 +7,17 @@ type EmptyRepoStateProps = {
   recentRepos: string[];
   onOpenPicker: () => void;
   onOpenRepo: (repo: string) => void;
+  onClone?: () => void;
+  onInitialize?: () => void;
 };
 
-export function EmptyRepoState({ recentRepos, onOpenPicker, onOpenRepo }: EmptyRepoStateProps) {
+export function EmptyRepoState({
+  recentRepos,
+  onOpenPicker,
+  onOpenRepo,
+  onClone,
+  onInitialize,
+}: EmptyRepoStateProps) {
   const previewRecentRepos = recentRepos.slice(0, 5);
 
   return (
@@ -42,6 +51,21 @@ export function EmptyRepoState({ recentRepos, onOpenPicker, onOpenRepo }: EmptyR
             </div>
             <ArrowUpRight className="text-muted-foreground h-4 w-4 transition-transform duration-150 ease-[var(--ease-out)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </button>
+
+          {onClone || onInitialize ? (
+            <div className="flex flex-wrap gap-2">
+              {onClone ? (
+                <Button variant="outline" size="sm" onClick={onClone}>
+                  Clone repository…
+                </Button>
+              ) : null}
+              {onInitialize ? (
+                <Button variant="ghost" size="sm" onClick={onInitialize}>
+                  Initialize repository…
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="max-w-[720px]">
             <div className="mb-2 flex items-center justify-between">

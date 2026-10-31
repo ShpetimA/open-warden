@@ -44,17 +44,20 @@ describe("useLspTokenNavigation", () => {
   });
 
   it("opens symbol peek for a single definition result", async () => {
-    mocks.getLspDefinition.mockResolvedValue([
-      {
-        repoPath: "/repo",
-        relPath: "src/one.ts",
-        uri: "file:///repo/src/one.ts",
-        line: 7,
-        character: 2,
-        endLine: 7,
-        endCharacter: 9,
-      },
-    ]);
+    mocks.getLspDefinition.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          repoPath: "/repo",
+          relPath: "src/one.ts",
+          uri: "file:///repo/src/one.ts",
+          line: 7,
+          character: 2,
+          endLine: 7,
+          endCharacter: 9,
+        },
+      ],
+    });
 
     const { result } = renderHook(() =>
       useLspTokenNavigation({ repoPath: "/repo", relPath: "src/current.ts" }),
@@ -107,26 +110,29 @@ describe("useLspTokenNavigation", () => {
   });
 
   it("opens symbol peek for multiple definition results", async () => {
-    mocks.getLspDefinition.mockResolvedValue([
-      {
-        repoPath: "/repo",
-        relPath: "src/one.ts",
-        uri: "file:///repo/src/one.ts",
-        line: 7,
-        character: 2,
-        endLine: 7,
-        endCharacter: 9,
-      },
-      {
-        repoPath: "/repo",
-        relPath: "src/two.ts",
-        uri: "file:///repo/src/two.ts",
-        line: 4,
-        character: 1,
-        endLine: 4,
-        endCharacter: 6,
-      },
-    ]);
+    mocks.getLspDefinition.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          repoPath: "/repo",
+          relPath: "src/one.ts",
+          uri: "file:///repo/src/one.ts",
+          line: 7,
+          character: 2,
+          endLine: 7,
+          endCharacter: 9,
+        },
+        {
+          repoPath: "/repo",
+          relPath: "src/two.ts",
+          uri: "file:///repo/src/two.ts",
+          line: 4,
+          character: 1,
+          endLine: 4,
+          endCharacter: 6,
+        },
+      ],
+    });
 
     const { result } = renderHook(() =>
       useLspTokenNavigation({ repoPath: "/repo", relPath: "src/current.ts" }),
@@ -171,17 +177,20 @@ describe("useLspTokenNavigation", () => {
   });
 
   it("opens symbol peek for a single reference result", async () => {
-    mocks.getLspReferences.mockResolvedValue([
-      {
-        repoPath: "/repo",
-        relPath: "src/ref.ts",
-        uri: "file:///repo/src/ref.ts",
-        line: 11,
-        character: 0,
-        endLine: 11,
-        endCharacter: 4,
-      },
-    ]);
+    mocks.getLspReferences.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          repoPath: "/repo",
+          relPath: "src/ref.ts",
+          uri: "file:///repo/src/ref.ts",
+          line: 11,
+          character: 0,
+          endLine: 11,
+          endCharacter: 4,
+        },
+      ],
+    });
 
     const { result } = renderHook(() =>
       useLspTokenNavigation({ repoPath: "/repo", relPath: "src/current.ts" }),
@@ -234,26 +243,29 @@ describe("useLspTokenNavigation", () => {
   });
 
   it("opens symbol peek for multiple reference results", async () => {
-    mocks.getLspReferences.mockResolvedValue([
-      {
-        repoPath: "/repo",
-        relPath: "src/ref.ts",
-        uri: "file:///repo/src/ref.ts",
-        line: 11,
-        character: 0,
-        endLine: 11,
-        endCharacter: 4,
-      },
-      {
-        repoPath: "/repo",
-        relPath: "src/other.ts",
-        uri: "file:///repo/src/other.ts",
-        line: 19,
-        character: 1,
-        endLine: 19,
-        endCharacter: 5,
-      },
-    ]);
+    mocks.getLspReferences.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          repoPath: "/repo",
+          relPath: "src/ref.ts",
+          uri: "file:///repo/src/ref.ts",
+          line: 11,
+          character: 0,
+          endLine: 11,
+          endCharacter: 4,
+        },
+        {
+          repoPath: "/repo",
+          relPath: "src/other.ts",
+          uri: "file:///repo/src/other.ts",
+          line: 19,
+          character: 1,
+          endLine: 19,
+          endCharacter: 5,
+        },
+      ],
+    });
 
     const { result } = renderHook(() =>
       useLspTokenNavigation({ repoPath: "/repo", relPath: "src/current.ts" }),
@@ -298,17 +310,20 @@ describe("useLspTokenNavigation", () => {
   });
 
   it("stores diff return target metadata on symbol peek payloads", async () => {
-    mocks.getLspDefinition.mockResolvedValue([
-      {
-        repoPath: "/repo",
-        relPath: "src/one.ts",
-        uri: "file:///repo/src/one.ts",
-        line: 7,
-        character: 2,
-        endLine: 7,
-        endCharacter: 9,
-      },
-    ]);
+    mocks.getLspDefinition.mockResolvedValue({
+      ok: true,
+      value: [
+        {
+          repoPath: "/repo",
+          relPath: "src/one.ts",
+          uri: "file:///repo/src/one.ts",
+          line: 7,
+          character: 2,
+          endLine: 7,
+          endCharacter: 9,
+        },
+      ],
+    });
 
     const { result } = renderHook(() =>
       useLspTokenNavigation(

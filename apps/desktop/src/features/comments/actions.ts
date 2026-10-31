@@ -197,12 +197,13 @@ export function toLineAnnotations(comments: CommentItem[]) {
 
 export async function confirmDiscard(message: string): Promise<boolean> {
   try {
-    return await desktop.confirm(message, {
+    const result = await desktop.confirm(message, {
       title: "Discard Changes",
       kind: "warning",
       okLabel: "Discard",
       cancelLabel: "Cancel",
     });
+    return result.ok ? result.value : window.confirm(message);
   } catch {
     return window.confirm(message);
   }

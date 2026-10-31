@@ -1,0 +1,98 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design system/Product map" />
+
+# Product component map
+
+Open Warden will design and approve its interface in Storybook before feature screens adopt it. Existing feature behavior remains the source of truth while this component language is developed.
+
+## Navigation model
+
+The proposed direction replaces the fixed bottom project selector with composable workspace tabs:
+
+1. A **project tab** keeps a repository and its current feature context together.
+2. A **pull-request tab** opens a review independently, without replacing the current project workspace.
+3. Project-local tabs switch between Changes, History, Review, and Pull requests.
+4. **⌘K** is the universal way to open projects, pull requests, history entries, files, and actions.
+5. Tabs can be reordered, closed, restored, and overflowed without changing the underlying repository state.
+
+Search is an entry point into these resources. Whether a search result remains a temporary view or becomes a durable workspace tab should be decided from the Storybook compositions before implementation.
+
+## File-tree boundary
+
+Pierre remains the file-tree and code-tree renderer. The design system owns the surrounding panel, toolbar, selection context, empty/loading/error states, and navigation chrome. It does not introduce a competing file-tree component.
+
+## Storybook coverage before migration
+
+<table>
+  <thead>
+    <tr>
+      <th>Surface</th>
+      <th>Components and states to approve</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Application chrome</td>
+      <td>
+        Workspace tab, close/add actions, overflow, drag target, inactive/active/attention states
+      </td>
+    </tr>
+    <tr>
+      <td>Project workspace</td>
+      <td>
+        Project identity, Changes/History/Review/Pull requests tabs, branch context, dirty state
+      </td>
+    </tr>
+    <tr>
+      <td>Command launcher</td>
+      <td>
+        Grouped results, project/PR/history/file/action rows, keyboard footer, empty/loading/error
+        states
+      </td>
+    </tr>
+    <tr>
+      <td>Changes</td>
+      <td>
+        Toolbar, commit input, change summary, Pierre tree frame, file selection, conflict and
+        staging states
+      </td>
+    </tr>
+    <tr>
+      <td>History</td>
+      <td>
+        Search/filter, commit row, range selection, comparison summary, Pierre tree frame,
+        empty/loading/error states
+      </td>
+    </tr>
+    <tr>
+      <td>Pull requests</td>
+      <td>
+        Search/filter, PR row, preview, overview (with merge status and checks) and files tabs,
+        provider connection and unavailable states
+      </td>
+    </tr>
+    <tr>
+      <td>Review</td>
+      <td>
+        Review header, comment thread, composer, pending review summary, publish/discard states
+      </td>
+    </tr>
+    <tr>
+      <td>Diff workspace</td>
+      <td>
+        File header, diff statistics, line actions, comments, diagnostics, loading/large-file/error
+        states
+      </td>
+    </tr>
+    <tr>
+      <td>Shared feedback</td>
+      <td>
+        Notices, empty states, skeletons, progress, dialogs, menus, tooltips, shortcuts and
+        destructive confirmation
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+The component stories are the acceptance surface. Feature code is migrated only after the corresponding row above is approved.

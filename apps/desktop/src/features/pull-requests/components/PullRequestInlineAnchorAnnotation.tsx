@@ -1,4 +1,5 @@
-import { Copy, MessageSquarePlus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, MessageSquarePlus, Trash2 } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
@@ -35,14 +36,22 @@ export function PullRequestInlineAnchorAnnotation({
     compareHeadRef,
   });
   const hasPendingDrafts = anchor.pendingDrafts.length > 0;
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2 py-1">
+    <div className="flex w-full min-w-0 max-w-3xl flex-col gap-1 py-2 pr-2 font-sans whitespace-normal">
       {hasPendingDrafts ? (
-        <div className="flex max-w-[32rem] flex-wrap items-center gap-1 border-b border-border/50 pb-1">
-          <div className="text-muted-foreground mr-auto text-[10px] uppercase tracking-[0.12em]">
+        <div className="flex min-h-7 flex-wrap items-center gap-1">
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground mr-auto flex min-h-7 items-center gap-1 text-[11px] tabular-nums"
+            aria-label={collapsed ? "Expand pending comments" : "Collapse pending comments"}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed((current) => !current)}
+          >
+            {collapsed ? <ChevronRight className="size-3" /> : <ChevronDown className="size-3" />}
             {pullRequestAnchorLabel(anchor)} · {anchor.pendingDrafts.length} pending
-          </div>
+          </button>
           <Button
             size="xs"
             disabled={pendingActions.isSubmittingReviewComments}
@@ -87,14 +96,16 @@ export function PullRequestInlineAnchorAnnotation({
         />
       ))}
 
-      {anchor.pendingDrafts.map((draft) => (
-        <PullRequestPendingDraftItem
-          key={draft.id}
-          comment={draft}
-          variant="inline"
-          mentions={mentions}
-        />
-      ))}
+      <div hidden={collapsed} className="space-y-1">
+        {anchor.pendingDrafts.map((draft) => (
+          <PullRequestPendingDraftItem
+            key={draft.id}
+            comment={draft}
+            variant="inline"
+            mentions={mentions}
+          />
+        ))}
+      </div>
     </div>
   );
 }
