@@ -1,5 +1,5 @@
 import type { ContextMenuOpenContext } from "@pierre/trees";
-import { Trash2 } from "lucide-react";
+import { GitCommitHorizontal, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -13,10 +13,12 @@ export function RepositoryEntryContextMenu({
   context,
   disabled,
   onTrash,
+  onBlame,
 }: {
   context: ContextMenuOpenContext;
   disabled: boolean;
   onTrash: () => void;
+  onBlame?: () => void;
 }) {
   return (
     <DropdownMenu
@@ -54,6 +56,19 @@ export function RepositoryEntryContextMenu({
           context.restoreFocus();
         }}
       >
+        {onBlame ? (
+          <DropdownMenuItem
+            className="h-7 gap-2 px-2 py-0 text-xs"
+            disabled={disabled}
+            onSelect={() => {
+              context.close({ restoreFocus: false });
+              onBlame();
+            }}
+          >
+            <GitCommitHorizontal className="size-3.5" />
+            Show line authors (blame)
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           variant="destructive"
           className="h-7 gap-2 px-2 py-0 text-xs"

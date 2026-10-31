@@ -1,3 +1,4 @@
+import type { ReviewDraft } from "../../src/platform/desktop/reviewDrafts";
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -8,6 +9,10 @@ export async function openWorkflowRepository(
   electron: typeof _electron,
   testInfo: TestInfo,
   theme: "light" | "dark",
+  options: {
+    prepare?: (repo: string, git: (...args: string[]) => string) => Promise<void>;
+    reviewDrafts?: readonly Omit<ReviewDraft, "repoPath">[];
+  } = {},
 ) {
   const root = await mkdtemp(path.join(os.tmpdir(), "warden-workflow-ui-"));
   const repoDirectory = path.join(root, "invoice");
@@ -36,9 +41,15 @@ export async function openWorkflowRepository(
   await writeFile(path.join(repo, "test/invoice.test.ts"), "export const amounts = [1, 2, 3];\n");
   git("add", ".");
   git("commit", "-m", "Add invoice calculation");
+  await options.prepare?.(repo, git);
   await writeFile(
     path.join(profile, "workspace-session.json"),
-    JSON.stringify({ openRepos: [repo], activeRepo: repo, recentRepos: [] }),
+    JSON.stringify({
+      openRepos: [repo],
+      activeRepo: repo,
+      recentRepos: [],
+      reviewDrafts: options.reviewDrafts?.map((draft) => ({ ...draft, repoPath: repo })),
+    }),
   );
   await writeFile(
     entry,

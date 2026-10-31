@@ -1,3 +1,4 @@
+import { RepositoryResources } from "./RepositoryResources";
 import { OpenInExternalEditor } from "@/features/source-control/components/OpenInExternalEditor";
 import { repoLabel } from "@/features/source-control/utils";
 import { GitRepositoryControls } from "./GitRepositoryControls";
@@ -39,7 +40,12 @@ function CurrentRepositoryHeader({
           />
         </div>
       </div>
-      {activeRepo ? <GitRepositoryControls key={activeRepo} repoPath={activeRepo} /> : null}
+      {activeRepo ? (
+        <>
+          <GitRepositoryControls key={activeRepo} repoPath={activeRepo} />
+          <RepositoryResources key={`resources:${activeRepo}`} repoPath={activeRepo} />
+        </>
+      ) : null}
     </div>
   );
 }

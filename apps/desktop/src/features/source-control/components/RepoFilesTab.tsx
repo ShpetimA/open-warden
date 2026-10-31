@@ -114,6 +114,11 @@ export function RepoFilesTab() {
                 context={context}
                 disabled={trashing || Boolean(activeCreation)}
                 onTrash={() => void trash({ path: file.path, kind: "file" })}
+                onBlame={() =>
+                  dispatch(
+                    openFileViewer({ repoPath: activeRepo, relPath: file.path, blame: true }),
+                  )
+                }
               />
             )}
             renderDirectoryContextMenu={(item, context) => (
