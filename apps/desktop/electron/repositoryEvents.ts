@@ -443,6 +443,14 @@ export class RepositoryEvents {
           } else this.checkWorktreeHint(repo, relative);
         }
       };
+      // @parcel/watcher reuses an open subscription's directory scan for the same root. On Linux,
+      // a replacement opened before the old watcher closes never watches newly unignored folders.
+      // Close the old watcher first, then reread Git state to cover the short gap.
+      if (previous) {
+        repo.watchers.delete(plan.directory);
+        await previous.close();
+      }
+
       const watcher = plan.parent
         ? await this.watchPool.parentDirectory(plan.directory, receive)
         : await this.watchPool.recursiveRoot(plan.directory, plan.ignore, receive);
@@ -450,9 +458,10 @@ export class RepositoryEvents {
         await watcher.close();
         return false;
       }
+
       this.identities.set(watcher, identity);
       repo.watchers.set(plan.directory, watcher);
-      await previous?.close();
+      if (previous) this.enqueue(repo, ["worktree", "index", "refs", "config"], undefined, true);
     }
     return true;
   }
