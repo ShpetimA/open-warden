@@ -162,7 +162,7 @@ async function runGit(
   ensureRepoPath(repoPath);
 
   try {
-    const { stdout } = await execFile("git", args, {
+    const { stdout } = await execFile("git", ["--no-optional-locks", ...args], {
       cwd: repoPath,
       encoding: "buffer",
       maxBuffer: MAX_BUFFER,

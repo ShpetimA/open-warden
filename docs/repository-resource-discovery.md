@@ -13,8 +13,14 @@ polling loop was added. Loading and failed reads have explicit menu states and r
 Native verification creates a stash, tag, and linked worktree in a temporary repository, previews
 without applying the stash, opens its tag in History, switches checkout, and inspects line authors.
 
-## Follow-up from verification
+## Status-read coordination
 
-A native test hit an index lock when it created a stash after app launch. Check optional locks
-in status reads in a separate Git coordination pass. Discovery fixtures now seed repository data
-before launch; these checks do not establish that external Git writes cannot contend with app reads.
+Production verification reproduced index-lock conflicts between background status reads and
+external staging. Both Git adapters now use `--no-optional-locks`. Status reads still compute
+current changes, while skipping their optional index-cache write. Required write locks remain in force.
+Conflict lookup uses `git diff-files`, which compares the index without the porcelain diff command's cache refresh.
+This follows [Git's background status guidance](https://git-scm.com/docs/git-status#_background_refresh).
+
+Regression checks touch file metadata and verify both read APIs leave the index bytes unchanged.
+A plain Git status call then changes those bytes, proving the fixture exercises the cache refresh.
+Another check verifies an existing index lock still blocks an amendment and remains untouched.

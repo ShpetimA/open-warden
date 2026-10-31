@@ -28,7 +28,7 @@ function run(
   return new Promise((resolve) => {
     execFile(
       "git",
-      args,
+      ["--no-optional-locks", ...args],
       {
         cwd: repoPath,
         encoding: "utf8",
@@ -117,7 +117,7 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
   if (!stashes.ok) return stashes;
   const operation = await readOperation(repo);
   if (!operation.ok) return operation;
-  const conflicts = await run(repo, ["diff", "--name-only", "--diff-filter=U", "-z"]);
+  const conflicts = await run(repo, ["diff-files", "--name-only", "--diff-filter=U", "-z"]);
   if (!conflicts.ok) return conflicts;
   return {
     ok: true,
