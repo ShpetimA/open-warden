@@ -12,7 +12,7 @@ import { repoLabel, repoParentPath } from "@/features/source-control/utils";
 import { desktop } from "@/platform/desktop";
 import type { DirectoryListing } from "@/platform/desktop/contracts";
 
-import { CommandComposerCards } from "./CommandComposerCards";
+import { CommandComposerContext } from "./CommandComposerContext";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
@@ -213,13 +213,11 @@ export function RepositoryCommandComposer({
 
   return (
     <CommandComposerLayout pane={pane}>
-      <CommandComposerCards
+      <CommandComposerContext
         pane={pane}
         actionLabel="Open repository"
-        previewAction="open-repository"
         operandLabel="Repository"
         operandValue={previewPath ? repoLabel(previewPath) : "Choose a folder"}
-        operandIcon={FolderOpen}
         onActionPress={goBack}
         onOperandPress={() => {
           if (pane === "choice" && activeChoice) selectChoice(activeChoice.id);
@@ -238,7 +236,6 @@ export function RepositoryCommandComposer({
           <>
             <CommandComposerChoiceStep
               pane="choice"
-              action="open-repository"
               operandLabel="Repository"
               choiceSearchLabel="repositories"
               query={query}
@@ -256,7 +253,6 @@ export function RepositoryCommandComposer({
               onSelect={selectChoice}
               searchLabel="Repository name, directory path, or pull request URL"
               searchPlaceholder="Search repositories, type ~/proj/…, or paste a PR link"
-              choiceIcon={FolderOpen}
               onSearchKeyDown={(event) => {
                 if (event.key === "Tab" && !event.shiftKey && folders.length) {
                   event.preventDefault();

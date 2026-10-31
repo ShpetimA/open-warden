@@ -251,7 +251,8 @@ describe("AppCommandPalette", () => {
     expect(
       within(screen.getByRole("group", { name: "Actions" })).getAllByRole("button"),
     ).toHaveLength(20);
-    expect(screen.getByText("Available now")).toBeInTheDocument();
+    expect(screen.getByText("Browse", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Actions", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.queryByText("Stage changes")).not.toBeInTheDocument();
 
@@ -297,14 +298,17 @@ describe("AppCommandPalette", () => {
     expect(mocks.dispatch).not.toHaveBeenCalledWith({ type: "test/stage-all" });
   });
 
-  test("the action card selects its previewed action without executing it", () => {
+  test("highlighting keeps the context stable until an action is selected", () => {
     render(<AppCommandPalette open onOpenChange={() => {}} />);
 
     fireEvent.change(screen.getByRole("textbox", { name: "Search actions" }), {
       target: { value: "Pull" },
     });
     fireEvent.mouseEnter(actionChoice(/^Pull(?! requests)/));
-    fireEvent.click(screen.getByRole("button", { name: "Action: Pull" }));
+    expect(screen.getByRole("navigation", { name: "Command steps" })).toHaveTextContent(
+      "Quick actions",
+    );
+    fireEvent.click(actionChoice(/^Pull(?! requests)/));
     expect(screen.getByRole("button", { name: "Confirm Pull" })).toBeEnabled();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
@@ -413,7 +417,7 @@ describe("AppCommandPalette", () => {
     },
   );
 
-  test("pressing the action card returns from the stash branch step", () => {
+  test("pressing the action breadcrumb returns from the stash branch step", () => {
     render(<AppCommandPalette open initialAction="stash-switch" onOpenChange={() => {}} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Action: Stash & switch" }));
@@ -643,7 +647,7 @@ describe("AppCommandPalette", () => {
     fireEvent.change(search, { target: { value: "/tmp/" } });
     await waitFor(() => expect(mocks.browseDirectory).toHaveBeenCalledWith("/tmp/"));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /project\/tmp\/project/ })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: "project /tmp/project" })).toBeInTheDocument(),
     );
     await act(async () => fireEvent.keyDown(search, { key: "Tab" }));
     expect(search).toHaveValue("/tmp/project/");

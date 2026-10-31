@@ -25,8 +25,8 @@ import { openPullRequestWorkspace } from "@/features/workspaces/actions";
 import { selectActiveWorkspace } from "@/features/workspaces/workspacesSlice";
 import type { PullRequestSummary } from "@/platform/desktop/contracts";
 
-import { CommandComposerCards } from "./CommandComposerCards";
-import type { ComposerCardStep } from "./CommandComposerCards";
+import { CommandComposerContext } from "./CommandComposerContext";
+import type { ComposerContextStep } from "./CommandComposerContext";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
@@ -449,15 +449,14 @@ export function PullRequestCommandComposer({
     );
   }
 
-  let cardSteps: ComposerCardStep[] | undefined;
+  let contextSteps: ComposerContextStep[] | undefined;
 
   if (objectFirst) {
-    cardSteps = [
+    contextSteps = [
       {
         id: "scope",
         label: "Scope",
         value: "Pull requests",
-        icon: GitPullRequest,
         active: false,
         onPress: () => {
           if (!busy) onBack();
@@ -469,8 +468,6 @@ export function PullRequestCommandComposer({
         value: previewPullRequest
           ? `#${previewPullRequest.number} ${previewPullRequest.title}`
           : "Choose a PR",
-        previewKey: pane === "choice" ? activeChoice?.id : undefined,
-        icon: GitPullRequest,
         active: pane === "choice",
         onPress: () => {
           if (busy) return;
@@ -486,12 +483,10 @@ export function PullRequestCommandComposer({
 
     if (pane !== "choice") {
       const previewChoice = actionChoices.find((item) => item.id === previewAction);
-      cardSteps.push({
+      contextSteps.push({
         id: "action",
         label: "Action",
         value: pane === "action" ? (previewChoice?.label ?? "Choose action") : actionLabel,
-        previewKey: pane === "action" ? activeChoice?.id : (action ?? undefined),
-        icon: actions.find((item) => item.id === previewAction)?.icon ?? GitPullRequest,
         active: true,
         onPress: () => {
           if (busy) return;
@@ -508,22 +503,20 @@ export function PullRequestCommandComposer({
 
   return (
     <CommandComposerLayout pane={pane}>
-      <CommandComposerCards
+      <CommandComposerContext
         pane={pane}
-        steps={cardSteps}
+        steps={contextSteps}
         actionLabel={
           pane === "action" && objectFirst
             ? (actionChoices.find((item) => item.id === previewAction)?.label ?? "Choose action")
             : actionLabel
         }
-        previewAction={previewAction}
         operandLabel="Pull request"
         operandValue={
           previewPullRequest
             ? `#${previewPullRequest.number} ${previewPullRequest.title}`
             : "Choose a PR"
         }
-        operandIcon={GitPullRequest}
         objectFirst={objectFirst}
         onActionPress={() => {
           if (pane === "action" && activeChoice) selectChoice(activeChoice.id);
@@ -554,7 +547,6 @@ export function PullRequestCommandComposer({
           <>
             <CommandComposerChoiceStep
               pane={pane}
-              action={action}
               operandLabel={pane === "action" ? "Actions" : "Pull request"}
               choiceSearchLabel={pane === "action" ? "actions" : "pull requests"}
               query={query}
@@ -572,7 +564,6 @@ export function PullRequestCommandComposer({
               searchPlaceholder={
                 pane === "action" ? "Search PR actions…" : "Search pull requests on this page…"
               }
-              choiceIcon={GitPullRequest}
             />
             {pane === "choice" && loadingPullRequests ? (
               <p role="status" className="text-muted-foreground text-xs">

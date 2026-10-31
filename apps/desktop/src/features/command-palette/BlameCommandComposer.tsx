@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -8,7 +7,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { useGetRepoFilesQuery } from "@/features/source-control/api";
 import { openFileViewer } from "@/features/source-control/sourceControlSlice";
 
-import { CommandComposerCards } from "./CommandComposerCards";
+import { CommandComposerContext } from "./CommandComposerContext";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
@@ -68,13 +67,11 @@ export function BlameCommandComposer({
 
   return (
     <CommandComposerLayout pane="choice">
-      <CommandComposerCards
+      <CommandComposerContext
         pane="choice"
         actionLabel="Blame file"
-        previewAction="blame-file"
         operandLabel="File"
         operandValue={activeChoice?.label ?? "Choose a file"}
-        operandIcon={FileText}
         onActionPress={onBack}
         onOperandPress={() => {
           if (activeChoice) openFile(activeChoice.id);
@@ -89,7 +86,6 @@ export function BlameCommandComposer({
         </div>
         <CommandComposerChoiceStep
           pane="choice"
-          action="blame-file"
           operandLabel="File"
           choiceSearchLabel="files"
           query={query}
@@ -106,7 +102,6 @@ export function BlameCommandComposer({
           onSelect={openFile}
           searchLabel="File name"
           searchPlaceholder="Search repository files"
-          choiceIcon={FileText}
         />
         {isLoading ? <p className="text-muted-foreground text-xs">Loading files…</p> : null}
         <div className="change-composer-footer">

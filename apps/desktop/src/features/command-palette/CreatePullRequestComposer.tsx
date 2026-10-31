@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, GitPullRequest, LoaderCircle, PencilLine } from "lucide-react";
+import { GitPullRequest, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { useAppSelector } from "@/app/hooks";
@@ -15,8 +15,8 @@ import {
 } from "@/features/hosted-repos/api";
 import { useGetGitRepositoryStateQuery } from "@/features/source-control/gitOperationsApi";
 
-import { CommandComposerCards } from "./CommandComposerCards";
-import type { ComposerCardStep } from "./CommandComposerCards";
+import { CommandComposerContext } from "./CommandComposerContext";
+import type { ComposerContextStep } from "./CommandComposerContext";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
@@ -158,12 +158,11 @@ export function CreatePullRequestComposer({
     onRun: () => void advanceOrRun(),
   });
 
-  const cardSteps: ComposerCardStep[] = [
+  const contextSteps: ComposerContextStep[] = [
     {
       id: "action",
       label: "Action",
       value: "Create pull request",
-      icon: GitPullRequest,
       active: false,
       onPress: () => {
         if (!busy) onBack();
@@ -173,8 +172,6 @@ export function CreatePullRequestComposer({
       id: "head",
       label: "Head",
       value: step === "head" ? (activeChoice?.label ?? "Choose head") : headRef,
-      previewKey: step === "head" ? activeChoice?.id : undefined,
-      icon: GitBranch,
       active: step === "head",
       onPress: () => {
         if (busy) return;
@@ -189,12 +186,10 @@ export function CreatePullRequestComposer({
   ];
 
   if (step !== "head") {
-    cardSteps.push({
+    contextSteps.push({
       id: "base",
       label: "Base",
       value: step === "base" ? (activeChoice?.label ?? "Choose base") : baseRef,
-      previewKey: step === "base" ? activeChoice?.id : undefined,
-      icon: GitBranch,
       active: step === "base",
       onPress: () => {
         if (busy) return;
@@ -209,11 +204,10 @@ export function CreatePullRequestComposer({
   }
 
   if (step === "details" || step === "confirm" || step === "execute") {
-    cardSteps.push({
+    contextSteps.push({
       id: "details",
       label: "Details",
       value: title.trim() || "Write details",
-      icon: PencilLine,
       active: true,
       onPress: () => {
         if (busy) return;
@@ -225,11 +219,10 @@ export function CreatePullRequestComposer({
 
   return (
     <CommandComposerLayout pane={pane}>
-      <CommandComposerCards
+      <CommandComposerContext
         pane={pane}
-        steps={cardSteps}
+        steps={contextSteps}
         actionLabel="Create pull request"
-        previewAction="create-pr"
         operandLabel={step === "head" ? "Head" : step === "base" ? "Base" : "Branches"}
         operandValue={
           step === "head"
@@ -238,7 +231,6 @@ export function CreatePullRequestComposer({
               ? (activeChoice?.label ?? "Choose base")
               : `${headRef} → ${baseRef}`
         }
-        operandIcon={GitBranch}
         onActionPress={goBack}
         onOperandPress={() => {
           if (pane === "choice" && activeChoice) selectBranch(activeChoice.id);
@@ -266,7 +258,6 @@ export function CreatePullRequestComposer({
         {pane === "choice" ? (
           <CommandComposerChoiceStep
             pane="choice"
-            action="create-pr"
             operandLabel={step === "head" ? "Head branch" : "Base branch"}
             choiceSearchLabel="branches"
             query={query}
@@ -281,7 +272,6 @@ export function CreatePullRequestComposer({
             }}
             onHighlight={setHighlightedId}
             onSelect={selectBranch}
-            choiceIcon={GitBranch}
           />
         ) : step === "details" ? (
           <div className="change-composer-review-content">

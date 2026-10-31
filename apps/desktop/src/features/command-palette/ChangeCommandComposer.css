@@ -1,5 +1,5 @@
 .command-composer-dialog[data-slot="dialog-content"] {
-  --composer-top: max(16px, calc(50vh - 320px));
+  --composer-top: max(16px, calc(40vh - 220px));
 
   top: var(--composer-top);
   translate: -50% 0;
@@ -9,283 +9,101 @@
 }
 
 .change-composer {
-  --composer-card-width: 192px;
-  --composer-card-height: 132px;
   --composer-motion-ease: cubic-bezier(0.2, 0, 0, 1);
 
   display: grid;
-  gap: 12px;
+  width: min(560px, 100%);
+  margin-inline: auto;
   color: var(--foreground);
   background: transparent;
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: var(--elevation-overlay);
 }
 
 .change-composer:focus {
   outline: none;
 }
 
-.change-composer-card-surface {
-  position: relative;
-  width: calc(var(--composer-card-width) * 3 + 40px);
-  max-width: 100%;
-  padding: 12px;
-  margin-inline: auto;
-  isolation: isolate;
-}
-
-.change-composer-card-surface::before {
-  position: absolute;
-  z-index: -1;
-  inset-block: 0;
-  left: 50%;
-  width: calc(var(--composer-card-width) * 3 + 40px);
+.change-composer-context {
+  min-width: 0;
+  padding: 4px 12px;
   border: 1px solid var(--border);
-  border-radius: calc(var(--radius) + 12px);
+  border-radius: calc(var(--radius) + 4px) calc(var(--radius) + 4px) 0 0;
   background: var(--surface-toolbar);
-  box-shadow: var(--elevation-overlay);
-  content: "";
-  transform: translateX(-50%);
-  transition: width 150ms var(--composer-motion-ease);
 }
 
-.change-composer-card-surface[data-count="1"]::before {
-  width: calc(var(--composer-card-width) + 24px);
-}
-
-.change-composer-card-surface[data-count="2"]::before {
-  width: calc(var(--composer-card-width) * 2 + 32px);
-}
-
-.change-composer-card-history {
-  position: absolute;
-  top: -14px;
-  left: 16px;
+.change-composer-context ol {
   display: flex;
-  max-width: calc(100% - 32px);
-  gap: 6px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
 }
 
-.change-composer-card-history-item {
-  max-width: 100%;
-  overflow: hidden;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-toolbar);
+.change-composer-context li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.change-composer-context li > svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
   color: var(--muted-foreground);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 16px;
+}
+
+.change-composer-context li:last-child {
+  max-width: 45%;
+  flex: none;
+}
+
+.change-composer-context button,
+.change-composer-context-current {
+  display: block;
+  min-width: 0;
+  min-height: 40px;
+  overflow: hidden;
+  padding: 10px 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 20px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  box-shadow: var(--elevation-surface);
 }
 
-.change-composer-card-history-item:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-
-.change-composer-cards {
-  position: relative;
-  height: var(--composer-card-height);
-}
-
-.change-composer-card-position {
-  position: absolute;
-  z-index: 1;
-  top: 0;
-  left: 0;
-  width: var(--composer-card-width);
-  --slot-offset: 0px;
-  --enter-shift: 12px;
-  transform: translateX(calc(var(--slot-offset) + var(--start-offset)));
-  animation: change-composer-slot-enter 150ms var(--composer-motion-ease) both;
-  transition: transform 150ms var(--composer-motion-ease);
-}
-
-.change-composer-card-position[data-slot="0"] {
-  --enter-shift: -12px;
-}
-
-.change-composer-card-position[data-slot="1"] {
-  --slot-offset: calc(var(--composer-card-width) + 8px);
-}
-
-.change-composer-card-position[data-slot="2"] {
-  --slot-offset: calc(var(--composer-card-width) * 2 + 16px);
-}
-
-.change-composer-card-surface[data-count="1"] {
-  --start-offset: calc(var(--composer-card-width) + 8px);
-}
-
-.change-composer-card-surface[data-count="2"] {
-  --start-offset: calc((var(--composer-card-width) + 8px) / 2);
-}
-
-.change-composer-card-surface[data-count="3"] {
-  --start-offset: 0px;
-}
-
-.change-composer-card-position[data-exit-count="1"] {
-  --start-offset: calc(var(--composer-card-width) + 8px);
-}
-
-.change-composer-card-position[data-exit-count="2"] {
-  --start-offset: calc((var(--composer-card-width) + 8px) / 2);
-}
-
-.change-composer-card-position[data-exit-count="3"] {
-  --start-offset: 0px;
-}
-
-.change-composer-card-exit {
-  z-index: 0;
-  pointer-events: none;
-  animation: change-composer-slot-exit 150ms var(--composer-motion-ease) both;
-}
-
-.change-composer-card-exit[data-exit-direction="left"] {
-  --exit-shift: calc((var(--composer-card-width) + 8px) / -2);
-}
-
-.change-composer-card-exit[data-exit-direction="right"] {
-  --exit-shift: calc((var(--composer-card-width) + 8px) / 2);
-}
-
-.change-composer-card-exit[data-exit-direction="stay"] {
-  --exit-shift: 0px;
-}
-
-.change-composer-card-exit .change-composer-card {
-  animation: none;
-}
-
-.change-composer-card {
-  display: grid;
-  width: var(--composer-card-width);
-  height: var(--composer-card-height);
-  grid-template-rows: auto 1fr auto;
-  justify-items: center;
-  gap: 2px;
-  padding: 12px;
-  border: 1px solid var(--border);
+.change-composer-context button {
   border-radius: var(--radius);
-  background: var(--surface-elevated);
-  color: var(--foreground);
-  text-align: center;
   cursor: pointer;
-  box-shadow: var(--elevation-surface);
-  animation: change-composer-card-enter 150ms var(--composer-motion-ease) both;
-  transition:
-    border-color 120ms var(--composer-motion-ease),
-    background-color 120ms var(--composer-motion-ease),
-    box-shadow 120ms var(--composer-motion-ease),
-    transform 120ms var(--composer-motion-ease),
-    scale 120ms var(--composer-motion-ease);
 }
 
-.change-composer-card[data-active="true"] {
-  border-color: var(--ring);
-  background: var(--surface-active);
-  box-shadow: var(--elevation-surface);
+.change-composer-context button:hover {
+  color: var(--foreground);
 }
 
-.change-composer-card:hover {
-  border-color: var(--ring);
-}
-
-.change-composer-card:active {
-  scale: 0.96;
-}
-
-.change-composer-card:focus-visible,
+.change-composer-context button:focus-visible,
 .change-composer-choice:focus-visible {
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.change-composer-card-icon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  min-height: 0;
-  place-items: center;
-  align-self: center;
-  grid-row: 2;
-  border: 1px solid var(--border);
-  border-radius: calc(var(--radius) + 4px);
-  background: var(--surface-toolbar);
+.change-composer-context-current {
   color: var(--foreground);
-}
-
-.change-composer-card[data-active="true"] .change-composer-card-icon {
-  color: var(--primary);
-}
-
-.change-composer-icon-stack {
-  position: relative;
-}
-
-.change-composer-icon-layer {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  opacity: 0;
-  filter: blur(4px);
-  transform: scale(0.25);
-  transition:
-    opacity 130ms var(--composer-motion-ease),
-    filter 130ms var(--composer-motion-ease),
-    transform 130ms var(--composer-motion-ease);
-}
-
-.change-composer-icon-layer[data-visible="true"] {
-  opacity: 1;
-  filter: blur(0);
-  transform: scale(1);
-}
-
-.change-composer-card-label {
-  grid-row: 1;
-  color: var(--muted-foreground);
-  font-size: 11px;
   font-weight: 600;
-}
-
-.change-composer-card-value {
-  grid-row: 3;
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  font-size: 15px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.change-composer-card-value[data-preview="true"] {
-  animation: change-composer-value-enter 130ms var(--composer-motion-ease) both;
 }
 
 .change-composer-panel {
   display: flex;
-  width: min(420px, 100%);
-  max-height: max(
-    220px,
-    min(430px, calc(100vh - var(--composer-top) - var(--composer-card-height) - 60px))
-  );
+  width: 100%;
+  max-height: max(220px, min(520px, calc(100vh - var(--composer-top) - 72px)));
   min-width: 0;
   flex-direction: column;
   gap: 8px;
-  padding: 12px;
-  margin-inline: auto;
+  padding: 8px 12px 12px;
   border: 1px solid var(--border);
-  border-radius: calc(var(--radius) + 4px);
+  border-top: 0;
+  border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
   background: var(--surface-elevated);
-  box-shadow: var(--elevation-overlay);
-  animation: change-composer-panel-enter 140ms var(--composer-motion-ease) both;
 }
 
 .change-composer-panel-title {
@@ -317,20 +135,30 @@
 
 .change-composer-choices {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
-  gap: 4px;
+  gap: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-toolbar);
 }
 
 .change-composer-choice-section {
-  padding: 8px 8px 2px;
-  color: var(--muted-foreground);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--foreground);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.change-composer-choice-section:not(:first-child) {
+  border-top: 1px solid var(--border);
 }
 
 .change-composer-search {
@@ -359,29 +187,38 @@
 
 .change-composer-choice {
   display: flex;
-  min-height: 52px;
+  min-width: 0;
+  min-height: 40px;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   padding: 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: 0;
   background: transparent;
   color: var(--foreground);
   cursor: pointer;
   transition:
     background-color 120ms var(--composer-motion-ease),
-    border-color 120ms var(--composer-motion-ease),
-    transform 120ms var(--composer-motion-ease);
+    border-color 120ms var(--composer-motion-ease);
 }
 
-.change-composer-choice[data-highlighted="true"],
 .change-composer-choice:hover {
-  border-color: var(--border);
+  background: var(--surface-elevated);
+}
+
+.change-composer-choice[data-highlighted="true"] {
+  border-color: color-mix(in oklab, var(--ring) 55%, var(--border));
   background: var(--surface-active);
+  box-shadow: inset 2px 0 0 var(--ring);
+}
+
+.change-composer-choice[data-highlighted="true"] .change-composer-choice-icon,
+.change-composer-choice[data-highlighted="true"] .change-composer-choice-detail {
+  color: var(--foreground);
 }
 
 .change-composer-choice:active {
-  transform: scale(0.96);
+  background: var(--surface-toolbar);
 }
 
 .change-composer-choice:disabled {
@@ -390,15 +227,48 @@
 }
 
 .change-composer-choice-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
+  width: 16px;
+  height: 16px;
   flex: none;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface-toolbar);
-  box-shadow: var(--elevation-surface);
+  color: var(--muted-foreground);
+}
+
+.change-composer-choice-label,
+.change-composer-choice-path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.change-composer-choice-path {
+  display: flex;
+}
+
+.change-composer-choice-path > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.change-composer-choice-path > span:last-child {
+  max-width: 65%;
+  flex: none;
+}
+
+.change-composer-choice-detail {
+  max-width: 40%;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .change-composer-review {
@@ -468,9 +338,12 @@
   display: flex;
   flex: none;
   flex-wrap: wrap;
-  gap: 8px 16px;
-  padding-top: 8px;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  margin: 0 -12px -12px;
   border-top: 1px solid var(--border);
+  border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
+  background: var(--surface-toolbar);
   color: var(--muted-foreground);
   font-size: 11px;
 }
@@ -481,89 +354,16 @@
   gap: 4px;
 }
 
-@keyframes change-composer-card-enter {
-  from {
-    scale: 0.96;
-  }
-  to {
-    scale: 1;
-  }
-}
-
-@keyframes change-composer-slot-enter {
-  from {
-    translate: var(--enter-shift) 0;
-  }
-  to {
-    translate: 0 0;
-  }
-}
-
-@keyframes change-composer-slot-exit {
-  from {
-    translate: 0 0;
-  }
-  to {
-    translate: var(--exit-shift) 0;
-  }
-}
-
-@keyframes change-composer-value-enter {
-  from {
-    opacity: 0.6;
-    filter: blur(2px);
-    translate: 0 2px;
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-    translate: 0 0;
-  }
-}
-
-@keyframes change-composer-panel-enter {
-  from {
-    opacity: 0.6;
-    transform: translateY(4px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (max-width: 520px) {
-  .change-composer {
-    --composer-card-width: min(38vw, 168px);
-    --composer-card-height: 120px;
-  }
-  .change-composer-card {
-    padding: 10px;
-  }
-  .change-composer-card-value {
-    font-size: 13px;
-  }
-  .change-composer-panel {
-    padding: 12px;
-  }
-}
-
-@media (max-width: 680px) {
-  .change-composer-card-surface {
-    --composer-card-width: min(192px, calc((100vw - 72px) / 3));
-  }
+.change-composer-footer [data-slot="kbd"] {
+  border: 1px solid var(--border);
+  background: var(--surface-elevated);
+  color: var(--foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .change-composer-card-exit {
-    display: none;
-  }
-
   .change-composer *,
   .change-composer *::before,
-  .change-composer *::after,
-  .change-composer-card-surface::before {
-    animation: none !important;
+  .change-composer *::after {
     transition-duration: 0ms !important;
   }
 }

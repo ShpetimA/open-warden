@@ -1,12 +1,11 @@
 import { Fragment, useEffect, useRef } from "react";
 import type { KeyboardEvent, RefObject } from "react";
-import { Archive, ArrowRight, GitBranch, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 
-import { actions, stashActions } from "./commandComposerModel";
-import type { ComposerAction } from "./commandComposerModel";
+import { actions } from "./commandComposerModel";
 
 export type ComposerChoice = {
   id: string;
@@ -15,11 +14,11 @@ export type ComposerChoice = {
   icon?: LucideIcon;
   disabled?: boolean;
   section?: string;
+  labelFormat?: "path";
 };
 
 type Props = {
   pane: "action" | "choice";
-  action: ComposerAction | null;
   operandLabel: string;
   choiceSearchLabel: string;
   query: string;
@@ -33,13 +32,11 @@ type Props = {
   onSelect: (id: string) => void;
   searchPlaceholder?: string;
   searchLabel?: string;
-  choiceIcon?: LucideIcon;
   onSearchKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
 };
 
 export function CommandComposerChoiceStep({
   pane,
-  action,
   operandLabel,
   choiceSearchLabel,
   query,
@@ -53,7 +50,6 @@ export function CommandComposerChoiceStep({
   onSelect,
   searchPlaceholder,
   searchLabel,
-  choiceIcon,
   onSearchKeyDown,
 }: Props) {
   const choicesRef = useRef<HTMLDivElement>(null);
@@ -91,12 +87,9 @@ export function CommandComposerChoiceStep({
         {choices.length ? (
           choices.map((choice, index) => {
             const info = pane === "action" ? actions.find((item) => item.id === choice.id) : null;
-            const Icon =
-              choice.icon ??
-              info?.icon ??
-              choiceIcon ??
-              (action && stashActions.has(action) ? Archive : GitBranch);
+            const Icon = choice.icon ?? info?.icon;
             const showSection = choice.section && choice.section !== choices[index - 1]?.section;
+
             return (
               <Fragment key={choice.id}>
                 {showSection ? (
@@ -105,25 +98,22 @@ export function CommandComposerChoiceStep({
                 <button
                   type="button"
                   className="change-composer-choice"
+                  aria-label={choice.detail ? `${choice.label} ${choice.detail}` : choice.label}
                   data-highlighted={activeChoiceId === choice.id}
                   onFocus={() => onHighlight(choice.id)}
                   onMouseEnter={() => onHighlight(choice.id)}
                   onClick={() => onSelect(choice.id)}
                   disabled={choice.disabled || busy}
                 >
-                  <span className="change-composer-choice-icon" aria-hidden="true">
-                    <Icon className="size-4" />
-                  </span>
-                  <span className="min-w-0 flex-1 text-left">
-                    <span className="block truncate text-sm font-medium">{choice.label}</span>
-                    <span className="text-muted-foreground block truncate text-xs">
+                  {Icon ? (
+                    <Icon className="change-composer-choice-icon" aria-hidden="true" />
+                  ) : null}
+                  <ChoiceLabel label={choice.label} format={choice.labelFormat} />
+                  {choice.detail ? (
+                    <span className="change-composer-choice-detail" title={choice.detail}>
                       {choice.detail}
                     </span>
-                  </span>
-                  <ArrowRight
-                    className="text-muted-foreground size-4 shrink-0"
-                    aria-hidden="true"
-                  />
+                  ) : null}
                 </button>
               </Fragment>
             );
@@ -146,5 +136,24 @@ export function CommandComposerChoiceStep({
         ) : null}
       </div>
     </>
+  );
+}
+
+function ChoiceLabel({ label, format }: { label: string; format?: "path" }) {
+  const separator = format === "path" ? Math.max(label.lastIndexOf("/"), label.length - 28) : -1;
+
+  if (separator < 0) {
+    return (
+      <span className="change-composer-choice-label" title={label}>
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <span className="change-composer-choice-path" title={label}>
+      <span>{label.slice(0, separator)}</span>
+      <span>{label.slice(separator)}</span>
+    </span>
   );
 }

@@ -27,10 +27,11 @@ import {
   useRunGitCommandMutation,
 } from "@/features/source-control/gitOperationsApi";
 import { desktop } from "@/platform/desktop";
+import type { GitRepositoryState } from "@/platform/desktop/gitOperations";
 import { useResolveHostedRepoQuery } from "@/features/hosted-repos/api";
 
-import { CommandComposerCards } from "./CommandComposerCards";
-import type { ComposerCardStep } from "./CommandComposerCards";
+import { CommandComposerContext } from "./CommandComposerContext";
+import type { ComposerContextStep } from "./CommandComposerContext";
 import { CommandComposerLayout, useCommandComposerRootRef } from "./CommandComposerLayout";
 import { CommandComposerChoiceStep } from "./CommandComposerChoiceStep";
 import type { ComposerChoice } from "./CommandComposerChoiceStep";
@@ -61,6 +62,26 @@ import { usePullRequestLinkChoice } from "./usePullRequestLinkChoice";
 import { useCommandComposerHotkeys } from "./useCommandComposerHotkeys";
 
 import "./ChangeCommandComposer.css";
+
+function choicesForBranches(branches: GitRepositoryState["branches"]): ComposerChoice[] {
+  const choices: ComposerChoice[] = [];
+
+  for (const remote of [false, true]) {
+    for (const branch of branches) {
+      if (branch.remote !== remote) continue;
+
+      choices.push({
+        id: branch.name,
+        label: branch.name,
+        labelFormat: "path",
+        detail: branch.worktree ? "In another worktree" : "",
+        section: remote ? "Remote branches" : "Local branches",
+      });
+    }
+  }
+
+  return choices;
+}
 
 export function ChangeCommandComposer({
   initialAction,
@@ -131,7 +152,7 @@ export function ChangeCommandComposer({
     else if (action && (nameActions.has(action) || action === "create-worktree"))
       nameRef.current?.focus();
     else runButtonRef.current?.focus();
-  }, [action, pane, rootRef]);
+  }, [action, pane, rootRef, scope]);
 
   const { currentData: stashPatch, isFetching: stashPatchLoading } = useGetGitStashPatchQuery(
     { repoPath, oid: selection },
@@ -316,7 +337,7 @@ export function ChangeCommandComposer({
       detail: scopeDetails[item.id],
       icon: item.icon,
       disabled: !scopeAvailability[item.id],
-      section: scopeAvailability[item.id] ? "Available now" : "Unavailable",
+      section: scopeAvailability[item.id] ? "Browse" : "Unavailable",
     })),
     ...actions
       .filter((item) => scopeForAction(item.id) === null)
@@ -326,7 +347,7 @@ export function ChangeCommandComposer({
         detail: details[item.id],
         icon: item.icon,
         disabled: !availability[item.id],
-        section: availability[item.id] ? "Available now" : "Unavailable",
+        section: availability[item.id] ? "Actions" : "Unavailable",
       })),
   ];
   const matchingRootChoices = rootChoices
@@ -388,7 +409,7 @@ export function ChangeCommandComposer({
         detail: item.id === "view-tags" ? "Open this tag in History" : details[item.id],
         icon: item.icon,
         disabled: !enabled,
-        section: enabled ? "Available now" : "Unavailable",
+        section: enabled ? "Actions" : "Unavailable",
       };
     })
     .toSorted(
@@ -423,12 +444,7 @@ export function ChangeCommandComposer({
           disabled: !availability["rename-branch"],
           section: "Current branch",
         },
-        ...otherBranches.map((branch) => ({
-          id: branch.name,
-          label: branch.name,
-          detail: branch.remote ? "Remote branch" : "Local branch",
-          section: "Branches",
-        })),
+        ...choicesForBranches(otherBranches),
       ];
     }
 
@@ -477,11 +493,7 @@ export function ChangeCommandComposer({
   const operandChoices: ComposerChoice[] = scope
     ? scopeObjectChoices
     : action && branchActions.has(action)
-      ? branches.map((branch) => ({
-          id: branch.name,
-          label: branch.name,
-          detail: branch.remote ? "Remote branch" : "Local branch",
-        }))
+      ? choicesForBranches(branches)
       : action && remoteActions.has(action)
         ? (repository?.remotes.map((remote) => ({ id: remote, label: remote, detail: "Remote" })) ??
           [])
@@ -855,9 +867,6 @@ export function ChangeCommandComposer({
   }
 
   const ActionIcon = actionInfo?.icon ?? GitBranch;
-  const ScopeIcon = composerScopes.find((item) => item.id === scope)?.icon;
-  const PreviewScopeIcon = composerScopes.find((item) => item.id === previewScope)?.icon;
-  const OperandIcon = ScopeIcon ?? (action && branchActions.has(action) ? GitBranch : ActionIcon);
   const selectedStash = repository?.stashes.find((stash) => stash.oid === selection);
   const commits =
     action === "view-incoming"
@@ -866,16 +875,15 @@ export function ChangeCommandComposer({
         ? repository?.outgoing
         : repository?.tags.map((tag) => ({ id: tag.commitId.slice(0, 8), subject: tag.name }));
 
-  let cardSteps: ComposerCardStep[] | undefined;
+  let contextSteps: ComposerContextStep[] | undefined;
   const scopeInfo = composerScopes.find((item) => item.id === scope);
 
   if (scopeInfo) {
-    cardSteps = [
+    contextSteps = [
       {
         id: "scope",
         label: "Scope",
         value: scopeInfo.label,
-        icon: scopeInfo.icon,
         active: false,
         onPress: () => {
           if (busy) return;
@@ -890,15 +898,13 @@ export function ChangeCommandComposer({
     ];
 
     if (selection || !action) {
-      cardSteps.push({
+      contextSteps.push({
         id: "target",
         label: scope === "branches" ? "Branch" : scope === "stashes" ? "Stash" : "Tag",
         value:
           pane === "choice"
             ? operandValue
             : (scopeObjectChoices.find((item) => item.id === selection)?.label ?? selectionLabel),
-        previewKey: pane === "choice" ? activeChoice?.id : undefined,
-        icon: scopeInfo.icon,
         active: pane === "choice",
         onPress: () => {
           if (busy) return;
@@ -914,12 +920,10 @@ export function ChangeCommandComposer({
     }
 
     if (action || pane === "action") {
-      cardSteps.push({
+      contextSteps.push({
         id: "action",
         label: "Action",
         value: pane === "action" ? (activeChoice?.label ?? "Choose action") : actionLabel,
-        previewKey: pane === "action" ? activeChoice?.id : (action ?? undefined),
-        icon: ActionIcon,
         active: pane === "action" || Boolean(selection),
         onPress: () => {
           if (busy) return;
@@ -940,11 +944,10 @@ export function ChangeCommandComposer({
     }
 
     if (action && !selection && pane !== "action") {
-      cardSteps.push({
+      contextSteps.push({
         id: "input",
         label: operandLabel,
         value: operandValue,
-        icon: OperandIcon,
         active: true,
         onPress: () => {
           if (busy) return;
@@ -956,15 +959,12 @@ export function ChangeCommandComposer({
 
   return (
     <CommandComposerLayout pane={pane}>
-      <CommandComposerCards
+      <CommandComposerContext
         pane={pane}
-        steps={cardSteps}
+        steps={contextSteps}
         actionLabel={actionLabel}
-        previewAction={previewAction}
-        previewIcon={PreviewScopeIcon}
         operandLabel={operandLabel}
         operandValue={operandValue}
-        operandIcon={OperandIcon}
         objectFirst={scope !== null && (pane === "choice" || Boolean(selection))}
         onActionPress={() => {
           if (pane === "action" && activeChoice) selectChoice(activeChoice.id);
@@ -1014,7 +1014,6 @@ export function ChangeCommandComposer({
         {pane === "action" || pane === "choice" ? (
           <CommandComposerChoiceStep
             pane={pane}
-            action={action}
             operandLabel={operandLabel}
             choiceSearchLabel={choiceSearchLabel}
             query={query}
@@ -1029,7 +1028,6 @@ export function ChangeCommandComposer({
             }}
             onHighlight={setHighlightedId}
             onSelect={selectChoice}
-            choiceIcon={ScopeIcon}
             searchPlaceholder={
               pane === "action" && scope
                 ? `Search ${scope} actions…`
