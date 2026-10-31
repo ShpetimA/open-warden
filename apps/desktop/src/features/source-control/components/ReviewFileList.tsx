@@ -1,3 +1,5 @@
+import { FilePaneEmpty, FilePaneHeader } from "./FilePaneHeader";
+import { filePaneCount, filterFilePaths } from "./filePaneFilter";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -67,9 +69,6 @@ type ReviewFileListProps = {
   hasData?: boolean;
   onRetry?: () => void;
   paneClassName?: string;
-  headerClassName?: string;
-  bodyClassName?: string;
-  scrollAreaClassName?: string;
   reviewThreads?: PullRequestReviewThread[];
 };
 
@@ -81,16 +80,17 @@ export function ReviewFileList({
   reviewBaseRef,
   reviewHeadRef,
   navRegion = "review-files",
-  emptyState = null,
+  emptyState = <FilePaneEmpty description="No changed files between these revisions." />,
   isLoading = false,
   error,
   hasData = true,
   onRetry,
   paneClassName,
-  headerClassName,
   reviewThreads = [],
 }: ReviewFileListProps) {
   const dispatch = useAppDispatch();
+  const [filter, setFilter] = useState("");
+  const visibleFiles = filterFilePaths(branchFiles, filter);
   const [fileView, setFileView] = useState<ReviewFileView>("review");
   const commentCounts = useAppSelector<ReadonlyMap<string, number>>(
     (state) => selectReviewCommentCountsForRepo(state, activeRepo, reviewBaseRef, reviewHeadRef),
@@ -98,6 +98,12 @@ export function ReviewFileList({
   );
 
   useReviewKeyboardNav(navRegion);
+
+  let emptyContent = emptyState;
+
+  if (filter.trim()) {
+    emptyContent = <FilePaneEmpty filtered description="" onClear={() => setFilter("")} />;
+  }
 
   const getCommentCount = (file: FileItem) =>
     countPullRequestThreadsForFile({
@@ -110,19 +116,14 @@ export function ReviewFileList({
     <aside
       className={`bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r ${paneClassName ?? ""}`.trim()}
     >
-      {title || subtitle ? (
-        <div className={`border-border border-b ${headerClassName ?? "px-3 py-2"}`.trim()}>
-          {title ? (
-            <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-              {title}
-            </div>
-          ) : null}
-          {subtitle ? <div className="text-muted-foreground mt-1 text-xs">{subtitle}</div> : null}
-        </div>
-      ) : null}
-      <div className="border-border flex shrink-0 items-center border-b px-1">
-        <ReviewFileViewControl value={fileView} onChange={setFileView} />
-      </div>
+      <FilePaneHeader
+        title={title}
+        summary={hasData ? filePaneCount(visibleFiles.length, branchFiles.length) : undefined}
+        description={subtitle}
+        filter={filter}
+        onFilterChange={setFilter}
+        actions={<ReviewFileViewControl value={fileView} onChange={setFileView} compact />}
+      />
       <RetainedFileList
         hasData={hasData}
         fetching={isLoading}
@@ -131,11 +132,11 @@ export function ReviewFileList({
         errorTitle="Couldn’t load compared files"
         onRetry={() => onRetry?.()}
       >
-        {branchFiles.length === 0 ? (
-          emptyState
+        {visibleFiles.length === 0 ? (
+          emptyContent
         ) : (
           <FileList
-            files={branchFiles}
+            files={visibleFiles}
             mode={fileView}
             selection={selectReviewFilePath}
             selectFirstFile

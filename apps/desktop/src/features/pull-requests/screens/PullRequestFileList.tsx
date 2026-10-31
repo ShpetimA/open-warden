@@ -5,7 +5,7 @@ import { Filter } from "lucide-react";
 import { useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { Input } from "@/components/ui/input";
+import { FilePaneEmpty, FilePaneHeader } from "@/features/source-control/components/FilePaneHeader";
 import { Button } from "@/components/ui/button";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import {
@@ -150,14 +150,20 @@ export default function PullRequestFileList({
         />
       ) : null}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="border-border flex shrink-0 flex-col gap-1 border-b px-2 py-1">
-          <div className="flex min-w-0 items-center justify-between gap-2">
-            <div
-              className="text-muted-foreground min-w-0 truncate text-xs tabular-nums"
-              title={viewedFiles?.storage === "device" ? "Viewed on this device" : undefined}
-            >
+        <FilePaneHeader
+          title={commitId ? "Commit files" : "PR files"}
+          summary={
+            <span title={viewedFiles?.storage === "device" ? "Viewed on this device" : undefined}>
               {subtitle}
-            </div>
+            </span>
+          }
+          filter={searchQuery}
+          onFilterChange={setSearchQuery}
+          filterLabel="Filter changed files"
+          filterHint={
+            viewedState ? "j/k to navigate files · v to mark viewed" : "j/k to navigate files"
+          }
+          actions={
             <ReviewFileViewControl
               value={fileView}
               onChange={onFileViewChange}
@@ -166,14 +172,12 @@ export default function PullRequestFileList({
                 onGroupByCommit ? { selected: false, onSelect: onGroupByCommit } : undefined
               }
             />
-          </div>
-          {viewedFiles?.truncated ? (
-            <div className="text-muted-foreground text-[11px]">
-              Some provider viewed states could not be loaded.
-            </div>
-          ) : null}
-          <div className="flex items-center gap-2">
-            {viewedState ? (
+          }
+          notice={
+            viewedFiles?.truncated ? "Some provider viewed states could not be loaded." : undefined
+          }
+          filterLeading={
+            viewedState ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -210,21 +214,9 @@ export default function PullRequestFileList({
                   </DropdownMenuRadioGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
-            ) : null}
-            <Input
-              value={searchQuery}
-              onChange={(event) => {
-                setSearchQuery(event.target.value);
-              }}
-              placeholder="Filter files..."
-              aria-label="Filter changed files"
-              title={
-                viewedState ? "j/k to navigate files · v to mark viewed" : "j/k to navigate files"
-              }
-              className="h-7 min-w-0 px-2 text-xs"
-            />
-          </div>
-        </div>
+            ) : null
+          }
+        />
         {filesError && files.length > 0 ? (
           <ErrorNotice
             title="Couldn’t refresh changed files"
@@ -245,15 +237,14 @@ export default function PullRequestFileList({
             recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
           />
         ) : visibleFiles.length === 0 ? (
-          files.length === 0 ? (
-            <div className="text-muted-foreground px-3 py-4 text-sm">
-              No changed files were reported for this pull request.
-            </div>
-          ) : (
-            <div className="text-muted-foreground px-3 py-4 text-sm">
-              No files match the current filter.
-            </div>
-          )
+          <FilePaneEmpty
+            filtered={Boolean(normalizedQuery || commentFilter !== "all")}
+            description="No changed files were reported for this pull request."
+            onClear={() => {
+              setSearchQuery("");
+              setCommentFilter("all");
+            }}
+          />
         ) : (
           <FileList
             selectFirstFile

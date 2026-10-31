@@ -44,27 +44,24 @@ export function CreateRepositoryEntry({
   );
 
   return (
-    <div className="border-border/70 flex h-10 shrink-0 items-center justify-between border-b px-2">
-      <span className="text-muted-foreground text-xs font-medium">Files</span>
-      <TooltipProvider delayDuration={450}>
-        <ToolbarAction
-          label="New file or folder"
-          description="⌘N · N in the file tree"
-          disabledReason={
-            !repoPath
-              ? "Open a repository first"
-              : active
-                ? "Finish naming the new entry"
-                : busy
-                  ? "Moving to Trash…"
-                  : undefined
-          }
-          onClick={onStart}
-        >
-          <FilePlus2 />
-        </ToolbarAction>
-      </TooltipProvider>
-    </div>
+    <TooltipProvider delayDuration={450}>
+      <ToolbarAction
+        label="New file or folder"
+        description="⌘N · N in the file tree"
+        disabledReason={
+          !repoPath
+            ? "Open a repository first"
+            : active
+              ? "Finish naming the new entry"
+              : busy
+                ? "Moving to Trash…"
+                : undefined
+        }
+        onClick={onStart}
+      >
+        <FilePlus2 />
+      </ToolbarAction>
+    </TooltipProvider>
   );
 }
 

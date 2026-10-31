@@ -1,6 +1,4 @@
-import { ErrorState } from "@/components/ui/error-state";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { ListLoadingState } from "@/components/ui/list-loading-state";
 import { refreshActiveRepo } from "@/features/source-control/actions";
 import { useGetGitSnapshotQuery } from "@/features/source-control/api";
 import CurrentRepositoryHeader from "@/features/source-control/components/CurrentRepoHeader";
@@ -61,21 +59,6 @@ export function PullRequestFilesSidebar({
 
         <PullRequestSidebarSummary review={review} />
 
-        <div className="border-border border-b px-3 py-2.5">
-          <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-            CHANGED FILES
-          </div>
-          <div className="text-muted-foreground mt-1 flex items-center gap-1 text-xs">
-            {isLoadingBranchFiles && !hasBranchFilesData ? (
-              <span>Loading changed files…</span>
-            ) : (
-              <span className="tabular-nums">
-                {branchFiles.length} {branchFiles.length === 1 ? "file" : "files"}
-              </span>
-            )}
-          </div>
-        </div>
-
         <ReviewSelectionSync
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
@@ -83,36 +66,19 @@ export function PullRequestFilesSidebar({
         />
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          {isLoadingBranchFiles && !hasBranchFilesData ? (
-            <ListLoadingState label="Loading changed files…" />
-          ) : filesError && !hasBranchFilesData ? (
-            <ErrorState
-              title="Couldn’t load review files"
-              error={filesFailure}
-              message={filesError}
-              busy={isLoadingBranchFiles}
-              recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
-            />
-          ) : branchFiles.length === 0 ? (
-            <div className="text-muted-foreground px-2 py-2 text-xs">No changed files.</div>
-          ) : (
-            <ReviewFileList
-              title="CHANGED FILES"
-              branchFiles={branchFiles}
-              activeRepo={activeRepo}
-              reviewBaseRef={review.compareBaseRef}
-              reviewHeadRef={review.compareHeadRef}
-              isLoading={isLoadingBranchFiles}
-              error={filesFailure ?? (filesError || undefined)}
-              hasData={hasBranchFilesData}
-              onRetry={onRetry}
-              paneClassName="border-0 bg-transparent"
-              headerClassName="hidden"
-              bodyClassName="space-y-0.5 p-0.5"
-              scrollAreaClassName="min-h-0 flex-1 overflow-hidden"
-              reviewThreads={reviewThreads}
-            />
-          )}
+          <ReviewFileList
+            title="CHANGED FILES"
+            branchFiles={branchFiles}
+            activeRepo={activeRepo}
+            reviewBaseRef={review.compareBaseRef}
+            reviewHeadRef={review.compareHeadRef}
+            isLoading={isLoadingBranchFiles}
+            error={filesFailure ?? (filesError || undefined)}
+            hasData={hasBranchFilesData}
+            onRetry={onRetry}
+            paneClassName="border-0 bg-transparent"
+            reviewThreads={reviewThreads}
+          />
         </div>
       </div>
     </aside>

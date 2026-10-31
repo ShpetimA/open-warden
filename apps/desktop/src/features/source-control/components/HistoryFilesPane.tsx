@@ -1,16 +1,11 @@
+import { useState } from "react";
+import { FilePaneEmpty, FilePaneHeader } from "./FilePaneHeader";
+import { filePaneCount, filterFilePaths } from "./filePaneFilter";
 import { RetainedFileList } from "./RetainedFileList";
 import { RestoreHistoryFile } from "./RestoreHistoryFile";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { FileText } from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
 import { countCommentsForPathInRepoContext } from "@/features/comments/selectors";
 import {
   useGetBranchFilesQuery,
@@ -28,6 +23,7 @@ const EMPTY_COMMITS: import("@/features/source-control/types").HistoryCommit[] =
 
 export function HistoryFilesPane() {
   const dispatch = useAppDispatch();
+  const [filter, setFilter] = useState("");
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const comments = useAppSelector((state) => state.comments);
   const historyCommitId = useAppSelector((state) => state.sourceControl.historyCommitId);
@@ -59,12 +55,18 @@ export function HistoryFilesPane() {
   const selectedCommit = historyCommits.find((commit) => commit.commitId === historyCommitId);
   const query = comparison ? comparedFiles : commitFiles;
   const files = query.currentData ?? EMPTY_FILES;
-  const fileCount =
-    query.currentData === undefined
-      ? query.isFetching
-        ? "Loading files…"
-        : "Files unavailable"
-      : `${files.length} file${files.length === 1 ? "" : "s"}`;
+  const visibleFiles = filterFilePaths(files, filter);
+  const summary =
+    query.currentData === undefined ? undefined : filePaneCount(visibleFiles.length, files.length);
+  let description = "Select a commit to view files.";
+  let emptyDescription = "Select a commit to view files.";
+
+  if (historyCommitId) description = selectedCommit?.shortId ?? historyCommitId.slice(0, 8);
+  if (historyCommitId) emptyDescription = "No changed files in this commit.";
+  if (comparison) {
+    description = `${historySelectedCommitIds.length} selected commits`;
+    emptyDescription = "No combined changes between these commits.";
+  }
 
   return (
     <aside
@@ -73,27 +75,22 @@ export function HistoryFilesPane() {
       }}
       className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r"
     >
-      <div className="border-border border-b px-3 py-2">
-        <div className="text-foreground/80 text-[11px] font-semibold tracking-[0.14em]">
-          {comparison ? "COMBINED FILES" : "COMMIT FILES"}
-        </div>
-        <div className="text-muted-foreground mt-1 text-xs">
-          {comparison
-            ? `${historySelectedCommitIds.length} commits · ${fileCount}`
-            : selectedCommit
-              ? `${selectedCommit.shortId} · ${fileCount}`
-              : historyCommitId
-                ? `${historyCommitId.slice(0, 8)} · ${fileCount}`
-                : "No commit selected"}
-        </div>
-        {!comparison && historyCommitId ? (
-          <SelectedHistoryFileRestore
-            repoPath={activeRepo}
-            commit={historyCommitId}
-            files={files}
-          />
-        ) : null}
-      </div>
+      <FilePaneHeader
+        title={comparison ? "Combined files" : "Commit files"}
+        summary={summary}
+        description={description}
+        filter={filter}
+        onFilterChange={setFilter}
+        actions={
+          !comparison && historyCommitId ? (
+            <SelectedHistoryFileRestore
+              repoPath={activeRepo}
+              commit={historyCommitId}
+              files={files}
+            />
+          ) : undefined
+        }
+      />
       <RetainedFileList
         hasData={query.currentData !== undefined}
         fetching={query.isFetching}
@@ -106,27 +103,17 @@ export function HistoryFilesPane() {
           void query.refetch();
         }}
       >
-        {files.length === 0 ? (
-          <Empty className="h-auto border-0 p-4">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <FileText className="h-5 w-5" />
-              </EmptyMedia>
-              <EmptyTitle>No files</EmptyTitle>
-              <EmptyDescription>
-                {comparison
-                  ? "No combined changes between these commits."
-                  : historyCommitId
-                    ? "No changed files in this commit."
-                    : "Select a commit to view files."}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+        {visibleFiles.length === 0 ? (
+          <FilePaneEmpty
+            filtered={Boolean(filter.trim())}
+            onClear={() => setFilter("")}
+            description={emptyDescription}
+          />
         ) : (
           <FileList
             selectFirstFile
             autoFocus={false}
-            files={files}
+            files={visibleFiles}
             mode={fileBrowserMode}
             selection={selectHistoryFilePath}
             navRegion="history-files"

@@ -1,3 +1,5 @@
+import { FilePaneEmpty, FilePaneHeader } from "./FilePaneHeader";
+import { filePaneCount, filterFilePaths } from "./filePaneFilter";
 import { useRepositoryTrash } from "../hooks/useRepositoryTrash";
 import { RepositoryEntryContextMenu } from "./RepositoryEntryContextMenu";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
@@ -23,6 +25,7 @@ const EMPTY_FILES: readonly RepoFileItem[] = [];
 
 export function RepoFilesTab() {
   const dispatch = useAppDispatch();
+  const [filter, setFilter] = useState("");
   const [creation, setCreation] = useState<{
     repoPath: string;
     prefix: string;
@@ -36,12 +39,17 @@ export function RepoFilesTab() {
   const fileBrowserMode = useAppSelector(
     (state) => state.settings.appSettings.sourceControl.fileTreeRenderMode,
   );
-  const { repoFiles } = useGetRepoFilesQuery(activeRepo, {
+  const { repoFiles, hasFilesData } = useGetRepoFilesQuery(activeRepo, {
     skip: !activeRepo,
     refetchOnFocus: true,
     refetchOnReconnect: true,
-    selectFromResult: ({ currentData }) => ({ repoFiles: currentData ?? EMPTY_FILES }),
+    selectFromResult: ({ currentData }) => ({
+      repoFiles: currentData ?? EMPTY_FILES,
+      hasFilesData: currentData !== undefined,
+    }),
   });
+  const visibleFiles = filterFilePaths(repoFiles, filter);
+
   const openRepoFilePath = (path: string) => {
     if (!activeRepo) {
       dispatch(setRepoTreeActivePath(path));
@@ -77,18 +85,30 @@ export function RepoFilesTab() {
 
   return (
     <aside className="bg-surface-toolbar border-border/70 flex h-full min-h-0 flex-col overflow-hidden border-r">
-      <CreateRepositoryEntry
-        repoPath={activeRepo}
-        active={Boolean(activeCreation)}
-        busy={trashing}
-        onStart={startCreation}
+      <FilePaneHeader
+        title="Repository files"
+        summary={hasFilesData ? filePaneCount(visibleFiles.length, repoFiles.length) : undefined}
+        filter={filter}
+        onFilterChange={setFilter}
+        actions={
+          <CreateRepositoryEntry
+            repoPath={activeRepo}
+            active={Boolean(activeCreation)}
+            busy={trashing}
+            onStart={startCreation}
+          />
+        }
       />
       <RepositoryFileReadState repoPath={activeRepo}>
-        {repoFiles.length === 0 && !activeCreation ? (
-          <div className="text-muted-foreground px-2 py-2 text-xs">No repository files found.</div>
+        {visibleFiles.length === 0 && !activeCreation ? (
+          <FilePaneEmpty
+            filtered={Boolean(filter.trim())}
+            description="No repository files found. Create a file or folder to get started."
+            onClear={() => setFilter("")}
+          />
         ) : (
           <FileList
-            files={repoFiles}
+            files={visibleFiles}
             renderContextMenu={(file, _item, context) => (
               <RepositoryEntryContextMenu
                 context={context}

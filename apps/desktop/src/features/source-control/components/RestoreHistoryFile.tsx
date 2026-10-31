@@ -1,3 +1,4 @@
+import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { desktop } from "@/platform/desktop";
 import { useRunGitCommandMutation } from "../gitOperationsApi";
@@ -13,9 +14,9 @@ export function RestoreHistoryFile({
   const [execute, mutation] = useRunGitCommandMutation({ fixedCacheKey: repoPath });
   return (
     <Button
-      size="xs"
+      size="icon-xs"
       variant="ghost"
-      className="mt-1 max-w-full"
+      aria-label="Restore selected file"
       disabled={mutation.isLoading}
       title={`Restore ${path} from ${commit.slice(0, 8)}`}
       onClick={() => {
@@ -30,7 +31,7 @@ export function RestoreHistoryFile({
           });
       }}
     >
-      Restore selected file…
+      <RotateCcw className="size-3.5" />
     </Button>
   );
 }

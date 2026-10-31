@@ -233,12 +233,7 @@ for (const theme of ["light", "dark"] as const) {
 
     await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
     await page.setViewportSize({ width: theme === "light" ? 1440 : 1100, height: 1000 });
-    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
-    await expect(
-      page.getByRole("complementary", { name: "Changed files", exact: true }),
-    ).toBeVisible();
-
-    await page.evaluate((packets) => {
+    await page.addInitScript((packets) => {
       const bridge = window.desktopBridge;
       if (!bridge) throw new Error("Expected the test desktop bridge");
 
@@ -302,7 +297,15 @@ for (const theme of ["light", "dark"] as const) {
       };
     }, packets);
 
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/files");
+    await expect(
+      page.getByRole("complementary", { name: "Changed files", exact: true }),
+    ).toBeVisible();
+
     await page.getByRole("treeitem", { name: "invoice.test.ts", exact: true }).click();
+    await expect(
+      page.getByRole("region", { name: "File information", exact: true }).locator("header"),
+    ).toContainText("test/invoice.test.ts");
     const beforePreview = page.getByRole("group", { name: "Before image preview", exact: true });
     await expect(beforePreview.getByText("Image read interrupted.", { exact: true })).toBeVisible();
     await page.evaluate((packets) => {
@@ -695,7 +698,9 @@ test("keeps commits loading until the list arrives and handles an empty range", 
   await expect(page.getByText("No commits in this pull request.", { exact: true })).toHaveCount(0);
   await page.evaluate(() => window.dispatchEvent(new Event("qa-commits-ready")));
   await expect(page.getByText("No commits in this pull request.", { exact: true })).toBeVisible();
-  await expect(sidebar.getByRole("status")).toHaveCount(0);
+  await expect(sidebar.getByRole("status")).toContainText(
+    "No changed files were reported for this pull request.",
+  );
 });
 
 test("uses History-style pane navigation and independent Cmd+B / Cmd+D toggles", async ({

@@ -2,7 +2,7 @@ import { ErrorState, ErrorNotice } from "@/components/ui/error-state";
 import type { FileTreeSortComparator } from "@pierre/trees";
 import { useState } from "react";
 
-import { Input } from "@/components/ui/input";
+import { FilePaneEmpty, FilePaneHeader } from "@/features/source-control/components/FilePaneHeader";
 import { ListLoadingState } from "@/components/ui/list-loading-state";
 import {
   buildCommitGroupFiles,
@@ -81,24 +81,22 @@ export function PullRequestCommitFileGroups({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="border-border flex shrink-0 flex-col gap-1 border-b px-2 py-1">
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span className="text-muted-foreground tabular-nums">{groups.length} commits</span>
+      <FilePaneHeader
+        title="PR files"
+        summary={`${groups.length} commits`}
+        filter={filter}
+        onFilterChange={setFilter}
+        filterLabel="Filter changed files"
+        placeholder="Filter files or commits…"
+        actions={
           <ReviewFileViewControl
             value="review"
             onChange={onGroupingChange}
             compact
             commitGrouping={{ selected: true, onSelect: () => {} }}
           />
-        </div>
-        <Input
-          aria-label="Filter changed files"
-          placeholder="Filter files or commits…"
-          className="h-7 px-2 text-xs"
-          value={filter}
-          onChange={(event) => setFilter(event.target.value)}
-        />
-      </div>
+        }
+      />
       {error && groups.length > 0 ? (
         <ErrorNotice
           title="Couldn’t refresh commits and files"
@@ -118,9 +116,11 @@ export function PullRequestCommitFileGroups({
           recovery={onRetry ? { label: "Retry", onAction: onRetry } : undefined}
         />
       ) : displayFiles.length === 0 ? (
-        <p className="text-muted-foreground p-3 text-xs">
-          {query ? "No files match the current filter." : "No changed files in these commits."}
-        </p>
+        <FilePaneEmpty
+          filtered={Boolean(query)}
+          description="No changed files in these commits."
+          onClear={() => setFilter("")}
+        />
       ) : (
         <SelectedPierreFileTree
           selectFirstFile

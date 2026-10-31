@@ -346,6 +346,11 @@ test("keeps the commit composer footprint stable when published status arrives",
 }) => {
   await page.goto("/#/changes");
   await expect(page.locator("file-tree-container")).toBeVisible();
+  const composer = page.getByRole("region", { name: "Commit changes" });
+  await expect(
+    composer.getByRole("textbox", { name: "Commit message", exact: true }),
+  ).toBeVisible();
+  await composer.getByText("Options", { exact: true }).click();
   const frame = page.locator('[data-slot="retained-file-list"]');
   const bounds = await frame.boundingBox();
   await page.evaluate(() => {

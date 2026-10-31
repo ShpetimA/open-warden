@@ -153,7 +153,9 @@ it("keeps the sidebar loading through remote resolution, ref preparation, and fi
   expect(
     await sidebar.findByText("No changed files were reported for this pull request."),
   ).toBeVisible();
-  expect(sidebar.queryByRole("status")).not.toBeInTheDocument();
+  expect(sidebar.getByRole("status")).toHaveTextContent(
+    "No changed files were reported for this pull request.",
+  );
 });
 
 it("shows ref preparation failures instead of an empty file list", async () => {

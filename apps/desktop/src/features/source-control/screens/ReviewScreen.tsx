@@ -1,18 +1,13 @@
+import { FilePaneEmpty } from "@/features/source-control/components/FilePaneHeader";
 import { ErrorNotice, ErrorState } from "@/components/ui/error-state";
 import { skipToken } from "@reduxjs/toolkit/query";
-import { ArrowRightLeft, GitCompare } from "lucide-react";
+import { ArrowRightLeft } from "lucide-react";
 import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { ResizableSidebarLayout } from "@/components/layout/ResizableSidebarLayout";
 import { Button } from "@/components/ui/button";
 import { BranchCombobox } from "../components/BranchCombobox";
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  EmptyDescription,
-} from "@/components/ui/empty";
+
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
 import {
   useGetCommitDetailsQuery,
@@ -343,7 +338,7 @@ export function ReviewScreen() {
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <ReviewFileList
-              title="BRANCH REVIEW"
+              title="Compared files"
               subtitle={undefined}
               branchFiles={branchFiles}
               hasData={hasBranchFilesData}
@@ -364,34 +359,17 @@ export function ReviewScreen() {
               reviewBaseRef={baseRevision.id}
               reviewHeadRef={headRevision.id}
               paneClassName="border-0 bg-transparent"
-              headerClassName="hidden"
-              bodyClassName="space-y-0.5 p-0.5"
-              scrollAreaClassName="min-h-0 flex-1 overflow-hidden"
               emptyState={
                 !reviewBaseRef || !reviewHeadRef ? (
-                  <Empty className="h-auto border-0 p-4">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <GitCompare className="h-5 w-5" />
-                      </EmptyMedia>
-                      <EmptyTitle>Select branches</EmptyTitle>
-                      <EmptyDescription>
-                        Select both base and compare branches to start review.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+                  <FilePaneEmpty
+                    title="Select branches"
+                    description="Select both base and compare branches to start review."
+                  />
                 ) : (
-                  <Empty className="h-auto border-0 p-4">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <GitCompare className="h-5 w-5" />
-                      </EmptyMedia>
-                      <EmptyTitle>No changes</EmptyTitle>
-                      <EmptyDescription>
-                        No changed files between the selected branches.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+                  <FilePaneEmpty
+                    title="No changes"
+                    description="No changed files between the selected branches."
+                  />
                 )
               }
             />

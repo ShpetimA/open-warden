@@ -517,7 +517,11 @@ test("creates the first file in an empty repository", async ({ page }) => {
     window.editorTest.files = {};
   });
   await page.getByRole("button", { name: "Refresh repository status", exact: true }).click();
-  await expect(page.getByText("No repository files found.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("No repository files found. Create a file or folder to get started.", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await page.keyboard.press("Meta+n");
   const input = page.getByRole("textbox", { name: "New file or folder", exact: true });
   await input.fill("first.ts");

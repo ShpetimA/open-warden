@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { FilePaneEmpty, FilePaneHeader } from "./FilePaneHeader";
+import { filePaneCount, filterFilePaths } from "./filePaneFilter";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import type { ReactNode } from "react";
 import { RetainedFileList } from "./RetainedFileList";
@@ -36,6 +39,7 @@ function toBucketedFile(file: FileItem, bucket: Bucket) {
 }
 
 function ChangesFileList() {
+  const [filter, setFilter] = useState("");
   const dispatch = useAppDispatch();
   const activeRepo = useAppSelector((state) => state.sourceControl.activeRepo);
   const fileBrowserMode = useAppSelector(
@@ -49,9 +53,14 @@ function ChangesFileList() {
   });
   const snapshot = activeRepo ? snapshotData : undefined;
 
-  const unstagedFiles = snapshot?.unstaged ?? [];
-  const stagedFiles = snapshot?.staged ?? [];
-  const untrackedFiles = snapshot?.untracked ?? [];
+  const unstagedFiles = filterFilePaths(snapshot?.unstaged ?? [], filter);
+  const stagedFiles = filterFilePaths(snapshot?.staged ?? [], filter);
+  const untrackedFiles = filterFilePaths(snapshot?.untracked ?? [], filter);
+  const total =
+    (snapshot?.staged.length ?? 0) +
+    (snapshot?.unstaged.length ?? 0) +
+    (snapshot?.untracked.length ?? 0);
+  const visibleCount = unstagedFiles.length + stagedFiles.length + untrackedFiles.length;
 
   const conflictFiles = unstagedFiles.filter((file) => file.status === "unmerged");
   const nonConflictUnstaged = unstagedFiles.filter((file) => file.status !== "unmerged");
@@ -67,10 +76,10 @@ function ChangesFileList() {
     toBucketedFile(file, "unstaged"),
   );
   const onStageAll = () => {
-    void dispatch(stageAllAction());
+    void dispatch(filter.trim() ? stageFilesAction(changedFiles) : stageAllAction());
   };
   const onUnstageAll = () => {
-    void dispatch(unstageAllAction());
+    void dispatch(filter.trim() ? unstageFilesAction(stagedRows) : unstageAllAction());
   };
 
   const onDiscardChangesGroup = async (files: BucketedFile[]) => {
@@ -101,23 +110,39 @@ function ChangesFileList() {
   };
 
   return (
-    <ChangesFileReadState repoPath={activeRepo}>
-      <ChangesUnifiedPierreFileTree
-        mode={fileBrowserMode}
-        stagedRows={stagedRows}
-        changedRows={changedFiles}
-        conflictRows={conflictRows}
-        activeRepo={activeRepo}
-        onStageAll={onStageAll}
-        onUnstageAll={onUnstageAll}
-        onStageFile={onStageFile}
-        onUnstageFile={onUnstageFile}
-        onStageFiles={onStageFiles}
-        onUnstageFiles={onUnstageFiles}
-        onDiscardFile={onDiscardFile}
-        onDiscardChangesGroup={onDiscardChangesGroup}
+    <>
+      <FilePaneHeader
+        title="Changed files"
+        summary={snapshot ? filePaneCount(visibleCount, total) : undefined}
+        filter={filter}
+        onFilterChange={setFilter}
       />
-    </ChangesFileReadState>
+      <ChangesFileReadState repoPath={activeRepo}>
+        {visibleCount === 0 ? (
+          <FilePaneEmpty
+            filtered={Boolean(filter.trim())}
+            description="Your working tree is clean. New edits will appear here."
+            onClear={() => setFilter("")}
+          />
+        ) : (
+          <ChangesUnifiedPierreFileTree
+            mode={fileBrowserMode}
+            stagedRows={stagedRows}
+            changedRows={changedFiles}
+            conflictRows={conflictRows}
+            activeRepo={activeRepo}
+            onStageAll={onStageAll}
+            onUnstageAll={onUnstageAll}
+            onStageFile={onStageFile}
+            onUnstageFile={onUnstageFile}
+            onStageFiles={onStageFiles}
+            onUnstageFiles={onUnstageFiles}
+            onDiscardFile={onDiscardFile}
+            onDiscardChangesGroup={onDiscardChangesGroup}
+          />
+        )}
+      </ChangesFileReadState>
+    </>
   );
 }
 
