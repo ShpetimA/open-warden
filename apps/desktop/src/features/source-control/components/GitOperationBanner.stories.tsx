@@ -7,7 +7,6 @@ const meta = {
     operation: "rebase",
     conflictCount: 3,
     busy: false,
-    error: "",
     onResolve: () => {},
     onContinue: () => {},
     onAbort: () => {},

@@ -1,3 +1,4 @@
+import { sanitizeGitCommandOutput } from "./gitCommandDiagnostics";
 import { gitCommandWriteEvent } from "./repositoryChangeDefinitions";
 import { gitAuthenticationEnvironment, type ProviderCredentials } from "./gitAuthentication";
 import { coordinateRepositoryWrite } from "./repositoryWrites";
@@ -28,7 +29,7 @@ function run(
   return new Promise((resolve) => {
     execFile(
       "git",
-      ["--no-optional-locks", ...args],
+      args,
       {
         cwd: repoPath,
         encoding: "utf8",
@@ -44,14 +45,33 @@ function run(
       },
       (error, stdout, stderr) => {
         if (error) {
-          const message = (stderr || error.message)
-            .replace(/https?:\/\/\S+/g, "[remote]")
-            .slice(0, 4000);
-          resolve({ ok: false, error: { code: "git-failed", message } });
+          const commandEnvironment = { ...process.env, ...environment };
+          const message = sanitizeGitCommandOutput(
+            stderr || error.message,
+            commandEnvironment,
+          ).slice(0, 4000);
+          const output = sanitizeGitCommandOutput(
+            [stdout, stderr].filter(Boolean).join("\n"),
+            commandEnvironment,
+          );
+
+          resolve({
+            ok: false,
+            error: {
+              code: "git-failed",
+              message,
+              git: { exitCode: typeof error.code === "number" ? error.code : null, output },
+            },
+          });
         } else resolve({ ok: true, value: stdout.replace(/\r?\n$/, "") });
       },
     );
   });
+}
+
+function read(repoPath: string, args: string[]) {
+  // Git passes this flag to hooks, so it belongs only on read commands.
+  return run(repoPath, ["--no-optional-locks", ...args]);
 }
 
 export async function getGitRepositoryState(input: string): Promise<GitResult<GitRepositoryState>> {
@@ -60,20 +80,20 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
     return { ok: false, error: { code: "invalid-input", message: "Repository path is required." } };
   const repo = parsed.data;
   const results = await Promise.all([
-    run(repo, ["status", "--porcelain=v2", "--branch"]),
-    run(repo, ["remote"]),
-    run(repo, [
+    read(repo, ["status", "--porcelain=v2", "--branch"]),
+    read(repo, ["remote"]),
+    read(repo, [
       "for-each-ref",
       "--format=%(refname)%09%(worktreepath)%09%(symref)",
       "refs/heads",
       "refs/remotes",
     ]),
-    run(repo, [
+    read(repo, [
       "for-each-ref",
       "--format=%(refname:strip=2)%09%(*objectname)%09%(objectname)",
       "refs/tags",
     ]),
-    run(repo, ["worktree", "list", "--porcelain", "-z"]),
+    read(repo, ["worktree", "list", "--porcelain", "-z"]),
   ]);
   const [status, remotes, refs, tags, worktrees] = results;
   if (!status.ok) return status;
@@ -86,7 +106,7 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
   const upstream = lines.find((line) => line.startsWith("# branch.upstream "))?.slice(18) ?? "";
   const counts = lines.find((line) => line.startsWith("# branch.ab "))?.match(/\+(\d+) -(\d+)/);
   const readLog = async (range: string) => {
-    const result = await run(repo, ["log", "-30", "--format=%h%x09%s", range, "--"]);
+    const result = await read(repo, ["log", "-30", "--format=%h%x09%s", range, "--"]);
     if (!result.ok) return result;
     return {
       ok: true as const,
@@ -100,7 +120,7 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
     };
   };
   const upstreamExists = upstream
-    ? (await run(repo, ["rev-parse", "--verify", "@{upstream}"])).ok
+    ? (await read(repo, ["rev-parse", "--verify", "@{upstream}"])).ok
     : false;
   const incoming = upstreamExists
     ? await readLog("HEAD..@{upstream}")
@@ -110,14 +130,14 @@ export async function getGitRepositoryState(input: string): Promise<GitResult<Gi
     : { ok: true as const, value: [] };
   if (!incoming.ok) return incoming;
   if (!outgoing.ok) return outgoing;
-  const head = await run(repo, ["rev-parse", "--verify", "HEAD"]);
-  const lastMessage = head.ok ? await run(repo, ["log", "-1", "--format=%B"]) : null;
-  const published = head.ok ? await run(repo, ["branch", "-r", "--contains", "HEAD"]) : null;
-  const stashes = await run(repo, ["stash", "list", "--format=%H%x09%gs"]);
+  const head = await read(repo, ["rev-parse", "--verify", "HEAD"]);
+  const lastMessage = head.ok ? await read(repo, ["log", "-1", "--format=%B"]) : null;
+  const published = head.ok ? await read(repo, ["branch", "-r", "--contains", "HEAD"]) : null;
+  const stashes = await read(repo, ["stash", "list", "--format=%H%x09%gs"]);
   if (!stashes.ok) return stashes;
   const operation = await readOperation(repo);
   if (!operation.ok) return operation;
-  const conflicts = await run(repo, ["diff-files", "--name-only", "--diff-filter=U", "-z"]);
+  const conflicts = await read(repo, ["diff-files", "--name-only", "--diff-filter=U", "-z"]);
   if (!conflicts.ok) return conflicts;
   return {
     ok: true,
@@ -196,7 +216,7 @@ async function execute(
     case "rebase":
     case "cherry-pick":
     case "revert": {
-      const status = await run(repo, ["status", "--porcelain"]);
+      const status = await read(repo, ["status", "--porcelain"]);
       if (!status.ok) return status;
       if (status.value)
         return failure("Commit or stash local changes before starting this operation.");
@@ -402,7 +422,7 @@ async function execute(
       if (requested === current) return failure("The current worktree cannot be removed.");
       const candidate = state.value.worktrees.find((item) => item.path === command.path);
       if (!candidate) return failure("This path is not a registered worktree for this repository.");
-      const status = await run(command.path, ["status", "--porcelain", "--ignored", "-z"]);
+      const status = await read(command.path, ["status", "--porcelain", "--ignored", "-z"]);
       if (!status.ok) return status;
       if (status.value)
         return failure(
@@ -454,6 +474,7 @@ export async function runGitCommand(
             ok: false,
             error: {
               ...classifyDesktopFailure(outcome.error, "runGitCommand"),
+              ...(outcome.error.git ? { git: outcome.error.git } : {}),
               ...(outcome.error.code === "invalid-input" ? { message: outcome.error.message } : {}),
             },
           };
@@ -476,11 +497,11 @@ export async function getGitStashPatch(
     .regex(/^[a-f0-9]{40,64}$/)
     .safeParse(oidInput);
   if (!repo.success || !oid.success) return failure("Invalid stash.");
-  return run(repo.data, ["stash", "show", "--include-untracked", "--patch", oid.data]);
+  return read(repo.data, ["stash", "show", "--include-untracked", "--patch", oid.data]);
 }
 
 async function readOperation(repo: string): Promise<GitResult<GitOperation | null>> {
-  const directory = await run(repo, ["rev-parse", "--absolute-git-dir"]);
+  const directory = await read(repo, ["rev-parse", "--absolute-git-dir"]);
   if (!directory.ok) return directory;
   const markers: ReadonlyArray<readonly [string, GitOperation]> = [
     ["rebase-merge", "rebase"],

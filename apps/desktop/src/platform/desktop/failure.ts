@@ -1,5 +1,10 @@
 import { z } from "zod";
 
+export const gitDiagnosticsSchema = z.object({
+  exitCode: z.number().int().nullable(),
+  output: z.string().max(16000),
+});
+
 export const desktopFailureSchema = z.object({
   code: z.enum([
     "cancelled",
@@ -23,6 +28,7 @@ export const desktopFailureSchema = z.object({
   status: z.number().int().min(100).max(599).optional(),
   retryAt: z.number().nonnegative().max(8.64e15).optional(),
   reference: z.string().max(100).optional(),
+  git: gitDiagnosticsSchema.optional(),
 });
 
 export type DesktopFailure = Readonly<z.infer<typeof desktopFailureSchema>>;

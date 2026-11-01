@@ -64,7 +64,6 @@ it("keeps Continue disabled until conflicts are resolved", () => {
           operation="merge"
           conflictCount={count}
           busy={false}
-          error=""
           onResolve={() => setCount(0)}
           onContinue={() => setContinued(true)}
           onAbort={() => {}}

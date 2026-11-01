@@ -62,3 +62,24 @@ test("normalizes malformed replies and transport rejection without exposing raw 
   });
   expect(JSON.stringify(reply)).not.toContain("private token");
 });
+
+test("parses Git diagnostics through IPC and rejects invalid or oversized output", () => {
+  const failure = {
+    ...desktopFailure("runGitCommand", "git-failed", "Git rejected the push."),
+    git: { exitCode: 1, output: "pre-push validation failed" },
+  };
+
+  expect(parseDesktopReply({ ok: false, error: failure }, "runGitCommand")).toEqual({
+    ok: false,
+    error: failure,
+  });
+
+  for (const git of [
+    { exitCode: "1", output: "Failed" },
+    { exitCode: 1, output: "x".repeat(16001) },
+  ]) {
+    expect(
+      parseDesktopReply({ ok: false, error: { ...failure, git } }, "runGitCommand"),
+    ).toMatchObject({ ok: false, error: { code: "unavailable" } });
+  }
+});

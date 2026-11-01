@@ -17,6 +17,7 @@ import { commentsReducer } from "@/features/comments/commentsSlice";
 import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice";
 import { settingsReducer } from "@/features/settings/settingsSlice";
 import { gitApi } from "@/features/source-control/api";
+import { gitCommandFeedbackReducer } from "@/features/source-control/gitCommandFeedbackSlice";
 import { sourceControlReducer } from "@/features/source-control/sourceControlSlice";
 import { historyGraphUiReducer } from "@/features/source-control/historyGraphUiSlice";
 import { fileEditorReducer } from "@/features/source-control/fileEditorSlice";
@@ -32,6 +33,7 @@ const combinedReducer = combineReducers({
   desktopUpdate: desktopUpdateReducer,
   lsp: lspReducer,
   sourceControl: sourceControlReducer,
+  gitCommandFeedback: gitCommandFeedbackReducer,
   historyGraphUi: historyGraphUiReducer,
   fileEditor: fileEditorReducer,
   workspaces: workspacesReducer,

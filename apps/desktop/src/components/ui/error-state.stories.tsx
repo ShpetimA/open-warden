@@ -98,3 +98,37 @@ export const Retrying: Story = {
     />
   ),
 };
+
+function HookFailureExample({ busy = false }) {
+  const [visible, setVisible] = useState(true);
+
+  return (
+    <div className="max-w-2xl p-3">
+      {visible ? (
+        <ActionError
+          title="Couldn’t push commits"
+          error={{
+            ...desktopFailure(
+              "runGitCommand",
+              "git-failed",
+              "Git couldn’t complete this operation. Refresh the repository to check its state.",
+            ),
+            git: {
+              exitCode: 1,
+              output:
+                "pre-push: validation failed\nGit lock test exceeded 5000ms\nThe push was stopped before updating the remote.",
+            },
+          }}
+          busy={busy}
+          recovery={{ label: "Refresh status", onAction: () => setVisible(false) }}
+          onDismiss={() => setVisible(false)}
+        />
+      ) : (
+        <p className="text-sm">Repository status refreshed.</p>
+      )}
+    </div>
+  );
+}
+
+export const HookFailure: Story = { render: () => <HookFailureExample /> };
+export const RefreshingAfterHookFailure: Story = { render: () => <HookFailureExample busy /> };
