@@ -93,9 +93,14 @@ async function listRemoteNames(repoPath: string) {
 
 function sortRemoteNames(remoteNames: string[]) {
   const uniqueNames = [...new Set(remoteNames)];
+
   return uniqueNames.toSorted((left, right) => {
+    if (left === right) return 0;
+    if (left === "upstream") return -1;
+    if (right === "upstream") return 1;
     if (left === "origin") return -1;
     if (right === "origin") return 1;
+
     return left.localeCompare(right);
   });
 }
