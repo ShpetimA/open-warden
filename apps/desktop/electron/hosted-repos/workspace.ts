@@ -18,6 +18,8 @@ import {
 } from "../bitbucket-repo";
 import { githubRequest, type GitHubPullRequestResponse } from "../github-repo";
 import { getProviderConnection } from "../providerConnections";
+import { DesktopAdapterError } from "../desktop-failure";
+import { fetchPullRequestComparison, type PullRequestComparisonInput } from "./comparison";
 import {
   createGitAuthHeaderFromConnection,
   GitCommandError,
@@ -88,72 +90,12 @@ async function ensureManagedSourceRepo(hostedRepo: HostedRepoRef, remoteUrl: str
   return sourceRepoPath;
 }
 
-async function fetchRemoteBranch(
-  repoPath: string,
-  remoteUrl: string,
-  branchName: string,
-  targetRef: string,
-  authHeader: string,
-) {
-  await runGitInRepo(
-    repoPath,
-    ["fetch", "--force", remoteUrl, `+refs/heads/${branchName}:${targetRef}`],
-    { authHeader },
-  );
-}
+async function prepareComparison(input: PullRequestComparisonInput) {
+  const result = await fetchPullRequestComparison(input);
 
-function isGitAuthFailure(error: unknown) {
-  if (!(error instanceof GitCommandError)) {
-    return false;
-  }
+  if (!result.ok) throw new DesktopAdapterError(result.error);
 
-  const stderr = error.stderr.toLowerCase();
-  return (
-    stderr.includes("authentication failed") ||
-    stderr.includes("could not read username") ||
-    stderr.includes("access denied") ||
-    stderr.includes("invalid username or password") ||
-    stderr.includes("forbidden")
-  );
-}
-
-async function fetchRemoteBranchWithFallbackAuth(
-  repoPath: string,
-  remoteUrl: string,
-  branchName: string,
-  targetRef: string,
-  authHeaders: string[],
-) {
-  let lastError: unknown = null;
-  for (const authHeader of authHeaders) {
-    try {
-      await fetchRemoteBranch(repoPath, remoteUrl, branchName, targetRef, authHeader);
-      return;
-    } catch (error) {
-      lastError = error;
-      if (!isGitAuthFailure(error)) {
-        throw error;
-      }
-    }
-  }
-
-  const detail =
-    lastError instanceof Error && lastError.message.trim()
-      ? lastError.message.trim()
-      : "Bitbucket git authentication failed.";
-  throw new Error(
-    `${detail} Verify your Bitbucket credentials include repository read access, and reconnect using your Bitbucket username for app passwords.`,
-  );
-}
-
-async function resolveMergeBase(repoPath: string, baseRef: string, headRef: string) {
-  const output = await runGitInRepo(repoPath, ["merge-base", baseRef, headRef]);
-  const mergeBase = output.toString("utf8").trim();
-  if (!mergeBase) {
-    throw new Error(`Could not resolve merge base for ${baseRef} and ${headRef}.`);
-  }
-
-  return mergeBase;
+  return result.value;
 }
 
 async function resolveRevision(repoPath: string, revision: string) {
@@ -587,39 +529,22 @@ export async function preparePullRequestCompareRefs(
     }
 
     const sourceRepoPath = input.repoPath;
-    const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
-    const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
-    const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
-    const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
-
-    await Promise.all([
-      fetchRemoteBranch(
-        sourceRepoPath,
-        baseRepo.clone_url,
-        pullRequest.base.ref,
-        baseRefFull,
-        authHeader,
-      ),
-      fetchRemoteBranch(
-        sourceRepoPath,
-        headRepo.clone_url,
-        pullRequest.head.ref,
-        headRefFull,
-        authHeader,
-      ),
-    ]);
+    const comparison = await prepareComparison({
+      repoPath: sourceRepoPath,
+      pullRequestNumber: pullRequest.number,
+      base: { remoteUrl: baseRepo.clone_url, commitSha: pullRequest.base.sha },
+      head: { remoteUrl: headRepo.clone_url, commitSha: pullRequest.head.sha },
+      authHeaders: [authHeader],
+    });
 
     await cleanupStalePullRequestTrackingRefs(sourceRepoPath, pullRequest.number);
-    const compareHeadRef = await resolveRevision(sourceRepoPath, headRefShort);
-    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, compareHeadRef);
+
     return createPullRequestCompareRefs({
-      baseSha: await resolveRevision(sourceRepoPath, baseRefShort),
+      ...comparison,
       hostedRepo,
       pullRequestNumber: pullRequest.number,
       baseRef: pullRequest.base.ref,
       headRef: pullRequest.head.ref,
-      compareBaseRef,
-      compareHeadRef,
       localBranch: pullRequest.head.ref,
     });
   }
@@ -643,40 +568,23 @@ export async function preparePullRequestCompareRefs(
     const headCloneUrl = pickBitbucketCloneUrl(headRepo, hostedRepo.owner, hostedRepo.repo);
 
     const sourceRepoPath = input.repoPath;
-    const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
-    const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
-    const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
-    const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
     const authHeaders = createBitbucketGitAuthHeaders(connection);
-
-    await Promise.all([
-      fetchRemoteBranchWithFallbackAuth(
-        sourceRepoPath,
-        baseCloneUrl,
-        baseRef,
-        baseRefFull,
-        authHeaders,
-      ),
-      fetchRemoteBranchWithFallbackAuth(
-        sourceRepoPath,
-        headCloneUrl,
-        headRef,
-        headRefFull,
-        authHeaders,
-      ),
-    ]);
+    const comparison = await prepareComparison({
+      repoPath: sourceRepoPath,
+      pullRequestNumber,
+      base: { remoteUrl: baseCloneUrl, commitSha: pullRequest.destination?.commit?.hash ?? "" },
+      head: { remoteUrl: headCloneUrl, commitSha: pullRequest.source?.commit?.hash ?? "" },
+      authHeaders,
+    });
 
     await cleanupStalePullRequestTrackingRefs(sourceRepoPath, pullRequestNumber);
-    const compareHeadRef = await resolveRevision(sourceRepoPath, headRefShort);
-    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, compareHeadRef);
+
     return createPullRequestCompareRefs({
-      baseSha: await resolveRevision(sourceRepoPath, baseRefShort),
+      ...comparison,
       hostedRepo,
       pullRequestNumber,
       baseRef,
       headRef,
-      compareBaseRef,
-      compareHeadRef,
       localBranch: headRef,
     });
   }
@@ -748,10 +656,6 @@ async function prepareHostedPullRequestWorkspace(
       openMode === "branch"
         ? input.repoPath
         : await ensureManagedSourceRepo(hostedRepo, baseRepo.clone_url);
-    const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
-    const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
-    const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequest.number)}`;
-    const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequest.number)}`;
     const localBranch =
       openMode === "branch"
         ? pullRequest.head.ref
@@ -761,27 +665,20 @@ async function prepareHostedPullRequestWorkspace(
         ? path.resolve(input.repoPath)
         : managedWorktreePath(hostedRepo, pullRequest.number);
 
-    await fetchRemoteBranch(
-      sourceRepoPath,
-      baseRepo.clone_url,
-      pullRequest.base.ref,
-      baseRefFull,
-      authHeader,
-    );
-    await fetchRemoteBranch(
-      sourceRepoPath,
-      headRepo.clone_url,
-      pullRequest.head.ref,
-      headRefFull,
-      authHeader,
-    );
-    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
-    const compareHeadRef = headRefShort;
+    const { compareBaseRef, compareHeadRef } = await prepareComparison({
+      repoPath: sourceRepoPath,
+      pullRequestNumber: pullRequest.number,
+      base: { remoteUrl: baseRepo.clone_url, commitSha: pullRequest.base.sha },
+      head: { remoteUrl: headRepo.clone_url, commitSha: pullRequest.head.sha },
+      authHeaders: [authHeader],
+    });
+
     if (openMode === "branch") {
-      await ensurePreparedBranchCheckout(input.repoPath, localBranch, headRefShort);
+      await ensurePreparedBranchCheckout(input.repoPath, localBranch, compareHeadRef);
     } else {
-      await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+      await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, compareHeadRef);
     }
+
     const preparedWorkspace: PreparedPullRequestWorkspace = {
       providerId: hostedRepo.providerId,
       repoPath: worktreePath,
@@ -799,6 +696,7 @@ async function prepareHostedPullRequestWorkspace(
     };
 
     await writeManagedRepoState(preparedWorkspace);
+
     return preparedWorkspace;
   }
 
@@ -824,10 +722,6 @@ async function prepareHostedPullRequestWorkspace(
       openMode === "branch"
         ? input.repoPath
         : await ensureManagedSourceRepo(hostedRepo, baseCloneUrl);
-    const baseRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
-    const headRefFull = `refs/remotes/${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
-    const baseRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/base/pr-${String(pullRequestNumber)}`;
-    const headRefShort = `${OPEN_WARDEN_REMOTE_PREFIX}/head/pr-${String(pullRequestNumber)}`;
     const localBranch =
       openMode === "branch"
         ? headRef
@@ -837,28 +731,20 @@ async function prepareHostedPullRequestWorkspace(
         ? path.resolve(input.repoPath)
         : managedWorktreePath(hostedRepo, pullRequestNumber);
     const authHeaders = createBitbucketGitAuthHeaders(connection);
-    await fetchRemoteBranchWithFallbackAuth(
-      sourceRepoPath,
-      baseCloneUrl,
-      baseRef,
-      baseRefFull,
+    const { compareBaseRef, compareHeadRef } = await prepareComparison({
+      repoPath: sourceRepoPath,
+      pullRequestNumber,
+      base: { remoteUrl: baseCloneUrl, commitSha: pullRequest.destination?.commit?.hash ?? "" },
+      head: { remoteUrl: headCloneUrl, commitSha: pullRequest.source?.commit?.hash ?? "" },
       authHeaders,
-    );
-    await fetchRemoteBranchWithFallbackAuth(
-      sourceRepoPath,
-      headCloneUrl,
-      headRef,
-      headRefFull,
-      authHeaders,
-    );
+    });
 
-    const compareBaseRef = await resolveMergeBase(sourceRepoPath, baseRefShort, headRefShort);
-    const compareHeadRef = headRefShort;
     if (openMode === "branch") {
-      await ensurePreparedBranchCheckout(input.repoPath, localBranch, headRefShort);
+      await ensurePreparedBranchCheckout(input.repoPath, localBranch, compareHeadRef);
     } else {
-      await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, headRefShort);
+      await ensurePreparedWorktree(sourceRepoPath, worktreePath, localBranch, compareHeadRef);
     }
+
     const preparedWorkspace: PreparedPullRequestWorkspace = {
       providerId: hostedRepo.providerId,
       repoPath: worktreePath,
@@ -876,6 +762,7 @@ async function prepareHostedPullRequestWorkspace(
     };
 
     await writeManagedRepoState(preparedWorkspace);
+
     return preparedWorkspace;
   }
 
