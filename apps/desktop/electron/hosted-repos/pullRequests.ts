@@ -772,6 +772,7 @@ export async function setPullRequestThreadResolved(
       {
         threadId: input.threadId,
       },
+      { kind: "write" },
     );
 
     const threads = await fetchGitHubReviewThreads(

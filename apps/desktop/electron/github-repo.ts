@@ -1,3 +1,4 @@
+import { requestGitHub as requestProvider } from "./providerTransport";
 import { createGitHubCollectionReader } from "./githubCollections";
 import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
@@ -147,50 +148,59 @@ type GitHubPullRequestByHeadGraphResponse = {
   errors?: Array<{ message: string }>;
 };
 
+function requireGitHubResponse(response: Response) {
+  if (!response.ok) {
+    throw new DesktopAdapterError(
+      providerFailure("github", response.status, response.headers, Date.now()),
+    );
+  }
+}
+
 export async function githubRequest<T>(
   pathname: string,
   token: string,
-  options: { readonly signal?: AbortSignal } = {},
+  options: {
+    readonly signal?: AbortSignal;
+    readonly maxAgeMs?: number;
+    readonly priority?: "interactive" | "background";
+  } = {},
 ) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
-    signal: options.signal,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
+  return requestProvider(
+    `https://api.github.com${pathname}`,
+    {
+      signal: options.signal,
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "open-warden",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     },
-  });
+    async (response) => {
+      requireGitHubResponse(response);
 
-  if (!response.ok) {
-    throw new DesktopAdapterError(
-      providerFailure("github", response.status, response.headers, Date.now()),
-    );
-  }
-
-  return {
-    data: (await response.json()) as T,
-    headers: response.headers,
-  };
+      return { data: (await response.json()) as T, headers: response.headers };
+    },
+    { maxAgeMs: options.maxAgeMs, priority: options.priority },
+  );
 }
 
 export async function githubTextRequest(pathname: string, token: string, accept: string) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
-    headers: {
-      Accept: accept,
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
+  return requestProvider(
+    `https://api.github.com${pathname}`,
+    {
+      headers: {
+        Accept: accept,
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "open-warden",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     },
-  });
-
-  if (!response.ok) {
-    throw new DesktopAdapterError(
-      providerFailure("github", response.status, response.headers, Date.now()),
-    );
-  }
-
-  return response.text();
+    async (response) => {
+      requireGitHubResponse(response);
+      return response.text();
+    },
+  );
 }
 
 export async function githubEmptyRequest(
@@ -198,84 +208,79 @@ export async function githubEmptyRequest(
   token: string,
   method: "POST" | "DELETE",
 ) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
-    method,
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
+  return requestProvider(
+    `https://api.github.com${pathname}`,
+    {
+      method,
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "open-warden",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     },
-  });
-  if (!response.ok) {
-    throw new DesktopAdapterError(
-      providerFailure("github", response.status, response.headers, Date.now()),
-    );
-  }
+    async (response) => {
+      requireGitHubResponse(response);
+    },
+  );
 }
 
 export async function githubJsonRequest<T>(
   pathname: string,
   token: string,
-  init?: {
-    method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-    body?: unknown;
-  },
+  init?: { method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH"; body?: unknown },
 ) {
-  const response = await fetch(`https://api.github.com${pathname}`, {
-    method: init?.method ?? "GET",
-    headers: {
-      Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
+  return requestProvider(
+    `https://api.github.com${pathname}`,
+    {
+      method: init?.method ?? "GET",
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "open-warden",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: init?.body === undefined ? undefined : JSON.stringify(init.body),
     },
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-  });
-
-  if (!response.ok) {
-    throw new DesktopAdapterError(
-      providerFailure("github", response.status, response.headers, Date.now()),
-    );
-  }
-
-  return (await response.json()) as T;
+    async (response) => {
+      requireGitHubResponse(response);
+      return (await response.json()) as T;
+    },
+  );
 }
 
 export async function githubGraphqlRequest<T>(
   token: string,
   query: string,
   variables: Record<string, unknown>,
-  options: { readonly signal?: AbortSignal } = {},
+  options: { readonly signal?: AbortSignal; readonly kind?: "read" | "write" } = {},
 ) {
-  const response = await fetch("https://api.github.com/graphql", {
-    signal: options.signal,
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "open-warden",
-      "X-GitHub-Api-Version": "2022-11-28",
+  return requestProvider(
+    "https://api.github.com/graphql",
+    {
+      signal: options.signal,
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "User-Agent": "open-warden",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+      body: JSON.stringify({ query, variables }),
     },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
+    async (response) => {
+      requireGitHubResponse(response);
 
-  if (!response.ok) {
-    throw new DesktopAdapterError(
-      providerFailure("github", response.status, response.headers, Date.now()),
-    );
-  }
+      const payload = (await response.json()) as T & { errors?: Array<{ message: string }> };
+      if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+        throw new Error(payload.errors[0]?.message ?? "GitHub GraphQL request failed.");
+      }
 
-  const payload = (await response.json()) as T & { errors?: Array<{ message: string }> };
-  if (Array.isArray(payload.errors) && payload.errors.length > 0) {
-    throw new Error(payload.errors[0]?.message ?? "GitHub GraphQL request failed.");
-  }
-
-  return payload;
+      return payload;
+    },
+    { kind: options.kind ?? "read" },
+  );
 }
 
 function mapGitHubPullRequestState(pullRequest: GitHubPullRequestResponse): PullRequestState {
@@ -617,7 +622,21 @@ export async function resolveGitHubOpenPullRequestForBranch(
     const nodes = payload.data?.repository?.pullRequests?.nodes ?? [];
     const match = nodes.find((node) => node.headRefName === normalizedBranch) ?? nodes[0] ?? null;
     return match ? toPullRequestSummaryFromNode(match, hostedRepo) : null;
-  } catch {
+  } catch (cause) {
+    if (
+      cause instanceof DesktopAdapterError &&
+      [
+        "rate-limit",
+        "authentication",
+        "permission",
+        "cancelled",
+        "timeout",
+        "network",
+        "unavailable",
+      ].includes(cause.failure.code)
+    )
+      throw cause;
+
     const page = await listGitHubPullRequests(hostedRepo, token, 1, 100);
     return (
       page.pullRequests.find((pullRequest) => pullRequest.headRef === normalizedBranch) ?? null
@@ -749,10 +768,12 @@ export async function fetchGitHubPullRequest(
   hostedRepo: HostedRepoRef,
   token: string,
   pullRequestNumber: number,
+  options: { readonly maxAgeMs?: number; readonly priority?: "interactive" | "background" } = {},
 ) {
   const { data } = await githubRequest<GitHubPullRequestResponse>(
     `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(pullRequestNumber)}`,
     token,
+    { ...options, maxAgeMs: options.maxAgeMs ?? 2000 },
   );
 
   return data;

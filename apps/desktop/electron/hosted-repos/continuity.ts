@@ -81,6 +81,7 @@ export async function setPullRequestFileViewed(
     connection.token,
     `mutation($id: ID!, $path: String!) { ${mutation}(input: { pullRequestId: $id, path: $path }) { clientMutationId } }`,
     { id: pullRequest.node_id, path },
+    { kind: "write" },
   );
 }
 

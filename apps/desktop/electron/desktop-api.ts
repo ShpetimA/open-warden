@@ -1,3 +1,4 @@
+import { providerRequests } from "./providerTransport";
 import { repositoryWriteEvents } from "./repositoryChangeDefinitions";
 import { setupRepository } from "./repositorySetup";
 import { getRepositoryConfiguration, configureRepository } from "./repositoryManagement";
@@ -245,5 +246,6 @@ export function configureDesktopApi(options: {
 }
 
 export async function disposeDesktopApi() {
+  providerRequests.dispose();
   await lspSessionManager.dispose();
 }

@@ -1,3 +1,5 @@
+import { desktopFailure } from "../src/platform/desktop/failure";
+import { requestBitbucket as requestProvider } from "./providerTransport";
 import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
   HostedRepoRef,
@@ -266,40 +268,64 @@ export async function bitbucketRequest<T>(
     method?: "GET" | "POST" | "PUT" | "DELETE";
     body?: unknown;
     responseType?: "json" | "text";
+    signal?: AbortSignal;
+    maxAgeMs?: number;
+    priority?: "interactive" | "background";
   },
 ) {
   const absoluteUrl = pathnameOrUrl.startsWith("http://") || pathnameOrUrl.startsWith("https://");
-  const url = absoluteUrl ? pathnameOrUrl : `${BITBUCKET_API_BASE_URL}${pathnameOrUrl}`;
-  const response = await fetch(url, {
-    method: init?.method ?? "GET",
-    headers: {
-      Accept: "application/json",
-      Authorization: bitbucketAuthorizationValue(connection),
-      ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
-      "User-Agent": bitbucketUserAgent(),
-    },
-    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-  });
+  const url = new URL(absoluteUrl ? pathnameOrUrl : `${BITBUCKET_API_BASE_URL}${pathnameOrUrl}`);
 
-  if (!response.ok) {
+  if (
+    url.origin !== "https://api.bitbucket.org" ||
+    !url.pathname.startsWith("/2.0/") ||
+    url.username ||
+    url.password
+  ) {
     throw new DesktopAdapterError(
-      providerFailure("bitbucket", response.status, response.headers, Date.now()),
+      desktopFailure(
+        "bitbucketRequest",
+        "invalid-input",
+        "Bitbucket returned an unsupported API URL.",
+      ),
     );
   }
+  return requestProvider(
+    url.href,
+    {
+      signal: init?.signal,
+      method: init?.method ?? "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: bitbucketAuthorizationValue(connection),
+        ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
+        "User-Agent": bitbucketUserAgent(),
+      },
+      body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+    },
+    async (response) => {
+      if (!response.ok) {
+        throw new DesktopAdapterError(
+          providerFailure("bitbucket", response.status, response.headers, Date.now()),
+        );
+      }
 
-  if (init?.responseType === "text") {
-    return {
-      data: (await response.text()) as T,
-      headers: response.headers,
-      status: response.status,
-    };
-  }
+      if (init?.responseType === "text") {
+        return {
+          data: (await response.text()) as T,
+          headers: response.headers,
+          status: response.status,
+        };
+      }
 
-  return {
-    data: (await response.json()) as T,
-    headers: response.headers,
-    status: response.status,
-  };
+      return {
+        data: (await response.json()) as T,
+        headers: response.headers,
+        status: response.status,
+      };
+    },
+    { maxAgeMs: init?.maxAgeMs, priority: init?.priority },
+  );
 }
 
 export function bitbucketAuthorLogin(
@@ -489,7 +515,7 @@ export function toBitbucketPullRequestSummary(
   };
 }
 
-function toBitbucketPullRequestDetail(
+export function toBitbucketPullRequestDetail(
   pullRequest: BitbucketPullRequestResponse,
   hostedRepo: HostedRepoRef,
 ): PullRequestDetail {
@@ -859,10 +885,12 @@ export async function fetchBitbucketPullRequest(
   hostedRepo: HostedRepoRef,
   connection: ProviderConnectionSecret,
   pullRequestNumber: number,
+  options: { readonly maxAgeMs?: number; readonly priority?: "interactive" | "background" } = {},
 ) {
   const { data } = await bitbucketRequest<BitbucketPullRequestResponse>(
     bitbucketPullRequestPath(hostedRepo, pullRequestNumber),
     connection,
+    { ...options, maxAgeMs: options.maxAgeMs ?? 2000 },
   );
 
   return data;
