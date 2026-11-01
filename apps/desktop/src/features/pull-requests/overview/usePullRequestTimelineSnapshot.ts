@@ -16,7 +16,7 @@ import type {
   PullRequestLocatorInput,
 } from "@/platform/desktop";
 
-const RESOURCES = ["activity"] as const;
+const RESOURCES = ["conversation", "activity"] as const;
 type TimelineSnapshot = Readonly<{
   key: string;
   conversation: PullRequestConversation;

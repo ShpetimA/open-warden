@@ -214,3 +214,76 @@ test("revision guards belong to their views and survive the refresh request comp
   release();
   controller.dispose();
 });
+
+test("hidden and offline views stop polling, then recover once when overdue", async () => {
+  const time = clock();
+  let reads = 0;
+  const controller = new PullRequestRefreshController({
+    ...time,
+    refresh: async () => {
+      reads += 1;
+      return [];
+    },
+  });
+  const release = controller.retain(locator);
+  controller.setActive(false);
+  await time.advance(600_000);
+  controller.recover();
+  expect(reads).toBe(0);
+  expect(time.pending()).toBe(0);
+
+  controller.setActive(true);
+  await time.advance(0);
+  controller.recover();
+  controller.recover();
+  expect(reads).toBe(1);
+  expect(time.pending()).toBe(1);
+  release();
+  controller.dispose();
+});
+
+test("closed PR polling uses the lifecycle interval while manual refresh remains immediate", async () => {
+  const time = clock();
+  let reads = 0;
+  const controller = new PullRequestRefreshController({
+    ...time,
+    pollInterval: () => 300_000,
+    refresh: async () => {
+      reads += 1;
+      return [];
+    },
+  });
+  const release = controller.retain(locator);
+  await time.advance(60_000);
+  expect(reads).toBe(0);
+  await controller.request(locator);
+  expect(reads).toBe(1);
+  controller.recover();
+  await time.advance(299_999);
+  expect(reads).toBe(1);
+  await time.advance(1);
+  expect(reads).toBe(2);
+  release();
+  controller.dispose();
+});
+
+test("hiding during an active refresh prevents its completion from restarting polling", async () => {
+  const time = clock();
+  let finish: ((failures: DesktopFailure[]) => void) | undefined;
+  const controller = new PullRequestRefreshController({
+    ...time,
+    refresh: () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  });
+  const release = controller.retain(locator);
+  const request = controller.request(locator);
+  controller.setActive(false);
+  if (!finish) throw new Error("Refresh did not start");
+  finish([]);
+  await request;
+  expect(time.pending()).toBe(0);
+  release();
+  controller.dispose();
+});

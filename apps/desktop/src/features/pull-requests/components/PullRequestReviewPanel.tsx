@@ -28,7 +28,7 @@ import {
   getPendingReviewCommentsForContext,
 } from "../utils/pendingReviewComments";
 
-const resources = ["comparison"] as const;
+const resources = ["conversation", "comparison"] as const;
 const decisions = [
   { value: "comment", label: "Comment", icon: MessageSquare },
   { value: "approve", label: "Approve", icon: Check },

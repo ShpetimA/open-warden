@@ -21,9 +21,11 @@ const RefreshContext = createContext<PullRequestRefreshController | null>(null);
 export function PullRequestRefreshProvider({
   children,
   refresh,
+  pollInterval,
 }: {
   children: ReactNode;
   refresh: RefreshRuntime["refresh"];
+  pollInterval?: RefreshRuntime["pollInterval"];
 }) {
   const [controller] = useState(
     () =>
@@ -34,15 +36,24 @@ export function PullRequestRefreshProvider({
           return () => window.clearTimeout(timer);
         },
         refresh,
+        pollInterval,
       }),
   );
   useEffect(() => {
-    const recover = () => controller.recover();
+    const recover = () => {
+      controller.setActive(!document.hidden && navigator.onLine);
+      controller.recover();
+    };
+    controller.setActive(!document.hidden && navigator.onLine);
     window.addEventListener("focus", recover);
     window.addEventListener("online", recover);
+    window.addEventListener("offline", recover);
+    document.addEventListener("visibilitychange", recover);
     return () => {
       window.removeEventListener("focus", recover);
       window.removeEventListener("online", recover);
+      window.removeEventListener("offline", recover);
+      document.removeEventListener("visibilitychange", recover);
       controller.dispose();
     };
   }, [controller]);

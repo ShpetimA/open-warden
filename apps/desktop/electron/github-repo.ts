@@ -1,4 +1,4 @@
-import { requestGitHub as requestProvider } from "./providerTransport";
+import { requestGitHub } from "./providerTransport";
 import { createGitHubCollectionReader } from "./githubCollections";
 import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
@@ -165,7 +165,7 @@ export async function githubRequest<T>(
     readonly priority?: "interactive" | "background";
   } = {},
 ) {
-  return requestProvider(
+  return requestGitHub(
     `https://api.github.com${pathname}`,
     {
       signal: options.signal,
@@ -186,7 +186,7 @@ export async function githubRequest<T>(
 }
 
 export async function githubTextRequest(pathname: string, token: string, accept: string) {
-  return requestProvider(
+  return requestGitHub(
     `https://api.github.com${pathname}`,
     {
       headers: {
@@ -208,7 +208,7 @@ export async function githubEmptyRequest(
   token: string,
   method: "POST" | "DELETE",
 ) {
-  return requestProvider(
+  return requestGitHub(
     `https://api.github.com${pathname}`,
     {
       method,
@@ -230,7 +230,7 @@ export async function githubJsonRequest<T>(
   token: string,
   init?: { method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH"; body?: unknown },
 ) {
-  return requestProvider(
+  return requestGitHub(
     `https://api.github.com${pathname}`,
     {
       method: init?.method ?? "GET",
@@ -254,9 +254,13 @@ export async function githubGraphqlRequest<T>(
   token: string,
   query: string,
   variables: Record<string, unknown>,
-  options: { readonly signal?: AbortSignal; readonly kind?: "read" | "write" } = {},
+  options: {
+    readonly signal?: AbortSignal;
+    readonly kind?: "read" | "write";
+    readonly maxAgeMs?: number;
+  } = {},
 ) {
-  return requestProvider(
+  return requestGitHub(
     "https://api.github.com/graphql",
     {
       signal: options.signal,
@@ -279,7 +283,7 @@ export async function githubGraphqlRequest<T>(
 
       return payload;
     },
-    { kind: options.kind ?? "read" },
+    { kind: options.kind ?? "read", maxAgeMs: options.maxAgeMs },
   );
 }
 
@@ -574,6 +578,7 @@ async function searchGitHubPullRequests(
       token,
       graphQuery,
       { query: searchQuery, first: perPage, after: cursor },
+      { maxAgeMs: currentPage < page ? 30_000 : 0 },
     );
     search = response.data?.search ?? null;
     if (!search) throw new Error("GitHub did not return pull request search results.");

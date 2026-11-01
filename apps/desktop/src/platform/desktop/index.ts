@@ -110,6 +110,7 @@ export type {
   PullRequestDetail,
   PullRequestIssueComment,
   PullRequestLocatorInput,
+  PullRequestDetailInput,
   PullRequestLifecycleInput,
   PullRequestLifecycleResult,
   PullRequestActivity,

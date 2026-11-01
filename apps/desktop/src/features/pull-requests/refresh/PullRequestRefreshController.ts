@@ -39,6 +39,7 @@ export function automaticRefreshDelay(
 }
 
 export type PullRequestRefreshResource =
+  | "conversation"
   | "checks"
   | "reviewers"
   | "files"
@@ -69,6 +70,7 @@ export function pullRequestRefreshKey(locator: PullRequestLocatorInput) {
 
 export type RefreshRuntime = {
   now(): number;
+  pollInterval?(locator: PullRequestLocatorInput): number;
   schedule(work: () => void | Promise<void>, delay: number): () => void;
   refresh(
     locator: PullRequestLocatorInput,
@@ -81,6 +83,7 @@ export class PullRequestRefreshController {
   private readonly runtime: RefreshRuntime;
   private readonly entries = new Map<string, Entry>();
   private disposed = false;
+  private active = true;
 
   constructor(runtime: RefreshRuntime) {
     this.runtime = runtime;
@@ -124,15 +127,18 @@ export class PullRequestRefreshController {
     for (const resource of resources)
       entry.resources.set(resource, (entry.resources.get(resource) ?? 0) + 1);
     entry.subscribers += 1;
-    if (!entry.cancel && !entry.running && !entry.state.paused)
+    if (this.active && !entry.cancel && !entry.running && !entry.state.paused) {
+      const interval = this.runtime.pollInterval?.(locator) ?? POLL_MS;
+      if (!entry.automaticAfter) entry.automaticAfter = this.runtime.now() + interval;
       this.schedule(
         entry,
         Math.max(
-          POLL_MS,
+          interval,
           entry.automaticAfter - this.runtime.now(),
           entry.state.retryAt - this.runtime.now(),
         ),
       );
+    }
     let released = false;
     return () => {
       if (released) return;
@@ -196,7 +202,7 @@ export class PullRequestRefreshController {
     if (entry.running) return entry.running;
     if (
       entry.state.retryAt > this.runtime.now() ||
-      (!manual && (entry.state.paused || entry.automaticAfter > this.runtime.now()))
+      (!manual && (!this.active || entry.state.paused || entry.automaticAfter > this.runtime.now()))
     )
       return Promise.resolve();
     entry.cancel?.();
@@ -210,9 +216,10 @@ export class PullRequestRefreshController {
         failures = [failureFromUnknown(cause, "refreshPullRequest")];
       }
       entry.attempts = failures.length ? entry.attempts + 1 : 0;
-      const delay = automaticRefreshDelay(failures, entry.attempts, this.runtime.now());
+      let delay = automaticRefreshDelay(failures, entry.attempts, this.runtime.now());
+      if (!failures.length) delay = this.runtime.pollInterval?.(locator) ?? POLL_MS;
       const retryAt = Math.max(0, ...failures.map((failure) => failure.retryAt ?? 0));
-      entry.automaticAfter = failures.length && delay !== null ? this.runtime.now() + delay : 0;
+      entry.automaticAfter = delay !== null ? this.runtime.now() + delay : 0;
       this.update(entry, {
         busy: false,
         revisionPending: entry.pendingRevisions.size > 0,
@@ -221,7 +228,8 @@ export class PullRequestRefreshController {
         paused: delay === null,
       });
       entry.running = undefined;
-      if (!this.disposed && entry.subscribers && delay !== null) this.schedule(entry, delay);
+      if (!this.disposed && this.active && entry.subscribers && delay !== null)
+        this.schedule(entry, delay);
       this.prune(entry);
     })();
     return entry.running;
@@ -230,6 +238,27 @@ export class PullRequestRefreshController {
   recover() {
     for (const entry of this.entries.values())
       if (entry.subscribers) void this.request(entry.locator, false);
+  }
+
+  setActive(active: boolean) {
+    if (this.disposed || this.active === active) return;
+    this.active = active;
+
+    for (const entry of this.entries.values()) {
+      entry.cancel?.();
+      entry.cancel = undefined;
+
+      if (active && entry.subscribers && !entry.running && !entry.state.paused) {
+        this.schedule(
+          entry,
+          Math.max(
+            0,
+            entry.automaticAfter - this.runtime.now(),
+            entry.state.retryAt - this.runtime.now(),
+          ),
+        );
+      }
+    }
   }
 
   dispose() {

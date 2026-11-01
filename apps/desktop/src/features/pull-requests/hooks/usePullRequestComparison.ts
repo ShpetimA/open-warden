@@ -22,9 +22,15 @@ import type {
   PullRequestLocatorInput,
 } from "@/platform/desktop";
 
-const COMPARISON_RESOURCES = ["comparison", "comparison-files"] as const;
-const COMMITS_RESOURCES = ["comparison", "comparison-files", "commits"] as const;
-const GROUPS_RESOURCES = ["comparison", "comparison-files", "commits", "commit-groups"] as const;
+const COMPARISON_RESOURCES = ["conversation", "comparison", "comparison-files"] as const;
+const COMMITS_RESOURCES = ["conversation", "comparison", "comparison-files", "commits"] as const;
+const GROUPS_RESOURCES = [
+  "conversation",
+  "comparison",
+  "comparison-files",
+  "commits",
+  "commit-groups",
+] as const;
 
 export function usePullRequestComparison(
   locator: PullRequestLocatorInput | typeof skipToken,

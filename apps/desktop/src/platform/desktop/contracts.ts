@@ -445,6 +445,11 @@ export type PullRequestLocatorInput = {
   pullRequestNumber: number;
 };
 
+export type PullRequestDetailInput = PullRequestLocatorInput &
+  Readonly<{
+    mode: "read" | "refresh" | "poll";
+  }>;
+
 export type AddPullRequestCommentInput = PullRequestLocatorInput & {
   body: string;
 };
@@ -651,6 +656,7 @@ export type DesktopHandlers = {
   resolveActivePullRequestForBranch(
     input: ResolveActivePullRequestForBranchInput,
   ): Promise<PullRequestSummary | null>;
+  getPullRequestDetail(input: PullRequestDetailInput): Promise<PullRequestDetail>;
   getPullRequestConversation(input: PullRequestLocatorInput): Promise<PullRequestConversation>;
   getPullRequestReviewOverview(input: PullRequestLocatorInput): Promise<PullRequestReviewOverview>;
   setPullRequestReviewer(input: SetPullRequestReviewerInput): Promise<void>;

@@ -35,6 +35,7 @@ export const DESKTOP_API_METHODS = [
   "resolveHostedRepo",
   "listPullRequests",
   "resolveActivePullRequestForBranch",
+  "getPullRequestDetail",
   "getPullRequestConversation",
   "getPullRequestReviewOverview",
   "setPullRequestReviewer",

@@ -15,6 +15,7 @@ import type {
   RerunPullRequestWorkflowInput,
   AddPullRequestReactionInput,
   PullRequestLocatorInput,
+  PullRequestDetailInput,
   PullRequestLifecycleInput,
   SetPullRequestFileViewedInput,
   ReplyToPullRequestThreadInput,
@@ -47,6 +48,10 @@ export async function resolveActivePullRequestForBranch(
   input: ResolveActivePullRequestForBranchInput,
 ) {
   return desktop.resolveActivePullRequestForBranch(input);
+}
+
+export async function getPullRequestDetail(input: PullRequestDetailInput) {
+  return desktop.getPullRequestDetail(input);
 }
 
 export async function getPullRequestConversation(input: PullRequestLocatorInput) {

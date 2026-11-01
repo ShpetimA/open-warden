@@ -74,11 +74,17 @@ export function readProviderResponseFailure(
       /rate limit/i.test(error.message ?? ""),
   );
   const types = new Set(errors.map((error) => error.type ?? error.extensions?.code));
-  let status = 422;
+  let status = 503;
 
   if (types.has("NOT_FOUND")) status = 404;
   else if (types.has("FORBIDDEN")) status = 403;
   else if (types.has("UNAUTHENTICATED")) status = 401;
+  else if (
+    types.has("GRAPHQL_VALIDATION_FAILED") ||
+    types.has("GRAPHQL_PARSE_FAILED") ||
+    types.has("BAD_USER_INPUT")
+  )
+    status = 422;
 
   const failure = providerFailure(provider, status, response.headers, now, { rateLimited });
   return { ...failure, status: response.status };

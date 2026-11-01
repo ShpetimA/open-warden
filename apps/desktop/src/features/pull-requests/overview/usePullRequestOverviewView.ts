@@ -16,7 +16,7 @@ import type {
 
 import type { PersonView, PullRequestOverviewView, ReviewerView } from "./types";
 
-const REFRESH_RESOURCES = ["checks", "reviewers", "files"] as const;
+const REFRESH_RESOURCES = ["conversation", "checks", "reviewers", "files"] as const;
 
 export type PullRequestLocator = { repoPath: string; pullRequestNumber: number };
 

@@ -42,3 +42,5 @@ export {
   preparePullRequestWorkspace,
   preparePullRequestFromUrl,
 } from "./hosted-repos/workspace";
+
+export { getPullRequestDetail } from "./hosted-repos/pullRequestDetail";

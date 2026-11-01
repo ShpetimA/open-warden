@@ -12,6 +12,13 @@ import type { PullRequestRefreshResource } from "./PullRequestRefreshController"
 
 const READ_CONCURRENCY = 3;
 
+export function pullRequestPollInterval(locator: PullRequestLocatorInput): number {
+  const detail = hostedReposApi.endpoints.getPullRequestDetail.select(locator)(
+    store.getState(),
+  ).data;
+  return detail && detail.state !== "open" ? 5 * 60_000 : 60_000;
+}
+
 export async function refreshPullRequest(
   locator: PullRequestLocatorInput,
   manual: boolean,
@@ -19,10 +26,26 @@ export async function refreshPullRequest(
   appStore: Pick<typeof store, "dispatch" | "getState"> = store,
 ): Promise<DesktopFailure[]> {
   const api = hostedReposApi.endpoints;
+  await Promise.all([
+    appStore.dispatch(hostedReposApi.util.getRunningQueryThunk("getPullRequestDetail", locator)),
+    ...(resources.includes("conversation")
+      ? [
+          appStore.dispatch(
+            hostedReposApi.util.getRunningQueryThunk("getPullRequestConversation", locator),
+          ),
+        ]
+      : []),
+  ]);
+
   const stateBefore = appStore.getState();
-  const before = api.getPullRequestConversation.select(locator)(stateBefore);
+  const before = api.getPullRequestDetail.select(locator)(stateBefore);
+  const previousDetail =
+    before.data ?? api.getPullRequestConversation.select(locator)(stateBefore).data?.detail;
   const cachedFailures = [
     before,
+    ...(resources.includes("conversation")
+      ? [api.getPullRequestConversation.select(locator)(stateBefore)]
+      : []),
     ...(resources.includes("checks")
       ? [api.getPullRequestChecks.select(locator)(stateBefore)]
       : []),
@@ -52,48 +75,76 @@ export async function refreshPullRequest(
     ["authentication", "permission", "not-found", "invalid-input"].includes(failure.code),
   );
   if (!manual && permanent.length) return permanent;
-  const conversation = await appStore.dispatch(
-    api.getPullRequestConversation.initiate(locator, { subscribe: false, forceRefetch: true }),
+  const refresh = appStore.dispatch(api.refreshPullRequestDetail.initiate({ ...locator, manual }));
+  const refreshed = await refresh;
+  refresh.reset();
+
+  if (refreshed.error || !refreshed.data) {
+    return [
+      readDesktopFailure(refreshed.error) ??
+        failureFromUnknown(refreshed.error, "refreshPullRequest"),
+    ];
+  }
+
+  const detail = refreshed.data;
+  appStore.dispatch(
+    hostedReposApi.util.upsertQueryEntries([
+      { endpointName: "getPullRequestDetail", arg: locator, value: detail },
+    ]),
   );
-  if (conversation.error) {
-    const failure = readDesktopFailure(conversation.error);
-    return [failure ?? failureFromUnknown(conversation.error, "refreshPullRequest")];
-  }
-  const detail = conversation.data?.detail;
   const changed =
-    detail &&
-    (detail.headSha !== before.data?.detail.headSha ||
-      detail.baseSha !== before.data?.detail.baseSha);
-  if (detail) {
-    for (const input of hostedReposApi.util.selectCachedArgsForQuery(
-      appStore.getState(),
-      "listPullRequests",
-    )) {
-      if (input.repoPath !== locator.repoPath) continue;
-      appStore.dispatch(
-        hostedReposApi.util.updateQueryData("listPullRequests", input, (page) => {
-          const summary = page.pullRequests.find(
-            (item) => item.number === locator.pullRequestNumber,
-          );
-          if (!summary) return;
-          summary.title = detail.title;
-          summary.state = detail.state;
-          summary.isDraft = detail.isDraft;
-          summary.baseRef = detail.baseRef;
-          summary.headRef = detail.headRef;
-          summary.updatedAt = detail.updatedAt;
-          if (changed) {
-            summary.checksState = null;
-            summary.additions = null;
-            summary.deletions = null;
-            summary.changedFiles = null;
-          }
-        }),
-      );
-    }
+    detail.headSha !== previousDetail?.headSha || detail.baseSha !== previousDetail?.baseSha;
+  let changedLists = false;
+
+  for (const input of hostedReposApi.util.selectCachedArgsForQuery(
+    appStore.getState(),
+    "listPullRequests",
+  )) {
+    if (input.repoPath !== locator.repoPath) continue;
+    appStore.dispatch(
+      hostedReposApi.util.updateQueryData("listPullRequests", input, (page) => {
+        const summary = page.pullRequests.find((item) => item.number === locator.pullRequestNumber);
+        if (!summary) return;
+        if (
+          summary.title !== detail.title ||
+          summary.state !== detail.state ||
+          summary.updatedAt !== detail.updatedAt
+        )
+          changedLists = true;
+        summary.title = detail.title;
+        summary.state = detail.state;
+        summary.isDraft = detail.isDraft;
+        summary.baseRef = detail.baseRef;
+        summary.headRef = detail.headRef;
+        summary.updatedAt = detail.updatedAt;
+        if (changed) {
+          summary.checksState = null;
+          summary.additions = null;
+          summary.deletions = null;
+          summary.changedFiles = null;
+        }
+      }),
+    );
   }
+
+  if (changedLists)
+    appStore.dispatch(
+      hostedReposApi.util.invalidateTags([{ type: "PullRequests", id: locator.repoPath }]),
+    );
   const reads: Array<() => Promise<{ error?: unknown }>> = [];
   const options = { subscribe: false, forceRefetch: true };
+  if (resources.includes("conversation")) {
+    reads.push(
+      async () =>
+        await appStore.dispatch(api.getPullRequestConversation.initiate(locator, options)),
+    );
+  } else {
+    appStore.dispatch(
+      hostedReposApi.util.invalidateTags([
+        { type: "PullRequestConversation", id: `${locator.repoPath}:${locator.pullRequestNumber}` },
+      ]),
+    );
+  }
   if (resources.includes("checks"))
     reads.push(
       async () => await appStore.dispatch(api.getPullRequestChecks.initiate(locator, options)),
@@ -103,7 +154,15 @@ export async function refreshPullRequest(
       async () =>
         await appStore.dispatch(api.getPullRequestReviewOverview.initiate(locator, options)),
     );
-  if (resources.includes("files"))
+  const files = api.getPullRequestFiles.select(locator)(stateBefore);
+  if (
+    resources.includes("files") &&
+    (manual ||
+      changed ||
+      files.error ||
+      files.data?.headSha !== detail.headSha ||
+      files.data?.baseSha !== detail.baseSha)
+  )
     reads.push(
       async () => await appStore.dispatch(api.getPullRequestFiles.initiate(locator, options)),
     );
@@ -115,7 +174,15 @@ export async function refreshPullRequest(
     reads.push(
       async () => await appStore.dispatch(api.getPullRequestViewedFiles.initiate(locator, options)),
     );
-  if (resources.includes("extras"))
+  const extras = api.getPullRequestExtras.select(locator)(stateBefore);
+  if (
+    resources.includes("extras") &&
+    (manual ||
+      changed ||
+      extras.error ||
+      !extras.fulfilledTimeStamp ||
+      Date.now() - extras.fulfilledTimeStamp >= 5 * 60_000)
+  )
     reads.push(
       async () => await appStore.dispatch(api.getPullRequestExtras.initiate(locator, options)),
     );
@@ -217,8 +284,5 @@ export async function refreshPullRequest(
     }
   }
 
-  appStore.dispatch(
-    hostedReposApi.util.invalidateTags([{ type: "PullRequests", id: locator.repoPath }]),
-  );
   return failures;
 }

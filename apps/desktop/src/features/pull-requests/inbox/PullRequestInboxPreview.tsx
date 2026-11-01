@@ -21,7 +21,7 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import {
   useGetPullRequestChecksQuery,
-  useGetPullRequestConversationQuery,
+  useGetPullRequestDetailQuery,
   useGetPullRequestFilesQuery,
 } from "@/features/hosted-repos/api";
 import { copyToClipboard } from "@/features/pull-requests/components/pullRequestCommentParts";
@@ -47,8 +47,8 @@ function PreviewStatus({
   const locator = { repoPath, pullRequestNumber: pullRequest.number };
   useRetainPullRequestRefresh(locator, PREVIEW_REFRESH_RESOURCES);
   const refresh = usePullRequestRefresh(locator);
-  const { detail } = useGetPullRequestConversationQuery(locator, {
-    selectFromResult: ({ currentData }) => ({ detail: currentData?.detail }),
+  const { detail } = useGetPullRequestDetailQuery(locator, {
+    selectFromResult: ({ currentData }) => ({ detail: currentData }),
   });
   // The listing leaves checks and sizes out on Bitbucket; the preview asks for them per PR.
   const { checks, checksError, checksFetching } = useGetPullRequestChecksQuery(locator, {
@@ -142,11 +142,11 @@ function PreviewStatus({
 
 function PreviewDescription({ repoPath, number }: { repoPath: string; number: number }) {
   const refresh = usePullRequestRefresh({ repoPath, pullRequestNumber: number });
-  const { body, loading, error, isFetching } = useGetPullRequestConversationQuery(
+  const { body, loading, error, isFetching } = useGetPullRequestDetailQuery(
     { repoPath, pullRequestNumber: number },
     {
       selectFromResult: ({ currentData, isFetching, error }) => ({
-        body: currentData?.detail.body ?? null,
+        body: currentData?.body ?? null,
         loading: isFetching && !currentData,
         isFetching,
         error,

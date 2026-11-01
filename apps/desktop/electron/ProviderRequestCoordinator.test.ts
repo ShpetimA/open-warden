@@ -80,6 +80,7 @@ test("coalesces independent feature reads and returns independently consumable r
   const results = await Promise.all([conversation, checks, reviewers]);
   expect(await Promise.all(results.map(text))).toEqual(Array(3).fill('{"head":"first"}'));
   expect(f.requests).toHaveLength(1);
+  expect(f.requests[0]?.signal?.aborted).toBe(false);
 });
 
 test("fresh cache avoids reads; expired cache revalidates with ETag and retains pagination headers", async () => {
@@ -119,6 +120,7 @@ test("separates credentials, representations, pages, and GraphQL variables", asy
     init: { headers: { ...input.init.headers, accept: "text/plain" } },
   });
   await f.coordinator.request({ ...input, url: `${input.url}?page=2` });
+  await f.coordinator.request({ ...input, init: { ...input.init, method: "HEAD" } });
   await f.coordinator.request({
     ...input,
     url: "https://api.github.com/graphql",
@@ -130,7 +132,7 @@ test("separates credentials, representations, pages, and GraphQL variables", asy
     init: { ...input.init, method: "POST", body: '{"variables":{"number":8}}' },
   });
 
-  expect(f.requests).toHaveLength(6);
+  expect(f.requests).toHaveLength(7);
 });
 
 test("permission and missing-resource errors do not cache failures or pause unrelated reads", async () => {
@@ -461,4 +463,74 @@ test("oversized and no-store responses are not retained in the read cache", asyn
     await f.coordinator.request({ ...f.input, maxAgeMs: 2000 });
     expect(f.requests).toHaveLength(2);
   }
+});
+
+test.each([
+  ["FORBIDDEN", "permission"],
+  ["NOT_FOUND", "not-found"],
+  ["UNAUTHENTICATED", "authentication"],
+  ["BAD_USER_INPUT", "invalid-input"],
+  ["INTERNAL", "unavailable"],
+])("GraphQL %s keeps its recovery policy", async (code, expected) => {
+  const f = fixture(() =>
+    Response.json({ errors: [{ extensions: { code }, message: "Do not expose provider bodies" }] }),
+  );
+  const result = await f.coordinator.request({
+    ...f.input,
+    url: "https://api.github.com/graphql",
+    init: { ...f.input.init, method: "POST", body: "{}" },
+  });
+  expect(result).toMatchObject({ ok: false, error: { code: expected, status: 200 } });
+  expect(JSON.stringify(result)).not.toContain("Do not expose");
+});
+
+test("conditional 304 responses do not consume the local primary-quota estimate", async () => {
+  const quota = {
+    "x-ratelimit-remaining": "1",
+    "x-ratelimit-limit": "100",
+    "x-ratelimit-reset": "3600",
+  };
+  const f = fixture((request) =>
+    request.headers.has("if-none-match")
+      ? new Response(null, { status: 304, headers: quota })
+      : Response.json({}, { headers: { ...quota, etag: '"same"' } }),
+  );
+  await f.coordinator.request(f.input);
+  expect(await f.coordinator.request(f.input)).toMatchObject({ ok: true });
+  expect(await f.coordinator.request(f.input)).toMatchObject({ ok: true });
+  expect(f.requests).toHaveLength(3);
+});
+
+test("retains bounded search pages so moving forward does not download earlier cursors again", async () => {
+  const f = fixture(() => Response.json({ data: { search: { pageInfo: { endCursor: "next" } } } }));
+  async function page(number: number) {
+    for (let previous = 1; previous <= number; previous += 1) {
+      await f.coordinator.request({
+        ...f.input,
+        url: "https://api.github.com/graphql",
+        init: {
+          ...f.input.init,
+          method: "POST",
+          body: JSON.stringify({ query: "search", variables: { after: previous - 1 } }),
+        },
+        maxAgeMs: previous < number ? 30_000 : 0,
+      });
+    }
+  }
+  await page(1);
+  await page(2);
+  await page(3);
+  expect(f.requests).toHaveLength(3);
+  f.advance(30_000);
+  await page(3);
+  expect(f.requests).toHaveLength(6);
+});
+
+test("evicts old response entries when the cache reaches its capacity", async () => {
+  const f = fixture();
+  for (let index = 0; index <= 256; index += 1) {
+    await f.coordinator.request({ ...f.input, url: `${f.input.url}/${index}`, maxAgeMs: 60_000 });
+  }
+  await f.coordinator.request({ ...f.input, url: `${f.input.url}/0`, maxAgeMs: 60_000 });
+  expect(f.requests).toHaveLength(258);
 });

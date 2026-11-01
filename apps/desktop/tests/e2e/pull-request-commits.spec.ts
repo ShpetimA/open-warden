@@ -119,6 +119,7 @@ test.beforeEach(async ({ page }) => {
           remoteUrl: "git@bitbucket.org:team/invoice.git",
           webUrl: "https://bitbucket.org/team/invoice",
         }),
+        getPullRequestDetail: async () => detail,
         getPullRequestConversation: async () => ({ detail, issueComments: [], reviewThreads: [] }),
         preparePullRequestCompareRefs: async () => ({
           providerId: "bitbucket",
@@ -1102,13 +1103,13 @@ async function configureInbox(page: Page, body: string, failDescriptionOnce = fa
         value: { headSha: detail.headSha, checks: [], complete: true, mergeability: "unknown" },
       });
       bridge.getPullRequestFiles = async () => ({ ok: true, value: [] });
-      bridge.getPullRequestConversation = async () => {
+      bridge.getPullRequestDetail = async () => {
         reads += 1;
         if (failDescriptionOnce && reads === 1) {
           return {
             ok: false,
             error: {
-              operation: "getPullRequestConversation",
+              operation: "getPullRequestDetail",
               code: "network",
               message: "The provider couldn’t be reached. Try again.",
               provider: "bitbucket",
@@ -1117,7 +1118,7 @@ async function configureInbox(page: Page, body: string, failDescriptionOnce = fa
         }
         return {
           ok: true,
-          value: { detail: { ...detail, body }, issueComments: [], reviewThreads: [] },
+          value: { ...detail, body },
         };
       };
     },
@@ -1433,6 +1434,17 @@ for (const theme of ["light", "dark"] as const) {
         const bridge = window.desktopBridge!;
         const state = { head: detail.headSha, fail: false, conversations: 0, refs: 0 };
         Object.assign(window, { refreshReads: state });
+        bridge.getPullRequestDetail = async () =>
+          state.fail
+            ? {
+                ok: false,
+                error: {
+                  operation: "getPullRequestDetail",
+                  code: "network",
+                  message: "The provider is offline.",
+                },
+              }
+            : { ok: true, value: { ...detail, headSha: state.head } };
         bridge.getPullRequestConversation = async () => {
           state.conversations += 1;
           return state.fail
@@ -1525,13 +1537,9 @@ test("refreshes the inbox and its selected description from the visible refresh 
   await expect(preview.getByText("The initial description.")).toBeVisible();
   await page.evaluate(
     ({ detail }) => {
-      window.desktopBridge!.getPullRequestConversation = async () => ({
+      window.desktopBridge!.getPullRequestDetail = async () => ({
         ok: true,
-        value: {
-          detail: { ...detail, body: "Updated remotely." },
-          issueComments: [],
-          reviewThreads: [],
-        },
+        value: { ...detail, body: "Updated remotely." },
       });
     },
     { detail },
@@ -1626,6 +1634,10 @@ for (const [providerId, theme] of [
           },
         };
         window.prRevisionRefreshTest = state;
+        bridge.getPullRequestDetail = async () => ({
+          ok: true,
+          value: { ...detail, providerId, baseSha: state.base, headSha: state.head },
+        });
         bridge.getPullRequestConversation = async () => ({
           ok: true,
           value: {
@@ -1866,6 +1878,7 @@ for (const view of ["files", "commits"] as const) {
 test("background revision refresh preserves the open review draft and editor focus while submission pauses", async ({
   page,
 }) => {
+  await page.clock.install();
   await page.addInitScript(
     ({ detail }) => {
       const bridge = window.desktopBridge;
@@ -1873,6 +1886,7 @@ test("background revision refresh preserves the open review draft and editor foc
       let head = detail.headSha;
       let release: (() => void) | undefined;
       const readFiles = bridge.getBranchFiles;
+      bridge.getPullRequestDetail = async () => ({ ok: true, value: { ...detail, headSha: head } });
       bridge.getPullRequestConversation = async () => ({
         ok: true,
         value: { detail: { ...detail, headSha: head }, issueComments: [], reviewThreads: [] },
@@ -1915,6 +1929,7 @@ test("background revision refresh preserves the open review draft and editor foc
   const confirm = page.getByRole("button", { name: "Submit review", exact: false });
   await expect(confirm).toBeEnabled();
   await page.evaluate(() => window.reviewRefreshTest.changeHead());
+  await page.clock.fastForward(60_000);
   await expect.poll(() => page.evaluate(() => window.reviewRefreshTest.held())).toBe(true);
   await expect(confirm).toBeDisabled();
   await expect(editor).toHaveValue("Keep this review draft while the branch changes.");
@@ -2506,4 +2521,59 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(editor).toHaveCount(0);
   });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`inbox detail refresh avoids conversation requests in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 900 });
+    await configureInbox(page, "Description without downloading comments and threads.");
+    await page.addInitScript(() => {
+      const bridge = window.desktopBridge;
+      if (!bridge) throw new Error("Missing desktop bridge");
+      const counts = { detail: 0, conversation: 0 };
+      Object.assign(window, { providerReadCounts: () => ({ ...counts }) });
+      const read = bridge.getPullRequestDetail;
+      bridge.getPullRequestDetail = async (input) => {
+        counts.detail += 1;
+        return read(input);
+      };
+      bridge.getPullRequestConversation = async () => {
+        counts.conversation += 1;
+        return {
+          ok: false,
+          error: {
+            operation: "getPullRequestConversation",
+            code: "unexpected",
+            message: "Inbox must not request the conversation.",
+          },
+        };
+      };
+    });
+    await page.goto("/#/pull-requests");
+    const preview = page.getByRole("complementary", { name: "Pull request preview", exact: true });
+    await expect(
+      preview.getByText("Description without downloading comments and threads."),
+    ).toBeVisible();
+    const counts = () => page.evaluate(() => window.providerReadCounts());
+    expect(await counts()).toEqual({ detail: 1, conversation: 0 });
+    await page.getByRole("button", { name: "Refresh pull requests", exact: true }).click();
+    await expect.poll(counts).toEqual({ detail: 2, conversation: 0 });
+    await expect(
+      preview.getByText("Description without downloading comments and threads."),
+    ).toBeVisible();
+    await expect(preview.getByRole("alert")).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`provider-inbox-${theme}.png`),
+      animations: "disabled",
+    });
+  });
+}
+
+declare global {
+  interface Window {
+    providerReadCounts(): { detail: number; conversation: number };
+  }
 }

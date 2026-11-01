@@ -49,7 +49,7 @@ export function PullRequestRefreshControl({
       disabled={retryAt > now}
       onClick={() => {
         if (busy) return;
-        if (!locator) onRefreshList?.();
+        onRefreshList?.();
         void refresh.refresh();
       }}
     >

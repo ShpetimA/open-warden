@@ -1,5 +1,5 @@
 import { desktopFailure } from "../src/platform/desktop/failure";
-import { requestBitbucket as requestProvider } from "./providerTransport";
+import { requestBitbucket } from "./providerTransport";
 import { DesktopAdapterError, providerFailure } from "./desktop-failure";
 import type {
   HostedRepoRef,
@@ -290,7 +290,7 @@ export async function bitbucketRequest<T>(
       ),
     );
   }
-  return requestProvider(
+  return requestBitbucket(
     url.href,
     {
       signal: init?.signal,

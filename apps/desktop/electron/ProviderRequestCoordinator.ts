@@ -44,6 +44,7 @@ type Account = {
 type Flight = {
   controller: AbortController;
   readers: number;
+  settled: boolean;
   promise: Promise<DesktopResult<Snapshot>>;
 };
 
@@ -77,7 +78,7 @@ function responseFrom(snapshot: Snapshot): Response {
   const headers = new Headers();
   for (const [name, value] of snapshot.headers) headers.set(name, value);
 
-  return new Response(snapshot.status === 204 ? null : snapshot.body, {
+  return new Response(snapshot.status === 204 || snapshot.status === 205 ? null : snapshot.body, {
     status: snapshot.status,
     headers,
   });
@@ -370,7 +371,7 @@ export class ProviderRequestCoordinator {
         finished = true;
         signal?.removeEventListener("abort", cancel);
         flight.readers -= 1;
-        if (!flight.readers) flight.controller.abort();
+        if (!flight.readers && !flight.settled) flight.controller.abort();
         resolve(result);
       };
       const cancel = () =>
@@ -396,7 +397,16 @@ export class ProviderRequestCoordinator {
     const accountKey = this.accountKey(input);
     const account = this.account(accountKey);
     const headers = new Headers(input.init.headers);
-    const key = `${accountKey}\0${input.url}\0${headers.get("accept") ?? ""}\0${headers.get("x-github-api-version") ?? ""}\0${input.init.body ?? ""}`;
+    const method = input.init.method?.toUpperCase() ?? "GET";
+    const representation = JSON.stringify([
+      method,
+      input.url,
+      headers.get("accept"),
+      headers.get("x-github-api-version"),
+      input.init.body ?? null,
+    ]);
+    const fingerprint = createHash("sha256").update(representation).digest("hex");
+    const key = `${accountKey}\0${fingerprint}`;
 
     if (input.kind === "write") {
       account.generation += 1;
@@ -423,6 +433,10 @@ export class ProviderRequestCoordinator {
       return { ok: true, value: responseFrom(cached.snapshot) };
     }
 
+    const bucket = new URL(input.url).pathname === "/graphql" ? "graphql" : "core";
+    const blocked = this.blocked(input, account, bucket);
+    if (blocked) return { ok: false, error: blocked };
+
     const flightKey = `${key}\0${account.generation}`;
     let flight = this.flights.get(flightKey);
 
@@ -433,6 +447,7 @@ export class ProviderRequestCoordinator {
       flight = {
         controller,
         readers: 0,
+        settled: false,
         promise: this.enqueue(account, input, () =>
           this.perform(input, account, key, generation, signal),
         ),
@@ -441,6 +456,7 @@ export class ProviderRequestCoordinator {
 
       const current = flight;
       void flight.promise.then(() => {
+        current.settled = true;
         if (this.flights.get(flightKey) === current) this.flights.delete(flightKey);
       });
     }

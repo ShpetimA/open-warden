@@ -44,12 +44,12 @@ function fixture(bridge: Partial<DesktopBridge>) {
 }
 
 test("refreshes demanded reads while leaving a cached but unmounted checks read alone", async () => {
-  let conversations = 0;
+  let details = 0;
   let checks = 0;
   const appStore = fixture({
-    getPullRequestConversation: async () => {
-      conversations += 1;
-      return { ok: true, value: { detail, issueComments: [], reviewThreads: [] } };
+    getPullRequestDetail: async () => {
+      details += 1;
+      return { ok: true, value: detail };
     },
     getPullRequestChecks: async () => {
       checks += 1;
@@ -63,20 +63,20 @@ test("refreshes demanded reads while leaving a cached but unmounted checks read 
     hostedReposApi.endpoints.getPullRequestChecks.initiate(locator, { subscribe: false }),
   );
   expect(await refreshPullRequest(locator, true, [], appStore)).toEqual([]);
-  expect([conversations, checks]).toEqual([2, 1]);
+  expect([details, checks]).toEqual([2, 1]);
   expect(await refreshPullRequest(locator, true, ["checks"], appStore)).toEqual([]);
-  expect([conversations, checks]).toEqual([3, 2]);
+  expect([details, checks]).toEqual([3, 2]);
 });
 
 test("a provider deadline blocks a different mounted PR reader and manual retry until expiry", async () => {
   vi.useFakeTimers();
   const now = Date.now();
-  let conversations = 0;
+  let details = 0;
   let checks = 0;
   const appStore = fixture({
-    getPullRequestConversation: async () => {
-      conversations += 1;
-      return { ok: true, value: { detail, issueComments: [], reviewThreads: [] } };
+    getPullRequestDetail: async () => {
+      details += 1;
+      return { ok: true, value: detail };
     },
     getPullRequestChecks: async () => {
       checks += 1;
@@ -105,18 +105,18 @@ test("a provider deadline blocks a different mounted PR reader and manual retry 
   );
   expect(blocked.error).toMatchObject({ code: "rate-limit" });
   await refreshPullRequest(locator, true, ["checks"], appStore);
-  expect([conversations, checks]).toEqual([1, 1]);
+  expect([details, checks]).toEqual([1, 1]);
   vi.setSystemTime(now + 60001);
   expect(await refreshPullRequest(locator, true, ["checks"], appStore)).toEqual([]);
-  expect([conversations, checks]).toEqual([2, 2]);
+  expect([details, checks]).toEqual([2, 2]);
 });
 
 test("a permanent read failure does not retry on mounting and explicit recovery restores automatic refresh", async () => {
   let checks = 0;
   const appStore = fixture({
-    getPullRequestConversation: async () => ({
+    getPullRequestDetail: async () => ({
       ok: true,
-      value: { detail, issueComments: [], reviewThreads: [] },
+      value: detail,
     }),
     getPullRequestChecks: async () => {
       checks += 1;
@@ -160,24 +160,24 @@ test("provider deadlines outlive query cache disposal and cover another reposito
         webUrl: "https://bitbucket.org/team/other",
       },
     }),
-    getPullRequestConversation: async () => {
+    getPullRequestDetail: async () => {
       requests += 1;
       if (requests === 1)
         return {
           ok: false,
           error: {
-            operation: "getPullRequestConversation",
+            operation: "getPullRequestDetail",
             code: "rate-limit",
             provider: "bitbucket",
             message: "Wait",
             retryAt: now + 120000,
           },
         };
-      return { ok: true, value: { detail, issueComments: [], reviewThreads: [] } };
+      return { ok: true, value: detail };
     },
   });
   await appStore.dispatch(
-    hostedReposApi.endpoints.getPullRequestConversation.initiate(locator, { subscribe: false }),
+    hostedReposApi.endpoints.getPullRequestDetail.initiate(locator, { subscribe: false }),
   );
   appStore.dispatch(hostedReposApi.util.resetApiState());
   await appStore.dispatch(
@@ -185,7 +185,7 @@ test("provider deadlines outlive query cache disposal and cover another reposito
   );
   const other = { ...locator, repoPath: "/other" };
   const blocked = await appStore.dispatch(
-    hostedReposApi.endpoints.getPullRequestConversation.initiate(other, { subscribe: false }),
+    hostedReposApi.endpoints.getPullRequestDetail.initiate(other, { subscribe: false }),
   );
   expect(blocked.error).toMatchObject({ code: "rate-limit" });
   expect(requests).toBe(1);
@@ -197,9 +197,9 @@ test("provider deadlines outlive query cache disposal and cover another reposito
 test("checks and file statistics retain their read revision until both are refreshed", async () => {
   let baseSha = "base123";
   const appStore = fixture({
-    getPullRequestConversation: async () => ({
+    getPullRequestDetail: async () => ({
       ok: true,
-      value: { detail: { ...detail, baseSha }, issueComments: [], reviewThreads: [] },
+      value: { ...detail, baseSha },
     }),
     getPullRequestChecks: async () => ({
       ok: true,
@@ -214,9 +214,9 @@ test("checks and file statistics retain their read revision until both are refre
   ]);
   baseSha = "base456";
   await refreshPullRequest(locator, true, [], appStore);
-  expect(
-    api.getPullRequestConversation.select(locator)(appStore.getState()).data?.detail.baseSha,
-  ).toBe("base456");
+  expect(api.getPullRequestDetail.select(locator)(appStore.getState()).data?.baseSha).toBe(
+    "base456",
+  );
   expect(api.getPullRequestChecks.select(locator)(appStore.getState()).data?.baseSha).toBe(
     "base123",
   );
@@ -287,9 +287,9 @@ test("provider comment mutations refresh subscribed inbox and activity reads", a
 test("automatic recovery retries a failed comparison even when the PR revision is unchanged", async () => {
   let comparisons = 0;
   const appStore = fixture({
-    getPullRequestConversation: async () => ({
+    getPullRequestDetail: async () => ({
       ok: true,
-      value: { detail, issueComments: [], reviewThreads: [] },
+      value: detail,
     }),
     preparePullRequestCompareRefs: async () => {
       comparisons += 1;
@@ -321,7 +321,7 @@ test("automatic recovery retries a failed comparison even when the PR revision i
   });
   await Promise.all([
     appStore.dispatch(
-      hostedReposApi.endpoints.getPullRequestConversation.initiate(locator, { subscribe: false }),
+      hostedReposApi.endpoints.getPullRequestDetail.initiate(locator, { subscribe: false }),
     ),
     appStore.dispatch(
       hostedReposApi.endpoints.preparePullRequestCompareRefs.initiate(locator, {
@@ -337,9 +337,9 @@ test("refresh reconciles prepared refs after another reader has already installe
   let headSha = "head123";
   let comparisons = 0;
   const appStore = fixture({
-    getPullRequestConversation: async () => ({
+    getPullRequestDetail: async () => ({
       ok: true,
-      value: { detail: { ...detail, headSha }, issueComments: [], reviewThreads: [] },
+      value: { ...detail, headSha },
     }),
     preparePullRequestCompareRefs: async () => {
       comparisons += 1;
@@ -363,7 +363,7 @@ test("refresh reconciles prepared refs after another reader has already installe
   await refreshPullRequest(locator, true, ["comparison"], appStore);
   headSha = "head456";
   await appStore.dispatch(
-    hostedReposApi.endpoints.getPullRequestConversation.initiate(locator, {
+    hostedReposApi.endpoints.getPullRequestDetail.initiate(locator, {
       subscribe: false,
       forceRefetch: true,
     }),
@@ -374,4 +374,121 @@ test("refresh reconciles prepared refs after another reader has already installe
     hostedReposApi.endpoints.preparePullRequestCompareRefs.select(locator)(appStore.getState()).data
       ?.compareHeadRef,
   ).toBe("head456");
+});
+
+test("detail, checks, and files do not read conversation data without a mounted conversation", async () => {
+  let details = 0;
+  let conversations = 0;
+  let files = 0;
+  const appStore = fixture({
+    getPullRequestDetail: async () => {
+      details += 1;
+      return { ok: true, value: detail };
+    },
+    getPullRequestConversation: async () => {
+      conversations += 1;
+      return { ok: true, value: { detail, issueComments: [], reviewThreads: [] } };
+    },
+    getPullRequestChecks: async () => ({
+      ok: true,
+      value: { headSha: detail.headSha, complete: true, checks: [], mergeability: "unknown" },
+    }),
+    getPullRequestFiles: async () => {
+      files += 1;
+      return { ok: true, value: [] };
+    },
+  });
+
+  await refreshPullRequest(locator, true, ["checks", "files"], appStore);
+  await refreshPullRequest(locator, false, ["checks", "files"], appStore);
+  expect(details).toBe(2);
+  expect(conversations).toBe(0);
+  expect(files).toBe(1);
+
+  await refreshPullRequest(locator, true, ["conversation", "files"], appStore);
+  expect(conversations).toBe(1);
+  expect(files).toBe(2);
+});
+
+test("unchanged refresh keeps inbox pages cached; a changed title refreshes subscribed filtering", async () => {
+  let title = detail.title;
+  let lists = 0;
+  const appStore = fixture({
+    getPullRequestDetail: async () => ({ ok: true, value: { ...detail, title } }),
+    listPullRequests: async () => {
+      lists += 1;
+      return {
+        ok: true,
+        value: {
+          pullRequests: [
+            {
+              ...detail,
+              title,
+              author: { login: "alice", displayName: "Alice", avatarUrl: null },
+              headOwner: "team",
+              headRepo: "invoice",
+              reviewers: [],
+              reviewDecision: null,
+              checksState: null,
+              commentCount: 0,
+              additions: null,
+              deletions: null,
+              changedFiles: null,
+            },
+          ],
+          page: 1,
+          perPage: 25,
+          hasNextPage: false,
+        },
+      };
+    },
+  });
+  const list = appStore.dispatch(
+    hostedReposApi.endpoints.listPullRequests.initiate({ repoPath: locator.repoPath, page: 1 }),
+  );
+  cleanup.push(list.unsubscribe);
+  await list;
+  await refreshPullRequest(locator, false, [], appStore);
+  await Promise.all(appStore.dispatch(hostedReposApi.util.getRunningQueriesThunk()));
+  expect(lists).toBe(1);
+
+  title = "Updated title";
+  await refreshPullRequest(locator, false, [], appStore);
+  await Promise.all(appStore.dispatch(hostedReposApi.util.getRunningQueriesThunk()));
+  expect(lists).toBe(2);
+});
+
+test("extras use a slower cadence, and manual refresh always revalidates them", async () => {
+  vi.useFakeTimers();
+  let extras = 0;
+  let headSha = detail.headSha;
+  const appStore = fixture({
+    getPullRequestDetail: async () => ({ ok: true, value: { ...detail, headSha } }),
+    getPullRequestExtras: async () => {
+      extras += 1;
+      return {
+        ok: true,
+        value: {
+          providerId: "bitbucket",
+          labels: [],
+          availableLabels: [],
+          workflows: [],
+          stack: [],
+          links: [],
+          availability: { labels: "unsupported", workflows: "unsupported", stack: "unsupported" },
+        },
+      };
+    },
+  });
+  await refreshPullRequest(locator, true, ["extras"], appStore);
+  await refreshPullRequest(locator, false, ["extras"], appStore);
+  expect(extras).toBe(1);
+  vi.setSystemTime(Date.now() + 300_000);
+  await refreshPullRequest(locator, false, ["extras"], appStore);
+  expect(extras).toBe(2);
+  headSha = "force-pushed";
+  await refreshPullRequest(locator, false, ["extras"], appStore);
+  expect(extras).toBe(3);
+  await refreshPullRequest(locator, true, ["extras"], appStore);
+  expect(extras).toBe(4);
 });

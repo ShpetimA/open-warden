@@ -3,8 +3,8 @@ import { once } from "node:events";
 import { describe, expect, test } from "vitest";
 
 import { captureDesktopOperation } from "../src/platform/desktop/failure";
-import { classifyDesktopFailure, providerFailure } from "./desktop-failure";
-import { bitbucketRequest } from "./bitbucket-repo";
+import { classifyDesktopFailure, providerFailure, DesktopAdapterError } from "./desktop-failure";
+import { requestProvider } from "./providerRequest";
 import { getCommitHistory } from "./git";
 import { runGitCommand } from "./gitOperations";
 
@@ -47,9 +47,14 @@ describe("desktop failure boundary", () => {
       const reply = await captureDesktopOperation(
         "listPullRequests",
         () =>
-          bitbucketRequest(`http://127.0.0.1:${address.port}/pullrequests`, {
-            token: "test",
-            authType: "bearer",
+          requestProvider(`http://127.0.0.1:${address.port}/pullrequests`, {}, async (response) => {
+            if (!response.ok) {
+              throw new DesktopAdapterError(
+                providerFailure("bitbucket", response.status, response.headers, Date.now()),
+              );
+            }
+
+            return response.json();
           }),
         classifyDesktopFailure,
       );
