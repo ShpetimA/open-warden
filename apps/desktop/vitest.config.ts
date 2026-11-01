@@ -16,6 +16,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Git integration suites launch many subprocesses per test file.
+    maxWorkers: 4,
     environment: "jsdom",
     environmentMatchGlobs: [["electron/**/*.test.ts", "node"]],
     globals: true,
