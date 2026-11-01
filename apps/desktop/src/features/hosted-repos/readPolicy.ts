@@ -45,7 +45,11 @@ export async function runHostedRead<T>(
   )
     return { error: failure };
   const result = queryResult(await read());
-  if ("error" in result && (result.error.retryAt ?? 0) > Date.now()) {
+  if (
+    "error" in result &&
+    (result.error.code === "rate-limit" || result.error.code === "unavailable") &&
+    (result.error.retryAt ?? 0) > Date.now()
+  ) {
     api.dispatch(
       rememberHostedReadDeadline({
         scopes: [

@@ -146,11 +146,13 @@ export function providerFailure(
   status: number,
   headers: Headers,
   now: number,
+  options: { readonly rateLimited?: boolean } = {},
 ): DesktopFailure {
   const name = provider === "github" ? "GitHub" : "Bitbucket";
   const retry = headers.get("retry-after");
   const reset = headers.get("x-ratelimit-reset");
   const rateLimited =
+    options.rateLimited === true ||
     status === 429 ||
     (status === 403 && (retry !== null || headers.get("x-ratelimit-remaining") === "0"));
   let code: DesktopFailure["code"] = "unexpected";
@@ -178,14 +180,24 @@ export function providerFailure(
     message = `${name} is temporarily unavailable. Try again shortly.`;
   }
 
-  const retryAt =
-    retry !== null
-      ? /^\d+$/.test(retry)
-        ? now + Number(retry) * 1000
-        : Date.parse(retry)
-      : reset !== null
-        ? Number(reset) * 1000
-        : undefined;
+  let retryAt: number | undefined;
+
+  if (rateLimited || status === 503) {
+    if (retry !== null && retry.trim() !== "") {
+      const seconds = Number(retry);
+      retryAt = Number.isFinite(seconds) && seconds >= 0 ? now + seconds * 1000 : Date.parse(retry);
+    }
+
+    if (
+      !Number.isFinite(retryAt) &&
+      rateLimited &&
+      headers.get("x-ratelimit-remaining") === "0" &&
+      reset !== null &&
+      reset.trim() !== ""
+    ) {
+      retryAt = Number(reset) * 1000;
+    }
+  }
 
   return {
     operation: `${provider}.request`,
