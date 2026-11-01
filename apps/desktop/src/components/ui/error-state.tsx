@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Copy, RefreshCw } from "lucide-react";
+import { AlertCircle, Copy, RefreshCw, X } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ type ErrorSurfaceProps = Readonly<{
   title: string;
   message?: string;
   recovery?: ErrorRecovery;
+  onDismiss?: () => void;
   busy?: boolean;
   lastUpdated?: number;
   className?: string;
@@ -23,6 +24,7 @@ function ErrorSurface({
   title,
   message,
   recovery,
+  onDismiss,
   busy = false,
   lastUpdated,
   className,
@@ -54,6 +56,10 @@ function ErrorSurface({
         failure.provider ? `Provider: ${failure.provider}` : "",
         failure.status ? `HTTP status: ${failure.status}` : "",
         failure.reference ? `Reference: ${failure.reference}` : "",
+        failure.git?.exitCode !== null && failure.git?.exitCode !== undefined
+          ? `Git exit code: ${failure.git.exitCode}`
+          : "",
+        failure.git?.output ? `\nGit output:\n${failure.git.output}` : "",
       ]
         .filter(Boolean)
         .join("\n")
@@ -100,11 +106,17 @@ function ErrorSurface({
               {busy ? "Trying again…" : recovery.label}
             </Button>
           ) : null}
-          <details className="min-w-0 text-xs">
+          {onDismiss ? (
+            <Button size="xs" variant="ghost" disabled={busy} onClick={onDismiss}>
+              <X aria-hidden="true" />
+              Dismiss
+            </Button>
+          ) : null}
+          <details className="min-w-0 text-xs open:w-full">
             <summary className="text-muted-foreground hover:text-foreground focus-visible:outline-ring cursor-pointer rounded-sm">
               Details
             </summary>
-            <pre className="text-muted-foreground mt-2 whitespace-pre-wrap break-all font-mono text-[11px]">
+            <pre className="text-muted-foreground mt-2 max-h-60 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px]">
               {details}
             </pre>
             <Button size="xs" variant="ghost" onClick={copyDetails} className="mt-1">

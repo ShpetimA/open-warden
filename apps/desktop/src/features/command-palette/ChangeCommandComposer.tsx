@@ -785,6 +785,8 @@ export function ChangeCommandComposer({
       runningRef.current
     )
       return;
+
+    rootRef.current?.focus({ preventScroll: true });
     runningRef.current = true;
     setWorking(true);
     setError("");

@@ -1,3 +1,4 @@
+import { gitDiagnosticsSchema } from "./failure";
 import { z } from "zod";
 
 const name = z
@@ -92,6 +93,7 @@ export const gitRepositoryStateSchema = z.object({
 });
 export type GitRepositoryState = z.infer<typeof gitRepositoryStateSchema>;
 export const gitFailureSchema = z.object({
+  git: gitDiagnosticsSchema.optional(),
   code: z.enum(["invalid-input", "busy", "git-failed"]),
   message: z.string(),
 });

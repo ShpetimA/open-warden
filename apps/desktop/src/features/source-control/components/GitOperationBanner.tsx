@@ -1,71 +1,104 @@
+import { commandFailureDismissed, gitCommandFailureTitle } from "../gitCommandFeedbackSlice";
+import { refreshRepositoryStatus } from "../actions";
 import { hasRepositoryEventBridge } from "@/features/source-control/repositoryFreshness";
 import { ActionError } from "@/components/ui/error-state";
 import { toast } from "sonner";
 import { useNavigate } from "react-router";
-import { useAppSelector } from "@/app/hooks";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { desktop } from "@/platform/desktop";
 import { useGetGitRepositoryStateQuery, useRunGitCommandMutation } from "../gitOperationsApi";
 import type { GitOperation } from "@/platform/desktop/gitOperations";
 
 export function GitOperationBanner() {
+  const dispatch = useAppDispatch();
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
-  const { operation, conflictCount } = useGetGitRepositoryStateQuery(repoPath, {
-    skip: !repoPath,
-    pollingInterval: hasRepositoryEventBridge() ? 0 : 15000,
-    selectFromResult: ({ currentData }) => ({
-      operation: currentData?.operation ?? null,
-      conflictCount: currentData?.conflicts.length ?? 0,
-    }),
-  });
+  const feedback = useAppSelector((state) => state.gitCommandFeedback.byRepository[repoPath]);
+  const { operation, conflictCount, refreshing, refreshError } = useGetGitRepositoryStateQuery(
+    repoPath,
+    {
+      skip: !repoPath,
+      pollingInterval: hasRepositoryEventBridge() ? 0 : 15000,
+      selectFromResult: ({ currentData, isFetching, error }) => ({
+        refreshing: isFetching,
+        refreshError: error,
+        operation: currentData?.operation ?? null,
+        conflictCount: currentData?.conflicts.length ?? 0,
+      }),
+    },
+  );
   const navigate = useNavigate();
   const [execute, mutation] = useRunGitCommandMutation({ fixedCacheKey: repoPath });
-  if (!repoPath || (!operation && !conflictCount)) return null;
+
+  if (!repoPath) return null;
+
   return (
-    <GitOperationStatus
-      operation={operation}
-      conflictCount={conflictCount}
-      busy={mutation.isLoading}
-      onResolve={() => navigate("/changes")}
-      onContinue={() => {
-        if (operation) void execute({ repoPath, command: { kind: "continue", operation } });
-      }}
-      onSkip={() => {
-        if (operation && operation !== "merge")
-          void desktop
-            .confirm("Skip this commit and discard the changes from this step?", {
-              title: "Skip commit",
-              kind: "warning",
-              okLabel: "Skip",
-            })
-            .then((confirmed) => {
-              if (!confirmed.ok) {
-                toast.error(confirmed.error.message);
-                return;
-              }
-              if (confirmed.value)
-                return execute({ repoPath, command: { kind: "skip", operation } });
-            });
-      }}
-      onAbort={() => {
-        if (operation)
-          void desktop
-            .confirm(`Abort the current ${operation} and return to its starting state?`, {
-              title: "Abort Git operation",
-              kind: "warning",
-              okLabel: "Abort",
-            })
-            .then((confirmed) => {
-              if (!confirmed.ok) {
-                toast.error(confirmed.error.message);
-                return;
-              }
-              if (confirmed.value)
-                return execute({ repoPath, command: { kind: "abort", operation } });
-            });
-      }}
-      error={mutation.error && "message" in mutation.error ? String(mutation.error.message) : ""}
-    />
+    <>
+      {operation || conflictCount ? (
+        <GitOperationStatus
+          operation={operation}
+          conflictCount={conflictCount}
+          busy={mutation.isLoading}
+          onResolve={() => navigate("/changes")}
+          onContinue={() => {
+            if (operation) void execute({ repoPath, command: { kind: "continue", operation } });
+          }}
+          onSkip={() => {
+            if (operation && operation !== "merge")
+              void desktop
+                .confirm("Skip this commit and discard the changes from this step?", {
+                  title: "Skip commit",
+                  kind: "warning",
+                  okLabel: "Skip",
+                })
+                .then((confirmed) => {
+                  if (!confirmed.ok) {
+                    toast.error(confirmed.error.message);
+                    return;
+                  }
+                  if (confirmed.value)
+                    return execute({ repoPath, command: { kind: "skip", operation } });
+                });
+          }}
+          onAbort={() => {
+            if (operation)
+              void desktop
+                .confirm(`Abort the current ${operation} and return to its starting state?`, {
+                  title: "Abort Git operation",
+                  kind: "warning",
+                  okLabel: "Abort",
+                })
+                .then((confirmed) => {
+                  if (!confirmed.ok) {
+                    toast.error(confirmed.error.message);
+                    return;
+                  }
+                  if (confirmed.value)
+                    return execute({ repoPath, command: { kind: "abort", operation } });
+                });
+          }}
+        />
+      ) : null}
+      {feedback?.error ? (
+        <div className="shrink-0 space-y-2 border-b p-2">
+          <ActionError
+            title={gitCommandFailureTitle(feedback.kind)}
+            error={feedback.error}
+            busy={refreshing}
+            recovery={{
+              label: "Refresh status",
+              onAction: () => void dispatch(refreshRepositoryStatus(repoPath)),
+            }}
+            onDismiss={() =>
+              dispatch(commandFailureDismissed({ repoPath, requestId: feedback.requestId }))
+            }
+          />
+          {refreshError ? (
+            <ActionError title="Couldn’t refresh repository status" error={refreshError} />
+          ) : null}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -77,7 +110,6 @@ export function GitOperationStatus({
   onContinue,
   onAbort,
   onSkip,
-  error,
 }: {
   operation: GitOperation | null;
   conflictCount: number;
@@ -86,7 +118,6 @@ export function GitOperationStatus({
   onContinue: () => void;
   onAbort: () => void;
   onSkip?: () => void;
-  error: string;
 }) {
   return (
     <section
@@ -121,9 +152,6 @@ export function GitOperationStatus({
           </>
         ) : null}
       </div>
-      {error ? (
-        <ActionError title="Git operation failed" error={undefined} message={error} />
-      ) : null}
     </section>
   );
 }

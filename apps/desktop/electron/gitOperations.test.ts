@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { captureDesktopOperation, parseDesktopReply } from "../src/platform/desktop/failure";
+import { classifyDesktopFailure } from "./desktop-failure";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -308,4 +310,55 @@ it("restores a literal file path without treating wildcard characters as a paths
   ).toBe(true);
   expect(await readFile(path.join(repo, "*.txt"), "utf8")).toBe("literal old\n");
   expect(await readFile(path.join(repo, "other.txt"), "utf8")).toBe("other new\n");
+});
+
+it("preserves failed push hook output across IPC, redacts credentials, and retries against a real remote", async () => {
+  const { repo } = await fixture();
+  const hook = path.join(repo, ".git/hooks/pre-push");
+  await writeFile(
+    hook,
+    [
+      "#!/bin/sh",
+      "echo 'pre-push: validation failed'",
+      "echo 'Timeout: Git lock test exceeded 5000ms' >&2",
+      "echo 'Authorization: Bearer private-hook-token' >&2",
+      "echo 'token=private-hook-token https://user:password@example.com/repo.git' >&2",
+      "exit 1",
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+
+  const blocked = await captureDesktopOperation(
+    "runGitCommand",
+    () => runGitCommand(repo, { kind: "publish", remote: "origin" }),
+    classifyDesktopFailure,
+  );
+  expect(blocked).toMatchObject({
+    ok: false,
+    error: { operation: "runGitCommand", git: { exitCode: 1 } },
+  });
+  if (blocked.ok) throw new Error("The failing hook must block publishing");
+  expect(blocked.error.git?.output).toContain("pre-push: validation failed");
+  expect(blocked.error.git?.output).toContain("Git lock test exceeded 5000ms");
+  expect(JSON.stringify(blocked)).not.toContain("private-hook-token");
+  expect(JSON.stringify(blocked)).not.toContain("user:password");
+  expect(parseDesktopReply(structuredClone(blocked), "runGitCommand")).toEqual(blocked);
+  expect(git(repo, "ls-remote", "origin")).toBe("");
+
+  await writeFile(
+    hook,
+    [
+      "#!/bin/sh",
+      'if [ "${GIT_OPTIONAL_LOCKS-unset}" = "0" ]; then',
+      "  echo 'The app changed the hook locking environment' >&2",
+      "  exit 1",
+      "fi",
+      "exit 0",
+      "",
+    ].join("\n"),
+    { mode: 0o755 },
+  );
+  expect((await runGitCommand(repo, { kind: "publish", remote: "origin" })).ok).toBe(true);
+  expect(git(repo, "rev-parse", "origin/main")).toBe(git(repo, "rev-parse", "HEAD"));
 });

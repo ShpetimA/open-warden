@@ -58,7 +58,7 @@ function HistoryActionDialog({
   onClose: () => void;
 }) {
   const repoPath = useAppSelector((state) => state.sourceControl.activeRepo);
-  const [execute, mutation] = useRunGitCommandMutation({ fixedCacheKey: repoPath });
+  const [execute, mutation] = useRunGitCommandMutation();
   const [branch, setBranch] = useState("");
   const label =
     action === "create"

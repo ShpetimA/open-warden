@@ -59,7 +59,7 @@ for (const theme of ["light", "dark"] as const) {
         "Undo “Add invoice calculation” and keep its changes staged",
       );
       await undo.click();
-      await expect(page.getByText("Couldn’t update this commit", { exact: true })).toBeVisible();
+      await expect(page.getByText("Couldn’t undo this commit", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Refresh status", exact: true })).toBeVisible();
       await expect(message).toHaveValue("Validate all invoice amounts\n");
       expect(git("diff", "--cached", "--name-only")).toBe("invoice.ts");

@@ -1,4 +1,3 @@
-import { ActionError } from "@/components/ui/error-state";
 import { workspaceCommitDraftReplaced } from "@/features/workspaces/workspacesSlice";
 import { useRef, useState } from "react";
 import { useHotkey } from "@tanstack/react-hotkeys";
@@ -26,7 +25,7 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
     skip: !repoPath,
     selectFromResult: ({ currentData }) => ({ stagedCount: currentData?.staged.length }),
   });
-  const { lastCommit, refetch: refreshStatus } = useGetGitRepositoryStateQuery(repoPath, {
+  const { lastCommit } = useGetGitRepositoryStateQuery(repoPath, {
     skip: !repoPath,
     selectFromResult: ({ currentData }) => ({ lastCommit: currentData?.lastCommit }),
   });
@@ -81,90 +80,74 @@ function RepositoryCommitBox({ repoPath }: { repoPath: string }) {
   });
 
   return (
-    <>
-      <CommitComposer
-        message={commitMessage}
-        busy={busy}
-        canCommit={canCommit}
-        amending={Boolean(amendHead)}
-        inputRef={input}
-        onMessage={(message) => dispatch(setCommitMessageValue(message))}
-        onSubmit={() => void submit()}
-        options={
-          <>
-            <label className="text-muted-foreground flex min-h-8 items-center gap-1.5 px-1">
-              <Checkbox
-                aria-label="Amend last commit"
-                aria-description={amendDescription}
-                checked={Boolean(amendHead)}
-                disabled={busy || !editableCommit}
-                onCheckedChange={(checked) => {
-                  if (checked && lastCommit) {
-                    setDraft(commitMessage);
-                    setAmendHead(lastCommit.id);
-                    dispatch(setCommitMessageValue(lastCommit.message));
-                  } else {
-                    setAmendHead(null);
-                    dispatch(setCommitMessageValue(draft));
-                  }
-                }}
-              />
-              Amend
-            </label>
-            <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="inline-flex">
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      aria-label="Undo commit"
-                      disabled={busy || !editableCommit || Boolean(amendHead)}
-                      aria-description={undoDescription}
-                      onClick={() => {
-                        if (!lastCommit) return;
-                        void execute({
-                          repoPath,
-                          command: { kind: "undo", expectedHead: lastCommit.id },
-                        }).then((result) => {
-                          if ("data" in result)
-                            dispatch(
-                              workspaceCommitDraftReplaced({
-                                workspaceId,
-                                expectedMessage: commitMessage,
-                                message: lastCommit.message,
-                              }),
-                            );
-                        });
-                      }}
-                    >
-                      <Undo2 className="size-3" />
-                      Undo
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-64 rounded-md">
-                  {undoDescription}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </>
-        }
-      />
-      {mutation.error ? (
-        <div className="shrink-0 p-2">
-          <ActionError
-            title="Couldn’t update this commit"
-            error={mutation.error}
-            recovery={{
-              label: "Refresh status",
-              onAction: () => {
-                void refreshStatus();
-              },
-            }}
-          />
-        </div>
-      ) : null}
-    </>
+    <CommitComposer
+      message={commitMessage}
+      busy={busy}
+      canCommit={canCommit}
+      amending={Boolean(amendHead)}
+      inputRef={input}
+      onMessage={(message) => dispatch(setCommitMessageValue(message))}
+      onSubmit={() => void submit()}
+      options={
+        <>
+          <label className="text-muted-foreground flex min-h-8 items-center gap-1.5 px-1">
+            <Checkbox
+              aria-label="Amend last commit"
+              aria-description={amendDescription}
+              checked={Boolean(amendHead)}
+              disabled={busy || !editableCommit}
+              onCheckedChange={(checked) => {
+                if (checked && lastCommit) {
+                  setDraft(commitMessage);
+                  setAmendHead(lastCommit.id);
+                  dispatch(setCommitMessageValue(lastCommit.message));
+                } else {
+                  setAmendHead(null);
+                  dispatch(setCommitMessageValue(draft));
+                }
+              }}
+            />
+            Amend
+          </label>
+          <TooltipProvider delayDuration={450} skipDelayDuration={300} disableHoverableContent>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    aria-label="Undo commit"
+                    disabled={busy || !editableCommit || Boolean(amendHead)}
+                    aria-description={undoDescription}
+                    onClick={() => {
+                      if (!lastCommit) return;
+                      void execute({
+                        repoPath,
+                        command: { kind: "undo", expectedHead: lastCommit.id },
+                      }).then((result) => {
+                        if ("data" in result)
+                          dispatch(
+                            workspaceCommitDraftReplaced({
+                              workspaceId,
+                              expectedMessage: commitMessage,
+                              message: lastCommit.message,
+                            }),
+                          );
+                      });
+                    }}
+                  >
+                    <Undo2 className="size-3" />
+                    Undo
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-64 rounded-md">
+                {undoDescription}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </>
+      }
+    />
   );
 }

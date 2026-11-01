@@ -1,3 +1,5 @@
+import { gitOperationsApi } from "./gitOperationsApi";
+import { commandFailureDismissed } from "./gitCommandFeedbackSlice";
 import { reviewDraftsRestored } from "@/features/pull-requests/reviewDraftsSlice";
 import { getPierreFileAfterRemoval } from "./pierreFileTreeNavigation";
 import { repositoryChangeTags } from "./repositoryFreshness";
@@ -303,6 +305,26 @@ export const closeRepo =
     };
   };
 
+export const refreshRepositoryStatus =
+  (repoPath: string): AppThunk<Promise<boolean>> =>
+  async (dispatch, getState) => {
+    const feedback = getState().gitCommandFeedback.byRepository[repoPath];
+    const result = await dispatch(
+      gitOperationsApi.endpoints.getGitRepositoryState.initiate(repoPath, {
+        subscribe: false,
+        forceRefetch: true,
+      }),
+    );
+
+    if (result.error || !result.data) return false;
+
+    if (feedback?.error) {
+      dispatch(commandFailureDismissed({ repoPath, requestId: feedback.requestId }));
+    }
+
+    return true;
+  };
+
 export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
   const { activeRepo } = getState().sourceControl;
   if (!activeRepo) return;
@@ -318,6 +340,8 @@ export const refreshActiveRepo = (): AppThunk => async (dispatch, getState) => {
       { type: "CommitData", id: activeRepo },
     ]),
   );
+
+  await dispatch(refreshRepositoryStatus(activeRepo));
 };
 
 export const selectFile =
