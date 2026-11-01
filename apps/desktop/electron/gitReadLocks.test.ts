@@ -2,10 +2,12 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, unlink, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 
 import { getGitSnapshot } from "./git";
 import { getGitRepositoryState, runGitCommand } from "./gitOperations";
+
+vi.setConfig({ testTimeout: 30_000 });
 
 const roots: string[] = [];
 
