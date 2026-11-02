@@ -7,6 +7,7 @@ import { afterEach, expect, test, vi } from "vitest";
 
 import { getBranchFiles } from "../git";
 import { fetchPullRequestComparison, type PullRequestComparisonInput } from "./comparison";
+import { BitbucketCommitResolver } from "../BitbucketCommitResolver";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -124,6 +125,42 @@ test("loads a retained PR commit after its source branch is deleted", async () =
     ok: true,
     value: { baseSha: f.baseSha, compareBaseRef: f.shared, compareHeadRef: f.headSha },
   });
+});
+
+test("compares Bitbucket's short commit snapshot after resolving both sides, despite moved branch tips", async () => {
+  const f = await fixture();
+  const headPrefix = f.headSha.slice(0, 12);
+  const basePrefix = f.baseSha.slice(0, 12);
+  const requests: string[] = [];
+  const resolver = new BitbucketCommitResolver(async (pathname) => {
+    requests.push(pathname);
+    if (pathname === `/repositories/contributor/fork/commit/${headPrefix}?fields=hash`)
+      return { hash: f.headSha };
+    if (pathname === `/repositories/team/upstream/commit/${basePrefix}?fields=hash`)
+      return { hash: f.baseSha };
+    throw new Error("Unexpected commit lookup");
+  });
+  const head = await resolver.resolve({
+    owner: "contributor",
+    repo: "fork",
+    reference: headPrefix,
+  });
+  const base = await resolver.resolve({ owner: "team", repo: "upstream", reference: basePrefix });
+  if (!head.ok || !base.ok) throw new Error("Expected canonical Bitbucket commit IDs");
+
+  const result = await fetchPullRequestComparison({
+    ...f.input,
+    head: { ...f.input.head, commitSha: head.value },
+    base: { ...f.input.base, commitSha: base.value },
+  });
+
+  expect(result).toEqual({
+    ok: true,
+    value: { baseSha: f.baseSha, compareBaseRef: f.shared, compareHeadRef: f.headSha },
+  });
+  expect(requests).toHaveLength(2);
+  expect(git(f.fork, "rev-parse", "feature")).toBe(f.latestHead);
+  expect(git(f.upstream, "rev-parse", "main")).toBe(f.latestBase);
 });
 
 test("a later refresh can replace tracking refs without changing the earlier comparison", async () => {

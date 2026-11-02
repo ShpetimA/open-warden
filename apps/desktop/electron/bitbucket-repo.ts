@@ -18,6 +18,7 @@ import type {
 } from "../src/platform/desktop/contracts";
 import type { ProviderConnectionSecret } from "./providerConnections";
 import { collectBitbucketPages } from "./bitbucket-pagination";
+import { BitbucketCommitResolver, type BitbucketReadOptions } from "./BitbucketCommitResolver";
 
 const BITBUCKET_API_BASE_URL = "https://api.bitbucket.org/2.0";
 
@@ -885,15 +886,38 @@ export async function fetchBitbucketPullRequest(
   hostedRepo: HostedRepoRef,
   connection: ProviderConnectionSecret,
   pullRequestNumber: number,
-  options: { readonly maxAgeMs?: number; readonly priority?: "interactive" | "background" } = {},
+  options: BitbucketReadOptions = {},
 ) {
+  const readOptions = { ...options, maxAgeMs: options.maxAgeMs ?? 2000 };
   const { data } = await bitbucketRequest<BitbucketPullRequestResponse>(
     bitbucketPullRequestPath(hostedRepo, pullRequestNumber),
     connection,
-    { ...options, maxAgeMs: options.maxAgeMs ?? 2000 },
+    readOptions,
   );
 
-  return data;
+  const resolver = new BitbucketCommitResolver(async (pathname, commitOptions) => {
+    const response = await bitbucketRequest<unknown>(pathname, connection, commitOptions);
+    return response.data;
+  });
+  const source = bitbucketRepoIdentity(data.source?.repository, hostedRepo.owner, hostedRepo.repo);
+  const destination = bitbucketRepoIdentity(
+    data.destination?.repository,
+    hostedRepo.owner,
+    hostedRepo.repo,
+  );
+  const [head, base] = await Promise.all([
+    resolver.resolve({ ...source, reference: data.source?.commit?.hash }, readOptions),
+    resolver.resolve({ ...destination, reference: data.destination?.commit?.hash }, readOptions),
+  ]);
+
+  if (!head.ok) throw new DesktopAdapterError(head.error);
+  if (!base.ok) throw new DesktopAdapterError(base.error);
+
+  return {
+    ...data,
+    source: { ...data.source, commit: { hash: head.value } },
+    destination: { ...data.destination, commit: { hash: base.value } },
+  };
 }
 
 function toBitbucketPullRequestChangedFileStatus(
