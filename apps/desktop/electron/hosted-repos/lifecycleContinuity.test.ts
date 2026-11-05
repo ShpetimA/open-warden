@@ -61,6 +61,7 @@ describe("pull request lifecycle", () => {
       "secret",
       expect.stringContaining("convertPullRequestToDraft"),
       { id: "PR_node" },
+      { kind: "write" },
     );
   });
 
@@ -119,6 +120,7 @@ describe("review continuity", () => {
       "secret",
       expect.stringContaining("markFileAsViewed"),
       { id: "PR_node", path: "b.ts" },
+      { kind: "write" },
     );
   });
 

@@ -20,8 +20,8 @@ import {
   resolvePullRequestContext,
   submitPullRequestDecision,
   submitPullRequestReviewComments,
-  toGitHubReviewCommentInput,
 } from "./pullRequests";
+import { toGitHubReviewCommentInput } from "./githubReviews";
 
 type GitHubReview = {
   id: number;

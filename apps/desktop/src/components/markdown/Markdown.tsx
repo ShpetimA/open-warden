@@ -1,12 +1,14 @@
 import { Md } from "@m2d/react-markdown/client";
-import DOMPurify from "dompurify";
-import { Suspense, use, useCallback, useMemo, useRef, useState, type FC } from "react";
+import { Suspense, use, useCallback, useRef, useState, type FC } from "react";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { BundledLanguage, Highlighter } from "shiki";
 
-import { MarkdownImage } from "@/components/markdown/MarkdownImage";
+import { MarkdownImage, MarkdownPicture } from "@/components/markdown/MarkdownImage";
+import { MermaidDiagram } from "@/components/markdown/MermaidDiagram";
 import { cn } from "@/lib/utils";
+import { createHighlightCache } from "./highlightCache";
 
 const PRELOADED_LANGS: BundledLanguage[] = [
   "javascript",
@@ -46,31 +48,32 @@ const highlighterPromise: Promise<Highlighter> =
       )
     : new Promise<Highlighter>(() => {});
 
-const htmlCache = new Map<string, Promise<string>>();
+const markdownSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    source: [...(defaultSchema.attributes?.source ?? []), "media", "type"],
+  },
+};
 
-export function highlightCode(code: string, lang: string): Promise<string> {
-  const key = `${lang}:${code}`;
-  const cached = htmlCache.get(key);
-  if (cached) return cached;
+export const highlightCode = createHighlightCache(async (code, lang) => {
+  const highlighter = await highlighterPromise;
+  let effectiveLang = lang;
 
-  const promise = highlighterPromise.then(async (highlighter) => {
-    let effectiveLang = lang;
-    if (!highlighter.getLoadedLanguages().includes(lang as BundledLanguage)) {
-      try {
-        await highlighter.loadLanguage(lang as BundledLanguage);
-      } catch {
-        effectiveLang = "text";
-      }
+  if (!highlighter.getLoadedLanguages().includes(lang as BundledLanguage)) {
+    try {
+      await highlighter.loadLanguage(lang as BundledLanguage);
+    } catch {
+      effectiveLang = "text";
     }
-    return highlighter.codeToHtml(code, {
-      lang: effectiveLang,
-      themes: { light: "github-light", dark: "github-dark" },
-      defaultColor: false,
-    });
+  }
+
+  return highlighter.codeToHtml(code, {
+    lang: effectiveLang,
+    themes: { light: "github-light", dark: "github-dark" },
+    defaultColor: false,
   });
-  htmlCache.set(key, promise);
-  return promise;
-}
+});
 
 function CopyButton({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
@@ -123,8 +126,8 @@ function CopyButton({ code }: { code: string }) {
   );
 }
 
-function ShikiCodeInner({ code, lang }: { code: string; lang: string }) {
-  const html = use(highlightCode(code, lang));
+function ShikiCodeInner({ code, highlighted }: { code: string; highlighted: Promise<string> }) {
+  const html = use(highlighted);
 
   return (
     <div className="group/code relative mb-2 max-w-full [&_pre]:mb-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border/60 [&_pre]:bg-background [&_pre]:p-3 [&_pre]:text-xs">
@@ -136,6 +139,9 @@ function ShikiCodeInner({ code, lang }: { code: string; lang: string }) {
 }
 
 function ShikiCode({ code, lang }: { code: string; lang: string }) {
+  // The mounted block owns its promise even when the shared cache evicts the entry.
+  const [highlighted] = useState(() => highlightCode(code, lang));
+
   return (
     <Suspense
       fallback={
@@ -146,7 +152,7 @@ function ShikiCode({ code, lang }: { code: string; lang: string }) {
         </div>
       }
     >
-      <ShikiCodeInner code={code} lang={lang} />
+      <ShikiCodeInner code={code} highlighted={highlighted} />
     </Suspense>
   );
 }
@@ -221,7 +227,10 @@ const components: Record<string, FC<any>> = {
     const langMatch = className?.match(/language-(\w+)/);
     if (langMatch) {
       const code = String(children).replace(/\n$/, "");
-      return <ShikiCode code={code} lang={langMatch[1]} />;
+
+      if (langMatch[1] === "mermaid") return <MermaidDiagram code={code} />;
+
+      return <ShikiCode key={`${langMatch[1]}:${code}`} code={code} lang={langMatch[1]} />;
     }
     return (
       <code
@@ -253,6 +262,7 @@ const components: Record<string, FC<any>> = {
   },
   hr: ({ node: _, ...props }) => <hr className="border-border my-4" {...props} />,
   img: ({ node: _, ...props }) => <MarkdownImage {...props} />,
+  picture: ({ node: _, ...props }) => <MarkdownPicture {...props} />,
   table: ({ node: _, children, ...props }) => (
     <div className="bg-surface mb-2 overflow-hidden rounded-lg border border-border">
       <table className="w-full border-collapse text-sm" {...props}>
@@ -317,42 +327,26 @@ const components: Record<string, FC<any>> = {
   ),
   summary: ({ node: _, children, ...props }) => (
     <summary
-      className="bg-background border-border hover:bg-accent flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-medium select-none [&::-webkit-details-marker]:hidden"
+      className="hover:text-primary focus-visible:outline-ring list-item cursor-pointer rounded-sm py-1 text-sm font-medium select-none marker:text-muted-foreground"
       {...props}
     >
-      <svg
-        className="text-muted-foreground group-open/details:rotate-90 size-3.5 shrink-0 transition-transform"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M6 4l4 4-4 4" />
-      </svg>
       {children}
     </summary>
   ),
 };
 
 export function Markdown({ children, className }: { children: string; className?: string }) {
-  const safeMarkdown = useMemo(
-    () =>
-      DOMPurify.sanitize(children, {
-        USE_PROFILES: { html: true },
-      }),
-    [children],
-  );
-
   return (
     <div
       data-markdown-root
       className={cn("text-foreground min-w-0 max-w-full overflow-hidden", className)}
     >
-      <Md remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
-        {safeMarkdown}
+      <Md
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, markdownSchema]]}
+        components={components}
+      >
+        {children}
       </Md>
     </div>
   );

@@ -2,7 +2,10 @@ import { usePullRequestRefresh } from "../refresh/PullRequestRefreshProvider";
 import { toast } from "sonner";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { removeCommentsByIds } from "@/features/comments/commentsSlice";
+import {
+  acknowledgePublishedComments,
+  removeCommentsByIds,
+} from "@/features/comments/commentsSlice";
 import { useSubmitPullRequestReviewCommentsMutation } from "@/features/hosted-repos/api";
 import { buildPendingReviewCommentsPayload } from "@/features/pull-requests/utils/pendingReviewDrafts";
 import {
@@ -78,7 +81,11 @@ export function usePullRequestPendingReviewActions(args: {
       ).unwrap();
 
       if (result.submittedDraftIds.length > 0) {
-        dispatch(removeCommentsByIds(result.submittedDraftIds));
+        const submitted = new Set(result.submittedDraftIds);
+
+        dispatch(
+          acknowledgePublishedComments(source.filter((comment) => submitted.has(comment.id))),
+        );
       }
 
       if (result.failedMessage) {

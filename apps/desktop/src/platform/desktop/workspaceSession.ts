@@ -2,6 +2,8 @@ import { reviewDraftSchema } from "./reviewDrafts";
 import { z } from "zod";
 import { commentDraftSchema } from "./commentDrafts";
 import { workspaceTabsSchema } from "./workspaceTabs";
+import { fileEditorDraftSchema } from "./fileEditorDrafts";
+import { pullRequestCommentDraftSchema } from "./pullRequestCommentDrafts";
 import type { WorkspaceSession } from "./contracts";
 
 export const MAX_RECENT_REPOS = 12;
@@ -13,6 +15,8 @@ export const storedWorkspaceSessionSchema = z.object({
   workspaceTabs: workspaceTabsSchema.optional(),
   comments: z.array(commentDraftSchema).optional(),
   reviewDrafts: z.array(reviewDraftSchema).optional(),
+  fileEditorDrafts: z.array(fileEditorDraftSchema).optional(),
+  pullRequestCommentDrafts: z.array(pullRequestCommentDraftSchema).optional(),
 });
 
 function normalizeRepoPath(repoPath: unknown): string | null {
@@ -76,6 +80,8 @@ export function createWorkspaceSession(input?: unknown): WorkspaceSession {
       workspaceTabs: workspaceTabsSchema.optional(),
       comments: z.array(commentDraftSchema).optional(),
       reviewDrafts: z.array(reviewDraftSchema).optional(),
+      fileEditorDrafts: z.array(fileEditorDraftSchema).optional(),
+      pullRequestCommentDrafts: z.array(pullRequestCommentDraftSchema).optional(),
     })
     .safeParse(input ?? {});
   const session = parsed.success ? parsed.data : undefined;
@@ -94,6 +100,10 @@ export function createWorkspaceSession(input?: unknown): WorkspaceSession {
     ...(session?.workspaceTabs ? { workspaceTabs: session.workspaceTabs } : {}),
     ...(session?.comments ? { comments: session.comments } : {}),
     ...(session?.reviewDrafts ? { reviewDrafts: session.reviewDrafts } : {}),
+    ...(session?.fileEditorDrafts ? { fileEditorDrafts: session.fileEditorDrafts } : {}),
+    ...(session?.pullRequestCommentDrafts
+      ? { pullRequestCommentDrafts: session.pullRequestCommentDrafts }
+      : {}),
   };
 }
 

@@ -519,6 +519,8 @@ export type PreparedPullRequestWorkspace = {
 };
 
 export type WorkspaceSession = {
+  pullRequestCommentDrafts?: import("./pullRequestCommentDrafts").PullRequestCommentDraft[];
+  fileEditorDrafts?: import("./fileEditorDrafts").FileEditorDraft[];
   reviewDrafts?: import("./reviewDrafts").ReviewDraft[];
   comments?: import("./commentDrafts").CommentDraft[];
   recoveryNotice?: string;
@@ -679,7 +681,7 @@ export type DesktopHandlers = {
   createPullRequest(input: CreatePullRequestInput): Promise<PullRequestSummary>;
   submitPullRequestDecision(input: SubmitPullRequestDecisionInput): Promise<void>;
   mergePullRequest(input: MergePullRequestInput): Promise<"merged" | "queued">;
-  replyToPullRequestThread(input: ReplyToPullRequestThreadInput): Promise<PullRequestReviewThread>;
+  replyToPullRequestThread(input: ReplyToPullRequestThreadInput): Promise<void>;
   submitPullRequestReviewComments(
     input: SubmitPullRequestReviewCommentsInput,
   ): Promise<SubmitPullRequestReviewCommentsResult>;

@@ -5,15 +5,35 @@ import {
   fileDocumentClosed,
   fileDocumentOpened,
   fileDocumentReloaded,
+  fileEditorDraftsRestored,
   fileEditorReducer,
   fileSaveFailed,
   fileSaveStarted,
   fileSaveSucceeded,
+  serializeFileEditorDrafts,
   workingFileKey,
 } from "./fileEditorSlice";
 
 const target = { repoPath: "/repo", relPath: "src/main.ts" };
 const key = workingFileKey(target);
+
+it("restoring saved editor drafts preserves newer edits and ignores clean buffers", () => {
+  let state = fileEditorReducer(
+    undefined,
+    fileDocumentChanged({ ...target, baseContents: "base", contents: "new draft" }),
+  );
+  state = fileEditorReducer(
+    state,
+    fileEditorDraftsRestored([
+      { ...target, baseContents: "base", contents: "older draft" },
+      { repoPath: "/other", relPath: "clean.txt", baseContents: "same", contents: "same" },
+    ]),
+  );
+
+  expect(serializeFileEditorDrafts(state)).toEqual([
+    { ...target, baseContents: "base", contents: "new draft" },
+  ]);
+});
 
 it("keeps edits made while saving and uses the completed save as the next baseline", () => {
   let state = fileEditorReducer(undefined, fileDocumentOpened({ ...target, contents: "one" }));

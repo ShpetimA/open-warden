@@ -165,8 +165,14 @@ export function useDiffLineFocus({
   const focusedLineRef = useRef<HTMLElement | null>(null);
   const focusedLineTimerRef = useRef<number | null>(null);
   const focusFrameRef = useRef<number | null>(null);
+  const restoreRenderedFocusRef = useRef<(() => void) | null>(null);
+  const restoreRenderedFocus = useRef(() => {
+    restoreRenderedFocusRef.current?.();
+  }).current;
 
   function clearFocusedLine() {
+    restoreRenderedFocusRef.current = null;
+
     if (focusFrameRef.current !== null) {
       cancelAnimationFrame(focusFrameRef.current);
       focusFrameRef.current = null;
@@ -230,12 +236,23 @@ export function useDiffLineFocus({
 
       lineNode.setAttribute("data-app-line-focus", "true");
       focusedLineRef.current = lineNode;
-      focusedLineTimerRef.current = window.setTimeout(() => {
-        if (focusedLineRef.current === lineNode) {
-          lineNode.removeAttribute("data-app-line-focus");
-          focusedLineRef.current = null;
+      restoreRenderedFocusRef.current = () => {
+        if (focusedLineRef.current?.isConnected) {
+          return;
         }
+
+        const renderedLine = findRenderedDiffLine(container, lineNumber, lineIndex);
+
+        if (renderedLine) {
+          renderedLine.setAttribute("data-app-line-focus", "true");
+          focusedLineRef.current = renderedLine;
+        }
+      };
+      focusedLineTimerRef.current = window.setTimeout(() => {
+        focusedLineRef.current?.removeAttribute("data-app-line-focus");
+        focusedLineRef.current = null;
         focusedLineTimerRef.current = null;
+        restoreRenderedFocusRef.current = null;
       }, FOCUS_PULSE_DURATION_MS);
     };
 
@@ -243,10 +260,13 @@ export function useDiffLineFocus({
 
     return () => {
       cancelled = true;
+      restoreRenderedFocusRef.current = null;
       if (focusFrameRef.current !== null) {
         cancelAnimationFrame(focusFrameRef.current);
         focusFrameRef.current = null;
       }
     };
   }, [containerRef, enabled, focusKey, lineCount, lineIndex, lineNumber]);
+
+  return restoreRenderedFocus;
 }

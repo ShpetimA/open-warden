@@ -227,7 +227,7 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
       allowLargeDiff: forceShowLargeDiff,
     });
 
-  useDiffLineFocus({
+  const restoreRenderedFocus = useDiffLineFocus({
     containerRef: viewportRef,
     lineNumber: currentFileDiff ? focusedLineNumber : null,
     lineIndex: currentFileDiff ? focusedLineIndex : null,
@@ -245,8 +245,15 @@ export const DiffViewer = forwardRef<DiffViewerHandle, DiffViewerProps>(function
       expansionLineCount: 20,
       expandUnchanged,
       ...options,
+      onPostRender(node, instance, phase) {
+        options?.onPostRender?.(node, instance, phase);
+
+        if (phase !== "unmount") {
+          restoreRenderedFocus();
+        }
+      },
     }),
-    [diffStyle, diffTheme, diffThemeType, expandUnchanged, options],
+    [diffStyle, diffTheme, diffThemeType, expandUnchanged, options, restoreRenderedFocus],
   );
 
   const headerMetadataNode = useMemo(() => {

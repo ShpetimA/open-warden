@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
+import type * as DiffParser from "../../src/features/diff-view/services/parseDiffInWorker";
 import { createAppSettings } from "../../src/platform/desktop/appSettings";
 import type {
   DesktopBridge,
@@ -208,6 +209,234 @@ test.beforeEach(async ({ page }) => {
     { detail, commits, settings: createAppSettings() },
   );
 });
+
+test("foreground diff parses share the real worker without cancelling each other", async ({
+  page,
+}) => {
+  let workers = 0;
+
+  page.on("worker", (worker) => {
+    if (worker.url().includes("diff-parse.worker")) {
+      workers += 1;
+    }
+  });
+
+  await page.goto("/");
+
+  const outcomes = await page.evaluate(async () => {
+    const moduleUrl = "/src/features/diff-view/services/parseDiffInWorker.ts";
+    const { parseDiffInWorker }: typeof DiffParser = await import(moduleUrl);
+
+    const oldFile = { name: "first.ts", contents: "export const first = 1;\n" };
+    const newFile = { name: "first.ts", contents: "export const first = 2;\n" };
+    const secondOld = { name: "second.ts", contents: "export const second = 1;\n" };
+    const secondNew = { name: "second.ts", contents: "export const second = 2;\n" };
+
+    const results = await Promise.allSettled([
+      parseDiffInWorker(oldFile, newFile),
+      parseDiffInWorker(secondOld, secondNew),
+    ]);
+
+    return results.map((result) => result.status);
+  });
+
+  expect(outcomes).toEqual(["fulfilled", "fulfilled"]);
+  expect(workers).toBe(1);
+});
+
+test("foreground parsing still interrupts background work and supports explicit cancellation", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  const outcomes = await page.evaluate(async () => {
+    const moduleUrl = "/src/features/diff-view/services/parseDiffInWorker.ts";
+    const { parseDiffInWorker }: typeof DiffParser = await import(moduleUrl);
+
+    const oldFile = { name: "file.ts", contents: "export const value = 1;\n" };
+    const newFile = { name: "file.ts", contents: "export const value = 2;\n" };
+    const controller = new AbortController();
+    const background = parseDiffInWorker(oldFile, newFile, undefined, "low");
+    const foreground = parseDiffInWorker(oldFile, newFile);
+    const cancelled = parseDiffInWorker(oldFile, newFile, controller.signal);
+
+    controller.abort();
+
+    const results = await Promise.allSettled([background, foreground, cancelled]);
+    const following = await parseDiffInWorker(oldFile, newFile);
+
+    return {
+      statuses: results.map((result) => result.status),
+      followingHunks: following.hunks.length,
+    };
+  });
+
+  expect(outcomes).toEqual({ statuses: ["rejected", "fulfilled", "rejected"], followingHunks: 1 });
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`PR overview renders concurrent snippets and closes its image viewer in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const body = "![Screenshot](https://example.com/preview.png)";
+
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.route("https://example.com/preview.png", (route) =>
+      route.fulfill({
+        contentType: "image/png",
+        path: path.resolve("tests/fixtures/images/before.png"),
+      }),
+    );
+    await configureLayoutStability(page, body);
+    await page.addInitScript(
+      ({ detail, body }) => {
+        const bridge = window.desktopBridge;
+        if (!bridge) throw new Error("Missing desktop bridge");
+
+        bridge.getPullRequestConversation = async () => ({
+          ok: true,
+          value: {
+            detail: { ...detail, body },
+            issueComments: [],
+            reviewThreads: ["src/invoice.ts", "test/invoice.test.ts"].map((file, index) => ({
+              id: `thread-${index}`,
+              path: file,
+              line: 3,
+              startLine: null,
+              diffSide: "RIGHT",
+              isResolved: false,
+              isOutdated: false,
+              resolvedBy: null,
+              comments: [
+                {
+                  id: `comment-${index}`,
+                  databaseId: index + 1,
+                  body: `Review snippet ${index + 1}`,
+                  createdAt: detail.updatedAt,
+                  updatedAt: detail.updatedAt,
+                  author: detail.author,
+                  path: file,
+                  line: 3,
+                  startLine: null,
+                  url: null,
+                },
+              ],
+            })),
+          },
+        });
+      },
+      { detail, body },
+    );
+
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
+    await expect(page.locator("diffs-container")).toHaveCount(2);
+    await expect(page.getByText("Loading snippet...", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Review snippet 1", { exact: true })).toBeVisible();
+    await expect(page.getByText("Review snippet 2", { exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Open image: Screenshot", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Open image: Screenshot", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`concurrent-snippets-${theme}.png`) });
+  });
+
+  test(`renders GitHub review Markdown and selected diff controls in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const body = await readFile(path.resolve("tests/fixtures/github-review.md"), "utf8");
+
+    await page.emulateMedia({ colorScheme: theme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width: theme === "light" ? 1440 : 1024, height: 1000 });
+    await page.route("https://storage.googleapis.com/coderabbit_public_assets/**", (route) => {
+      const badge = route.request().url().includes("review-stack");
+      const width = badge ? 240 : 16;
+      const height = badge ? 32 : 16;
+
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="#303238"/><text x="8" y="21" fill="white" font-size="14">${badge ? "Review Change Stack ↗" : "i"}</text></svg>`,
+      });
+    });
+
+    await configureLayoutStability(page, body);
+    await page.goto("/#/pull-requests/bitbucket/team/invoice/114/overview");
+
+    const badge = page.getByRole("img", { name: "Review in Change Stack", exact: true });
+
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveJSProperty("complete", true);
+
+    const size = await badge.boundingBox();
+
+    expect(size?.height).toBe(32);
+    expect(size?.width).toBe(240);
+
+    const summary = page.locator("summary").filter({ hasText: "Recent review info" });
+
+    await summary.focus();
+    await summary.press("Enter");
+    await expect(summary.locator("..")).toHaveAttribute("open", "");
+    await page.locator("summary").filter({ hasText: "Run configuration" }).click();
+    await expect(
+      page.getByRole("listitem").filter({ hasText: "Repository: pingdotgg/t3code" }),
+    ).toBeVisible();
+
+    const risk = page.locator("summary").filter({ hasText: "Merge Risk:" });
+    const height = await risk.evaluate((element) => element.getBoundingClientRect().height);
+
+    expect(height).toBeLessThan(40);
+
+    const diagram = page.getByRole("img", { name: "Mermaid diagram", exact: true });
+
+    await expect(diagram.locator("svg")).toBeVisible();
+    await expect(diagram).toContainText("Fetch without API credentials");
+    await page.screenshot({ path: testInfo.outputPath(`github-markdown-${theme}.png`) });
+    await page.getByRole("button", { name: "Source", exact: true }).click();
+    await expect(page.locator("figure pre")).toContainText("Driver->>Fetch: Send media request");
+    await expect(page.locator("figure pre")).not.toContainText("&gt;");
+    await page.getByRole("button", { name: "Source", exact: true }).click();
+    await expect(diagram).toBeVisible();
+
+    await page
+      .getByRole("navigation", { name: "Review sections" })
+      .getByRole("button", { name: "Files", exact: true })
+      .click();
+
+    const split = page.getByRole("button", { name: "Split diff", exact: true });
+    const unified = page.getByRole("button", { name: "Unified diff", exact: true });
+
+    await split.click();
+    await expect(split).toHaveAttribute("aria-pressed", "true");
+    await expect(unified).toHaveAttribute("aria-pressed", "false");
+
+    const selectedStyle = await split.evaluate((element) => ({
+      background: getComputedStyle(element).backgroundColor,
+      shadow: getComputedStyle(element).boxShadow,
+    }));
+    const inactiveBackground = await unified.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    );
+
+    expect(selectedStyle.background).not.toBe(inactiveBackground);
+    expect(selectedStyle.shadow).not.toBe("none");
+
+    await unified.click();
+    await expect(unified).toHaveAttribute("aria-pressed", "true");
+    await expect(split).toHaveAttribute("aria-pressed", "false");
+    await split.focus();
+    await split.press("Space");
+    await expect(split).toHaveAttribute("aria-pressed", "true");
+    await split
+      .locator("..")
+      .screenshot({ path: testInfo.outputPath(`diff-controls-${theme}.png`) });
+  });
+}
 
 for (const theme of ["light", "dark"] as const) {
   test(`image previews recover and remain available in PR commits in ${theme}`, async ({

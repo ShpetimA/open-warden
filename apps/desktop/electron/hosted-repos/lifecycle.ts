@@ -69,6 +69,7 @@ export async function runPullRequestLifecycle(
           connection.token,
           `mutation($id: ID!) { ${mutation}(input: { pullRequestId: $id }) { pullRequest { id } } }`,
           { id: ensureNodeId() },
+          { kind: "write" },
         );
         break;
       }
@@ -88,6 +89,7 @@ export async function runPullRequestLifecycle(
           connection.token,
           `mutation($id: ID!, $method: PullRequestMergeMethod!) { enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: $method }) { pullRequest { id } } }`,
           { id: ensureNodeId(), method: input.method.toUpperCase() },
+          { kind: "write" },
         );
         break;
       }
@@ -97,6 +99,7 @@ export async function runPullRequestLifecycle(
           connection.token,
           `mutation($id: ID!) { revertPullRequest(input: { pullRequestId: $id }) { revertPullRequest { url } } }`,
           { id: ensureNodeId() },
+          { kind: "write" },
         );
         return {
           createdPullRequestUrl: result.data?.revertPullRequest?.revertPullRequest?.url ?? null,

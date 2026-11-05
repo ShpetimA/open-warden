@@ -5,9 +5,33 @@ import {
   createWorkspaceSession,
   mergeRecentRepos,
   normalizeRepoPaths,
+  storedWorkspaceSessionSchema,
 } from "@/platform/desktop/workspaceSession";
 
 describe("workspaceSession helpers", () => {
+  it("keeps both versions of editor drafts and rejects incomplete saved drafts", () => {
+    const draft = {
+      repoPath: "/repo",
+      relPath: "file.ts",
+      baseContents: "base\n",
+      contents: "draft\n",
+    };
+    const session = {
+      openRepos: ["/repo"],
+      activeRepo: "/repo",
+      recentRepos: [],
+      fileEditorDrafts: [draft],
+    };
+
+    expect(createWorkspaceSession(session).fileEditorDrafts).toEqual([draft]);
+    expect(
+      storedWorkspaceSessionSchema.safeParse({
+        ...session,
+        fileEditorDrafts: [{ ...draft, baseContents: null }],
+      }).success,
+    ).toBe(false);
+  });
+
   it("normalizes repo path arrays", () => {
     expect(normalizeRepoPaths([" /repo/a ", "", "/repo/a", "/repo/b"])).toEqual([
       "/repo/a",

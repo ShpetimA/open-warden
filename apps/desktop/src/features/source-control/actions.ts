@@ -1,6 +1,7 @@
 import { gitOperationsApi } from "./gitOperationsApi";
 import { commandFailureDismissed } from "./gitCommandFeedbackSlice";
 import { reviewDraftsRestored } from "@/features/pull-requests/reviewDraftsSlice";
+import { pullRequestCommentDraftsRestored } from "@/features/pull-requests/pullRequestCommentDraftsSlice";
 import { getPierreFileAfterRemoval } from "./pierreFileTreeNavigation";
 import { repositoryChangeTags } from "./repositoryFreshness";
 import type { WorkspaceSession } from "@/platform/desktop/contracts";
@@ -33,6 +34,7 @@ import {
 } from "@/features/pull-requests/pullRequestsSlice";
 import { createFileViewerFocusKey } from "@/features/source-control/fileViewerNavigation";
 import { gitApi } from "./api";
+import { fileEditorDraftsRestored, serializeFileEditorDrafts } from "./fileEditorSlice";
 import type { Bucket, BucketedFile, GitSnapshot, RunningAction, SelectedFile } from "./types";
 import { findExistingBucket } from "./utils";
 import {
@@ -128,6 +130,8 @@ export async function persistWorkspaceSession(getState: () => RootState) {
     workspaceTabs: serializeWorkspaceTabs(state),
     comments: state.comments,
     reviewDrafts: state.reviewDrafts,
+    fileEditorDrafts: serializeFileEditorDrafts(state.fileEditor),
+    pullRequestCommentDrafts: state.pullRequestCommentDrafts.drafts,
   };
   return saveSession(session, getState);
 }
@@ -194,10 +198,14 @@ export const restoreWorkspaceSession =
         workspaceTabs: storedSession.workspaceTabs,
         comments: storedSession.comments,
         reviewDrafts: storedSession.reviewDrafts,
+        fileEditorDrafts: storedSession.fileEditorDrafts,
+        pullRequestCommentDrafts: storedSession.pullRequestCommentDrafts,
       });
 
       dispatch(restoreComments(storedSession.comments ?? []));
       dispatch(reviewDraftsRestored(storedSession.reviewDrafts ?? []));
+      dispatch(fileEditorDraftsRestored(storedSession.fileEditorDrafts ?? []));
+      dispatch(pullRequestCommentDraftsRestored(storedSession.pullRequestCommentDrafts ?? []));
       if (storedSession.recoveryNotice)
         toast.warning(storedSession.recoveryNotice, {
           id: "workspace-recovery",

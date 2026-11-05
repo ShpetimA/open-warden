@@ -26,6 +26,7 @@ export default {
   productName: "OpenWarden",
   artifactName: "OpenWarden-${version}-${arch}.${ext}",
   directories: {
+    app: ".vite/package",
     output: "release",
   },
   files: ["dist/**/*", ".vite/build/**/*", "package.json"],

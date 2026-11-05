@@ -19,7 +19,7 @@ function FocusHarness({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  useDiffLineFocus({
+  const restoreRenderedFocus = useDiffLineFocus({
     containerRef,
     lineNumber,
     lineCount,
@@ -44,6 +44,8 @@ function FocusHarness({
       shadowRoot.appendChild(line);
     }
 
+    restoreRenderedFocus();
+
     if (!withScrollContainer) {
       return;
     }
@@ -64,7 +66,7 @@ function FocusHarness({
       value: 400,
     });
     scrollContainer.scrollTop = 0;
-  }, [renderedLineNumbers, withScrollContainer]);
+  }, [renderedLineNumbers, restoreRenderedFocus, withScrollContainer]);
 
   return (
     <div ref={containerRef}>
@@ -132,5 +134,31 @@ describe("useDiffLineFocus", () => {
 
     const scrollContainer = container.querySelector<HTMLElement>("[data-scroll-container='true']");
     expect(scrollContainer?.scrollTop).toBeGreaterThan(0);
+  });
+
+  it("keeps the focus pulse through a renderer update without extending its duration", () => {
+    const { rerender, container } = render(
+      <FocusHarness lineNumber={2} focusKey={1} renderedLineNumbers={[1, 2, 3]} />,
+    );
+
+    vi.advanceTimersByTime(0);
+    vi.advanceTimersByTime(1000);
+
+    rerender(<FocusHarness lineNumber={2} focusKey={1} renderedLineNumbers={[1, 2, 3]} />);
+
+    const host = container.querySelector<HTMLElement>("[data-shadow-host]");
+    const replacement = host?.shadowRoot?.querySelector<HTMLElement>('[data-line="2"]');
+
+    expect(replacement?.getAttribute("data-app-line-focus")).toBe("true");
+
+    vi.advanceTimersByTime(800);
+
+    expect(replacement?.hasAttribute("data-app-line-focus")).toBe(false);
+
+    rerender(<FocusHarness lineNumber={2} focusKey={1} renderedLineNumbers={[1, 2, 3]} />);
+
+    const afterPulse = host?.shadowRoot?.querySelector<HTMLElement>('[data-line="2"]');
+
+    expect(afterPulse?.hasAttribute("data-app-line-focus")).toBe(false);
   });
 });

@@ -154,6 +154,84 @@ test("batch path parsing rejects NUL separators before changing the index", asyn
   expect((await getGitSnapshot(repo)).staged).toEqual([]);
 });
 
+test.each(["unstaged", "staged"] as const)(
+  "discarding a %s literal filename preserves edits in wildcard-matching files",
+  async (bucket) => {
+    const repo = await repository();
+    const selected = "file[1].txt";
+    const unrelated = "file1.txt";
+
+    await writeFile(path.join(repo, selected), "Selected base\n");
+    await writeFile(path.join(repo, unrelated), "Unrelated base\n");
+    git(repo, "add", ".");
+    git(repo, "commit", "-m", "Literal filenames");
+
+    await writeFile(path.join(repo, selected), "Selected change\n");
+    await writeFile(path.join(repo, unrelated), "Keep unrelated work\n");
+    if (bucket === "staged") git(repo, "add", ".");
+
+    await discardFile(repo, selected, bucket);
+
+    expect(await readFile(path.join(repo, selected), "utf8")).toBe("Selected base\n");
+    expect(await readFile(path.join(repo, unrelated), "utf8")).toBe("Keep unrelated work\n");
+    expect(git(repo, "show", `:${unrelated}`)).toBe(
+      bucket === "staged" ? "Keep unrelated work" : "Unrelated base",
+    );
+  },
+);
+
+test("discarding a staged addition preserves wildcard-matching index entries", async () => {
+  const repo = await repository();
+  const selected = "file[1].txt";
+  const unrelated = "file1.txt";
+
+  await writeFile(path.join(repo, selected), "Discard selected\n");
+  await writeFile(path.join(repo, unrelated), "Keep unrelated work\n");
+  git(repo, "add", ".");
+
+  await discardFile(repo, selected, "staged");
+
+  await expect(readFile(path.join(repo, selected))).rejects.toMatchObject({ code: "ENOENT" });
+  expect(await readFile(path.join(repo, unrelated), "utf8")).toBe("Keep unrelated work\n");
+  expect(git(repo, "show", `:${unrelated}`)).toBe("Keep unrelated work");
+});
+
+test("discarding an obsolete untracked file preserves a replacement directory", async () => {
+  const repo = await repository();
+  const selected = "scratch.txt";
+
+  await writeFile(path.join(repo, selected), "Original untracked file\n");
+  expect((await getGitSnapshot(repo)).untracked.map((file) => file.path)).toContain(selected);
+
+  await unlink(path.join(repo, selected));
+  await mkdir(path.join(repo, selected));
+  await writeFile(path.join(repo, selected, "new-work.txt"), "Never selected for deletion\n");
+
+  await expect(discardFile(repo, selected, "untracked")).rejects.toMatchObject({
+    failure: { code: "conflict" },
+  });
+
+  expect(await readFile(path.join(repo, selected, "new-work.txt"), "utf8")).toBe(
+    "Never selected for deletion\n",
+  );
+});
+
+test("an obsolete untracked discard preserves a file that has since been staged", async () => {
+  const repo = await repository();
+  const selected = "scratch.txt";
+
+  await writeFile(path.join(repo, selected), "Keep newly staged work\n");
+  expect((await getGitSnapshot(repo)).untracked.map((file) => file.path)).toContain(selected);
+  git(repo, "add", selected);
+
+  await expect(discardFile(repo, selected, "untracked")).rejects.toMatchObject({
+    failure: { code: "conflict" },
+  });
+
+  expect(await readFile(path.join(repo, selected), "utf8")).toBe("Keep newly staged work\n");
+  expect(git(repo, "show", `:${selected}`)).toBe("Keep newly staged work");
+});
+
 test("discarding a staged rename restores the original file and removes the renamed entry", async () => {
   const repo = await repository();
   git(repo, "mv", originalPath, renamedPath);

@@ -51,7 +51,9 @@ export function WorkspaceSessionBootstrap({ children }: Props) {
         next.sourceControl !== previous.sourceControl ||
         next.pullRequests !== previous.pullRequests ||
         next.comments !== previous.comments ||
-        next.reviewDrafts !== previous.reviewDrafts;
+        next.reviewDrafts !== previous.reviewDrafts ||
+        next.fileEditor !== previous.fileEditor ||
+        next.pullRequestCommentDrafts !== previous.pullRequestCommentDrafts;
       const draftsChanged =
         next.reviewDrafts !== previous.reviewDrafts ||
         workspaceViewsChanged ||

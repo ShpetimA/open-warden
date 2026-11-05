@@ -481,6 +481,7 @@ function PullRequestOverviewConversation({
         />
       ) : null}
       <PullRequestTimeline
+        locator={locator}
         composerReady={snapshot !== null}
         description={{
           author: toPersonView(detail.author) ?? unknownActor,

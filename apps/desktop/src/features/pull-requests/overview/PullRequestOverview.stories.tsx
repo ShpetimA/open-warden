@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
+import { configureStore } from "@reduxjs/toolkit";
+import { Provider } from "react-redux";
+import { pullRequestCommentDraftsReducer } from "../pullRequestCommentDraftsSlice";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -256,6 +259,7 @@ function OverviewPreview({
           }
         >
           <PullRequestTimeline
+            locator={{ repoPath: "/storybook/repository", pullRequestNumber: pullRequest.number }}
             composerReady={composerReady}
             description={{
               author: pullRequest.author,
@@ -276,6 +280,18 @@ function OverviewPreview({
 const meta = {
   title: "Design system/Compositions/Pull Request Overview",
   component: OverviewPreview,
+  decorators: [
+    (Story) => {
+      const [store] = useState(() =>
+        configureStore({ reducer: { pullRequestCommentDrafts: pullRequestCommentDraftsReducer } }),
+      );
+      return (
+        <Provider store={store}>
+          <Story />
+        </Provider>
+      );
+    },
+  ],
   parameters: { layout: "fullscreen", a11y: { test: "todo" } },
   args: { pullRequest },
 } satisfies Meta<typeof OverviewPreview>;

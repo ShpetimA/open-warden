@@ -23,8 +23,11 @@ import { FileWarning } from "lucide-react";
 
 import { useAppSelector } from "@/app/hooks";
 import type { MentionConfig } from "@/components/markdown/MarkdownEditor";
+import { Button } from "@/components/ui/button";
+import { ErrorState } from "@/components/ui/error-state";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -298,16 +301,26 @@ export function PullRequestWindowedDiff({
     return state.comments.filter((comment) => comment.repoPath === activeRepo).length;
   });
   const [selectedRange, setSelectedRange] = useState<SelectionRange | null>(null);
+  const [largeDiffApproval, setLargeDiffApproval] = useState<{
+    oldFile: DiffFile | null;
+    newFile: DiffFile | null;
+  } | null>(null);
+  const allowLargeDiff =
+    largeDiffApproval !== null &&
+    largeDiffApproval.oldFile === oldFile &&
+    largeDiffApproval.newFile === newFile;
   const { showFirstCommentTip } = useFirstCommentTip();
   const diffThemeType = getDiffThemeType(resolvedTheme);
   const diffThemeCacheSalt = getDiffThemeCacheSalt(diffThemeType);
   const diffTheme = useMemo(() => getDiffTheme(), []);
-  const { currentFileDiff, diffRenderGate, isParsingDiff } = useParsedDiff({
-    activePath,
-    oldFile,
-    newFile,
-    cacheSalt: diffThemeCacheSalt,
-  });
+  const { currentFileDiff, diffRenderGate, isParsingDiff, parseError, retryParsing } =
+    useParsedDiff({
+      activePath,
+      oldFile,
+      newFile,
+      cacheSalt: diffThemeCacheSalt,
+      allowLargeDiff,
+    });
   const renderRange = buildWindowedRenderRange(currentFileDiff, diffStyle, windowedAnchor);
 
   const renderAnnotation = useCallback(
@@ -407,8 +420,48 @@ export function PullRequestWindowedDiff({
     );
   }
 
-  if (isParsingDiff || !currentFileDiff || !renderRange) {
+  if (!currentFileDiff && diffRenderGate === "large" && !allowLargeDiff) {
+    return (
+      <Empty className="gap-3 rounded-none border-0 px-3 py-4 md:p-4">
+        <EmptyHeader className="gap-1">
+          <EmptyTitle className="text-sm">Snippet not loaded</EmptyTitle>
+          <EmptyDescription className="text-xs">
+            This diff is large. Loading it may be slow.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => setLargeDiffApproval({ oldFile, newFile })}
+          >
+            Load snippet
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  if (parseError) {
+    return (
+      <ErrorState
+        title="Couldn’t render this snippet"
+        error={parseError}
+        recovery={{ label: "Retry", onAction: retryParsing }}
+      />
+    );
+  }
+
+  if (isParsingDiff) {
     return <div className="text-muted-foreground px-3 py-2 text-xs">Loading snippet...</div>;
+  }
+
+  if (!currentFileDiff || !renderRange) {
+    return (
+      <div className="text-muted-foreground px-3 py-2 text-xs">
+        The referenced lines are not present in this comparison.
+      </div>
+    );
   }
 
   return (

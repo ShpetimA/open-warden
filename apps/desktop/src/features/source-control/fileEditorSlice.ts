@@ -1,6 +1,7 @@
 import { repositoryEntryTrashed } from "./sourceControlSlice";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { DesktopFailure } from "@/platform/desktop/failure";
+import type { FileEditorDraft } from "@/platform/desktop/fileEditorDrafts";
 
 export type WorkingFileTarget = { repoPath: string; relPath: string };
 type SaveState =
@@ -31,10 +32,42 @@ export function workingFileKey(target: WorkingFileTarget) {
   return JSON.stringify([target.repoPath, target.relPath]);
 }
 
+export function serializeFileEditorDrafts(state: FileEditorState): FileEditorDraft[] {
+  return Object.values(state.documents).flatMap((document) => {
+    if (!document || document.contents === document.baseContents) return [];
+
+    return [
+      {
+        repoPath: document.repoPath,
+        relPath: document.relPath,
+        baseContents: document.baseContents,
+        contents: document.contents,
+      },
+    ];
+  });
+}
+
 const slice = createSlice({
   name: "fileEditor",
   initialState,
   reducers: {
+    fileEditorDraftsRestored(state, { payload }: PayloadAction<readonly FileEditorDraft[]>) {
+      for (const draft of payload) {
+        if (draft.contents === draft.baseContents) continue;
+
+        const key = workingFileKey(draft);
+        const existing = state.documents[key];
+
+        if (
+          existing &&
+          (existing.contents !== existing.baseContents || existing.save.kind === "saving")
+        ) {
+          continue;
+        }
+
+        state.documents[key] = { ...draft, resetVersion: 0, save: { kind: "idle" } };
+      }
+    },
     fileTrashStarted(state, { payload }: PayloadAction<{ repoPath: string; path: string }>) {
       state.trashing.push(payload);
     },
@@ -125,6 +158,7 @@ const slice = createSlice({
 });
 
 export const {
+  fileEditorDraftsRestored,
   fileTrashStarted,
   fileTrashFinished,
   fileDocumentOpened,

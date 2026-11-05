@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import {
   CheckCheck,
@@ -90,6 +90,8 @@ export function PullRequestInlineReviewThread({
     (state) => state.pullRequests.currentReview?.providerId ?? null,
   );
   const [replyDraft, setReplyDraft] = useState("");
+  const replyDraftRef = useRef(replyDraft);
+  replyDraftRef.current = replyDraft;
   const [replyOpen, setReplyOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(thread.isResolved);
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null);
@@ -113,7 +115,8 @@ export function PullRequestInlineReviewThread({
   }, [thread.isResolved]);
 
   async function submitReply() {
-    const body = replyDraft.trim();
+    const submittedDraft = replyDraft;
+    const body = submittedDraft.trim();
     if (!body) return;
 
     try {
@@ -124,8 +127,10 @@ export function PullRequestInlineReviewThread({
         threadId: thread.id,
         body,
       }).unwrap();
-      setReplyDraft("");
-      setReplyOpen(false);
+      if (replyDraftRef.current === submittedDraft) {
+        setReplyDraft("");
+        setReplyOpen(false);
+      }
       toast.success(`Reply posted to ${providerName}`);
     } catch (error) {
       toast.error(errorMessageFrom(error, "Failed to post reply"));

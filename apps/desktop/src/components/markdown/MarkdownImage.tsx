@@ -1,9 +1,19 @@
 import { ImageOff } from "lucide-react";
-import { useState, type ComponentProps } from "react";
+import { createContext, useContext, useState, type ComponentProps } from "react";
 
 import { ImageLightbox, type LightboxImage } from "@/components/markdown/ImageLightbox";
 import { hasElectronRuntime } from "@/platform/desktop";
 import { providerMediaSourceUrl, providerMediaTarget } from "@/platform/desktop/providerMedia";
+
+const PictureContext = createContext(false);
+
+export function MarkdownPicture({ children, ...props }: ComponentProps<"picture">) {
+  return (
+    <picture {...props}>
+      <PictureContext value={true}>{children}</PictureContext>
+    </picture>
+  );
+}
 
 function resolveImageSource(source: string | undefined) {
   if (!source || !hasElectronRuntime() || !providerMediaTarget(source)) return source;
@@ -30,7 +40,23 @@ function imageDimension(value: string | number | undefined) {
 }
 
 export function MarkdownImage(props: ComponentProps<"img">) {
+  const inPicture = useContext(PictureContext);
   const source = resolveImageSource(typeof props.src === "string" ? props.src : undefined);
+  const width = imageDimension(props.width);
+  const height = imageDimension(props.height);
+  const smallImage = (height !== undefined && height <= 40) || (width !== undefined && width <= 40);
+
+  if (inPicture || smallImage) {
+    return (
+      <img
+        {...props}
+        src={source}
+        className="inline-block max-w-full align-middle"
+        style={{ width: width ?? "auto", height: height ?? "auto" }}
+      />
+    );
+  }
+
   return (
     <MarkdownImagePreview
       key={source}

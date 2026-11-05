@@ -791,8 +791,25 @@ async function existsInHead(repoPath: string, relPath: string) {
 }
 
 async function removeWorktreePath(repoPath: string, relPath: string) {
-  const fullPath = path.join(repoPath, relPath);
-  await fs.rm(fullPath, { force: true, recursive: true });
+  try {
+    const entry = await inspectWorktreePath(repoPath, relPath);
+
+    if (!entry.isFile() && !entry.isSymbolicLink()) {
+      throw new DesktopAdapterError(
+        desktopFailure(
+          "discardFile",
+          "conflict",
+          "The selected path is no longer a file. Refresh before discarding it.",
+        ),
+      );
+    }
+
+    await fs.unlink(path.join(repoPath, relPath));
+  } catch (cause) {
+    if (cause instanceof Error && "code" in cause && cause.code === "ENOENT") return;
+
+    throw cause;
+  }
 }
 
 function hasStatusPath(files: FileItem[], relPath: string) {
@@ -801,6 +818,7 @@ function hasStatusPath(files: FileItem[], relPath: string) {
 
 async function getBucketsForPath(repoPath: string, relPath: string): Promise<Bucket[]> {
   const statusOutput = await runGit(repoPath, [
+    "--literal-pathspecs",
     "status",
     "--porcelain=v1",
     "-z",
@@ -832,12 +850,24 @@ function isRecoverableDiscardError(error: unknown) {
 
 async function discardFileForBucket(repoPath: string, relPath: string, bucket: Bucket) {
   if (bucket === "untracked") {
+    const currentBuckets = await getBucketsForPath(repoPath, relPath);
+
+    if (!currentBuckets.includes("untracked")) {
+      throw new DesktopAdapterError(
+        desktopFailure(
+          "discardFile",
+          "conflict",
+          "This path is no longer an untracked file. Refresh before discarding it.",
+        ),
+      );
+    }
+
     await removeWorktreePath(repoPath, relPath);
     return;
   }
 
   if (bucket === "unstaged") {
-    await runGitWrite(repoPath, ["restore", "--worktree", "--", relPath]);
+    await runGitWrite(repoPath, ["--literal-pathspecs", "restore", "--worktree", "--", relPath]);
     return;
   }
 
@@ -877,6 +907,7 @@ async function discardFileForBucket(repoPath: string, relPath: string, bucket: B
   if (await hasHeadCommit(repoPath)) {
     if (await existsInHead(repoPath, relPath)) {
       await runGitWrite(repoPath, [
+        "--literal-pathspecs",
         "restore",
         "--source=HEAD",
         "--staged",
@@ -887,12 +918,12 @@ async function discardFileForBucket(repoPath: string, relPath: string, bucket: B
       return;
     }
 
-    await runGitWrite(repoPath, ["rm", "--cached", "-f", "--", relPath]);
+    await runGitWrite(repoPath, ["--literal-pathspecs", "rm", "--cached", "-f", "--", relPath]);
     await removeWorktreePath(repoPath, relPath);
     return;
   }
 
-  await runGitWrite(repoPath, ["rm", "--cached", "-f", "--", relPath]);
+  await runGitWrite(repoPath, ["--literal-pathspecs", "rm", "--cached", "-f", "--", relPath]);
   await removeWorktreePath(repoPath, relPath);
 }
 

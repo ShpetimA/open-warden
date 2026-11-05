@@ -10,6 +10,10 @@ on:
         description: "Release version (for example 1.2.3 or v1.2.3)"
         required: true
         type: string
+      draft:
+        description: "Prepare a draft release for review before publishing"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -34,9 +38,11 @@ jobs:
       - name: Resolve release version
         id: release_meta
         shell: bash
+        env:
+          RELEASE_INPUT_VERSION: ${{ inputs.version }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            raw="${{ github.event.inputs.version }}"
+            raw="$RELEASE_INPUT_VERSION"
           else
             raw="${GITHUB_REF_NAME}"
           fi
@@ -133,6 +139,7 @@ jobs:
           OPEN_WARDEN_UPDATE_REPOSITORY: ${{ github.repository }}
         run: |
           pnpm --filter desktop run build
+          pnpm --filter desktop run stage:electron
 
           args=(
             --config electron-builder.config.mjs
@@ -143,6 +150,17 @@ jobs:
           )
 
           pnpm --filter desktop exec electron-builder "${args[@]}"
+
+      - name: Verify installed macOS app
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          app="release/mac/OpenWarden.app"
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            app="release/mac-arm64/OpenWarden.app"
+          fi
+
+          OPEN_WARDEN_PACKAGED_APP="$app" pnpm --filter desktop test:electron packaged-startup.spec.ts
 
       - name: Collect release assets
         shell: bash
@@ -210,6 +228,7 @@ jobs:
           target_commitish: ${{ needs.preflight.outputs.ref }}
           name: OpenWarden v${{ needs.preflight.outputs.version }}
           generate_release_notes: true
+          draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft }}
           prerelease: ${{ needs.preflight.outputs.is_prerelease == 'true' }}
           make_latest: ${{ needs.preflight.outputs.make_latest == 'true' }}
           files: |

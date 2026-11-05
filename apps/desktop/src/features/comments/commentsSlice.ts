@@ -34,12 +34,21 @@ const commentsSlice = createSlice({
       const idSet = new Set(action.payload);
       return state.filter((comment) => !idSet.has(comment.id));
     },
+    acknowledgePublishedComments(
+      state,
+      action: PayloadAction<ReadonlyArray<Pick<CommentItem, "id" | "text">>>,
+    ) {
+      const published = new Map(action.payload.map((comment) => [comment.id, comment.text]));
+
+      return state.filter((comment) => published.get(comment.id) !== comment.text);
+    },
   },
 });
 
 export const {
   restoreComments,
   addComment,
+  acknowledgePublishedComments,
   removeComment,
   removeCommentsByIds,
   removeCommentsForRepo,

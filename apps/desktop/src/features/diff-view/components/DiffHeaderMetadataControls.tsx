@@ -70,7 +70,8 @@ export function DiffHeaderMetadataControls({
           <TooltipTrigger asChild>
             <Button
               size="icon-xs"
-              variant={diffStyle === "split" ? "secondary" : "ghost"}
+              variant="toolbar"
+              aria-pressed={diffStyle === "split"}
               onClick={() => dispatch(setDiffStyleValue("split"))}
               aria-label="Split diff"
             >
@@ -84,7 +85,8 @@ export function DiffHeaderMetadataControls({
           <TooltipTrigger asChild>
             <Button
               size="icon-xs"
-              variant={diffStyle === "unified" ? "secondary" : "ghost"}
+              variant="toolbar"
+              aria-pressed={diffStyle === "unified"}
               onClick={() => dispatch(setDiffStyleValue("unified"))}
               aria-label="Unified diff"
             >
@@ -98,7 +100,8 @@ export function DiffHeaderMetadataControls({
           <TooltipTrigger asChild>
             <Button
               size="icon-xs"
-              variant={expandUnchanged ? "secondary" : "ghost"}
+              variant="toolbar"
+              aria-pressed={expandUnchanged}
               onClick={onToggleExpandUnchanged}
               aria-label={expandUnchangedLabel}
             >

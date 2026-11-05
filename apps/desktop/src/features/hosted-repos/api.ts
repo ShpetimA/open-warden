@@ -413,12 +413,9 @@ export const hostedReposApi = createApi({
         { type: "PullRequestActivity", id: `${repoPath}:${pullRequestNumber}` },
       ],
     }),
-    replyToPullRequestThread: builder.mutation<
-      PullRequestReviewThread,
-      ReplyToPullRequestThreadInput
-    >({
+    replyToPullRequestThread: builder.mutation<void, ReplyToPullRequestThreadInput>({
       async queryFn(input) {
-        return queryResult(await replyToPullRequestThread(input));
+        return queryResult(await replyToPullRequestThread(input), () => undefined);
       },
       invalidatesTags: (_result, _error, { repoPath, pullRequestNumber }) => [
         { type: "PullRequests", id: repoPath },

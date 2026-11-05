@@ -1,4 +1,5 @@
 import { reviewDraftsReducer } from "@/features/pull-requests/reviewDraftsSlice";
+import { pullRequestCommentDraftsReducer } from "@/features/pull-requests/pullRequestCommentDraftsSlice";
 import {
   type Action,
   type UnknownAction,
@@ -41,6 +42,7 @@ const combinedReducer = combineReducers({
   pullRequests: pullRequestsReducer,
   comments: commentsReducer,
   reviewDrafts: reviewDraftsReducer,
+  pullRequestCommentDrafts: pullRequestCommentDraftsReducer,
   commentsClipboard: commentsClipboardReducer,
   [gitApi.reducerPath]: gitApi.reducer,
   [hostedReposApi.reducerPath]: hostedReposApi.reducer,

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ActionError } from "@/components/ui/error-state";
 import { Kbd } from "@/components/ui/kbd";
 import { Textarea } from "@/components/ui/textarea";
-import { removeComment, removeCommentsByIds } from "@/features/comments/commentsSlice";
+import { acknowledgePublishedComments, removeComment } from "@/features/comments/commentsSlice";
 import {
   useGetPullRequestConversationQuery,
   usePreparePullRequestCompareRefsQuery,
@@ -311,7 +311,11 @@ export function PullRequestReviewPanel({
       return;
     }
 
-    dispatch(removeCommentsByIds(result.data.submittedDraftIds));
+    const submitted = new Set(result.data.submittedDraftIds);
+
+    dispatch(
+      acknowledgePublishedComments(pendingComments.filter((comment) => submitted.has(comment.id))),
+    );
 
     if (result.data.failedMessage) {
       if (result.data.messageSubmitted) save({ publishedMessage: message.trim() });

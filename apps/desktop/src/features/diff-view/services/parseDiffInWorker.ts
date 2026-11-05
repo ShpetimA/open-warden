@@ -233,7 +233,7 @@ export function parseDiffInWorker(
 
     signal?.addEventListener("abort", task.onSignalAbort, { once: true });
 
-    if (priority === "high" && activeParseTask) {
+    if (priority === "high" && activeParseTask?.task.priority === "low") {
       interruptActiveParseTask();
     }
 

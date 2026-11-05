@@ -14,11 +14,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./pullRequests", () => ({
   resolvePullRequestContext: mocks.resolvePullRequestContext,
   normalizePullRequestReviewComments: (comments: unknown[]) => comments,
-  toGitHubReviewCommentInput: (comment: { body: string; path: string; line: number }) => ({
-    body: comment.body,
-    path: comment.path,
-    line: comment.line,
-  }),
   submitPullRequestReviewComments: mocks.submitPullRequestReviewComments,
   addPullRequestComment: mocks.addPullRequestComment,
   submitPullRequestDecision: mocks.submitPullRequestDecision,
@@ -72,7 +67,7 @@ describe("unified pull request review", () => {
         body: {
           event: "APPROVE",
           body: "Looks good",
-          comments: [{ body: "Nit", path: "src/a.ts", line: 10 }],
+          comments: [{ body: "Nit", path: "src/a.ts", line: 10, side: "RIGHT" }],
         },
       },
     );

@@ -55,6 +55,7 @@ type Props = {
   canComment: boolean;
   lspDiagnostics?: LspDiagnostic[];
   fileViewerRevision?: string | null;
+  fileViewerReturnContext?: CommentContext;
   lspHoverDocument?: LspHoverDocument;
   lspJumpContextKind?: "changes" | "review" | "history" | "history-range" | "pull-request";
   focusedLineNumber?: number | null;
@@ -225,6 +226,7 @@ function TextDiffWorkspace({
   canComment,
   lspDiagnostics = EMPTY_LSP_DIAGNOSTICS,
   fileViewerRevision,
+  fileViewerReturnContext = commentContext,
   lspHoverDocument,
   lspJumpContextKind,
   focusedLineNumber = null,
@@ -265,13 +267,13 @@ function TextDiffWorkspace({
         source,
         activeRepo,
         activePath,
-        commentContext,
+        fileViewerReturnContext,
         activeBucket,
       ),
-    [activeBucket, activePath, activeRepo, commentContext, jumpContext],
+    [activeBucket, activePath, activeRepo, fileViewerReturnContext, jumpContext],
   );
 
-  const lspResetKey = `${oldFile?.name ?? ""}-${newFile?.name ?? ""}`;
+  const lspResetKey = JSON.stringify([oldFile?.name, newFile?.name, fileViewerRevision]);
   const {
     hoverState,
     onTokenClick: onHoverTokenClick,

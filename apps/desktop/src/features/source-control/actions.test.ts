@@ -8,6 +8,8 @@ import { pullRequestsReducer } from "@/features/pull-requests/pullRequestsSlice"
 import { settingsReducer } from "@/features/settings/settingsSlice";
 import { desktop } from "@/platform/desktop";
 import { gitApi } from "./api";
+import { fileEditorReducer } from "./fileEditorSlice";
+import { pullRequestCommentDraftsReducer } from "@/features/pull-requests/pullRequestCommentDraftsSlice";
 
 import {
   closeRepo,
@@ -76,6 +78,8 @@ function createTestStore() {
       sourceControl: sourceControlReducer,
       pullRequests: pullRequestsReducer,
       comments: commentsReducer,
+      fileEditor: fileEditorReducer,
+      pullRequestCommentDrafts: pullRequestCommentDraftsReducer,
     },
   });
 }

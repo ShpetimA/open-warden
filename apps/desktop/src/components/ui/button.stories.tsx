@@ -33,6 +33,14 @@ export const Variants: Story = {
           { label: "Outline", content: <Button variant="outline">Open repository</Button> },
           { label: "Ghost", content: <Button variant="ghost">Cancel</Button> },
           {
+            label: "Selected toolbar",
+            content: (
+              <Button variant="toolbar" aria-pressed={true}>
+                Split diff
+              </Button>
+            ),
+          },
+          {
             label: "Toolbar",
             content: (
               <Button variant="toolbar" aria-label="Add repository" size="icon-sm">

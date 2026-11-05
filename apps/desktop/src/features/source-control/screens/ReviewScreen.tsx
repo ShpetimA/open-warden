@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/button";
 import { BranchCombobox } from "../components/BranchCombobox";
 
 import { DiffWorkspace } from "@/features/diff-view/DiffWorkspace";
+import { LspStatusNotice } from "@/features/lsp/components/LspStatusNotice";
+import { useCurrentLspDocument } from "@/features/lsp/hooks/useCurrentLspDocument";
+import { useDiffDiagnostics } from "@/features/lsp/hooks/useDiffDiagnostics";
+import { BranchReviewCommentsToolbar } from "@/features/source-control/components/BranchReviewCommentsToolbar";
+import { GeneralFileViewer } from "@/features/source-control/components/GeneralFileViewer";
+import { getDiffTextFile } from "@/platform/desktop/fileContent";
 import {
   useGetCommitDetailsQuery,
   useGetBranchesQuery,
@@ -28,7 +34,7 @@ import {
   setReviewHeadRef,
 } from "@/features/source-control/sourceControlSlice";
 import { errorMessageFrom } from "@/features/source-control/shared-utils/errorMessage";
-import type { FileItem } from "@/features/source-control/types";
+import type { CommentContext, FileItem } from "@/features/source-control/types";
 
 function firstAvailableBranch(branches: string[]): string {
   return branches[0] ?? "";
@@ -58,7 +64,18 @@ type ReviewDiffPaneProps = {
   reviewHeadRef: string;
   readyForDiff: boolean;
   branchFiles: FileItem[];
+  returnContext: Extract<CommentContext, { kind: "review" }>;
 };
+
+function ReviewContentPane(props: ReviewDiffPaneProps) {
+  const showingFileViewer = useAppSelector((state) => {
+    const origin = state.sourceControl.fileViewerTarget?.returnToDiff;
+
+    return origin?.kind === "review" && origin.repoPath === props.activeRepo;
+  });
+
+  return showingFileViewer ? <GeneralFileViewer /> : <ReviewDiffPane {...props} />;
+}
 
 function ReviewDiffPane({
   activeRepo,
@@ -66,6 +83,7 @@ function ReviewDiffPane({
   reviewHeadRef,
   readyForDiff,
   branchFiles,
+  returnContext,
 }: ReviewDiffPaneProps) {
   const reviewActivePath = useAppSelector((state) => state.sourceControl.reviewActivePath);
   const diffFocusTarget = useAppSelector((state) => state.sourceControl.diffFocusTarget);
@@ -97,6 +115,15 @@ function ReviewDiffPane({
   const errorMessage = reviewVersions ? "" : errorMessageFrom(branchFileVersionsQuery.error, "");
   const context = { kind: "review" as const, baseRef: reviewBaseRef, headRef: reviewHeadRef };
   const previewPath = previewSelection?.path ?? "";
+  const lspText = getDiffTextFile(reviewVersions ?? null)?.contents ?? null;
+  const lspHoverDocument =
+    activeRepo && previewPath && lspText !== null
+      ? { repoPath: activeRepo, relPath: previewPath }
+      : undefined;
+
+  useCurrentLspDocument(activeRepo, previewPath, lspText);
+
+  const lspDiagnostics = useDiffDiagnostics(activeRepo, previewPath);
   const focusedLineNumber =
     diffFocusTarget?.kind === "review" && diffFocusTarget.path === previewPath
       ? diffFocusTarget.lineNumber
@@ -112,6 +139,7 @@ function ReviewDiffPane({
 
   return (
     <section className="flex h-full min-h-0 flex-col">
+      <BranchReviewCommentsToolbar repoPath={activeRepo} context={context} />
       <div className="min-h-0 flex-1">
         {errorMessage ? (
           <ErrorState
@@ -147,6 +175,11 @@ function ReviewDiffPane({
                 }}
               />
             ) : null}
+            <LspStatusNotice
+              repoPath={activeRepo}
+              relPath={previewPath}
+              active={lspText !== null}
+            />
             <DiffWorkspace
               modeChange={reviewVersions?.modeChange}
               oldFile={oldFile}
@@ -154,7 +187,10 @@ function ReviewDiffPane({
               activePath={previewPath}
               commentContext={context}
               canComment
+              lspDiagnostics={lspDiagnostics}
+              lspHoverDocument={lspHoverDocument}
               fileViewerRevision={reviewHeadRef}
+              fileViewerReturnContext={returnContext}
               lspJumpContextKind="review"
               focusedLineNumber={focusedLineNumber}
               focusedLineIndex={focusedLineIndex}
@@ -377,12 +413,13 @@ export function ReviewScreen() {
         </aside>
       }
       content={
-        <ReviewDiffPane
+        <ReviewContentPane
           activeRepo={activeRepo}
           reviewBaseRef={baseRevision.id}
           reviewHeadRef={headRevision.id}
           readyForDiff={readyForDiff}
           branchFiles={branchFiles}
+          returnContext={{ kind: "review", baseRef: reviewBaseRef, headRef: reviewHeadRef }}
         />
       }
     />

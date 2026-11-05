@@ -53,6 +53,7 @@ import {
 import { getProviderConnection } from "../providerConnections";
 import { resolveHostedRepo } from "./repository";
 import { missingConnectionMessage, providerDisplayName } from "./providers";
+import { GitHubReviewPublisher } from "./githubReviews";
 
 export async function resolvePullRequestContext(input: { repoPath: string }) {
   const hostedRepo = await resolveHostedRepo(input.repoPath);
@@ -93,10 +94,6 @@ async function readPullRequestReviewThread(input: PullRequestLocatorInput, threa
 
   return { thread, hostedRepo, connection };
 }
-
-type GitHubPullRequestReviewResponse = {
-  id?: number;
-};
 
 function errorMessageFromUnknown(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -152,21 +149,6 @@ export function normalizePullRequestReviewComments(
       body,
     } satisfies PullRequestReviewDraftCommentInput;
   });
-}
-
-export function toGitHubReviewCommentInput(comment: PullRequestReviewDraftCommentInput) {
-  return {
-    body: comment.body,
-    path: comment.path,
-    line: comment.line,
-    side: comment.side,
-    ...(comment.startLine == null
-      ? {}
-      : {
-          start_line: comment.startLine,
-          start_side: comment.startSide ?? comment.side,
-        }),
-  };
 }
 
 export function toBitbucketInline(comment: PullRequestReviewDraftCommentInput) {
@@ -574,7 +556,7 @@ export async function mergePullRequest(input: MergePullRequestInput): Promise<"m
 
 export async function replyToPullRequestThread(
   input: ReplyToPullRequestThreadInput,
-): Promise<PullRequestReviewThread> {
+): Promise<void> {
   const trimmedBody = input.body.trim();
   if (!trimmedBody) {
     throw new Error("Reply body cannot be empty.");
@@ -597,17 +579,7 @@ export async function replyToPullRequestThread(
       },
     );
 
-    const threads = await fetchGitHubReviewThreads(
-      hostedRepo,
-      connection.token,
-      input.pullRequestNumber,
-    );
-    const refreshedThread = threads.find((value) => value.id === input.threadId);
-    if (!refreshedThread) {
-      throw new Error("The updated review thread could not be loaded.");
-    }
-
-    return refreshedThread;
+    return;
   }
 
   if (hostedRepo.providerId === "bitbucket") {
@@ -642,19 +614,7 @@ export async function replyToPullRequestThread(
       },
     );
 
-    const refreshedConversation = await fetchBitbucketConversation(
-      hostedRepo,
-      connection,
-      input.pullRequestNumber,
-    );
-    const refreshedThread = refreshedConversation.reviewThreads.find(
-      (thread) => thread.id === input.threadId,
-    );
-    if (!refreshedThread) {
-      throw new Error("The updated review thread could not be loaded.");
-    }
-
-    return refreshedThread;
+    return;
   }
 
   throw new Error(
@@ -676,37 +636,16 @@ export async function submitPullRequestReviewComments(
 
   const { hostedRepo, connection } = await resolvePullRequestContext(input);
   if (hostedRepo.providerId === "github") {
-    const review = await githubJsonRequest<GitHubPullRequestReviewResponse>(
-      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/reviews`,
-      connection.token,
-      {
-        method: "POST",
-        body: {
-          comments: comments.map(toGitHubReviewCommentInput),
-        },
-      },
+    const publisher = new GitHubReviewPublisher((pathname, body) =>
+      githubJsonRequest(pathname, connection.token, { method: "POST", body }),
     );
 
-    if (!review.id) {
-      throw new Error("GitHub did not return a review ID for the submitted comments.");
-    }
-
-    await githubJsonRequest(
-      `/repos/${encodeURIComponent(hostedRepo.owner)}/${encodeURIComponent(hostedRepo.repo)}/pulls/${String(input.pullRequestNumber)}/reviews/${String(review.id)}/events`,
-      connection.token,
-      {
-        method: "POST",
-        body: {
-          event: "COMMENT",
-        },
-      },
-    );
-
-    return {
-      submittedDraftIds: comments.map((comment) => comment.draftId),
-      failedDraftId: null,
-      failedMessage: null,
-    };
+    return publisher.publish({
+      owner: hostedRepo.owner,
+      repo: hostedRepo.repo,
+      pullRequestNumber: input.pullRequestNumber,
+      comments,
+    });
   }
 
   if (hostedRepo.providerId === "bitbucket") {

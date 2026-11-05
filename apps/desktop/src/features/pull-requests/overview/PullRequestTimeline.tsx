@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
+import { useStore } from "react-redux";
 
 import { MarkdownEditor, type MentionConfig } from "@/components/markdown/MarkdownEditor";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,15 @@ import {
   copyToClipboard,
 } from "@/features/pull-requests/components/pullRequestCommentParts";
 import { cn } from "@/lib/utils";
+import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import type { RootState } from "@/app/store";
+import type { PullRequestLocatorInput } from "@/platform/desktop";
+import {
+  postPullRequestCommentDraft,
+  pullRequestCommentDraftChanged,
+  selectPullRequestCommentDraft,
+  selectPullRequestCommentPosting,
+} from "../pullRequestCommentDraftsSlice";
 
 import { buildTimeline } from "./timeline";
 import { useTimelineScrollAnchor } from "./useTimelineScrollAnchor";
@@ -335,34 +345,39 @@ function TimelineRow({
 }
 
 export function PullRequestCommentComposer({
+  locator,
   viewer,
   mentions,
   onSubmit,
   ref,
 }: {
+  locator: PullRequestLocatorInput;
   viewer: PersonView | null;
   mentions?: MentionConfig;
   onSubmit: (body: string) => Promise<boolean>;
   ref?: Ref<ComposerHandle>;
 }) {
-  const [value, setValue] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const dispatch = useAppDispatch();
+  const store = useStore<RootState>();
+  const value = useAppSelector((state) => selectPullRequestCommentDraft(state, locator));
+  const submitting = useAppSelector((state) => selectPullRequestCommentPosting(state, locator));
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function setValue(body: string) {
+    dispatch(pullRequestCommentDraftChanged({ ...locator, body }));
+  }
 
   useImperativeHandle(ref, () => ({
     quote(body) {
-      setValue((current) => appendQuotedBody(current, body));
+      const current = selectPullRequestCommentDraft(store.getState(), locator);
+      setValue(appendQuotedBody(current, body));
       textareaRef.current?.focus();
       textareaRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
     },
   }));
 
-  async function submit() {
-    if (!value.trim() || submitting) return;
-    setSubmitting(true);
-    const posted = await onSubmit(value);
-    setSubmitting(false);
-    if (posted) setValue("");
+  function submit() {
+    return dispatch(postPullRequestCommentDraft(locator, onSubmit));
   }
 
   useHotkey(
@@ -407,6 +422,7 @@ export function PullRequestCommentComposer({
 
 /** The whole conversation on one rail: description, comments, reviews, threads, pushes, events. */
 export function PullRequestTimeline({
+  locator,
   description,
   entries,
   viewer,
@@ -416,6 +432,7 @@ export function PullRequestTimeline({
   onEditDescription,
   composerReady = true,
 }: {
+  locator: PullRequestLocatorInput;
   description: { author: PersonView; createdAt: string; body: string };
   entries: TimelineEntry[];
   viewer: PersonView | null;
@@ -457,6 +474,7 @@ export function PullRequestTimeline({
       {composerReady ? (
         <div data-timeline-anchor="composer">
           <PullRequestCommentComposer
+            locator={locator}
             ref={composerRef}
             viewer={viewer}
             mentions={mentions}

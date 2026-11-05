@@ -5,7 +5,8 @@ import { captureDesktopOperation } from "../src/platform/desktop/failure";
 import { classifyDesktopFailure } from "./desktop-failure";
 import path from "node:path";
 
-import { app, BrowserWindow, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
+import { RendererRecovery } from "./rendererRecovery";
 
 import { watchAppSettings } from "./appSettings";
 import {
@@ -39,6 +40,7 @@ let quitCleanupStarted = false;
 let quitCleanupFinished = false;
 let closeApproved = false;
 let closePending: Promise<boolean> | null = null;
+const rendererRecovery = new WeakMap<BrowserWindow, RendererRecovery>();
 const updateManager = createUpdateManager({
   getWindow: () => mainWindow,
 });
@@ -80,19 +82,32 @@ function resolveRendererHtmlPath() {
 }
 
 function flushWorkspaceBeforeClose(window: BrowserWindow): Promise<boolean> {
-  if (window.isDestroyed() || window.webContents.isLoadingMainFrame()) return Promise.resolve(true);
+  if (
+    window.isDestroyed() ||
+    rendererRecovery.get(window)?.isUnavailable() ||
+    window.webContents.isCrashed() ||
+    window.webContents.isLoadingMainFrame()
+  ) {
+    return Promise.resolve(true);
+  }
   if (closePending) return closePending;
   closePending = new Promise<boolean>((resolve) => {
     const requestId = randomUUID();
+    let settled = false;
     const finish = (saved: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.webContents.removeListener("render-process-gone", rendererGone);
       clearTimeout(timer);
       ipcMain.removeListener(WORKSPACE_FLUSH_REPLY_CHANNEL, receive);
       resolve(saved);
     };
+    const rendererGone = () => finish(true);
     const receive = (event: Electron.IpcMainEvent, id: unknown, saved: unknown) => {
       if (event.sender === window.webContents && id === requestId) finish(saved === true);
     };
     const timer = setTimeout(() => finish(false), 10_000);
+    window.webContents.once("render-process-gone", rendererGone);
     ipcMain.on(WORKSPACE_FLUSH_REPLY_CHANNEL, receive);
     window.webContents.send(WORKSPACE_FLUSH_REQUEST_CHANNEL, requestId);
   }).finally(() => {
@@ -119,6 +134,29 @@ function createMainWindow() {
     },
   });
 
+  const recovery = new RendererRecovery({
+    async prompt() {
+      const result = await dialog.showMessageBox(window, {
+        type: "error",
+        title: "OpenWarden",
+        message: "The app window stopped unexpectedly.",
+        detail:
+          "Saved work has been kept. Reload the window to continue. Changes made since the last save may need to be entered again.",
+        buttons: ["Reload window", "Close window"],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      });
+
+      return result.response === 0 ? "reload" : "close";
+    },
+    reload: () => window.webContents.reload(),
+    close: () => window.close(),
+    isClosed: () => window.isDestroyed(),
+  });
+
+  rendererRecovery.set(window, recovery);
+  window.webContents.on("did-finish-load", () => recovery.loaded());
   mainWindow = window;
   closeApproved = false;
   window.on("close", (event) => {
@@ -153,6 +191,7 @@ function createMainWindow() {
 
   window.webContents.on("render-process-gone", () => {
     void repositoryEvents.setSubscriptions([]);
+    void recovery.exited(!closeApproved && !quitCleanupStarted);
   });
   window.on("closed", () => {
     void repositoryEvents.setSubscriptions([]);
